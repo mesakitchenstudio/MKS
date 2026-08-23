@@ -8,7 +8,7 @@ export const site = {
     "Studio-tested recipes for gathering around the table — cakes, weeknight dinners, breads, and the little sauces that make a meal feel finished.",
   email: "hello@mesakitchenstudio.com",
   social: {
-    instagram: "https://instagram.com/mesakitchenstudio",
+    instagram: "https://instagram.com/mesa_kitchen_studio",
     pinterest: "https://pinterest.com/mesakitchenstudio",
     youtube: "https://youtube.com/@mesakitchenstudio",
     facebook: "https://facebook.com/mesakitchenstudio",
