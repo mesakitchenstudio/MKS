@@ -46,7 +46,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col bg-cream font-sans text-ink">
         {privateMode ? null : <JsonLd data={organizationJsonLd()} />}
         {privateMode ? null : <SiteHeader />}
-        <main className="flex-1">{children}</main>
+        <main className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}>
+          {children}
+        </main>
         {privateMode ? null : <SiteFooter />}
       </body>
     </html>
