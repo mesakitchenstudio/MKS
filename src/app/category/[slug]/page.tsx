@@ -1,30 +1,32 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RecipeGridCard } from "@/components/RecipeGridCard";
-import { categories } from "@/data/categories";
-import { getCategoryBySlug, getRecipesByCategory } from "@/lib/recipes";
+import { getAllCategories, getCategoryBySlug, getRecipesByCategory } from "@/lib/recipes";
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
 
-export function generateStaticParams() {
+export const dynamic = "force-dynamic";
+
+export async function generateStaticParams() {
+  const categories = await getAllCategories();
   return categories.map((category) => ({ slug: category.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await getCategoryBySlug(slug);
   if (!category) return { title: "Category" };
   return { title: category.name, description: category.description };
 }
 
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await getCategoryBySlug(slug);
   if (!category) notFound();
 
-  const recipes = getRecipesByCategory(slug);
+  const recipes = await getRecipesByCategory(slug);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">

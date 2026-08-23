@@ -1,14 +1,15 @@
 import type { MetadataRoute } from "next";
-import { categories } from "@/data/categories";
 import { lessons } from "@/data/lessons";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
-import { getAllRecipes } from "@/lib/recipes";
+import { getAllCategories, getAllRecipes } from "@/lib/recipes";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (isSitePrivate()) {
     return [{ url: site.url, lastModified: new Date() }];
   }
+
+  const [recipes, categories] = await Promise.all([getAllRecipes(), getAllCategories()]);
 
   const staticRoutes = ["", "/recipes", "/studio", "/about", "/search", "/contact", "/privacy", "/disclosures"].map(
     (path) => ({
@@ -17,7 +18,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     }),
   );
 
-  const recipeRoutes = getAllRecipes().map((recipe) => ({
+  const recipeRoutes = recipes.map((recipe) => ({
     url: `${site.url}/recipes/${recipe.slug}`,
     lastModified: new Date(recipe.updatedAt),
   }));

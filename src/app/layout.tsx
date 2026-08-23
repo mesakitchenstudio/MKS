@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Fraunces, Source_Sans_3 } from "next/font/google";
+import { JsonLd } from "@/components/JsonLd";
+import { PublicChrome } from "@/components/PublicChrome";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
-import { JsonLd } from "@/components/JsonLd";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
 import { organizationJsonLd } from "@/lib/schema";
@@ -25,6 +26,10 @@ export const metadata: Metadata = {
     template: `%s | ${site.name}`,
   },
   description: site.description,
+  icons: {
+    icon: [{ url: "/icon.png", type: "image/png" }],
+    apple: [{ url: "/apple-icon.png" }],
+  },
   openGraph: {
     title: site.name,
     description: site.description,
@@ -32,6 +37,7 @@ export const metadata: Metadata = {
     siteName: site.name,
     locale: "en_US",
     type: "website",
+    images: [{ url: "/icon.png" }],
   },
 };
 
@@ -45,11 +51,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col bg-cream font-sans text-ink">
         {privateMode ? null : <JsonLd data={organizationJsonLd()} />}
-        {privateMode ? null : <SiteHeader />}
-        <main className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}>
-          {children}
-        </main>
-        {privateMode ? null : <SiteFooter />}
+        <PublicChrome
+          header={privateMode ? null : <SiteHeader />}
+          footer={privateMode ? null : <SiteFooter />}
+        >
+          <main className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}>
+            {children}
+          </main>
+        </PublicChrome>
       </body>
     </html>
   );

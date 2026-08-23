@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Recipe } from "@/data/types";
-import { formatTime } from "@/lib/recipes";
+import { formatTime } from "@/lib/recipe-utils";
 
 export function RecipeGridCard({
   recipe,

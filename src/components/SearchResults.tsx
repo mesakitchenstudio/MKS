@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
-import { searchRecipes } from "@/lib/recipes";
+import { filterRecipes } from "@/lib/recipe-utils";
 import { RecipeGridCard } from "./RecipeGridCard";
 
 export function SearchResults({
@@ -14,7 +14,7 @@ export function SearchResults({
 }) {
   const [query, setQuery] = useState(initialQuery);
   const results = useMemo(
-    () => (query.trim() ? searchRecipes(query) : recipes),
+    () => filterRecipes(recipes, query),
     [query, recipes],
   );
 

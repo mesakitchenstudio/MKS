@@ -11,13 +11,18 @@ import {
   getSeasonalRecipes,
 } from "@/lib/recipes";
 
-export default function Home() {
-  const latest = getFeaturedRecipes(4);
-  const seasonal = getSeasonalRecipes(4);
-  const cookies = getRecipesByCategory("desserts").slice(0, 4);
-  const breakfast = getRecipesByCategory("breakfast").slice(0, 4);
-  const dinners = getRecipesByCategory("main-dishes").slice(0, 4);
-  const hero = getAllRecipes()[0];
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const [latest, seasonal, cookies, breakfast, dinners, all] = await Promise.all([
+    getFeaturedRecipes(4),
+    getSeasonalRecipes(4),
+    getRecipesByCategory("desserts"),
+    getRecipesByCategory("breakfast"),
+    getRecipesByCategory("main-dishes"),
+    getAllRecipes(),
+  ]);
+  const hero = all[0];
 
   return (
     <>
@@ -49,24 +54,26 @@ export default function Home() {
               </Link>
             </div>
           </div>
-          <Link href={`/recipes/${hero.slug}`} className="group relative block">
-            <div className="relative aspect-[4/5] overflow-hidden md:aspect-[5/6]">
-              <Image
-                src={hero.image}
-                alt={hero.imageAlt}
-                fill
-                priority
-                sizes="(min-width: 768px) 40vw, 100vw"
-                className="object-cover transition duration-700 group-hover:scale-[1.03]"
-              />
-            </div>
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent p-5">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-sand">
-                Latest from the studio
-              </p>
-              <p className="mt-1 font-serif text-2xl">{hero.title}</p>
-            </div>
-          </Link>
+          {hero ? (
+            <Link href={`/recipes/${hero.slug}`} className="group relative block">
+              <div className="relative aspect-[4/5] overflow-hidden md:aspect-[5/6]">
+                <Image
+                  src={hero.image}
+                  alt={hero.imageAlt}
+                  fill
+                  priority
+                  sizes="(min-width: 768px) 40vw, 100vw"
+                  className="object-cover transition duration-700 group-hover:scale-[1.03]"
+                />
+              </div>
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent p-5">
+                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-sand">
+                  Latest from the studio
+                </p>
+                <p className="mt-1 font-serif text-2xl">{hero.title}</p>
+              </div>
+            </Link>
+          ) : null}
         </div>
       </section>
 
@@ -90,12 +97,12 @@ export default function Home() {
       </section>
 
       <section className="bg-sand/40">
-        <CollectionRow title="Summer at the table" href="/category/summer" recipes={seasonal} />
+        <CollectionRow title="Summer at the table" href="/category/summer" recipes={seasonal.slice(0, 4)} />
       </section>
 
-      <CollectionRow title="Cookies and sweets" href="/category/desserts" recipes={cookies} />
-      <CollectionRow title="Best breakfast recipes" href="/category/breakfast" recipes={breakfast} />
-      <CollectionRow title="Easy dinner recipes" href="/category/main-dishes" recipes={dinners} />
+      <CollectionRow title="Cookies and sweets" href="/category/desserts" recipes={cookies.slice(0, 4)} />
+      <CollectionRow title="Best breakfast recipes" href="/category/breakfast" recipes={breakfast.slice(0, 4)} />
+      <CollectionRow title="Easy dinner recipes" href="/category/main-dishes" recipes={dinners.slice(0, 4)} />
 
       <section className="border-y border-line bg-paper">
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:px-6">

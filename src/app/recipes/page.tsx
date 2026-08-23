@@ -7,8 +7,10 @@ export const metadata: Metadata = {
   description: "Browse every Mesa Kitchen Studio recipe — cakes, dinners, breads, and more.",
 };
 
-export default function RecipesPage() {
-  const recipes = getAllRecipes();
+export const dynamic = "force-dynamic";
+
+export default async function RecipesPage() {
+  const recipes = await getAllRecipes();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">

@@ -1,45 +1,72 @@
-import { categories } from "@/data/categories";
-import { recipes } from "@/data/recipes";
+import { categories as staticCategories } from "@/data/categories";
+import { recipes as staticRecipes } from "@/data/recipes";
 import type { Category, Recipe } from "@/data/types";
+import { dbAvailable, getDb } from "@/lib/db";
+import { toPublicCategory, toPublicRecipe } from "@/lib/recipe-map";
 
-export function getAllRecipes(): Recipe[] {
-  return [...recipes].sort(
+export type PublicRecipe = Recipe & { extras?: { key: string; label: string; kind: string; value: unknown }[] };
+
+function sortRecipes(list: PublicRecipe[]) {
+  return [...list].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   );
 }
 
-export function getRecipeBySlug(slug: string): Recipe | undefined {
+async function loadFromDb(): Promise<PublicRecipe[] | null> {
+  if (!(await dbAvailable())) return null;
+  const db = getDb();
+  const count = await db.recipe.count({ where: { status: "published" } });
+  if (count === 0) return null;
+
+  const rows = await db.recipe.findMany({
+    where: { status: "published" },
+    include: {
+      categories: { include: { category: true } },
+      type: { include: { fields: true } },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  return rows.map((row) => toPublicRecipe(row));
+}
+
+export async function getAllRecipes(): Promise<PublicRecipe[]> {
+  return (await loadFromDb()) ?? sortRecipes(staticRecipes);
+}
+
+export async function getRecipeBySlug(slug: string): Promise<PublicRecipe | undefined> {
+  const recipes = await getAllRecipes();
   return recipes.find((recipe) => recipe.slug === slug);
 }
 
-export function getCategoryBySlug(slug: string): Category | undefined {
-  return categories.find((category) => category.slug === slug);
+export async function getAllCategories(): Promise<Category[]> {
+  if (await dbAvailable()) {
+    const rows = await getDb().category.findMany({ orderBy: { name: "asc" } });
+    if (rows.length) return rows.map(toPublicCategory);
+  }
+  return staticCategories;
 }
 
-export function getRecipesByCategory(slug: string): Recipe[] {
-  return getAllRecipes().filter((recipe) => recipe.categories.includes(slug));
+export async function getCategoryBySlug(slug: string): Promise<Category | undefined> {
+  const list = await getAllCategories();
+  return list.find((category) => category.slug === slug);
 }
 
-export function getFeaturedRecipes(limit = 4): Recipe[] {
-  return getAllRecipes()
-    .filter((recipe) => recipe.featured)
-    .slice(0, limit);
+export async function getRecipesByCategory(slug: string): Promise<PublicRecipe[]> {
+  const recipes = await getAllRecipes();
+  return recipes.filter((recipe) => recipe.categories.includes(slug));
 }
 
-export function getSeasonalRecipes(limit = 4): Recipe[] {
-  return getAllRecipes()
-    .filter((recipe) => recipe.seasonal)
-    .slice(0, limit);
+export async function getFeaturedRecipes(limit = 4): Promise<PublicRecipe[]> {
+  return (await getAllRecipes()).filter((recipe) => recipe.featured).slice(0, limit);
 }
 
-export function getRecipesByTag(tag: string, limit = 6, excludeSlug?: string): Recipe[] {
-  return getAllRecipes()
-    .filter((recipe) => recipe.tags.includes(tag) && recipe.slug !== excludeSlug)
-    .slice(0, limit);
+export async function getSeasonalRecipes(limit = 4): Promise<PublicRecipe[]> {
+  return (await getAllRecipes()).filter((recipe) => recipe.seasonal).slice(0, limit);
 }
 
-export function getRelatedRecipes(recipe: Recipe, limit = 3): Recipe[] {
-  const scored = getAllRecipes()
+export async function getRelatedRecipes(recipe: Recipe, limit = 3): Promise<PublicRecipe[]> {
+  const scored = (await getAllRecipes())
     .filter((item) => item.slug !== recipe.slug)
     .map((item) => {
       const sharedCategories = item.categories.filter((category) =>
@@ -53,38 +80,4 @@ export function getRelatedRecipes(recipe: Recipe, limit = 3): Recipe[] {
   return scored.slice(0, limit).map((entry) => entry.item);
 }
 
-export function searchRecipes(query: string): Recipe[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return getAllRecipes();
-
-  return getAllRecipes().filter((recipe) => {
-    const haystack = [
-      recipe.title,
-      recipe.excerpt,
-      recipe.course,
-      recipe.cuisine,
-      ...recipe.tags,
-      ...recipe.categories,
-      ...recipe.ingredients.flatMap((group) => group.items.map((item) => item.item)),
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    return haystack.includes(needle);
-  });
-}
-
-export function formatTime(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
-}
-
-export function isoDuration(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (hours && rest) return `PT${hours}H${rest}M`;
-  if (hours) return `PT${hours}H`;
-  return `PT${rest}M`;
-}
+export { filterRecipes, formatTime, isoDuration } from "@/lib/recipe-utils";

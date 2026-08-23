@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
-import { formatTime } from "@/lib/recipes";
+import { formatTime } from "@/lib/recipe-utils";
 
 function scaleAmount(amount: string, factor: number): string {
   if (factor === 1) return amount;

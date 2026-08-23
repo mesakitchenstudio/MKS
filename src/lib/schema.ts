@@ -1,6 +1,6 @@
 import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
-import { isoDuration } from "@/lib/recipes";
+import { isoDuration } from "@/lib/recipe-utils";
 
 export function organizationJsonLd() {
   return {

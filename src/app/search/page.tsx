@@ -13,7 +13,7 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q = "" } = await searchParams;
-  const recipes = getAllRecipes();
+  const recipes = await getAllRecipes();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">

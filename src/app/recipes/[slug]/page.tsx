@@ -13,13 +13,16 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-export function generateStaticParams() {
-  return getAllRecipes().map((recipe) => ({ slug: recipe.slug }));
+export const dynamic = "force-dynamic";
+
+export async function generateStaticParams() {
+  const recipes = await getAllRecipes();
+  return recipes.map((recipe) => ({ slug: recipe.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const recipe = getRecipeBySlug(slug);
+  const recipe = await getRecipeBySlug(slug);
   if (!recipe) return { title: "Recipe" };
 
   return {
@@ -36,10 +39,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function RecipePage({ params }: Props) {
   const { slug } = await params;
-  const recipe = getRecipeBySlug(slug);
+  const recipe = await getRecipeBySlug(slug);
   if (!recipe) notFound();
 
-  const related = getRelatedRecipes(recipe);
+  const related = await getRelatedRecipes(recipe);
   const updated = new Date(recipe.updatedAt).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -128,6 +131,20 @@ export default async function RecipePage({ params }: Props) {
           </div>
         </section>
 
+        {recipe.extras?.length ? (
+          <section className="mt-12">
+            <h2 className="font-serif text-3xl">More from this recipe</h2>
+            <div className="mt-5 space-y-6">
+              {recipe.extras.map((field) => (
+                <div key={field.key}>
+                  <h3 className="font-semibold">{field.label}</h3>
+                  <ExtraValue kind={field.kind} value={field.value} />
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <p className="mt-10 text-sm text-muted">
           Filed under{" "}
           {recipe.categories.map((category, index) => (
@@ -145,4 +162,26 @@ export default async function RecipePage({ params }: Props) {
       <CollectionRow title="More from the studio" recipes={related} />
     </article>
   );
+}
+
+function ExtraValue({ kind, value }: { kind: string; value: unknown }) {
+  if (value == null || value === "") return null;
+  if (kind === "boolean") return <p className="mt-1 text-muted">{value ? "Yes" : "No"}</p>;
+  if (kind === "image" && typeof value === "string") {
+    return (
+      <div className="relative mt-3 h-48 w-full overflow-hidden bg-sand">
+        <Image src={value} alt="" fill className="object-cover" sizes="40vw" />
+      </div>
+    );
+  }
+  if ((kind === "gallery" || kind === "list" || kind === "tags") && Array.isArray(value)) {
+    return (
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+        {value.map((item) => (
+          <li key={String(item)}>{String(item)}</li>
+        ))}
+      </ul>
+    );
+  }
+  return <p className="mt-1 leading-7 text-muted">{String(value)}</p>;
 }

@@ -10,7 +10,10 @@ export function proxy(request: NextRequest) {
   if (
     pathname === "/coming-soon" ||
     pathname === "/robots.txt" ||
-    pathname === "/sitemap.xml"
+    pathname === "/sitemap.xml" ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api/admin") ||
+    pathname.startsWith("/uploads")
   ) {
     return NextResponse.next();
   }

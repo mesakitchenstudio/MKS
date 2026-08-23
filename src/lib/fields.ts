@@ -1,0 +1,112 @@
+export const FIELD_KINDS = [
+  { id: "text", label: "Short text" },
+  { id: "textarea", label: "Long text" },
+  { id: "number", label: "Number" },
+  { id: "minutes", label: "Minutes" },
+  { id: "boolean", label: "Yes / no" },
+  { id: "select", label: "Select" },
+  { id: "image", label: "Image" },
+  { id: "gallery", label: "Image gallery" },
+  { id: "ingredients", label: "Ingredients" },
+  { id: "instructions", label: "Instructions" },
+  { id: "list", label: "List" },
+  { id: "namedNotes", label: "Named notes / FAQs" },
+  { id: "nutrition", label: "Nutrition" },
+  { id: "tags", label: "Tags" },
+] as const;
+
+export type FieldKind = (typeof FIELD_KINDS)[number]["id"];
+
+export type FieldDefinition = {
+  key: string;
+  label: string;
+  helpText?: string;
+  kind: FieldKind | string;
+  required?: boolean;
+  options?: string[];
+  sortOrder?: number;
+};
+
+export const CORE_VALUE_KEYS = [
+  "image",
+  "imageAlt",
+  "intro",
+  "whyItWorks",
+  "keyIngredients",
+  "tips",
+  "faqs",
+  "prepMinutes",
+  "cookMinutes",
+  "servings",
+  "servingsUnit",
+  "course",
+  "method",
+  "holiday",
+  "cuisine",
+  "tags",
+  "ingredients",
+  "instructions",
+  "notes",
+  "nutrition",
+] as const;
+
+export function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function keyFromLabel(label: string) {
+  const key = slugify(label).replace(/-/g, "");
+  return key || "field";
+}
+
+export function emptyValue(kind: string) {
+  switch (kind) {
+    case "number":
+    case "minutes":
+      return 0;
+    case "boolean":
+      return false;
+    case "gallery":
+    case "list":
+    case "tags":
+      return [];
+    case "ingredients":
+      return [{ name: "", items: [{ item: "", amount: "", notes: "" }] }];
+    case "instructions":
+      return [{ name: "", steps: [""] }];
+    case "namedNotes":
+      return [{ name: "", note: "" }];
+    case "nutrition":
+      return { calories: 0, carbs: 0, protein: 0, fat: 0 };
+    default:
+      return "";
+  }
+}
+
+export const CORE_FIELDS: FieldDefinition[] = [
+  { key: "image", label: "Hero image", kind: "image", required: true },
+  { key: "imageAlt", label: "Image description", kind: "text", required: true },
+  { key: "intro", label: "Introduction", kind: "textarea", required: true },
+  { key: "whyItWorks", label: "Why this works", kind: "textarea" },
+  { key: "keyIngredients", label: "Key ingredients", kind: "namedNotes" },
+  { key: "tips", label: "Studio tips", kind: "list" },
+  { key: "faqs", label: "Frequently asked", kind: "namedNotes" },
+  { key: "prepMinutes", label: "Prep minutes", kind: "minutes", required: true },
+  { key: "cookMinutes", label: "Cook minutes", kind: "minutes" },
+  { key: "servings", label: "Servings", kind: "number", required: true },
+  { key: "servingsUnit", label: "Servings unit", kind: "text" },
+  { key: "course", label: "Course", kind: "text" },
+  { key: "method", label: "Method", kind: "text" },
+  { key: "holiday", label: "Season / holiday", kind: "text" },
+  { key: "cuisine", label: "Cuisine", kind: "text" },
+  { key: "tags", label: "Tags", kind: "tags" },
+  { key: "ingredients", label: "Ingredients", kind: "ingredients", required: true },
+  { key: "instructions", label: "Instructions", kind: "instructions", required: true },
+  { key: "notes", label: "Notes", kind: "list" },
+  { key: "nutrition", label: "Nutrition", kind: "nutrition" },
+];

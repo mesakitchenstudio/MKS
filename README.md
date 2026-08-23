@@ -8,25 +8,28 @@ Requires Node.js 20+. This machine can use the portable install at `%LOCALAPPDAT
 
 ```bash
 npm install
+npm run db:setup
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). Admin: [http://localhost:3000/admin](http://localhost:3000/admin) with password `mesa-admin` (from `.env`).
 
-## Add a recipe
+## Add recipes (admin)
 
-1. Open `src/data/recipes.ts`.
-2. Copy an existing recipe object and change the `slug`, copy, times, and ingredients.
-3. Put the slug in the right `categories` so it appears on homepage collections and `/category/[slug]`.
+Do not edit `src/data/recipes.ts` for new dishes. Use `/admin`:
+
+1. **Types** — create Cake, Drink, etc. and add or reorder fields
+2. **Categories** — Cakes, Desserts, Drinks, and any new collection
+3. **Recipes** — pick a type, fill the generated form, upload photos, publish
+
+A new field on a type appears on the next recipe form with no code change.
+
+Local images are saved to `public/uploads`. On Vercel, set `BLOB_READ_WRITE_TOKEN` so photos go to Vercel Blob.
 
 ## Coming soon (hide the public site)
 
-Set `SITE_PRIVATE=true` in Vercel → Project → Settings → Environment Variables. Apply it to **Production** only so preview URLs still show the full site.
+Set `SITE_PRIVATE=true` in Vercel → Production only. `/admin` stays available so you can keep adding recipes.
 
-Local `npm run dev` stays open unless you create `.env.local` with `SITE_PRIVATE=true`.
+## Production database
 
-To launch later, set `SITE_PRIVATE=false` (or delete the variable) and redeploy.
-
-## Deploy
-
-The app is ready for Vercel. After deploy, attach `mesakitchenstudio.com` and update DNS at your registrar.
+Local development uses SQLite (`DATABASE_URL=file:./prisma/dev.db`). For Vercel, add a Postgres database (Neon or Vercel Postgres), set `DATABASE_URL`, change `provider` in `prisma/schema.prisma` to `postgresql`, then run `npx prisma db push && npx prisma db seed`. Also set `ADMIN_PASSWORD` and `ADMIN_SECRET`.
