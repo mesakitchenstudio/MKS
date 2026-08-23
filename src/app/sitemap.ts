@@ -2,9 +2,14 @@ import type { MetadataRoute } from "next";
 import { categories } from "@/data/categories";
 import { lessons } from "@/data/lessons";
 import { site } from "@/data/site";
+import { isSitePrivate } from "@/lib/flags";
 import { getAllRecipes } from "@/lib/recipes";
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  if (isSitePrivate()) {
+    return [{ url: site.url, lastModified: new Date() }];
+  }
+
   const staticRoutes = ["", "/recipes", "/studio", "/about", "/search", "/contact", "/privacy", "/disclosures"].map(
     (path) => ({
       url: `${site.url}${path}`,

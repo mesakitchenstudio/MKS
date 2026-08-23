@@ -19,6 +19,14 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Copy an existing recipe object and change the `slug`, copy, times, and ingredients.
 3. Put the slug in the right `categories` so it appears on homepage collections and `/category/[slug]`.
 
+## Coming soon (hide the public site)
+
+Set `SITE_PRIVATE=true` in Vercel → Project → Settings → Environment Variables. Apply it to **Production** only so preview URLs still show the full site.
+
+Local `npm run dev` stays open unless you create `.env.local` with `SITE_PRIVATE=true`.
+
+To launch later, set `SITE_PRIVATE=false` (or delete the variable) and redeploy.
+
 ## Deploy
 
 The app is ready for Vercel. After deploy, attach `mesakitchenstudio.com` and update DNS at your registrar.

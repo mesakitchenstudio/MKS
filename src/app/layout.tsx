@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { JsonLd } from "@/components/JsonLd";
 import { site } from "@/data/site";
+import { isSitePrivate } from "@/lib/flags";
 import { organizationJsonLd } from "@/lib/schema";
 import "./globals.css";
 
@@ -35,16 +36,18 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const privateMode = isSitePrivate();
+
   return (
     <html
       lang="en"
       className={`${fraunces.variable} ${sourceSans.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-cream font-sans text-ink">
-        <JsonLd data={organizationJsonLd()} />
-        <SiteHeader />
+        {privateMode ? null : <JsonLd data={organizationJsonLd()} />}
+        {privateMode ? null : <SiteHeader />}
         <main className="flex-1">{children}</main>
-        <SiteFooter />
+        {privateMode ? null : <SiteFooter />}
       </body>
     </html>
   );
