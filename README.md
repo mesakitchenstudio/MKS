@@ -26,6 +26,8 @@ A new field on a type appears on the next recipe form with no code change.
 
 Local images are saved to `public/uploads`. On Vercel, set `BLOB_READ_WRITE_TOKEN` so photos go to Vercel Blob.
 
+Optional: set `IP2LOCATION_API_KEY` for member IP lookups (free plan at [ip2location.io](https://www.ip2location.io) — 50k lookups/month). Without a key, IP2Location allows 1,000 lookups/day.
+
 ## Coming soon (hide the public site)
 
 Set `SITE_PRIVATE=true` in Vercel → Production only. `/admin` stays available so you can keep adding recipes.

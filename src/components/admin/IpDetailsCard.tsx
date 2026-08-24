@@ -53,7 +53,7 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
       </div>
       <p className="border-t border-line bg-cream px-4 py-3 text-[0.7rem] leading-5 text-muted">
         Latitude and longitude are approximate and not precise enough to identify a specific
-        address. IP data from ipwho.is.
+        address. IP data from IP2Location.
       </p>
     </div>
   );

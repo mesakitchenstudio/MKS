@@ -1,3 +1,5 @@
+import { reverse } from "dns/promises";
+
 export type IpDetails = {
   ip: string;
   decimal: number | null;
@@ -14,6 +16,8 @@ export type IpDetails = {
   longitudeLabel: string;
   mapEmbedUrl: string | null;
 };
+
+const CACHE_SECONDS = 60 * 60 * 12;
 
 function isLoopback(ip: string) {
   return (
@@ -80,59 +84,134 @@ function localDetails(ip: string): IpDetails {
   };
 }
 
-type IpWhoResponse = {
-  success?: boolean;
+function unavailableDetails(ip: string): IpDetails {
+  return {
+    ip,
+    decimal: ipv4ToDecimal(ip),
+    hostname: "—",
+    asn: "—",
+    isp: "—",
+    services: "Lookup unavailable",
+    country: "—",
+    region: "—",
+    city: "—",
+    latitude: null,
+    longitude: null,
+    latitudeLabel: "—",
+    longitudeLabel: "—",
+    mapEmbedUrl: null,
+  };
+}
+
+type Ip2LocationResponse = {
   ip?: string;
-  country?: string;
-  region?: string;
-  city?: string;
+  country_name?: string;
+  region_name?: string;
+  city_name?: string;
   latitude?: number;
   longitude?: number;
-  connection?: {
-    asn?: number;
-    org?: string;
-    isp?: string;
-    domain?: string;
-  };
-  security?: {
-    is_proxy?: boolean;
+  asn?: string;
+  as?: string;
+  isp?: string;
+  domain?: string;
+  is_proxy?: boolean;
+  proxy?: {
     is_vpn?: boolean;
     is_tor?: boolean;
-    is_hosting?: boolean;
+    is_data_center?: boolean;
+    is_public_proxy?: boolean;
+    is_web_proxy?: boolean;
   };
+  error?: { error_code?: number; error_message?: string };
 };
+
+type IpApiSupplement = {
+  reverse?: string;
+  isp?: string;
+  org?: string;
+};
+
+async function reverseHostname(ip: string) {
+  const normalized = ip.replace(/^::ffff:/, "");
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(normalized)) return null;
+  try {
+    const names = await reverse(normalized);
+    return names[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchIp2Location(ip: string) {
+  const apiKey = process.env.IP2LOCATION_API_KEY?.trim();
+  const url = new URL("https://api.ip2location.io/");
+  if (apiKey) url.searchParams.set("key", apiKey);
+  url.searchParams.set("ip", ip);
+  url.searchParams.set("format", "json");
+
+  const response = await fetch(url.toString(), { next: { revalidate: CACHE_SECONDS } });
+  if (!response.ok) return null;
+  const data = (await response.json()) as Ip2LocationResponse;
+  if (data.error?.error_code) return null;
+  return data;
+}
+
+async function fetchIpApiSupplement(ip: string) {
+  try {
+    const response = await fetch(
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,reverse,isp,org`,
+      { next: { revalidate: CACHE_SECONDS } },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as IpApiSupplement & { status?: string };
+    if (data.status !== "success") return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function formatServices(data: Ip2LocationResponse) {
+  const services: string[] = [];
+  const proxy = data.proxy;
+  if (proxy?.is_vpn) services.push("VPN");
+  if (proxy?.is_tor) services.push("Tor");
+  if (proxy?.is_public_proxy || proxy?.is_web_proxy) services.push("Proxy");
+  else if (data.is_proxy) services.push("Proxy");
+  if (proxy?.is_data_center) services.push("Hosting");
+  return services.length ? services.join(", ") : "None detected";
+}
 
 export async function lookupIpDetails(ip: string): Promise<IpDetails> {
   const trimmed = ip.trim();
   if (!isPublicIp(trimmed)) return localDetails(trimmed);
 
   try {
-    const response = await fetch(`https://ipwho.is/${encodeURIComponent(trimmed)}`, {
-      next: { revalidate: 60 * 60 * 12 },
-    });
-    if (!response.ok) throw new Error("lookup failed");
-    const data = (await response.json()) as IpWhoResponse;
-    if (!data.success) throw new Error("lookup rejected");
+    const [geo, hostname] = await Promise.all([fetchIp2Location(trimmed), reverseHostname(trimmed)]);
+    if (!geo) return unavailableDetails(trimmed);
 
-    const lat = typeof data.latitude === "number" ? data.latitude : null;
-    const lon = typeof data.longitude === "number" ? data.longitude : null;
-    const services = [
-      data.security?.is_proxy ? "Proxy" : "",
-      data.security?.is_vpn ? "VPN" : "",
-      data.security?.is_tor ? "Tor" : "",
-      data.security?.is_hosting ? "Hosting" : "",
-    ].filter(Boolean);
+    let resolvedHostname = hostname || geo.domain || null;
+    let resolvedIsp = geo.isp || geo.as || null;
+
+    if (!resolvedHostname || !resolvedIsp) {
+      const supplement = await fetchIpApiSupplement(trimmed);
+      if (!resolvedHostname) resolvedHostname = supplement?.reverse || null;
+      if (!resolvedIsp) resolvedIsp = supplement?.isp || supplement?.org || null;
+    }
+
+    const lat = typeof geo.latitude === "number" ? geo.latitude : null;
+    const lon = typeof geo.longitude === "number" ? geo.longitude : null;
 
     return {
-      ip: data.ip || trimmed,
-      decimal: ipv4ToDecimal(data.ip || trimmed),
-      hostname: data.connection?.domain || "—",
-      asn: data.connection?.asn ? String(data.connection.asn) : "—",
-      isp: data.connection?.isp || data.connection?.org || "—",
-      services: services.length ? services.join(", ") : "None detected",
-      country: data.country || "—",
-      region: data.region || "—",
-      city: data.city || "—",
+      ip: geo.ip || trimmed,
+      decimal: ipv4ToDecimal(geo.ip || trimmed),
+      hostname: resolvedHostname || "—",
+      asn: geo.asn || "—",
+      isp: resolvedIsp || "—",
+      services: formatServices(geo),
+      country: geo.country_name || "—",
+      region: geo.region_name || "—",
+      city: geo.city_name || "—",
       latitude: lat,
       longitude: lon,
       latitudeLabel: lat == null ? "—" : formatDms(lat, "lat"),
@@ -140,22 +219,7 @@ export async function lookupIpDetails(ip: string): Promise<IpDetails> {
       mapEmbedUrl: lat != null && lon != null ? mapEmbedUrl(lat, lon) : null,
     };
   } catch {
-    return {
-      ip: trimmed,
-      decimal: ipv4ToDecimal(trimmed),
-      hostname: "—",
-      asn: "—",
-      isp: "—",
-      services: "Lookup unavailable",
-      country: "—",
-      region: "—",
-      city: "—",
-      latitude: null,
-      longitude: null,
-      latitudeLabel: "—",
-      longitudeLabel: "—",
-      mapEmbedUrl: null,
-    };
+    return unavailableDetails(trimmed);
   }
 }
 
