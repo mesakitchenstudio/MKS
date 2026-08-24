@@ -7,7 +7,8 @@ import { CollectionRow } from "@/components/CollectionRow";
 import { JsonLd } from "@/components/JsonLd";
 import { RecipeCard } from "@/components/RecipeCard";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
-import { RecipeRatingBadge, RecipeReviews } from "@/components/RecipeReviews";
+import { RecipeRatingSummary } from "@/components/RecipeRatingSummary";
+import { RecipeReviews } from "@/components/RecipeReviews";
 import { RecipeTableOfContents } from "@/components/RecipeTableOfContents";
 import { RecipeVideo } from "@/components/RecipeVideo";
 import { ShareButtons } from "@/components/ShareButtons";
@@ -74,9 +75,9 @@ export default async function RecipePage({ params }: Props) {
         </p>
 
         <h1 className="mt-3 font-serif text-5xl leading-tight text-ink">{recipe.title}</h1>
-        <RecipeRatingBadge stats={reviewData.stats} />
+        <RecipeRatingSummary stats={reviewData.stats} />
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
           <p className="text-sm text-muted">Updated {updated}</p>
           <div className="flex flex-wrap items-center gap-4">
             <ShareButtons title={recipe.title} slug={recipe.slug} />

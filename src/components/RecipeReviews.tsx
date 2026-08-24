@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import { StarPicker, StarRating } from "@/components/StarRating";
 import type { RecipeReviewData } from "@/lib/recipe-reviews";
 
@@ -27,6 +28,7 @@ export function RecipeReviews({
   defaultName = "",
   defaultEmail = "",
 }: RecipeReviewsProps) {
+  const router = useRouter();
   const [data, setData] = useState(initial);
   const [rating, setRating] = useState(0);
   const [name, setName] = useState(defaultName);
@@ -57,6 +59,7 @@ export function RecipeReviews({
       setData(payload);
       setSubmitted(true);
       setComment("");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your review.");
     } finally {
@@ -147,18 +150,5 @@ export function RecipeReviews({
         </ul>
       ) : null}
     </section>
-  );
-}
-
-export function RecipeRatingBadge({ stats }: { stats: RecipeReviewData["stats"] }) {
-  if (!stats.count) return null;
-
-  return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
-      <StarRating value={stats.average} size="sm" />
-      <span>
-        {stats.average.toFixed(1)} from {stats.count} {stats.count === 1 ? "review" : "reviews"}
-      </span>
-    </div>
   );
 }
