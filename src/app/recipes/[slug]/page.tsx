@@ -64,13 +64,16 @@ export default async function RecipePage({ params }: Props) {
     year: "numeric",
   });
   const hasVideo = Boolean(recipe.youtubeUrl && youtubeVideoId(recipe.youtubeUrl));
+  const hasFloatingVideo = Boolean(
+    recipe.floatingYoutubeUrl && youtubeVideoId(recipe.floatingYoutubeUrl),
+  );
 
   return (
     <article>
       <SetCurrentRecipe slug={recipe.slug} title={recipe.title} />
       <JsonLd data={recipeJsonLd(recipe, reviewData.stats)} />
-      {hasVideo && recipe.youtubeUrl ? (
-        <RecipeFloatingVideo url={recipe.youtubeUrl} title={recipe.title} />
+      {hasFloatingVideo && recipe.floatingYoutubeUrl ? (
+        <RecipeFloatingVideo url={recipe.floatingYoutubeUrl} title={recipe.title} />
       ) : null}
 
       <div className="mx-auto max-w-3xl px-4 py-10 md:px-6">

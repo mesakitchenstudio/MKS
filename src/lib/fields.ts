@@ -29,7 +29,7 @@ export type FieldDefinition = {
 
 export const DIFFICULTY_OPTIONS = ["Easy", "Medium", "Hard"] as const;
 
-export const RECIPE_MEDIA_KEYS = ["youtubeUrl"] as const;
+export const RECIPE_MEDIA_KEYS = ["youtubeUrl", "floatingYoutubeUrl"] as const;
 
 export const RECIPE_OVERVIEW_KEYS = [
   "difficulty",
@@ -43,6 +43,7 @@ export const CORE_VALUE_KEYS = [
   "image",
   "imageAlt",
   "youtubeUrl",
+  "floatingYoutubeUrl",
   "intro",
   "whyItWorks",
   "keyIngredients",
@@ -110,9 +111,16 @@ export const CORE_FIELDS: FieldDefinition[] = [
   { key: "imageAlt", label: "Image description", kind: "text", required: true },
   {
     key: "youtubeUrl",
-    label: "YouTube video",
+    label: "Main YouTube video",
     kind: "text",
-    helpText: "Paste a YouTube link to show a walkthrough on the recipe page.",
+    helpText: "Shown in the recipe article under the hero image.",
+  },
+  {
+    key: "floatingYoutubeUrl",
+    label: "Floating YouTube video",
+    kind: "text",
+    helpText:
+      "Small picture-in-picture player fixed at the bottom-right after readers scroll past the main video.",
   },
   { key: "intro", label: "Introduction", kind: "textarea", required: true },
   { key: "whyItWorks", label: "Why this works", kind: "textarea" },

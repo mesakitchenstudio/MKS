@@ -41,6 +41,7 @@ export type Recipe = {
   image: string;
   imageAlt: string;
   youtubeUrl?: string;
+  floatingYoutubeUrl?: string;
   publishedAt: string;
   updatedAt: string;
   prepMinutes: number;

@@ -181,7 +181,7 @@ export function RecipeEditor({
             <div>
               <p className="font-semibold">Photos and video</p>
               <p className="mt-1 text-xs text-muted">
-                Hero image and an optional YouTube walkthrough for the public recipe page.
+                Hero image, main walkthrough video, and an optional floating picture-in-picture video.
               </p>
             </div>
             {mediaFields.map((field) => (
