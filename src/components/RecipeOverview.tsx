@@ -1,20 +1,20 @@
 import type { Recipe } from "@/data/types";
 import { bakeMinutes, difficultyLabel, formatTime, restMinutes } from "@/lib/recipe-utils";
 
+const RING_FULL_MINUTES = 100;
+
 function TimeRing({
   minutes,
   label,
-  max,
 }: {
   minutes: number;
   label: string;
-  max: number;
 }) {
   const size = 92;
   const stroke = 3;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = max > 0 ? Math.min(1, minutes / max) : 0;
+  const progress = Math.min(1, Math.max(0, minutes) / RING_FULL_MINUTES);
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -55,7 +55,6 @@ function TimeRing({
 export function RecipeOverview({ recipe }: { recipe: Recipe }) {
   const bake = bakeMinutes(recipe);
   const rest = restMinutes(recipe);
-  const max = Math.max(recipe.prepMinutes, bake, rest, 1);
   const utensils = recipe.utensils?.filter(Boolean) ?? [];
 
   return (
@@ -64,9 +63,9 @@ export function RecipeOverview({ recipe }: { recipe: Recipe }) {
         Difficulty: <span className="font-semibold">{difficultyLabel(recipe.difficulty)}</span>
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-8 border-y border-line py-6 sm:justify-between sm:px-6">
-        <TimeRing minutes={recipe.prepMinutes} label="Preparation" max={max} />
-        <TimeRing minutes={bake} label="Baking" max={max} />
-        <TimeRing minutes={rest} label="Resting" max={max} />
+        <TimeRing minutes={recipe.prepMinutes} label="Preparation" />
+        <TimeRing minutes={bake} label="Baking" />
+        <TimeRing minutes={rest} label="Resting" />
       </div>
       {utensils.length ? (
         <div className="mt-5">
