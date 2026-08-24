@@ -15,7 +15,7 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
       <div className="border-b border-line bg-cream px-4 py-3">
         <p className="text-sm font-semibold text-ink">IP details for: {details.ip}</p>
       </div>
-      <div className="grid gap-6 p-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="grid gap-6 p-4 lg:grid-cols-2 lg:items-stretch">
         <dl className="space-y-3">
           <DetailRow label="Decimal" value={details.decimal == null ? "—" : String(details.decimal)} />
           <DetailRow label="Hostname" value={details.hostname} />
@@ -33,11 +33,11 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
             <iframe
               title={`Map for ${details.ip}`}
               src={details.mapEmbedUrl}
-              className="h-48 w-full border border-line bg-sand"
+              className="min-h-72 h-full w-full border border-line bg-sand lg:min-h-[22rem]"
               loading="lazy"
             />
           ) : (
-            <div className="flex h-48 items-center justify-center border border-line bg-cream px-4 text-center text-sm text-muted">
+            <div className="flex min-h-72 items-center justify-center border border-line bg-cream px-4 text-center text-sm text-muted lg:min-h-[22rem]">
               Map unavailable for this address.
             </div>
           )}
