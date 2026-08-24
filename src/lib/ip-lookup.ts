@@ -1,3 +1,4 @@
+import "server-only";
 import { reverse } from "dns/promises";
 import type { IpDetails } from "@/lib/ip-details";
 import { ipv4ToDecimal, isPublicIp } from "@/lib/ip-utils";
