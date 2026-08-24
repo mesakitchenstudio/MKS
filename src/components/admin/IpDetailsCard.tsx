@@ -42,7 +42,13 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
             </div>
           )}
           <a
-            href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(details.ip)}`}
+            href={
+              details.latitude != null && details.longitude != null
+                ? `https://www.openstreetmap.org/?mlat=${details.latitude}&mlon=${details.longitude}#map=14/${details.latitude}/${details.longitude}`
+                : `https://www.openstreetmap.org/search?query=${encodeURIComponent(
+                    [details.city, details.region, details.country].filter((part) => part && part !== "—").join(", "),
+                  )}`
+            }
             target="_blank"
             rel="noreferrer"
             className="inline-block text-center text-xs font-semibold uppercase tracking-wide text-terracotta hover:underline"
