@@ -19,9 +19,24 @@ export function youtubeVideoId(url: string) {
   return null;
 }
 
-export function youtubeEmbedUrl(url: string) {
+export function youtubeEmbedUrl(
+  url: string,
+  options?: { autoplay?: boolean; mute?: boolean },
+) {
   const id = youtubeVideoId(url);
-  return id ? `https://www.youtube.com/embed/${id}` : null;
+  if (!id) return null;
+
+  const params = new URLSearchParams();
+  if (options?.autoplay) {
+    params.set("autoplay", "1");
+    // Browsers only allow autoplay when muted.
+    params.set("mute", options.mute === false ? "0" : "1");
+  } else if (options?.mute) {
+    params.set("mute", "1");
+  }
+
+  const query = params.toString();
+  return `https://www.youtube.com/embed/${id}${query ? `?${query}` : ""}`;
 }
 
 export function youtubeWatchUrl(url: string) {

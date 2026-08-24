@@ -7,7 +7,7 @@ const SHOW_AFTER_PX = 48;
 const HIDE_BEFORE_PX = 120;
 
 export function RecipeFloatingVideo({ url, title }: { url: string; title: string }) {
-  const embed = youtubeEmbedUrl(url);
+  const embed = youtubeEmbedUrl(url, { autoplay: true });
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -41,7 +41,7 @@ export function RecipeFloatingVideo({ url, title }: { url: string; title: string
 
   return (
     <div
-      className={`no-print fixed bottom-6 right-6 z-[45] hidden w-[17.5rem] transition-opacity duration-200 md:block ${
+      className={`no-print fixed bottom-24 right-6 z-[45] hidden w-[17.5rem] transition-opacity duration-200 md:block ${
         visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
       }`}
       aria-hidden={!visible}
