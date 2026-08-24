@@ -1,53 +1,34 @@
 import { reverse } from "dns/promises";
+import type { IpDetails } from "@/lib/ip-details";
+import { ipv4ToDecimal, isPublicIp } from "@/lib/ip-utils";
 
-export type IpDetails = {
-  ip: string;
-  decimal: number | null;
-  hostname: string;
-  asn: string;
-  isp: string;
-  services: string;
-  country: string;
-  region: string;
-  city: string;
-  latitude: number | null;
-  longitude: number | null;
-  latitudeLabel: string;
-  longitudeLabel: string;
-  mapEmbedUrl: string | null;
+type Ip2LocationResponse = {
+  ip?: string;
+  country_name?: string;
+  region_name?: string;
+  city_name?: string;
+  latitude?: number;
+  longitude?: number;
+  asn?: string;
+  as?: string;
+  isp?: string;
+  domain?: string;
+  is_proxy?: boolean;
+  proxy?: {
+    is_vpn?: boolean;
+    is_tor?: boolean;
+    is_data_center?: boolean;
+    is_public_proxy?: boolean;
+    is_web_proxy?: boolean;
+  };
+  error?: { error_code?: number; error_message?: string };
 };
 
-const CACHE_SECONDS = 60 * 60 * 12;
-
-function isLoopback(ip: string) {
-  return (
-    !ip ||
-    ip === "unknown" ||
-    ip === "localhost" ||
-    ip === "::1" ||
-    ip === "127.0.0.1" ||
-    ip === "::ffff:127.0.0.1"
-  );
-}
-
-export function isPublicIp(ip: string) {
-  if (isLoopback(ip)) return false;
-  const normalized = ip.replace(/^::ffff:/, "");
-  if (/^10\./.test(normalized)) return false;
-  if (/^192\.168\./.test(normalized)) return false;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(normalized)) return false;
-  if (/^169\.254\./.test(normalized)) return false;
-  return true;
-}
-
-export function ipv4ToDecimal(ip: string) {
-  const normalized = ip.replace(/^::ffff:/, "");
-  const parts = normalized.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
-    return null;
-  }
-  return parts.reduce((total, part) => (total << 8) + part, 0) >>> 0;
-}
+type IpApiSupplement = {
+  reverse?: string;
+  isp?: string;
+  org?: string;
+};
 
 function formatDms(value: number, kind: "lat" | "lon") {
   const abs = Math.abs(value);
@@ -103,34 +84,6 @@ function unavailableDetails(ip: string): IpDetails {
   };
 }
 
-type Ip2LocationResponse = {
-  ip?: string;
-  country_name?: string;
-  region_name?: string;
-  city_name?: string;
-  latitude?: number;
-  longitude?: number;
-  asn?: string;
-  as?: string;
-  isp?: string;
-  domain?: string;
-  is_proxy?: boolean;
-  proxy?: {
-    is_vpn?: boolean;
-    is_tor?: boolean;
-    is_data_center?: boolean;
-    is_public_proxy?: boolean;
-    is_web_proxy?: boolean;
-  };
-  error?: { error_code?: number; error_message?: string };
-};
-
-type IpApiSupplement = {
-  reverse?: string;
-  isp?: string;
-  org?: string;
-};
-
 async function reverseHostname(ip: string) {
   const normalized = ip.replace(/^::ffff:/, "");
   if (!/^\d+\.\d+\.\d+\.\d+$/.test(normalized)) return null;
@@ -149,7 +102,7 @@ async function fetchIp2Location(ip: string) {
   url.searchParams.set("ip", ip);
   url.searchParams.set("format", "json");
 
-  const response = await fetch(url.toString(), { next: { revalidate: CACHE_SECONDS } });
+  const response = await fetch(url.toString(), { cache: "no-store" });
   if (!response.ok) return null;
   const data = (await response.json()) as Ip2LocationResponse;
   if (data.error?.error_code) return null;
@@ -160,7 +113,7 @@ async function fetchIpApiSupplement(ip: string) {
   try {
     const response = await fetch(
       `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,reverse,isp,org`,
-      { next: { revalidate: CACHE_SECONDS } },
+      { cache: "no-store" },
     );
     if (!response.ok) return null;
     const data = (await response.json()) as IpApiSupplement & { status?: string };
@@ -221,16 +174,4 @@ export async function lookupIpDetails(ip: string): Promise<IpDetails> {
   } catch {
     return unavailableDetails(trimmed);
   }
-}
-
-export function uniqueIps(values: string[]) {
-  const seen = new Set<string>();
-  const ips: string[] = [];
-  for (const value of values) {
-    const ip = value.trim();
-    if (!ip || ip === "unknown" || seen.has(ip)) continue;
-    seen.add(ip);
-    ips.push(ip);
-  }
-  return ips;
 }

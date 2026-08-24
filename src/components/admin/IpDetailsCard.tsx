@@ -1,4 +1,4 @@
-import type { IpDetails } from "@/lib/ip-lookup";
+import type { IpDetails } from "@/lib/ip-details";
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (

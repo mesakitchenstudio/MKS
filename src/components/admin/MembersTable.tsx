@@ -4,7 +4,7 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import { deleteMemberAction } from "@/app/admin/actions";
 import { IpDetailsPanel } from "@/components/admin/IpDetailsPanel";
-import { uniqueIps } from "@/lib/ip-lookup";
+import { uniqueIps } from "@/lib/ip-utils";
 import { formatBrowser, formatIp, formatLocation } from "@/lib/request-meta";
 
 type MemberRow = {

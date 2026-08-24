@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { IpDetailsCard } from "@/components/admin/IpDetailsCard";
-import type { IpDetails } from "@/lib/ip-lookup";
+import type { IpDetails } from "@/lib/ip-details";
 
 export function IpDetailsPanel({ ip }: { ip: string }) {
   const [details, setDetails] = useState<IpDetails | null>(null);
@@ -13,7 +13,7 @@ export function IpDetailsPanel({ ip }: { ip: string }) {
     let active = true;
     setLoading(true);
     setError("");
-    void fetch(`/api/admin/ip?address=${encodeURIComponent(ip)}`)
+    void fetch(`/api/admin/ip?address=${encodeURIComponent(ip)}`, { cache: "no-store" })
       .then(async (response) => {
         const data = (await response.json()) as IpDetails & { error?: string };
         if (!response.ok) throw new Error(data.error || "Could not load IP details.");
