@@ -1,7 +1,7 @@
 import type { Recipe } from "@/data/types";
 import { bakeMinutes, difficultyLabel, formatTime, restMinutes } from "@/lib/recipe-utils";
 
-const RING_FULL_MINUTES = 100;
+const RING_FULL_MINUTES = 60;
 
 function TimeRing({
   minutes,
