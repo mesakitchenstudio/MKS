@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "prisma generate --schema=prisma/schema.prisma && next dev",
     "build": "node prisma/prepare-production.mjs && prisma generate --schema=prisma/schema.production.prisma && prisma db push --schema=prisma/schema.production.prisma && node prisma/seed-if-empty.mjs && next build",
     "start": "next start",
     "lint": "eslint",
-    "db:push": "prisma db push",
+    "db:push": "prisma generate --schema=prisma/schema.prisma && prisma db push --schema=prisma/schema.prisma",
     "db:seed": "prisma db seed",
-    "db:setup": "prisma db push && prisma db seed"
+    "db:setup": "prisma generate --schema=prisma/schema.prisma && prisma db push --schema=prisma/schema.prisma && prisma db seed"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

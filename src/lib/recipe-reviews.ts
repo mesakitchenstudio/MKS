@@ -94,52 +94,53 @@ export async function submitRecipeReview(input: {
     throw new Error("Comments must be at least 10 characters.");
   }
 
-  const recipe = await db.recipe.findUnique({
-    where: { slug: input.recipeSlug },
-    select: { slug: true, status: true },
-  });
-  if (!recipe || recipe.status !== "published") {
-    throw new Error("Recipe not found.");
-  }
-
-  let userId = input.userId ?? null;
-  if (!userId) {
-    const user = await db.user.findUnique({
-      where: { email: authorEmail },
-      select: { id: true },
+  try {
+    const recipe = await db.recipe.findUnique({
+      where: { slug: input.recipeSlug },
+      select: { slug: true, status: true },
     });
-    userId = user?.id ?? null;
-  }
+    if (!recipe || recipe.status !== "published") {
+      throw new Error("Recipe not found.");
+    }
 
-  const review = await db.recipeReview.upsert({
-    where: {
-      recipeSlug_authorEmail: {
-        recipeSlug: input.recipeSlug,
-        authorEmail,
+    let userId = input.userId ?? null;
+    if (!userId) {
+      const user = await db.user.findUnique({
+        where: { email: authorEmail },
+        select: { id: true },
+      });
+      userId = user?.id ?? null;
+    }
+
+    await db.recipeReview.upsert({
+      where: {
+        recipeSlug_authorEmail: {
+          recipeSlug: input.recipeSlug,
+          authorEmail,
+        },
       },
-    },
-    create: {
-      recipeSlug: input.recipeSlug,
-      authorName,
-      authorEmail,
-      rating: input.rating,
-      body,
-      userId,
-    },
-    update: {
-      authorName,
-      rating: input.rating,
-      body,
-      userId,
-    },
-    select: {
-      id: true,
-      authorName: true,
-      rating: true,
-      body: true,
-      createdAt: true,
-    },
-  });
+      create: {
+        recipeSlug: input.recipeSlug,
+        authorName,
+        authorEmail,
+        rating: input.rating,
+        body,
+        userId,
+      },
+      update: {
+        authorName,
+        rating: input.rating,
+        body,
+        userId,
+      },
+    });
 
-  return getRecipeReviewData(input.recipeSlug);
+    return getRecipeReviewData(input.recipeSlug);
+  } catch (error) {
+    console.error("Recipe review submit failed", error);
+    if (error instanceof Error && !/prisma|datasource|invocation/i.test(error.message)) {
+      throw error;
+    }
+    throw new Error("Could not save your review. Please try again.");
+  }
 }
