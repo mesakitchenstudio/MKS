@@ -11,9 +11,9 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export function IpDetailsCard({ details }: { details: IpDetails }) {
   return (
-    <div className="overflow-hidden border border-line bg-[#1f2937] text-cream shadow-md">
-      <div className="border-b border-white/10 px-4 py-3">
-        <p className="text-sm font-semibold">IP details for: {details.ip}</p>
+    <div className="overflow-hidden border border-line bg-paper text-ink shadow-sm">
+      <div className="border-b border-line bg-cream px-4 py-3">
+        <p className="text-sm font-semibold text-ink">IP details for: {details.ip}</p>
       </div>
       <div className="grid gap-6 p-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <dl className="space-y-3">
@@ -33,11 +33,11 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
             <iframe
               title={`Map for ${details.ip}`}
               src={details.mapEmbedUrl}
-              className="h-48 w-full border-0 bg-sand"
+              className="h-48 w-full border border-line bg-sand"
               loading="lazy"
             />
           ) : (
-            <div className="flex h-48 items-center justify-center border border-white/10 bg-white/5 px-4 text-center text-sm text-cream/70">
+            <div className="flex h-48 items-center justify-center border border-line bg-cream px-4 text-center text-sm text-muted">
               Map unavailable for this address.
             </div>
           )}
@@ -51,7 +51,7 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
           </a>
         </div>
       </div>
-      <p className="border-t border-white/10 px-4 py-3 text-[0.7rem] leading-5 text-cream/60">
+      <p className="border-t border-line bg-cream px-4 py-3 text-[0.7rem] leading-5 text-muted">
         Latitude and longitude are approximate and not precise enough to identify a specific
         address. IP data from ipwho.is.
       </p>
