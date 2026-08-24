@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { homeForRole, isAccessLevel } from "@/lib/admin-access";
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
-import { ADMIN_COOKIE, authenticateAdmin, requireAccess, writeAdminSession } from "@/lib/auth";
+import { ADMIN_COOKIE, authenticateAdmin, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import { hashPassword } from "@/lib/passwords";
@@ -284,6 +284,7 @@ export async function saveAdminAction(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
   const role = String(formData.get("role") || "editor");
+  const photoUrl = String(formData.get("photoUrl") || "").trim();
   if (!name || !email || !isAccessLevel(role)) {
     redirect("/admin/staff?error=missing");
   }
@@ -307,6 +308,7 @@ export async function saveAdminAction(formData: FormData) {
         name,
         email,
         role,
+        photoUrl,
         ...(password.length >= 10 ? { passwordHash: hashPassword(password) } : {}),
       },
     });
@@ -314,7 +316,7 @@ export async function saveAdminAction(formData: FormData) {
     const taken = await db.admin.findUnique({ where: { email } });
     if (taken) redirect("/admin/staff?error=exists");
     await db.admin.create({
-      data: { name, email, role, passwordHash: hashPassword(password) },
+      data: { name, email, role, photoUrl, passwordHash: hashPassword(password) },
     });
   }
 
@@ -352,4 +354,27 @@ export async function deleteAdminAction(formData: FormData) {
   await db.admin.delete({ where: { id } });
   revalidatePath("/admin/staff");
   redirect("/admin/staff");
+}
+
+export async function saveOwnAdminProfileAction(formData: FormData) {
+  const actor = await getAdminSession();
+  if (!actor) redirect("/admin/login");
+
+  const photoUrl = String(formData.get("photoUrl") || "").trim();
+  const db = getDb();
+
+  if (actor.id === "env") {
+    const email = actor.email.trim().toLowerCase();
+    const existing = await db.admin.findUnique({ where: { email } });
+    if (!existing) {
+      redirect("/admin/profile?error=named");
+    }
+    await db.admin.update({ where: { id: existing.id }, data: { photoUrl } });
+  } else {
+    await db.admin.update({ where: { id: actor.id }, data: { photoUrl } });
+  }
+
+  revalidatePath("/admin/profile");
+  revalidatePath("/admin/staff");
+  redirect("/admin/profile?saved=1");
 }

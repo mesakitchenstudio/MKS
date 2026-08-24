@@ -109,15 +109,16 @@ model RecipeReview {
 }
 
 model RecipeReviewReply {
-  id          String       @id @default(cuid())
-  reviewId    String
-  review      RecipeReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  authorName  String
-  authorTitle String       @default("")
-  authorEmail String
-  body        String
-  isStaff     Boolean      @default(false)
-  createdAt   DateTime     @default(now())
+  id             String       @id @default(cuid())
+  reviewId       String
+  review         RecipeReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  authorName     String
+  authorTitle    String       @default("")
+  authorEmail    String
+  authorPhotoUrl String       @default("")
+  body           String
+  isStaff        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
 
   @@index([reviewId, createdAt])
 }
@@ -143,6 +144,7 @@ model Admin {
   name         String
   passwordHash String
   role         String
+  photoUrl     String   @default("")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   lastSeenAt   DateTime @default(now())

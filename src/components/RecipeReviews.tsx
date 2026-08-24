@@ -33,7 +33,26 @@ function initials(name: string) {
     .join("");
 }
 
-function AuthorAvatar({ name, staff = false }: { name: string; staff?: boolean }) {
+function AuthorAvatar({
+  name,
+  staff = false,
+  photoUrl = "",
+}: {
+  name: string;
+  staff?: boolean;
+  photoUrl?: string;
+}) {
+  if (photoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={photoUrl}
+        alt=""
+        className="h-11 w-11 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+
   return (
     <div
       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
@@ -157,7 +176,7 @@ function ReviewReply({
 
   return (
     <article className="mt-4 flex gap-3 border border-line bg-cream p-4 md:gap-4 md:p-5">
-      <AuthorAvatar name={reply.authorName} staff={reply.isStaff} />
+      <AuthorAvatar name={reply.authorName} staff={reply.isStaff} photoUrl={reply.authorPhotoUrl} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-none">

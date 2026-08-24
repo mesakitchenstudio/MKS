@@ -1,3 +1,4 @@
+import { AdminPhotoField } from "@/components/admin/AdminPhotoField";
 import { ACCESS_LEVELS, accessLabel } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -101,6 +102,12 @@ export default async function AdminStaffPage({
           <p className="mt-1 text-sm text-muted">Invite someone with a name, email, password, and role.</p>
         </div>
         <form action={saveAdminAction} className="grid gap-4 p-5 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <p className="text-sm font-semibold text-ink">Profile photo</p>
+            <div className="mt-2">
+              <AdminPhotoField />
+            </div>
+          </div>
           <label className="grid text-sm font-semibold text-ink">
             Full name
             <input name="name" required autoComplete="name" className={fieldClass} />
@@ -166,11 +173,13 @@ export default async function AdminStaffPage({
               return (
                 <li key={admin.id} className="border border-line bg-paper">
                   <div className="flex flex-wrap items-center gap-4 border-b border-line bg-cream px-5 py-4">
-                    <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sand text-sm font-semibold text-ink"
-                      aria-hidden
-                    >
-                      {initials(admin.name) || "?"}
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sand text-sm font-semibold text-ink">
+                      {admin.photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={admin.photoUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        initials(admin.name) || "?"
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -193,6 +202,12 @@ export default async function AdminStaffPage({
 
                   <form action={saveAdminAction} className="grid gap-4 p-5 md:grid-cols-2">
                     <input type="hidden" name="id" value={admin.id} />
+                    <div className="md:col-span-2">
+                      <p className="text-sm font-semibold text-ink">Profile photo</p>
+                      <div className="mt-2">
+                        <AdminPhotoField defaultValue={admin.photoUrl || ""} />
+                      </div>
+                    </div>
                     <label className="grid text-sm font-semibold text-ink">
                       Full name
                       <input name="name" defaultValue={admin.name} required className={fieldClass} />

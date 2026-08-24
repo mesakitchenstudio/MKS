@@ -17,19 +17,28 @@ export async function getStaffByEmail(email: string) {
   const key = emailKey(email);
   if (!key) return null;
 
-  const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  if (ownerEmail && key === ownerEmail) {
-    return { id: "env", email: ownerEmail, name: "Owner", role: "owner" as AccessLevel };
-  }
-
   try {
     const admin = await getDb().admin.findUnique({ where: { email: key } });
-    if (!admin) return null;
-    const role: AccessLevel = isAccessLevel(admin.role) ? admin.role : "editor";
-    return { id: admin.id, email: admin.email, name: admin.name, role };
+    if (admin) {
+      const role: AccessLevel = isAccessLevel(admin.role) ? admin.role : "editor";
+      return {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role,
+        photoUrl: admin.photoUrl || "",
+      };
+    }
   } catch {
     return null;
   }
+
+  const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (ownerEmail && key === ownerEmail) {
+    return { id: "env", email: ownerEmail, name: "Owner", role: "owner" as AccessLevel, photoUrl: "" };
+  }
+
+  return null;
 }
 
 export async function removeMemberByEmail(email: string) {

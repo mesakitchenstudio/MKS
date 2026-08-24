@@ -6,6 +6,7 @@ export type RecipeReviewReplyRow = {
   id: string;
   authorName: string;
   authorTitle: string;
+  authorPhotoUrl: string;
   body: string;
   isStaff: boolean;
   createdAt: string;
@@ -38,6 +39,7 @@ function toReplyRow(reply: {
   id: string;
   authorName: string;
   authorTitle: string;
+  authorPhotoUrl: string;
   body: string;
   isStaff: boolean;
   createdAt: Date;
@@ -46,6 +48,7 @@ function toReplyRow(reply: {
     id: reply.id,
     authorName: reply.authorName,
     authorTitle: reply.authorTitle,
+    authorPhotoUrl: reply.authorPhotoUrl || "",
     body: reply.body,
     isStaff: reply.isStaff,
     createdAt: reply.createdAt.toISOString(),
@@ -62,6 +65,7 @@ function toRow(review: {
     id: string;
     authorName: string;
     authorTitle: string;
+    authorPhotoUrl: string;
     body: string;
     isStaff: boolean;
     createdAt: Date;
@@ -95,6 +99,7 @@ export async function getRecipeReviewData(recipeSlug: string): Promise<RecipeRev
             id: true,
             authorName: true,
             authorTitle: true,
+            authorPhotoUrl: true,
             body: true,
             isStaff: true,
             createdAt: true,
@@ -239,6 +244,7 @@ export async function submitRecipeReviewReply(input: {
         authorName: isStaff ? staff?.name || authorName : authorName,
         authorTitle,
         authorEmail,
+        authorPhotoUrl: isStaff ? staff?.photoUrl || "" : "",
         body,
         isStaff,
       },
