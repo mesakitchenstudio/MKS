@@ -51,9 +51,7 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
         </button>
       </div>
 
-      <div className="-mx-6 mt-5 md:-mx-8">
-        <RecipeOverview recipe={recipe} />
-      </div>
+      <RecipeOverview recipe={recipe} />
 
       <dl className="mt-5 grid grid-cols-2 gap-4 border-b border-line pb-5 text-sm sm:grid-cols-2">
         <div>
