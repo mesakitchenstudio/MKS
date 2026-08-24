@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node prisma/prepare-production.mjs && prisma generate --schema=prisma/schema.production.prisma && prisma db push --schema=prisma/schema.production.prisma && next build",
+    "build": "node prisma/prepare-production.mjs && prisma generate --schema=prisma/schema.production.prisma && prisma db push --schema=prisma/schema.production.prisma && node prisma/seed-if-empty.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "db:push": "prisma db push",

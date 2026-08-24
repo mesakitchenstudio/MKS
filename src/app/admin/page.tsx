@@ -64,7 +64,11 @@ export default async function AdminHomePage() {
             {recipes.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-muted">
-                  No recipes yet. Create a type, then add a recipe.
+                  No recipes yet.{" "}
+                  <Link href="/admin/types" className="font-semibold text-terracotta">
+                    Create a type
+                  </Link>
+                  , then add a recipe.
                 </td>
               </tr>
             ) : null}
