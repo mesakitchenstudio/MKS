@@ -59,7 +59,8 @@ export function AdminPhotoField({
           />
         </label>
         <p className="text-xs leading-5 text-muted">
-          Shown on recipe comment replies. Square photos work best.
+          Shown on recipe comment replies. Google sign-in sets this by default; square photos work
+          best for custom uploads.
         </p>
         {url ? (
           <button

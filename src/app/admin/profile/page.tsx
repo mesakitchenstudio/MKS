@@ -37,6 +37,7 @@ export default async function AdminProfilePage({
       <h1 className="mt-2 font-serif text-4xl text-ink">Profile photo</h1>
       <p className="mt-2 text-sm leading-6 text-muted">
         This photo appears when you reply to recipe comments as {actor.name} ({accessLabel(actor.role)}).
+        Google sign-in fills it in automatically; you can replace it with a custom upload anytime.
       </p>
 
       {saved ? (

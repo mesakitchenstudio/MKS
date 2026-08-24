@@ -41,6 +41,31 @@ export async function getStaffByEmail(email: string) {
   return null;
 }
 
+function isGooglePhotoUrl(url: string) {
+  return /googleusercontent\.com|ggpht\.com/i.test(url);
+}
+
+/** Use the Google avatar as the default admin photo unless a custom upload is set. */
+export async function syncStaffGooglePhoto(email: string, imageUrl?: string | null) {
+  const key = emailKey(email);
+  const image = imageUrl?.trim() || "";
+  if (!key || !image) return;
+
+  try {
+    const db = getDb();
+    const admin = await db.admin.findUnique({ where: { email: key } });
+    if (!admin) return;
+
+    const current = admin.photoUrl || "";
+    if (current && !isGooglePhotoUrl(current)) return;
+    if (current === image) return;
+
+    await db.admin.update({ where: { id: admin.id }, data: { photoUrl: image } });
+  } catch (error) {
+    console.error("Could not sync Google admin photo", error);
+  }
+}
+
 export async function removeMemberByEmail(email: string) {
   try {
     await getDb().user.deleteMany({ where: { email: emailKey(email) } });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { homeForRole } from "@/lib/admin-access";
-import { getStaffByEmail } from "@/lib/accounts";
+import { getStaffByEmail, syncStaffGooglePhoto } from "@/lib/accounts";
 import {
   ADMIN_COOKIE,
   adminCookieOptions,
@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/admin/login?error=not-admin", request.url));
   }
 
+  await syncStaffGooglePhoto(email, session?.user?.image);
   await persistAdminLastSeen(staff);
   const response = NextResponse.redirect(new URL(homeForRole(staff.role), request.url));
   response.cookies.set(ADMIN_COOKIE, createSessionToken(staff), adminCookieOptions());

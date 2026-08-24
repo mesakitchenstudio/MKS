@@ -7,6 +7,7 @@ import {
   getStaffByEmail,
   recordConnection,
   removeMemberByEmail,
+  syncStaffGooglePhoto,
   upsertGoogleUser,
 } from "@/lib/accounts";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
@@ -57,6 +58,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
       const staff = await getStaffByEmail(user.email);
       if (staff) {
         try {
+          if (account?.provider === "google") {
+            await syncStaffGooglePhoto(user.email, user.image);
+          }
           await writeAdminSession(staff);
         } catch (error) {
           console.error("Could not open admin session", error);
