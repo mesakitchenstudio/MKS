@@ -109,10 +109,10 @@ export async function requireAccess(area: AdminArea) {
 
 export async function authenticateAdmin(email: string, password: string): Promise<Omit<AdminSession, "exp"> | null> {
   const identifier = email.trim();
-  if (!identifier) return null;
+  if (!identifier || !password) return null;
 
-  const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  if (ownerEmail && identifier.toLowerCase() === ownerEmail && verifyEnvAdminPassword(password)) {
+  if (verifyEnvAdminPassword(password)) {
+    const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() || identifier.toLowerCase();
     return { id: "env", email: ownerEmail, name: "Owner", role: "owner" };
   }
 
@@ -127,7 +127,8 @@ export async function authenticateAdmin(email: string, password: string): Promis
     await db.admin.update({ where: { id: admin.id }, data: { lastSeenAt: new Date() } });
     const role = isAccessLevel(admin.role) ? admin.role : "editor";
     return { id: admin.id, email: admin.email, name: admin.name, role };
-  } catch {
+  } catch (error) {
+    console.error("Admin database login failed", error);
     return null;
   }
 }
