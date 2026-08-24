@@ -14,6 +14,8 @@ type RecipeReviewsProps = {
   defaultEmail?: string;
 };
 
+const VISIBLE_COMMENTS = 5;
+
 function formatReviewDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", {
     month: "short",
@@ -251,6 +253,12 @@ export function RecipeReviews({
   const [submitted, setSubmitted] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [showAllComments, setShowAllComments] = useState(false);
+
+  const visibleReviews = showAllComments
+    ? data.reviews
+    : data.reviews.slice(0, VISIBLE_COMMENTS);
+  const hasMoreComments = data.reviews.length > VISIBLE_COMMENTS;
 
   useEffect(() => {
     let active = true;
@@ -307,32 +315,10 @@ export function RecipeReviews({
     <section id="recipe-comments" className="mt-14 scroll-mt-24 border-t border-line pt-10">
       <h2 className="font-serif text-4xl text-ink">Comments</h2>
 
-      {data.reviews.length ? (
-        <ul className="mt-2">
-          {data.reviews.map((review) => (
-            <ReviewItem
-              key={review.id}
-              review={review}
-              slug={slug}
-              defaultName={defaultName}
-              defaultEmail={defaultEmail}
-              activeReplyId={activeReplyId}
-              onReply={setActiveReplyId}
-              onCancelReply={() => setActiveReplyId(null)}
-              onDataChange={applyReviewData}
-            />
-          ))}
-        </ul>
-      ) : loaded ? (
-        <p className="mt-4 text-sm text-muted">Be the first to rate and review {title}.</p>
-      ) : (
-        <p className="mt-4 text-sm text-muted">Loading comments…</p>
-      )}
-
       <form
         onSubmit={onSubmit}
         id="leave-comment"
-        className="mt-10 grid gap-4 border border-line bg-paper p-5 md:p-6"
+        className="mt-6 grid gap-4 border border-line bg-paper p-5 md:p-6"
       >
         <h3 className="font-serif text-2xl text-ink">Leave a comment</h3>
         <StarPicker value={rating} onChange={setRating} />
@@ -373,7 +359,7 @@ export function RecipeReviews({
 
         {error ? <p className="text-sm text-terracotta">{error}</p> : null}
         {submitted ? (
-          <p className="text-sm text-olive">Thank you — your review is live above.</p>
+          <p className="text-sm text-olive">Thank you — your review is live below.</p>
         ) : null}
 
         <button
@@ -384,6 +370,41 @@ export function RecipeReviews({
           {submitting ? "Posting…" : "Post comment"}
         </button>
       </form>
+
+      {data.reviews.length ? (
+        <>
+          <ul className="mt-10">
+            {visibleReviews.map((review) => (
+              <ReviewItem
+                key={review.id}
+                review={review}
+                slug={slug}
+                defaultName={defaultName}
+                defaultEmail={defaultEmail}
+                activeReplyId={activeReplyId}
+                onReply={setActiveReplyId}
+                onCancelReply={() => setActiveReplyId(null)}
+                onDataChange={applyReviewData}
+              />
+            ))}
+          </ul>
+          {hasMoreComments && !showAllComments ? (
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowAllComments(true)}
+                className="rounded-sm bg-olive px-8 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-paper hover:bg-olive-dark"
+              >
+                Show more comments
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : loaded ? (
+        <p className="mt-8 text-sm text-muted">Be the first to rate and review {title}.</p>
+      ) : (
+        <p className="mt-8 text-sm text-muted">Loading comments…</p>
+      )}
     </section>
   );
 }
