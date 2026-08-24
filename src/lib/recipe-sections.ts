@@ -15,7 +15,10 @@ function slugifyHeading(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function recipeTocItems(recipe: Recipe & { extras?: ExtraField[] }): RecipeTocItem[] {
+export function recipeTocItems(
+  recipe: Recipe & { extras?: ExtraField[] },
+  options?: { includeComments?: boolean },
+): RecipeTocItem[] {
   const items: RecipeTocItem[] = [];
 
   if (recipe.youtubeUrl && youtubeVideoId(recipe.youtubeUrl)) {
@@ -37,6 +40,9 @@ export function recipeTocItems(recipe: Recipe & { extras?: ExtraField[] }): Reci
   for (const extra of recipe.extras ?? []) {
     const id = `extra-${extra.key || slugifyHeading(extra.label)}`;
     items.push({ id, label: extra.label });
+  }
+  if (options?.includeComments !== false) {
+    items.push({ id: "recipe-comments", label: "Comments" });
   }
 
   return items;

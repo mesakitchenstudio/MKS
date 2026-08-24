@@ -2,13 +2,16 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
 import { CollectionRow } from "@/components/CollectionRow";
 import { JsonLd } from "@/components/JsonLd";
 import { RecipeCard } from "@/components/RecipeCard";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
+import { RecipeRatingBadge, RecipeReviews } from "@/components/RecipeReviews";
 import { RecipeTableOfContents } from "@/components/RecipeTableOfContents";
 import { RecipeVideo } from "@/components/RecipeVideo";
 import { ShareButtons } from "@/components/ShareButtons";
+import { getRecipeReviewData } from "@/lib/recipe-reviews";
 import { recipeTocItems } from "@/lib/recipe-sections";
 import { recipeJsonLd } from "@/lib/schema";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
@@ -47,7 +50,11 @@ export default async function RecipePage({ params }: Props) {
   const recipe = await getRecipeBySlug(slug);
   if (!recipe) notFound();
 
-  const related = await getRelatedRecipes(recipe);
+  const [related, reviewData, session] = await Promise.all([
+    getRelatedRecipes(recipe),
+    getRecipeReviewData(slug),
+    auth(),
+  ]);
   const toc = recipeTocItems(recipe);
   const updated = new Date(recipe.updatedAt).toLocaleDateString("en-US", {
     month: "short",
@@ -59,7 +66,7 @@ export default async function RecipePage({ params }: Props) {
   return (
     <article>
       <SetCurrentRecipe slug={recipe.slug} title={recipe.title} />
-      <JsonLd data={recipeJsonLd(recipe)} />
+      <JsonLd data={recipeJsonLd(recipe, reviewData.stats)} />
 
       <div className="mx-auto max-w-3xl px-4 py-10 md:px-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
@@ -67,6 +74,7 @@ export default async function RecipePage({ params }: Props) {
         </p>
 
         <h1 className="mt-3 font-serif text-5xl leading-tight text-ink">{recipe.title}</h1>
+        <RecipeRatingBadge stats={reviewData.stats} />
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
           <p className="text-sm text-muted">Updated {updated}</p>
@@ -178,6 +186,14 @@ export default async function RecipePage({ params }: Props) {
             ))}
           </section>
         ) : null}
+
+        <RecipeReviews
+          slug={recipe.slug}
+          title={recipe.title}
+          initial={reviewData}
+          defaultName={session?.user?.name ?? ""}
+          defaultEmail={session?.user?.email ?? ""}
+        />
 
         <p className="mt-10 text-sm text-muted">
           Filed under{" "}

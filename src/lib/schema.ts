@@ -1,6 +1,7 @@
 import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
 import { bakeMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
+import type { RecipeReviewStats } from "@/lib/recipe-reviews";
 
 export function organizationJsonLd() {
   return {
@@ -14,8 +15,8 @@ export function organizationJsonLd() {
   };
 }
 
-export function recipeJsonLd(recipe: Recipe) {
-  return {
+export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
+  const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Recipe",
     name: recipe.title,
@@ -56,5 +57,17 @@ export function recipeJsonLd(recipe: Recipe) {
       fatContent: `${recipe.nutrition.fat} grams`,
     },
   };
+
+  if (reviewStats?.count) {
+    data.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: reviewStats.average,
+      reviewCount: reviewStats.count,
+      bestRating: 5,
+      worstRating: 1,
+    };
+  }
+
+  return data;
 }
 
