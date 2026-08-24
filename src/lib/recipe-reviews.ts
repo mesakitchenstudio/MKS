@@ -113,7 +113,8 @@ export async function getRecipeReviewData(recipeSlug: string): Promise<RecipeRev
         count: reviews.length,
       },
     };
-  } catch {
+  } catch (error) {
+    console.error("getRecipeReviewData failed", recipeSlug, error);
     return emptyReviewData();
   }
 }

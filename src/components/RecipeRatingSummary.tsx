@@ -1,8 +1,47 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { StarRating } from "@/components/StarRating";
+import { fetchRecipeReviewData } from "@/lib/recipe-reviews-client";
 import type { RecipeReviewStats } from "@/lib/recipe-reviews";
 
-export function RecipeRatingSummary({ stats }: { stats: RecipeReviewStats }) {
+export function RecipeRatingSummary({
+  slug,
+  initial,
+}: {
+  slug: string;
+  initial: RecipeReviewStats;
+}) {
+  const [stats, setStats] = useState(initial);
+
+  useEffect(() => {
+    setStats(initial);
+  }, [initial]);
+
+  useEffect(() => {
+    let active = true;
+    void fetchRecipeReviewData(slug)
+      .then((data) => {
+        if (active) setStats(data.stats);
+      })
+      .catch(() => {
+        /* keep server fallback */
+      });
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+
+  useEffect(() => {
+    function onUpdated(event: Event) {
+      const detail = (event as CustomEvent<RecipeReviewStats>).detail;
+      if (detail) setStats(detail);
+    }
+    window.addEventListener("recipe-reviews-updated", onUpdated);
+    return () => window.removeEventListener("recipe-reviews-updated", onUpdated);
+  }, []);
+
   if (!stats.count) {
     return (
       <p className="mt-4 text-sm text-muted">
@@ -30,4 +69,8 @@ export function RecipeRatingSummary({ stats }: { stats: RecipeReviewStats }) {
       </Link>
     </div>
   );
+}
+
+export function notifyRecipeReviewsUpdated(stats: RecipeReviewStats) {
+  window.dispatchEvent(new CustomEvent("recipe-reviews-updated", { detail: stats }));
 }

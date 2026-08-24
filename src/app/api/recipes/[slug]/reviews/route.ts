@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getRecipeReviewData, submitRecipeReview } from "@/lib/recipe-reviews";
 
+export const dynamic = "force-dynamic";
+
 type RouteContext = {
   params: Promise<{ slug: string }>;
 };

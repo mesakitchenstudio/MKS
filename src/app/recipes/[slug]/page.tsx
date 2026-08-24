@@ -75,7 +75,7 @@ export default async function RecipePage({ params }: Props) {
         </p>
 
         <h1 className="mt-3 font-serif text-5xl leading-tight text-ink">{recipe.title}</h1>
-        <RecipeRatingSummary stats={reviewData.stats} />
+        <RecipeRatingSummary slug={recipe.slug} initial={reviewData.stats} />
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
           <p className="text-sm text-muted">Updated {updated}</p>

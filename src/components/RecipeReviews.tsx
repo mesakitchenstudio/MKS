@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { notifyRecipeReviewsUpdated } from "@/components/RecipeRatingSummary";
 import { StarPicker, StarRating } from "@/components/StarRating";
+import { fetchRecipeReviewData } from "@/lib/recipe-reviews-client";
 import type { RecipeReviewData, RecipeReviewReplyRow, RecipeReviewRow } from "@/lib/recipe-reviews";
 
 type RecipeReviewsProps = {
@@ -240,7 +241,6 @@ export function RecipeReviews({
   defaultName = "",
   defaultEmail = "",
 }: RecipeReviewsProps) {
-  const router = useRouter();
   const [data, setData] = useState(initial);
   const [rating, setRating] = useState(0);
   const [name, setName] = useState(defaultName);
@@ -250,6 +250,29 @@ export function RecipeReviews({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void fetchRecipeReviewData(slug)
+      .then((next) => {
+        if (active) setData(next);
+      })
+      .catch(() => {
+        /* keep server fallback */
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+
+  function applyReviewData(next: RecipeReviewData) {
+    setData(next);
+    notifyRecipeReviewsUpdated(next.stats);
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -269,11 +292,10 @@ export function RecipeReviews({
       });
       const payload = (await response.json()) as RecipeReviewData & { error?: string };
       if (!response.ok) throw new Error(payload.error || "Could not save your review.");
-      setData(payload);
+      applyReviewData(payload);
       setSubmitted(true);
       setComment("");
       setRating(0);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your review.");
     } finally {
@@ -297,15 +319,14 @@ export function RecipeReviews({
               activeReplyId={activeReplyId}
               onReply={setActiveReplyId}
               onCancelReply={() => setActiveReplyId(null)}
-              onDataChange={(next) => {
-                setData(next);
-                router.refresh();
-              }}
+              onDataChange={applyReviewData}
             />
           ))}
         </ul>
-      ) : (
+      ) : loaded ? (
         <p className="mt-4 text-sm text-muted">Be the first to rate and review {title}.</p>
+      ) : (
+        <p className="mt-4 text-sm text-muted">Loading comments…</p>
       )}
 
       <form
