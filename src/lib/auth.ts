@@ -108,16 +108,23 @@ export async function requireAccess(area: AdminArea) {
 }
 
 export async function authenticateAdmin(email: string, password: string): Promise<Omit<AdminSession, "exp"> | null> {
-  const trimmed = email.trim().toLowerCase();
-  if (!trimmed && verifyEnvAdminPassword(password)) {
-    return { id: "env", email: "owner", name: "Owner", role: "owner" };
+  const identifier = email.trim();
+  if (!identifier) return null;
+
+  const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (ownerEmail && identifier.toLowerCase() === ownerEmail && verifyEnvAdminPassword(password)) {
+    return { id: "env", email: ownerEmail, name: "Owner", role: "owner" };
   }
-  if (!trimmed) return null;
 
   try {
-    const admin = await getDb().admin.findUnique({ where: { email: trimmed } });
+    const db = getDb();
+    let admin = await db.admin.findUnique({ where: { email: identifier.toLowerCase() } });
+    if (!admin) {
+      const admins = await db.admin.findMany();
+      admin = admins.find((item: { name: string }) => item.name.toLowerCase() === identifier.toLowerCase()) ?? null;
+    }
     if (!admin || !verifyStoredPassword(password, admin.passwordHash)) return null;
-    await getDb().admin.update({ where: { id: admin.id }, data: { lastSeenAt: new Date() } });
+    await db.admin.update({ where: { id: admin.id }, data: { lastSeenAt: new Date() } });
     const role = isAccessLevel(admin.role) ? admin.role : "editor";
     return { id: admin.id, email: admin.email, name: admin.name, role };
   } catch {

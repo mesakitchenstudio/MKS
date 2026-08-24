@@ -8,7 +8,8 @@ export function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   if (
-    pathname === "/coming-soon" ||
+    pathname === "/forgot-password" ||
+    pathname.startsWith("/reset-password") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
     pathname.startsWith("/admin") ||

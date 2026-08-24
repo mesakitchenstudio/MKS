@@ -128,7 +128,12 @@ export async function registerEmailUser(input: {
 
 export async function authenticateEmailUser(email: string, password: string) {
   const db = getDb();
-  const user = await db.user.findUnique({ where: { email: emailKey(email) } });
+  const identifier = email.trim();
+  let user = await db.user.findUnique({ where: { email: emailKey(identifier) } });
+  if (!user) {
+    const users = await db.user.findMany();
+    user = users.find((item) => item.name.toLowerCase() === identifier.toLowerCase()) ?? null;
+  }
   if (!user) {
     throw new Error("Email or password is not correct.");
   }

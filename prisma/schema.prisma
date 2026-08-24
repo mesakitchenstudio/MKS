@@ -115,3 +115,12 @@ model Admin {
   updatedAt    DateTime @updatedAt
   lastSeenAt   DateTime @default(now())
 }
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  email     String
+  kind      String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}

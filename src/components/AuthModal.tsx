@@ -112,10 +112,11 @@ export function AuthModal({
             ) : null}
             <input
               required
-              type="email"
+              type="text"
+              autoComplete="username"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="Email"
+              placeholder="Email or username"
               className="w-full rounded-sm border border-line px-3 py-3 text-sm outline-none focus:border-olive"
             />
             <input
@@ -127,6 +128,13 @@ export function AuthModal({
               placeholder="Password"
               className="w-full rounded-sm border border-line px-3 py-3 text-sm outline-none focus:border-olive"
             />
+            {mode === "signin" ? (
+              <p className="text-sm">
+                <a href="/forgot-password" className="font-semibold text-olive">
+                  Forgot password?
+                </a>
+              </p>
+            ) : null}
 
             {mode === "signup" ? (
               <label className="flex items-center gap-2 text-sm">

@@ -103,7 +103,8 @@ export default async function AdminStaffPage({
         ))}
         {admins.length === 0 ? (
           <li className="px-4 py-8 text-sm text-muted">
-            No named admins yet. Add one above. The owner password from .env still signs in as owner.
+            No named admins yet. Add one above. The owner email from ADMIN_EMAIL still signs in with
+            the owner password.
           </li>
         ) : null}
       </ul>
