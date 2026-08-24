@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { CORE_FIELDS, RECIPE_OVERVIEW_KEYS } from "@/lib/fields";
+import { CORE_FIELDS, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS } from "@/lib/fields";
 
 let sync: Promise<void> | null = null;
 
@@ -19,7 +19,8 @@ async function syncRecipeOverviewFields() {
     include: { fields: true },
   });
   const wanted = CORE_FIELDS.filter((field) =>
-    RECIPE_OVERVIEW_KEYS.includes(field.key as (typeof RECIPE_OVERVIEW_KEYS)[number]),
+    RECIPE_OVERVIEW_KEYS.includes(field.key as (typeof RECIPE_OVERVIEW_KEYS)[number]) ||
+    RECIPE_MEDIA_KEYS.includes(field.key as (typeof RECIPE_MEDIA_KEYS)[number]),
   );
 
   for (const type of types) {

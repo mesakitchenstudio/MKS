@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { emptyValue, RECIPE_OVERVIEW_KEYS } from "@/lib/fields";
+import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS } from "@/lib/fields";
 import { saveRecipeAction } from "@/app/admin/actions";
 
 type Field = {
@@ -59,10 +59,14 @@ export function RecipeEditor({
     return next;
   });
 
+  const mediaKeys = new Set<string>(RECIPE_MEDIA_KEYS);
+  mediaKeys.add("image");
+  mediaKeys.add("imageAlt");
   const overviewKeys = new Set<string>(RECIPE_OVERVIEW_KEYS);
+  const mediaFields = fields.filter((field) => mediaKeys.has(field.key));
   const overviewFields = fields.filter((field) => overviewKeys.has(field.key));
   const extraFields = fields.filter(
-    (field) => !overviewKeys.has(field.key) && field.key !== "cookMinutes",
+    (field) => !mediaKeys.has(field.key) && !overviewKeys.has(field.key) && field.key !== "cookMinutes",
   );
 
   const encoded = useMemo(() => {
@@ -172,6 +176,24 @@ export function RecipeEditor({
       </div>
 
       <div className="grid gap-5">
+        {mediaFields.length ? (
+          <section className="grid gap-5 border border-line bg-paper p-5">
+            <div>
+              <p className="font-semibold">Photos and video</p>
+              <p className="mt-1 text-xs text-muted">
+                Hero image and an optional YouTube walkthrough for the public recipe page.
+              </p>
+            </div>
+            {mediaFields.map((field) => (
+              <FieldControl
+                key={field.key}
+                field={field}
+                value={values[field.key]}
+                onChange={(value) => setField(field.key, value)}
+              />
+            ))}
+          </section>
+        ) : null}
         {overviewFields.length ? (
           <section className="grid gap-5 border border-line bg-paper p-5">
             <div>

@@ -40,6 +40,7 @@ export type Recipe = {
   faqs: Faq[];
   image: string;
   imageAlt: string;
+  youtubeUrl?: string;
   publishedAt: string;
   updatedAt: string;
   prepMinutes: number;

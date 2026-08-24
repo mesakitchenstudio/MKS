@@ -29,6 +29,8 @@ export type FieldDefinition = {
 
 export const DIFFICULTY_OPTIONS = ["Easy", "Medium", "Hard"] as const;
 
+export const RECIPE_MEDIA_KEYS = ["youtubeUrl"] as const;
+
 export const RECIPE_OVERVIEW_KEYS = [
   "difficulty",
   "prepMinutes",
@@ -40,6 +42,7 @@ export const RECIPE_OVERVIEW_KEYS = [
 export const CORE_VALUE_KEYS = [
   "image",
   "imageAlt",
+  "youtubeUrl",
   "intro",
   "whyItWorks",
   "keyIngredients",
@@ -105,6 +108,12 @@ export function emptyValue(kind: string) {
 export const CORE_FIELDS: FieldDefinition[] = [
   { key: "image", label: "Hero image", kind: "image", required: true },
   { key: "imageAlt", label: "Image description", kind: "text", required: true },
+  {
+    key: "youtubeUrl",
+    label: "YouTube video",
+    kind: "text",
+    helpText: "Paste a YouTube link to show a walkthrough on the recipe page.",
+  },
   { key: "intro", label: "Introduction", kind: "textarea", required: true },
   { key: "whyItWorks", label: "Why this works", kind: "textarea" },
   { key: "keyIngredients", label: "Key ingredients", kind: "namedNotes" },

@@ -101,6 +101,7 @@ export function toPublicRecipe(record: DbRecipeRecord): Recipe & { extras: Extra
     faqs: asFaqs(values.faqs),
     image: asString(values.image),
     imageAlt: asString(values.imageAlt, record.title),
+    youtubeUrl: asString(values.youtubeUrl) || undefined,
     publishedAt: (record.publishedAt || record.updatedAt).toISOString().slice(0, 10),
     updatedAt: record.updatedAt.toISOString().slice(0, 10),
     prepMinutes: asNumber(values.prepMinutes),
@@ -142,6 +143,7 @@ export function recipeToValues(recipe: Recipe): Record<string, unknown> {
   return {
     image: recipe.image,
     imageAlt: recipe.imageAlt,
+    youtubeUrl: recipe.youtubeUrl || "",
     intro: recipe.intro,
     whyItWorks: recipe.whyItWorks,
     keyIngredients: recipe.keyIngredients,
