@@ -1,4 +1,15 @@
+import { getStaffByEmail } from "@/lib/accounts";
 import { getDb } from "@/lib/db";
+import { site } from "@/data/site";
+
+export type RecipeReviewReplyRow = {
+  id: string;
+  authorName: string;
+  authorTitle: string;
+  body: string;
+  isStaff: boolean;
+  createdAt: string;
+};
 
 export type RecipeReviewRow = {
   id: string;
@@ -6,6 +17,7 @@ export type RecipeReviewRow = {
   rating: number;
   body: string;
   createdAt: string;
+  replies: RecipeReviewReplyRow[];
 };
 
 export type RecipeReviewStats = {
@@ -22,12 +34,38 @@ function emptyReviewData(): RecipeReviewData {
   return { reviews: [], stats: { average: 0, count: 0 } };
 }
 
+function toReplyRow(reply: {
+  id: string;
+  authorName: string;
+  authorTitle: string;
+  body: string;
+  isStaff: boolean;
+  createdAt: Date;
+}): RecipeReviewReplyRow {
+  return {
+    id: reply.id,
+    authorName: reply.authorName,
+    authorTitle: reply.authorTitle,
+    body: reply.body,
+    isStaff: reply.isStaff,
+    createdAt: reply.createdAt.toISOString(),
+  };
+}
+
 function toRow(review: {
   id: string;
   authorName: string;
   rating: number;
   body: string;
   createdAt: Date;
+  replies: {
+    id: string;
+    authorName: string;
+    authorTitle: string;
+    body: string;
+    isStaff: boolean;
+    createdAt: Date;
+  }[];
 }): RecipeReviewRow {
   return {
     id: review.id,
@@ -35,6 +73,7 @@ function toRow(review: {
     rating: review.rating,
     body: review.body,
     createdAt: review.createdAt.toISOString(),
+    replies: review.replies.map(toReplyRow),
   };
 }
 
@@ -50,6 +89,17 @@ export async function getRecipeReviewData(recipeSlug: string): Promise<RecipeRev
         rating: true,
         body: true,
         createdAt: true,
+        replies: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            authorName: true,
+            authorTitle: true,
+            body: true,
+            isStaff: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
@@ -142,5 +192,63 @@ export async function submitRecipeReview(input: {
       throw error;
     }
     throw new Error("Could not save your review. Please try again.");
+  }
+}
+
+export async function submitRecipeReviewReply(input: {
+  recipeSlug: string;
+  reviewId: string;
+  authorName: string;
+  authorEmail: string;
+  body: string;
+}) {
+  const db = getDb();
+  const authorName = input.authorName.trim();
+  const authorEmail = input.authorEmail.trim().toLowerCase();
+  const body = input.body.trim();
+
+  if (!authorName || !authorEmail || !body) {
+    throw new Error("Name, email, and reply are required.");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authorEmail)) {
+    throw new Error("Enter a valid email address.");
+  }
+  if (body.length < 3) {
+    throw new Error("Replies must be at least 3 characters.");
+  }
+
+  try {
+    const review = await db.recipeReview.findFirst({
+      where: { id: input.reviewId, recipeSlug: input.recipeSlug },
+      select: { id: true },
+    });
+    if (!review) throw new Error("Comment not found.");
+
+    const staff = await getStaffByEmail(authorEmail);
+    const isStaff = Boolean(staff);
+    const authorTitle = isStaff
+      ? staff?.role === "owner"
+        ? site.name
+        : `${site.name} team`
+      : "";
+
+    await db.recipeReviewReply.create({
+      data: {
+        reviewId: input.reviewId,
+        authorName: isStaff ? staff?.name || authorName : authorName,
+        authorTitle,
+        authorEmail,
+        body,
+        isStaff,
+      },
+    });
+
+    return getRecipeReviewData(input.recipeSlug);
+  } catch (error) {
+    console.error("Recipe reply submit failed", error);
+    if (error instanceof Error && !/prisma|datasource|invocation/i.test(error.message)) {
+      throw error;
+    }
+    throw new Error("Could not save your reply. Please try again.");
   }
 }

@@ -92,19 +92,34 @@ model RecipeSave {
 }
 
 model RecipeReview {
-  id          String   @id @default(cuid())
+  id          String              @id @default(cuid())
   recipeSlug  String
   userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user        User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   authorName  String
   authorEmail String
   rating      Int
   body        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  replies     RecipeReviewReply[]
 
   @@unique([recipeSlug, authorEmail])
   @@index([recipeSlug, createdAt])
+}
+
+model RecipeReviewReply {
+  id          String       @id @default(cuid())
+  reviewId    String
+  review      RecipeReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  authorName  String
+  authorTitle String       @default("")
+  authorEmail String
+  body        String
+  isStaff     Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  @@index([reviewId, createdAt])
 }
 
 model UserConnection {
