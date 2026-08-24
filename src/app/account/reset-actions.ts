@@ -6,12 +6,15 @@ import { requestPasswordReset, resetPasswordWithToken, type ResetKind } from "@/
 export async function requestPasswordResetAction(formData: FormData) {
   const identifier = String(formData.get("email") || "");
   const kind = String(formData.get("kind") || "member") === "admin" ? "admin" : "member";
+  const base = kind === "admin" ? "/admin/forgot-password" : "/forgot-password";
+  let status = "ok";
   try {
-    await requestPasswordReset(identifier, kind as ResetKind);
+    status = await requestPasswordReset(identifier, kind as ResetKind);
   } catch (error) {
     console.error("Could not start password reset", error);
+    status = "noemail";
   }
-  redirect(kind === "admin" ? "/admin/forgot-password?sent=1" : "/forgot-password?sent=1");
+  redirect(`${base}?status=${status}`);
 }
 
 export async function completePasswordResetAction(formData: FormData) {

@@ -5,8 +5,6 @@ import { redirect } from "next/navigation";
 import { loginAction } from "../actions";
 import { AdminGoogleSignIn } from "@/components/admin/AdminGoogleSignIn";
 
-const googleReady = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
-
 export default async function AdminLoginPage({
   searchParams,
 }: {
@@ -15,17 +13,23 @@ export default async function AdminLoginPage({
   const admin = await getAdminSession();
   if (admin) redirect(homeForRole(admin.role));
   const { error, reset } = await searchParams;
+  const errorMessage =
+    error === "locked"
+      ? "Too many attempts. Try again in 15 minutes."
+      : error === "google"
+        ? "Google sign-in did not finish. Try again."
+        : error === "not-admin"
+          ? "That Google account is not a studio admin."
+          : error
+            ? "That email or password did not match."
+            : "";
 
   return (
     <div className="mx-auto max-w-md border border-line bg-paper p-8">
       <h1 className="font-serif text-3xl">Studio login</h1>
       <p className="mt-2 text-sm text-muted">Sign in with your email or username and password.</p>
       {reset ? <p className="mt-4 text-sm text-olive">Password updated. Sign in with your new password.</p> : null}
-      {error === "locked" ? (
-        <p className="mt-4 text-sm text-terracotta">Too many attempts. Try again in 15 minutes.</p>
-      ) : error ? (
-        <p className="mt-4 text-sm text-terracotta">That email or password did not match.</p>
-      ) : null}
+      {errorMessage ? <p className="mt-4 text-sm text-terracotta">{errorMessage}</p> : null}
       <form action={loginAction} className="mt-6 grid gap-4">
         <label className="grid gap-1 text-sm">
           Email or username
@@ -59,12 +63,10 @@ export default async function AdminLoginPage({
           Forgot password?
         </Link>
       </p>
-      {googleReady ? (
-        <div className="mt-4 grid gap-3">
-          <p className="text-center text-xs uppercase tracking-wide text-muted">or</p>
-          <AdminGoogleSignIn />
-        </div>
-      ) : null}
+      <div className="mt-4 grid gap-3">
+        <p className="text-center text-xs uppercase tracking-wide text-muted">or</p>
+        <AdminGoogleSignIn />
+      </div>
     </div>
   );
 }

@@ -12,6 +12,13 @@ import {
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
 import { writeAdminSession } from "@/lib/auth";
 
+if (process.env.VERCEL) {
+  const configured = process.env.AUTH_URL?.trim() ?? "";
+  if (!configured || /localhost|127\.0\.0\.1/i.test(configured)) {
+    process.env.AUTH_URL = "https://www.mesakitchenstudio.com";
+  }
+}
+
 const googleReady = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
 
 function asStaffRole(value: unknown): AccessLevel | null {

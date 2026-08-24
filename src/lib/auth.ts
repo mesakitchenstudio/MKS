@@ -73,22 +73,29 @@ export function verifySessionToken(token: string | undefined): AdminSession | nu
   }
 }
 
-export async function writeAdminSession(admin: Omit<AdminSession, "exp">) {
-  const jar = await cookies();
-  jar.set(ADMIN_COOKIE, createSessionToken(admin), {
+export function adminCookieOptions() {
+  return {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 24 * 2,
-  });
-  if (admin.id !== "env") {
-    try {
-      await getDb().admin.update({ where: { id: admin.id }, data: { lastSeenAt: new Date() } });
-    } catch {
-      // Named admin row may have been removed.
-    }
+  };
+}
+
+export async function persistAdminLastSeen(admin: Omit<AdminSession, "exp">) {
+  if (admin.id === "env") return;
+  try {
+    await getDb().admin.update({ where: { id: admin.id }, data: { lastSeenAt: new Date() } });
+  } catch {
+    // Named admin row may have been removed.
   }
+}
+
+export async function writeAdminSession(admin: Omit<AdminSession, "exp">) {
+  const jar = await cookies();
+  jar.set(ADMIN_COOKIE, createSessionToken(admin), adminCookieOptions());
+  await persistAdminLastSeen(admin);
 }
 
 export async function getAdminSession() {

@@ -16,6 +16,12 @@ function emailKey(email: string) {
 export async function getStaffByEmail(email: string) {
   const key = emailKey(email);
   if (!key) return null;
+
+  const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (ownerEmail && key === ownerEmail) {
+    return { id: "env", email: ownerEmail, name: "Owner", role: "owner" as AccessLevel };
+  }
+
   try {
     const admin = await getDb().admin.findUnique({ where: { email: key } });
     if (!admin) return null;

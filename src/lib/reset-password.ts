@@ -3,15 +3,19 @@ import { getDb } from "@/lib/db";
 import { hashPassword } from "@/lib/passwords";
 
 export type ResetKind = "admin" | "member";
+export type ResetRequestStatus = "ok" | "sent" | "owner" | "noemail";
 
 function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
 export function siteUrl() {
-  const value = process.env.AUTH_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (value) {
-    return value.startsWith("http") ? value.replace(/\/$/, "") : `https://${value.replace(/\/$/, "")}`;
+  const fromAuth = process.env.AUTH_URL?.trim();
+  if (fromAuth && !/localhost|127\.0\.0\.1/i.test(fromAuth)) {
+    return fromAuth.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/$/, "")}`;
   }
   return "https://www.mesakitchenstudio.com";
 }
@@ -36,10 +40,19 @@ async function findMember(identifier: string) {
   return users.find((user) => user.name.toLowerCase() === trimmed.toLowerCase()) ?? null;
 }
 
-export async function requestPasswordReset(identifier: string, preferred: ResetKind) {
+export async function requestPasswordReset(
+  identifier: string,
+  preferred: ResetKind,
+): Promise<ResetRequestStatus> {
   const token = randomBytes(32).toString("hex");
   let email = "";
   let kind: ResetKind = preferred;
+  const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const typed = identifier.trim().toLowerCase();
+
+  if (preferred === "admin" && ownerEmail && typed === ownerEmail) {
+    return "owner" as const;
+  }
 
   if (preferred === "admin") {
     const admin = await findAdmin(identifier);
@@ -61,7 +74,7 @@ export async function requestPasswordReset(identifier: string, preferred: ResetK
     }
   }
 
-  if (!email) return true;
+  if (!email) return "ok" as const;
 
   const db = getDb();
   await db.passwordReset.deleteMany({ where: { email } });
@@ -76,8 +89,8 @@ export async function requestPasswordReset(identifier: string, preferred: ResetK
 
   const path = kind === "admin" ? "/admin/reset-password" : "/reset-password";
   const url = `${siteUrl()}${path}?token=${token}`;
-  await sendResetEmail(email, url);
-  return true;
+  const sent = await sendResetEmail(email, url);
+  return sent ? ("sent" as const) : ("noemail" as const);
 }
 
 export async function resetPasswordWithToken(token: string, password: string) {
@@ -111,7 +124,7 @@ async function sendResetEmail(to: string, url: string) {
   const from = process.env.EMAIL_FROM?.trim() || "Mesa Kitchen Studio <hello@mesakitchenstudio.com>";
   if (!key) {
     console.info("Password reset link (email not configured):", to, url);
-    return;
+    return false;
   }
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -128,5 +141,7 @@ async function sendResetEmail(to: string, url: string) {
   });
   if (!response.ok) {
     console.error("Could not send reset email", await response.text());
+    return false;
   }
+  return true;
 }

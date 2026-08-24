@@ -3,9 +3,9 @@ import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
 export default async function ForgotPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string; done?: string }>;
+  searchParams: Promise<{ sent?: string; status?: string; done?: string }>;
 }) {
-  const { sent, done } = await searchParams;
+  const { sent, status, done } = await searchParams;
   if (done) {
     return (
       <div className="mx-auto max-w-md px-4 py-16">
@@ -18,7 +18,7 @@ export default async function ForgotPasswordPage({
   }
   return (
     <div className="mx-auto max-w-md px-4 py-16">
-      <ForgotPasswordForm kind="member" sent={Boolean(sent)} />
+      <ForgotPasswordForm kind="member" status={status || (sent ? "ok" : undefined)} />
     </div>
   );
 }

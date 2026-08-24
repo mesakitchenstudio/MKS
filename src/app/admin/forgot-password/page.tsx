@@ -3,8 +3,8 @@ import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
 export default async function AdminForgotPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string }>;
+  searchParams: Promise<{ sent?: string; status?: string }>;
 }) {
-  const { sent } = await searchParams;
-  return <ForgotPasswordForm kind="admin" sent={Boolean(sent)} />;
+  const { sent, status } = await searchParams;
+  return <ForgotPasswordForm kind="admin" status={status || (sent ? "ok" : undefined)} />;
 }
