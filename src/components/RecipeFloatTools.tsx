@@ -119,9 +119,17 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
     });
   }
 
+  const onRecipePage = /^\/recipes\/[^/]+$/.test(pathname);
+
   return (
     <div className="no-print">
-      <div className="fixed right-4 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3 md:right-6">
+      <div
+        className={`fixed z-40 flex flex-col gap-3 ${
+          onRecipePage
+            ? "bottom-6 right-4 md:right-6"
+            : "right-4 top-1/2 -translate-y-1/2 md:right-6"
+        }`}
+      >
         <button
           type="button"
           aria-label={liked ? "Unlike recipe" : "Like recipe"}
