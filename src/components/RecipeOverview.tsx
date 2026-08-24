@@ -59,7 +59,7 @@ export function RecipeOverview({ recipe }: { recipe: Recipe }) {
   const utensils = recipe.utensils?.filter(Boolean) ?? [];
 
   return (
-    <div className="recipe-overview bg-ink px-6 py-6 text-cream md:px-8">
+    <div className="recipe-overview bg-[#000] px-6 py-6 text-cream md:px-8">
       <p className="text-sm">
         Difficulty: <span className="font-semibold">{difficultyLabel(recipe.difficulty)}</span>
       </p>

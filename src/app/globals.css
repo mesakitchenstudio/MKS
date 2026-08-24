@@ -46,6 +46,10 @@ body {
   margin-top: 1rem;
 }
 
+.recipe-overview {
+  background: #000;
+}
+
 @media print {
   .no-print {
     display: none !important;
