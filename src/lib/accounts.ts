@@ -41,6 +41,15 @@ export async function removeMemberByEmail(email: string) {
 }
 
 export async function ensureMember(email: string, name = "", headers?: unknown) {
+  try {
+    return await ensureMemberRecord(email, name, headers);
+  } catch (error) {
+    console.error("Could not ensure member", error);
+    return null;
+  }
+}
+
+async function ensureMemberRecord(email: string, name = "", headers?: unknown) {
   if (await getStaffByEmail(email)) {
     await removeMemberByEmail(email);
     return null;
@@ -247,13 +256,18 @@ export async function enrichMemberConnection(email: string, name = "", headers?:
 }
 
 export async function getUserByEmail(email: string) {
-  return getDb().user.findUnique({
-    where: { email: emailKey(email) },
-    include: {
-      saves: { orderBy: { createdAt: "desc" } },
-      connections: { orderBy: { createdAt: "desc" }, take: 20 },
-    },
-  });
+  try {
+    return await getDb().user.findUnique({
+      where: { email: emailKey(email) },
+      include: {
+        saves: { orderBy: { createdAt: "desc" } },
+        connections: { orderBy: { createdAt: "desc" }, take: 20 },
+      },
+    });
+  } catch (error) {
+    console.error("Could not load member profile", error);
+    return null;
+  }
 }
 
 export async function listUsersForAdmin() {
