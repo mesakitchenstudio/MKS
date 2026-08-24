@@ -15,17 +15,16 @@ export function RecipeRatingSummary({ stats }: { stats: RecipeReviewStats }) {
 
   return (
     <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <StarRating value={stats.average} label={`${stats.average} out of 5 stars`} />
-      <p className="text-base text-ink">
-        <span className="font-serif text-2xl font-semibold">{stats.average.toFixed(1)}</span>
-        <span className="text-muted">
-          {" "}
-          from {stats.count} {stats.count === 1 ? "review" : "reviews"}
+      <StarRating value={stats.average} size="sm" label={`${stats.average} out of 5 stars`} />
+      <p className="flex items-center gap-2 text-sm leading-none text-muted">
+        <span className="font-serif text-xl font-semibold text-ink">
+          {stats.average.toFixed(1)}
         </span>
+        <span>from {stats.count} {stats.count === 1 ? "review" : "reviews"}</span>
       </p>
       <Link
         href="#recipe-comments"
-        className="text-sm font-semibold text-terracotta hover:underline"
+        className="text-sm font-semibold leading-none text-terracotta hover:underline"
       >
         Read reviews
       </Link>
