@@ -7,7 +7,7 @@ import { homeForRole, isAccessLevel } from "@/lib/admin-access";
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
 import { ADMIN_COOKIE, authenticateAdmin, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { emptyValue, keyFromLabel, slugify } from "@/lib/fields";
+import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import { hashPassword } from "@/lib/passwords";
 import { removeMemberByEmail } from "@/lib/accounts";
 import { connectionMeta } from "@/lib/request-meta";
@@ -81,7 +81,24 @@ export async function saveTypeAction(formData: FormData) {
     redirect(`/admin/types/${id}`);
   }
 
-  const created = await db.recipeType.create({ data: { name, slug, description } });
+  const created = await db.recipeType.create({
+    data: {
+      name,
+      slug,
+      description,
+      fields: {
+        create: CORE_FIELDS.map((field, index) => ({
+          key: field.key,
+          label: field.label,
+          helpText: field.helpText || "",
+          kind: field.kind,
+          required: Boolean(field.required),
+          options: JSON.stringify(field.options || []),
+          sortOrder: index,
+        })),
+      },
+    },
+  });
   revalidatePath("/admin/types");
   redirect(`/admin/types/${created.id}`);
 }
@@ -214,6 +231,9 @@ export async function saveRecipeAction(formData: FormData) {
     orderBy: { sortOrder: "asc" },
   });
   const values = readDynamicValues(formData, fields);
+  if (typeof values.bakeMinutes === "number") {
+    values.cookMinutes = values.bakeMinutes;
+  }
 
   const existing = id ? await db.recipe.findUnique({ where: { id } }) : null;
   const data = {

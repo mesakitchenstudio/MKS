@@ -3,6 +3,7 @@ import { RecipeEditor } from "@/components/admin/RecipeEditor";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
+import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
 import { deleteRecipeAction } from "../../actions";
 
 export default async function EditRecipePage({
@@ -13,6 +14,7 @@ export default async function EditRecipePage({
   searchParams: Promise<{ saved?: string }>;
 }) {
   await requireAccess("content");
+  await ensureRecipeOverviewFields();
   const { id } = await params;
   const { saved } = await searchParams;
   const db = getDb();

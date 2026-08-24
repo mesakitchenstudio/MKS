@@ -1,6 +1,6 @@
 import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
-import { isoDuration } from "@/lib/recipe-utils";
+import { bakeMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
 
 export function organizationJsonLd() {
   return {
@@ -28,8 +28,8 @@ export function recipeJsonLd(recipe: Recipe) {
     datePublished: recipe.publishedAt,
     dateModified: recipe.updatedAt,
     prepTime: isoDuration(recipe.prepMinutes),
-    cookTime: isoDuration(recipe.cookMinutes),
-    totalTime: isoDuration(recipe.prepMinutes + recipe.cookMinutes),
+    cookTime: isoDuration(bakeMinutes(recipe)),
+    totalTime: isoDuration(totalMinutes(recipe)),
     recipeYield: `${recipe.servings} ${recipe.servingsUnit}`,
     recipeCategory: recipe.course,
     recipeCuisine: recipe.cuisine,

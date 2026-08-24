@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Recipe } from "@/data/types";
-import { formatTime } from "@/lib/recipe-utils";
+import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 
 export function RecipeGridCard({
   recipe,
@@ -34,7 +34,7 @@ export function RecipeGridCard({
         </h3>
         <p className="mt-2 text-sm leading-6 text-muted">{recipe.excerpt}</p>
         <p className="mt-2 text-xs text-muted">
-          {formatTime(recipe.prepMinutes + recipe.cookMinutes)} · {recipe.servings}{" "}
+          {formatTime(totalMinutes(recipe))} · {recipe.servings}{" "}
           {recipe.servingsUnit}
         </p>
       </article>

@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
-import { formatTime } from "@/lib/recipe-utils";
+import { RecipeOverview } from "@/components/RecipeOverview";
+import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 
 function scaleAmount(amount: string, factor: number): string {
   if (factor === 1) return amount;
@@ -21,7 +22,7 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
   const [servings, setServings] = useState(recipe.servings);
   const factor = servings / recipe.servings;
 
-  const total = recipe.prepMinutes + recipe.cookMinutes;
+  const total = totalMinutes(recipe);
   const nutritionNote = useMemo(
     () =>
       `About ${recipe.nutrition.calories} calories per ${recipe.servingsUnit.replace(/s$/, "")}. Values are estimates.`,
@@ -50,15 +51,11 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
         </button>
       </div>
 
-      <dl className="mt-5 grid grid-cols-2 gap-4 border-b border-line pb-5 text-sm sm:grid-cols-4">
-        <div>
-          <dt className="text-[0.7rem] uppercase tracking-[0.14em] text-muted">Prep</dt>
-          <dd className="mt-1 font-semibold">{formatTime(recipe.prepMinutes)}</dd>
-        </div>
-        <div>
-          <dt className="text-[0.7rem] uppercase tracking-[0.14em] text-muted">Cook</dt>
-          <dd className="mt-1 font-semibold">{formatTime(recipe.cookMinutes)}</dd>
-        </div>
+      <div className="-mx-6 mt-5 md:-mx-8">
+        <RecipeOverview recipe={recipe} />
+      </div>
+
+      <dl className="mt-5 grid grid-cols-2 gap-4 border-b border-line pb-5 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-[0.7rem] uppercase tracking-[0.14em] text-muted">Total</dt>
           <dd className="mt-1 font-semibold">{formatTime(total)}</dd>

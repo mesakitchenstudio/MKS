@@ -44,6 +44,10 @@ export type Recipe = {
   updatedAt: string;
   prepMinutes: number;
   cookMinutes: number;
+  bakeMinutes?: number;
+  restMinutes?: number;
+  difficulty?: string;
+  utensils?: string[];
   servings: number;
   servingsUnit: string;
   course: string;

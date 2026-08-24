@@ -2,6 +2,7 @@ import { categories as staticCategories } from "@/data/categories";
 import { recipes as staticRecipes } from "@/data/recipes";
 import type { Category, Recipe } from "@/data/types";
 import { dbAvailable, getDb } from "@/lib/db";
+import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
 import { toPublicCategory, toPublicRecipe } from "@/lib/recipe-map";
 
 export type PublicRecipe = Recipe & { extras?: { key: string; label: string; kind: string; value: unknown }[] };
@@ -14,6 +15,7 @@ function sortRecipes(list: PublicRecipe[]) {
 
 async function loadFromDb(): Promise<PublicRecipe[] | null> {
   if (!(await dbAvailable())) return null;
+  await ensureRecipeOverviewFields();
   const db = getDb();
   const count = await db.recipe.count({ where: { status: "published" } });
   if (count === 0) return null;
@@ -80,4 +82,4 @@ export async function getRelatedRecipes(recipe: Recipe, limit = 3): Promise<Publ
   return scored.slice(0, limit).map((entry) => entry.item);
 }
 
-export { filterRecipes, formatTime, isoDuration } from "@/lib/recipe-utils";
+export { bakeMinutes, difficultyLabel, filterRecipes, formatTime, isoDuration, restMinutes, totalMinutes } from "@/lib/recipe-utils";

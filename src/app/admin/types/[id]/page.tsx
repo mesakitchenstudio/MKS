@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { FIELD_KINDS } from "@/lib/fields";
+import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
 import { deleteFieldAction, moveFieldAction, saveFieldAction, saveTypeAction } from "../../actions";
 
 export default async function AdminTypePage({
@@ -10,6 +11,7 @@ export default async function AdminTypePage({
   params: Promise<{ id: string }>;
 }) {
   await requireAccess("content");
+  await ensureRecipeOverviewFields();
   const { id } = await params;
   const type = await getDb().recipeType.findUnique({
     where: { id },

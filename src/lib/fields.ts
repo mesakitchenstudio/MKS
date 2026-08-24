@@ -27,6 +27,16 @@ export type FieldDefinition = {
   sortOrder?: number;
 };
 
+export const DIFFICULTY_OPTIONS = ["Easy", "Medium", "Hard"] as const;
+
+export const RECIPE_OVERVIEW_KEYS = [
+  "difficulty",
+  "prepMinutes",
+  "bakeMinutes",
+  "restMinutes",
+  "utensils",
+] as const;
+
 export const CORE_VALUE_KEYS = [
   "image",
   "imageAlt",
@@ -35,7 +45,11 @@ export const CORE_VALUE_KEYS = [
   "keyIngredients",
   "tips",
   "faqs",
+  "difficulty",
   "prepMinutes",
+  "bakeMinutes",
+  "restMinutes",
+  "utensils",
   "cookMinutes",
   "servings",
   "servingsUnit",
@@ -96,8 +110,18 @@ export const CORE_FIELDS: FieldDefinition[] = [
   { key: "keyIngredients", label: "Key ingredients", kind: "namedNotes" },
   { key: "tips", label: "Studio tips", kind: "list" },
   { key: "faqs", label: "Frequently asked", kind: "namedNotes" },
-  { key: "prepMinutes", label: "Prep minutes", kind: "minutes", required: true },
-  { key: "cookMinutes", label: "Cook minutes", kind: "minutes" },
+  {
+    key: "difficulty",
+    label: "Difficulty",
+    kind: "select",
+    required: true,
+    options: [...DIFFICULTY_OPTIONS],
+    helpText: "Shown above the recipe times.",
+  },
+  { key: "prepMinutes", label: "Preparation time", kind: "minutes", required: true },
+  { key: "bakeMinutes", label: "Baking time", kind: "minutes", helpText: "Oven time. Use 0 if the recipe is not baked." },
+  { key: "restMinutes", label: "Resting time", kind: "minutes", helpText: "Chill, proof, or rest. Use 0 if none." },
+  { key: "utensils", label: "Utensils", kind: "list", helpText: "Bowls, pans, mixers, and other tools." },
   { key: "servings", label: "Servings", kind: "number", required: true },
   { key: "servingsUnit", label: "Servings unit", kind: "text" },
   { key: "course", label: "Course", kind: "text" },

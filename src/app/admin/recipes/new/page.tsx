@@ -3,6 +3,7 @@ import { RecipeEditor } from "@/components/admin/RecipeEditor";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
+import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
 
 export default async function NewRecipePage({
   searchParams,
@@ -10,6 +11,7 @@ export default async function NewRecipePage({
   searchParams: Promise<{ type?: string }>;
 }) {
   await requireAccess("content");
+  await ensureRecipeOverviewFields();
   const { type: typeId } = await searchParams;
   if (!typeId) redirect("/admin");
 

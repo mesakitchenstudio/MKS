@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { emptyValue } from "@/lib/fields";
+import { emptyValue, RECIPE_OVERVIEW_KEYS } from "@/lib/fields";
 import { saveRecipeAction } from "@/app/admin/actions";
 
 type Field = {
@@ -47,10 +47,23 @@ export function RecipeEditor({
   const [values, setValues] = useState<Record<string, unknown>>(() => {
     const next: Record<string, unknown> = {};
     for (const field of fields) {
-      next[field.key] = initial.values[field.key] ?? emptyValue(field.kind);
+      if (field.key === "bakeMinutes") {
+        next[field.key] =
+          initial.values.bakeMinutes ?? initial.values.cookMinutes ?? emptyValue(field.kind);
+      } else if (field.key === "difficulty") {
+        next[field.key] = initial.values.difficulty || "Easy";
+      } else {
+        next[field.key] = initial.values[field.key] ?? emptyValue(field.kind);
+      }
     }
     return next;
   });
+
+  const overviewKeys = new Set<string>(RECIPE_OVERVIEW_KEYS);
+  const overviewFields = fields.filter((field) => overviewKeys.has(field.key));
+  const extraFields = fields.filter(
+    (field) => !overviewKeys.has(field.key) && field.key !== "cookMinutes",
+  );
 
   const encoded = useMemo(() => {
     const out: Record<string, string> = {};
@@ -159,7 +172,36 @@ export function RecipeEditor({
       </div>
 
       <div className="grid gap-5">
-        {fields.map((field) => (
+        {overviewFields.length ? (
+          <section className="grid gap-5 border border-line bg-paper p-5">
+            <div>
+              <p className="font-semibold">Kitchen details</p>
+              <p className="mt-1 text-xs text-muted">
+                Difficulty, times, and utensils appear on every public recipe card.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {overviewFields.map((field) => (
+                <div key={field.key} className={field.key === "utensils" ? "md:col-span-2" : ""}>
+                  <p className="text-sm font-semibold">
+                    {field.label}
+                    {field.required ? <span className="text-terracotta"> *</span> : null}
+                  </p>
+                  {field.helpText ? <p className="mt-1 text-xs text-muted">{field.helpText}</p> : null}
+                  <div className="mt-2">
+                    <KindInput
+                      kind={field.kind}
+                      options={field.options}
+                      value={values[field.key]}
+                      onChange={(value) => setField(field.key, value)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {extraFields.map((field) => (
           <FieldControl
             key={field.key}
             field={field}
@@ -223,7 +265,7 @@ function KindInput({
       />
     );
   }
-  if (kind === "number" || kind === "minutes") {
+  if (kind === "number") {
     return (
       <input
         type="number"
@@ -232,6 +274,9 @@ function KindInput({
         className="w-full border border-line px-3 py-2"
       />
     );
+  }
+  if (kind === "minutes") {
+    return <MinutesInput value={Number(value || 0)} onChange={onChange} />;
   }
   if (kind === "boolean") {
     return (
@@ -371,6 +416,35 @@ function KindInput({
       onChange={(event) => onChange(event.target.value)}
       className="w-full border border-line px-3 py-2"
     />
+  );
+}
+
+function MinutesInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const hours = Math.floor(Math.max(0, value) / 60);
+  const minutes = Math.max(0, value) % 60;
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <label className="grid gap-1 text-sm">
+        Hours
+        <input
+          type="number"
+          min={0}
+          value={hours}
+          onChange={(event) => onChange(Number(event.target.value) * 60 + minutes)}
+          className="w-full border border-line px-3 py-2"
+        />
+      </label>
+      <label className="grid gap-1 text-sm">
+        Minutes
+        <input
+          type="number"
+          min={0}
+          value={minutes}
+          onChange={(event) => onChange(hours * 60 + Number(event.target.value))}
+          className="w-full border border-line px-3 py-2"
+        />
+      </label>
+    </div>
   );
 }
 
