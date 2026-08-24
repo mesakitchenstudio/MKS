@@ -9,9 +9,14 @@ import {
   removeMemberByEmail,
   upsertGoogleUser,
 } from "@/lib/accounts";
+import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
 import { writeAdminSession } from "@/lib/auth";
 
 const googleReady = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+
+function asStaffRole(value: unknown): AccessLevel | null {
+  return typeof value === "string" && isAccessLevel(value) ? value : null;
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
   trustHost: true,
@@ -68,7 +73,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
       }
       if (token.email) {
         const staff = await getStaffByEmail(String(token.email));
-        token.staffRole = staff?.role ?? null;
+        token.staffRole = asStaffRole(staff?.role);
       }
       return token;
     },
@@ -77,7 +82,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
         session.user.email = (token.email as string) || session.user.email;
         session.user.name = (token.name as string) || session.user.name;
       }
-      session.staffRole = token.staffRole ?? null;
+      session.staffRole = asStaffRole(token.staffRole);
       if (session.user?.email) {
         try {
           if (session.staffRole) {
