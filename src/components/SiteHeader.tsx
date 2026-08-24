@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { categories, megaMenu } from "@/data/categories";
 import { Logo } from "./Logo";
+import { AccountMenu } from "./AccountMenu";
 
 const links = [
   { href: "/recipes", label: "Recipes", mega: true },
@@ -120,15 +121,18 @@ export function SiteHeader() {
           />
         </form>
 
-        <button
-          type="button"
-          className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink md:hidden"
-          aria-expanded={open}
-          aria-label={open ? "Close menu" : "Open menu"}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <span className="text-lg leading-none">{open ? "×" : "☰"}</span>
-        </button>
+        <div className="ml-auto flex items-center gap-3 md:ml-4">
+          <AccountMenu />
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink md:hidden"
+            aria-expanded={open}
+            aria-label={open ? "Close menu" : "Open menu"}
+            onClick={() => setOpen((value) => !value)}
+          >
+            <span className="text-lg leading-none">{open ? "×" : "☰"}</span>
+          </button>
+        </div>
       </div>
 
       {open ? (

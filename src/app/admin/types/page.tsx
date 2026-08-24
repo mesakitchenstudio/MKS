@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { deleteTypeAction, saveTypeAction } from "../actions";
 
@@ -9,7 +8,7 @@ export default async function AdminTypesPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  if (!(await isAdmin())) redirect("/admin/login");
+  await requireAccess("content");
   const { error } = await searchParams;
   const types = await getDb().recipeType.findMany({
     include: { _count: { select: { fields: true, recipes: true } } },

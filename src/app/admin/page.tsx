@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 
 export default async function AdminHomePage() {
-  if (!(await isAdmin())) redirect("/admin/login");
+  await requireAccess("content");
 
   const db = getDb();
   const [recipes, types] = await Promise.all([

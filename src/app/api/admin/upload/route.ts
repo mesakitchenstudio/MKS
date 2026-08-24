@@ -2,10 +2,12 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { canAccess } from "@/lib/admin-access";
+import { getAdminSession } from "@/lib/auth";
 
 export async function POST(request: Request) {
-  if (!(await isAdmin())) {
+  const admin = await getAdminSession();
+  if (!admin || !canAccess(admin.role, "content")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

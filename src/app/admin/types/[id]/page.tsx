@@ -1,5 +1,5 @@
-import { notFound, redirect } from "next/navigation";
-import { isAdmin } from "@/lib/auth";
+import { notFound } from "next/navigation";
+import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { FIELD_KINDS } from "@/lib/fields";
 import { deleteFieldAction, moveFieldAction, saveFieldAction, saveTypeAction } from "../../actions";
@@ -9,7 +9,7 @@ export default async function AdminTypePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  if (!(await isAdmin())) redirect("/admin/login");
+  await requireAccess("content");
   const { id } = await params;
   const type = await getDb().recipeType.findUnique({
     where: { id },

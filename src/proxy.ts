@@ -13,6 +13,10 @@ export function proxy(request: NextRequest) {
     pathname === "/sitemap.xml" ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/api/admin") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/account") ||
+    pathname.startsWith("/api/favorites") ||
+    pathname.startsWith("/auth/") ||
     pathname.startsWith("/uploads")
   ) {
     return NextResponse.next();

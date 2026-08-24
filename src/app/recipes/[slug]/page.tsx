@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { CollectionRow } from "@/components/CollectionRow";
 import { JsonLd } from "@/components/JsonLd";
 import { RecipeCard } from "@/components/RecipeCard";
+import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
 import { ShareButtons } from "@/components/ShareButtons";
 import { recipeJsonLd } from "@/lib/schema";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
@@ -51,6 +52,7 @@ export default async function RecipePage({ params }: Props) {
 
   return (
     <article>
+      <SetCurrentRecipe slug={recipe.slug} title={recipe.title} />
       <JsonLd data={recipeJsonLd(recipe)} />
       <div className="relative h-[46vw] min-h-72 max-h-[32rem] bg-sand">
         <Image

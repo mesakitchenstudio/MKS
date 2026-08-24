@@ -1,0 +1,121 @@
+export type ConnectionMeta = {
+  ip: string;
+  country: string;
+  city: string;
+  region: string;
+  userAgent: string;
+  referer: string;
+};
+
+function readHeader(headers: unknown, name: string) {
+  if (!headers || typeof headers !== "object") return "";
+  try {
+    const getter = (headers as Headers).get;
+    if (typeof getter === "function") {
+      return getter.call(headers, name)?.split(",")[0]?.trim() || "";
+    }
+    const record = headers as Record<string, string | string[] | undefined>;
+    const value = record[name] ?? record[name.toLowerCase()];
+    if (Array.isArray(value)) return String(value[0] ?? "").split(",")[0]?.trim() || "";
+    return String(value ?? "").split(",")[0]?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
+function decodeHeader(value: string) {
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value.replace(/\+/g, " "));
+  } catch {
+    return value;
+  }
+}
+
+function isLoopback(value: string) {
+  return (
+    value === "unknown" ||
+    value === "::1" ||
+    value === "127.0.0.1" ||
+    value === "::ffff:127.0.0.1" ||
+    value === "localhost"
+  );
+}
+
+export function connectionMeta(headers?: unknown): ConnectionMeta {
+  if (!headers) {
+    return {
+      ip: "unknown",
+      country: "",
+      city: "",
+      region: "",
+      userAgent: "",
+      referer: "",
+    };
+  }
+
+  const host = readHeader(headers, "host") || readHeader(headers, "x-forwarded-host");
+  const forwarded =
+    readHeader(headers, "x-forwarded-for") ||
+    readHeader(headers, "x-real-ip") ||
+    readHeader(headers, "cf-connecting-ip") ||
+    readHeader(headers, "x-vercel-forwarded-for");
+  const localHost = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+  let ip = forwarded || (localHost ? "localhost" : "unknown");
+  if (isLoopback(ip) || localHost) ip = "localhost";
+
+  const country = decodeHeader(readHeader(headers, "x-vercel-ip-country") || readHeader(headers, "cf-ipcountry"));
+  const city = decodeHeader(readHeader(headers, "x-vercel-ip-city"));
+  const region = decodeHeader(readHeader(headers, "x-vercel-ip-country-region"));
+
+  return {
+    ip,
+    country,
+    city: city || (ip === "localhost" ? "Local" : ""),
+    region,
+    userAgent: readHeader(headers, "user-agent") || readHeader(headers, "sec-ch-ua"),
+    referer: readHeader(headers, "referer") || readHeader(headers, "origin"),
+  };
+}
+
+export function formatIp(ip: string) {
+  if (!ip || isLoopback(ip)) return "localhost";
+  return ip;
+}
+
+export function formatLocation(meta: { city?: string; region?: string; country?: string; ip?: string }) {
+  const location = [meta.city, meta.region, meta.country].filter(Boolean).join(", ");
+  if (location) return location;
+  if (meta.ip && isLoopback(meta.ip)) return "Local";
+  return "";
+}
+
+export function formatBrowser(userAgent: string) {
+  if (!userAgent) return "—";
+  const os = /Windows/i.test(userAgent)
+    ? "Windows"
+    : /Mac OS X|Macintosh/i.test(userAgent)
+      ? "macOS"
+      : /Android/i.test(userAgent)
+        ? "Android"
+        : /iPhone|iPad|iOS/i.test(userAgent)
+          ? "iOS"
+          : /Linux/i.test(userAgent)
+            ? "Linux"
+            : "";
+  const browser = /Edg\//i.test(userAgent)
+    ? "Edge"
+    : /OPR\/|Opera/i.test(userAgent)
+      ? "Opera"
+      : /Chrome\/|Chromium\/|CriOS\//i.test(userAgent)
+        ? "Chrome"
+        : /Firefox\/|FxiOS\//i.test(userAgent)
+          ? "Firefox"
+          : /Safari\//i.test(userAgent)
+            ? "Safari"
+            : "";
+  if (browser && os) return `${browser} on ${os}`;
+  if (browser) return browser;
+  if (os) return os;
+  return userAgent.slice(0, 48);
+}

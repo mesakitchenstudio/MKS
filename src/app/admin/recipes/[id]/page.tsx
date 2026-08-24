@@ -1,6 +1,6 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { RecipeEditor } from "@/components/admin/RecipeEditor";
-import { isAdmin } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
 import { deleteRecipeAction } from "../../actions";
@@ -12,7 +12,7 @@ export default async function EditRecipePage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ saved?: string }>;
 }) {
-  if (!(await isAdmin())) redirect("/admin/login");
+  await requireAccess("content");
   const { id } = await params;
   const { saved } = await searchParams;
   const db = getDb();

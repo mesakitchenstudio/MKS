@@ -11,9 +11,12 @@ export default function PrivacyPage() {
       <h1 className="font-serif text-5xl">Privacy policy</h1>
       <div className="prose-mesa mt-8 text-base leading-8 text-muted">
         <p>
-          {site.name} respects your kitchen and your inbox. This first version of the
-          site stores newsletter signups in your browser only. We do not sell personal
-          information.
+          {site.name} respects your kitchen and your inbox. When you create an
+          account we store your name, email, and the recipes you save so they
+          appear on your profile. We also keep a record of how you signed in
+          (Google or email), your IP address, and approximate location from the
+          hosting provider so we can understand sign-ups and keep the site
+          secure. We do not sell personal information.
         </p>
         <p>
           When we connect a real email service, we will use addresses solely to send

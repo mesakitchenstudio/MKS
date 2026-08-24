@@ -65,3 +65,53 @@ model RecipeCategory {
 
   @@id([recipeId, categoryId])
 }
+
+model User {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  name         String
+  passwordHash String?
+  notify       Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  lastSeenAt   DateTime         @default(now())
+  saves        RecipeSave[]
+  connections  UserConnection[]
+}
+
+model RecipeSave {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug      String
+  title     String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, slug])
+}
+
+model UserConnection {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     String
+  method    String
+  ip        String
+  country   String   @default("")
+  city      String   @default("")
+  region    String   @default("")
+  userAgent String   @default("")
+  referer   String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastSeenAt   DateTime @default(now())
+}

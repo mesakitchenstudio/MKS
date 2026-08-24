@@ -43,4 +43,5 @@ next-env.d.ts
 # local database and uploads
 prisma/dev.db
 prisma/dev.db-journal
+prisma/schema.production.prisma
 public/uploads

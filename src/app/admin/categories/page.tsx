@@ -1,12 +1,11 @@
-import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { deleteCategoryAction, saveCategoryAction } from "../actions";
 
 const groups = ["desserts", "course", "method", "holiday"];
 
 export default async function AdminCategoriesPage() {
-  if (!(await isAdmin())) redirect("/admin/login");
+  await requireAccess("content");
   const categories = await getDb().category.findMany({ orderBy: { name: "asc" } });
 
   return (

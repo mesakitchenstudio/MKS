@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { Fraunces, Source_Sans_3 } from "next/font/google";
+import { AuthSessionProvider } from "@/components/AuthSessionProvider";
 import { JsonLd } from "@/components/JsonLd";
 import { PublicChrome } from "@/components/PublicChrome";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
+import { getAllRecipes } from "@/lib/recipes";
 import { organizationJsonLd } from "@/lib/schema";
 import "./globals.css";
 
@@ -44,8 +46,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
   const privateMode = isSitePrivate();
+  const recipes = privateMode
+    ? []
+    : (await getAllRecipes()).map((recipe) => ({
+        slug: recipe.slug,
+        title: recipe.title,
+        image: recipe.image,
+        imageAlt: recipe.imageAlt,
+      }));
 
   return (
     <html
@@ -54,14 +64,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col bg-cream font-sans text-ink">
         {privateMode ? null : <JsonLd data={organizationJsonLd()} />}
-        <PublicChrome
-          header={privateMode ? null : <SiteHeader />}
-          footer={privateMode ? null : <SiteFooter />}
-        >
-          <main className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}>
-            {children}
-          </main>
-        </PublicChrome>
+        <AuthSessionProvider>
+          <PublicChrome
+            hideTools={privateMode}
+            recipes={recipes}
+            header={privateMode ? null : <SiteHeader />}
+            footer={privateMode ? null : <SiteFooter />}
+          >
+            <main className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}>
+              {children}
+            </main>
+          </PublicChrome>
+        </AuthSessionProvider>
       </body>
     </html>
   );

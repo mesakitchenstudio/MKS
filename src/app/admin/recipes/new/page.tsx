@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { RecipeEditor } from "@/components/admin/RecipeEditor";
-import { isAdmin } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
 
@@ -9,7 +9,7 @@ export default async function NewRecipePage({
 }: {
   searchParams: Promise<{ type?: string }>;
 }) {
-  if (!(await isAdmin())) redirect("/admin/login");
+  await requireAccess("content");
   const { type: typeId } = await searchParams;
   if (!typeId) redirect("/admin");
 

@@ -12,7 +12,7 @@ npm run db:setup
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Admin: [http://localhost:3000/admin](http://localhost:3000/admin) with password `mesa-admin` (from `.env`).
+Open [http://localhost:3000](http://localhost:3000). Admin: [http://localhost:3000/admin](http://localhost:3000/admin). Set `ADMIN_PASSWORD` and `ADMIN_SECRET` in `.env` — never commit those values.
 
 ## Add recipes (admin)
 
@@ -32,4 +32,4 @@ Set `SITE_PRIVATE=true` in Vercel → Production only. `/admin` stays available 
 
 ## Production database
 
-Local development uses SQLite (`DATABASE_URL=file:./prisma/dev.db`). For Vercel, add a Postgres database (Neon or Vercel Postgres), set `DATABASE_URL`, change `provider` in `prisma/schema.prisma` to `postgresql`, then run `npx prisma db push && npx prisma db seed`. Also set `ADMIN_PASSWORD` and `ADMIN_SECRET`.
+Local development uses SQLite (`DATABASE_URL=file:./prisma/dev.db`). Vercel uses Neon Postgres from `DATABASE_URL`. The production build creates tables with `prisma db push`. Also set `ADMIN_PASSWORD` and `ADMIN_SECRET`.

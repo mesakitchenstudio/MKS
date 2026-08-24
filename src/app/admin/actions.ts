@@ -1,32 +1,36 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { ADMIN_COOKIE, createSessionToken, isAdmin, verifyPassword } from "@/lib/auth";
+import { homeForRole, isAccessLevel } from "@/lib/admin-access";
+import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
+import { ADMIN_COOKIE, authenticateAdmin, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { emptyValue, keyFromLabel, slugify } from "@/lib/fields";
+import { hashPassword } from "@/lib/passwords";
+import { removeMemberByEmail } from "@/lib/accounts";
+import { connectionMeta } from "@/lib/request-meta";
 
-async function requireAdmin() {
-  if (!(await isAdmin())) {
-    redirect("/admin/login");
-  }
+async function requireEditor() {
+  await requireAccess("content");
 }
 
 export async function loginAction(formData: FormData) {
+  const ip = connectionMeta(await headers()).ip;
+  if (isAdminLoginBlocked(ip)) {
+    redirect("/admin/login?error=locked");
+  }
+  const email = String(formData.get("email") || "");
   const password = String(formData.get("password") || "");
-  if (!verifyPassword(password)) {
+  const admin = await authenticateAdmin(email, password);
+  if (!admin) {
+    recordAdminLoginFailure(ip);
     redirect("/admin/login?error=1");
   }
-  const jar = await cookies();
-  jar.set(ADMIN_COOKIE, createSessionToken(), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
-  redirect("/admin");
+  clearAdminLoginFailures(ip);
+  await writeAdminSession(admin);
+  redirect(homeForRole(admin.role));
 }
 
 export async function logoutAction() {
@@ -36,7 +40,7 @@ export async function logoutAction() {
 }
 
 export async function saveCategoryAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
@@ -56,14 +60,14 @@ export async function saveCategoryAction(formData: FormData) {
 }
 
 export async function deleteCategoryAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   await getDb().category.delete({ where: { id: String(formData.get("id") || "") } });
   revalidatePath("/admin/categories");
   redirect("/admin/categories");
 }
 
 export async function saveTypeAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
@@ -83,7 +87,7 @@ export async function saveTypeAction(formData: FormData) {
 }
 
 export async function deleteTypeAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   const id = String(formData.get("id") || "");
   const used = await getDb().recipe.count({ where: { typeId: id } });
   if (used > 0) redirect("/admin/types?error=inuse");
@@ -93,7 +97,7 @@ export async function deleteTypeAction(formData: FormData) {
 }
 
 export async function saveFieldAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   const db = getDb();
   const typeId = String(formData.get("typeId") || "");
   const id = String(formData.get("id") || "");
@@ -138,7 +142,7 @@ export async function saveFieldAction(formData: FormData) {
 }
 
 export async function deleteFieldAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   const id = String(formData.get("id") || "");
   const typeId = String(formData.get("typeId") || "");
   await getDb().recipeTypeField.delete({ where: { id } });
@@ -147,7 +151,7 @@ export async function deleteFieldAction(formData: FormData) {
 }
 
 export async function moveFieldAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   const db = getDb();
   const typeId = String(formData.get("typeId") || "");
   const id = String(formData.get("id") || "");
@@ -189,7 +193,7 @@ function readDynamicValues(formData: FormData, fields: { key: string; kind: stri
 }
 
 export async function saveRecipeAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "");
   const typeId = String(formData.get("typeId") || "");
@@ -245,9 +249,87 @@ export async function saveRecipeAction(formData: FormData) {
 }
 
 export async function deleteRecipeAction(formData: FormData) {
-  await requireAdmin();
+  await requireEditor();
   await getDb().recipe.delete({ where: { id: String(formData.get("id") || "") } });
   revalidatePath("/admin/recipes");
   revalidatePath("/");
   redirect("/admin/recipes");
+}
+
+export async function saveAdminAction(formData: FormData) {
+  const actor = await requireAccess("staff");
+  const db = getDb();
+  const id = String(formData.get("id") || "");
+  const name = String(formData.get("name") || "").trim();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const password = String(formData.get("password") || "");
+  const role = String(formData.get("role") || "editor");
+  if (!name || !email || !isAccessLevel(role)) {
+    redirect("/admin/staff?error=missing");
+  }
+  if (password && password.length < 10) {
+    redirect("/admin/staff?error=password");
+  }
+  if (!id && !password) {
+    redirect("/admin/staff?error=password");
+  }
+
+  const ownerCount = await db.admin.count({ where: { role: "owner" } });
+  if (id) {
+    const existing = await db.admin.findUnique({ where: { id } });
+    if (!existing) redirect("/admin/staff?error=missing");
+    if (existing.role === "owner" && role !== "owner" && ownerCount <= 1) {
+      redirect("/admin/staff?error=last-owner");
+    }
+    await db.admin.update({
+      where: { id },
+      data: {
+        name,
+        email,
+        role,
+        ...(password.length >= 10 ? { passwordHash: hashPassword(password) } : {}),
+      },
+    });
+  } else {
+    const taken = await db.admin.findUnique({ where: { email } });
+    if (taken) redirect("/admin/staff?error=exists");
+    await db.admin.create({
+      data: { name, email, role, passwordHash: hashPassword(password) },
+    });
+  }
+
+  await removeMemberByEmail(email);
+  revalidatePath("/admin/members");
+  revalidatePath("/admin/staff");
+  redirect("/admin/staff?saved=1");
+}
+
+export async function deleteMemberAction(formData: FormData) {
+  await requireAccess("members");
+  const id = String(formData.get("id") || "");
+  if (!id) redirect("/admin/members");
+  try {
+    await getDb().user.delete({ where: { id } });
+  } catch {
+    redirect("/admin/members");
+  }
+  revalidatePath("/admin/members");
+  revalidatePath("/profile");
+  redirect("/admin/members?removed=1");
+}
+
+export async function deleteAdminAction(formData: FormData) {
+  const actor = await requireAccess("staff");
+  const id = String(formData.get("id") || "");
+  const db = getDb();
+  const existing = await db.admin.findUnique({ where: { id } });
+  if (!existing) redirect("/admin/staff");
+  if (existing.id === actor.id) redirect("/admin/staff?error=self");
+  if (existing.role === "owner") {
+    const ownerCount = await db.admin.count({ where: { role: "owner" } });
+    if (ownerCount <= 1) redirect("/admin/staff?error=last-owner");
+  }
+  await db.admin.delete({ where: { id } });
+  revalidatePath("/admin/staff");
+  redirect("/admin/staff");
 }
