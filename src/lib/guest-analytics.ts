@@ -13,6 +13,9 @@ export function isTrackablePublicPath(path: string) {
   if (!path || !path.startsWith("/")) return false;
   if (path.startsWith("/admin")) return false;
   if (path.startsWith("/api")) return false;
+  if (path.startsWith("/auth")) return false;
+  if (path.startsWith("/profile")) return false;
+  if (path.startsWith("/coming-soon")) return false;
   return true;
 }
 

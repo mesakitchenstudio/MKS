@@ -7,7 +7,14 @@ import { useEffect, useRef } from "react";
 const HEARTBEAT_MS = 45_000;
 
 function shouldTrackPath(pathname: string) {
-  return Boolean(pathname) && !pathname.startsWith("/admin") && !pathname.startsWith("/api");
+  return (
+    Boolean(pathname) &&
+    !pathname.startsWith("/admin") &&
+    !pathname.startsWith("/api") &&
+    !pathname.startsWith("/auth") &&
+    !pathname.startsWith("/profile") &&
+    !pathname.startsWith("/coming-soon")
+  );
 }
 
 export function GuestTracker() {

@@ -15,13 +15,14 @@ import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
 import { writeAdminSession } from "@/lib/auth";
 
 if (process.env.VERCEL) {
-  const configured = process.env.AUTH_URL?.trim() ?? "";
-  if (!configured || /localhost|127\.0\.0\.1/i.test(configured)) {
-    process.env.AUTH_URL = "https://www.mesakitchenstudio.com";
-  }
+  // Always pin the public host so OAuth callbacks match Google Cloud redirect URIs.
+  process.env.AUTH_URL = "https://www.mesakitchenstudio.com";
+  process.env.AUTH_TRUST_HOST = "true";
 }
 
-const googleReady = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+const googleId = process.env.AUTH_GOOGLE_ID?.trim() ?? "";
+const googleSecret = process.env.AUTH_GOOGLE_SECRET?.trim() ?? "";
+const googleReady = Boolean(googleId && googleSecret);
 
 function asStaffRole(value: unknown): AccessLevel | null {
   return typeof value === "string" && isAccessLevel(value) ? value : null;
@@ -30,7 +31,14 @@ function asStaffRole(value: unknown): AccessLevel | null {
 export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
   trustHost: true,
   providers: [
-    ...(googleReady ? [Google] : []),
+    ...(googleReady
+      ? [
+          Google({
+            clientId: googleId,
+            clientSecret: googleSecret,
+          }),
+        ]
+      : []),
     Credentials({
       credentials: {
         name: { label: "Name", type: "text" },
