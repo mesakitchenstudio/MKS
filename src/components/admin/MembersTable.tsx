@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteMemberAction } from "@/app/admin/actions";
 import { IpDetailsPanel } from "@/components/admin/IpDetailsPanel";
+import { formatGmtDateTime } from "@/lib/datetime";
 import { isMemberOnline } from "@/lib/member-presence";
 import { uniqueIps } from "@/lib/ip-utils";
 import { formatBrowser, formatIp, formatLocation } from "@/lib/request-meta";
@@ -26,16 +27,6 @@ type MemberRow = {
     createdAt: Date | string;
   }[];
 };
-
-function pad(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function formatWhen(value: Date | string) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return `${pad(date.getDate())}${pad(date.getMonth() + 1)}${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
 
 export function MembersTable({ users }: { users: MemberRow[] }) {
   const router = useRouter();
@@ -73,7 +64,7 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
           {onlineCount} online now
         </span>
         <span className="text-xs text-muted">
-          Members active on the site in the last 3 minutes · updates automatically
+          Members active on the site in the last 3 minutes · times shown in GMT · updates automatically
         </span>
       </div>
 
@@ -127,8 +118,8 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                       <p className="font-semibold">{user.name}</p>
                       <p className="text-xs text-muted">{user.email}</p>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-xs">{formatWhen(user.createdAt)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-xs">{formatWhen(lastSeen)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-xs">{formatGmtDateTime(user.createdAt)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-xs">{formatGmtDateTime(lastSeen)}</td>
                     <td className="px-4 py-3 capitalize">{first?.event || "signup"}</td>
                     <td className="px-4 py-3 capitalize">{latest?.method || "—"}</td>
                     <td className="px-4 py-3">{latest ? formatIp(latest.ip) : "—"}</td>

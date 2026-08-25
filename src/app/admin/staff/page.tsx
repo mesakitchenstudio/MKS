@@ -1,16 +1,9 @@
 import { AdminPhotoField } from "@/components/admin/AdminPhotoField";
 import { ACCESS_LEVELS, accessLabel } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
+import { formatGmtDateTime } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
 import { deleteAdminAction, saveAdminAction } from "../actions";
-
-function pad(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function formatWhen(value: Date) {
-  return `${pad(value.getDate())}${pad(value.getMonth() + 1)}${value.getFullYear()} ${pad(value.getHours())}:${pad(value.getMinutes())}`;
-}
 
 function initials(name: string) {
   return name
@@ -197,7 +190,7 @@ export default async function AdminStaffPage({
                       </div>
                       <p className="mt-1 truncate text-sm text-muted">{admin.email}</p>
                     </div>
-                    <p className="text-xs text-muted">Last login {formatWhen(admin.lastSeenAt)}</p>
+                    <p className="text-xs text-muted">Last login {formatGmtDateTime(admin.lastSeenAt)}</p>
                   </div>
 
                   <form action={saveAdminAction} className="grid gap-4 p-5 md:grid-cols-2">

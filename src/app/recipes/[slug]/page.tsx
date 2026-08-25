@@ -16,6 +16,7 @@ import { ShareButtons } from "@/components/ShareButtons";
 import { getRecipeReviewData } from "@/lib/recipe-reviews";
 import { recipeTocItems } from "@/lib/recipe-sections";
 import { recipeJsonLd } from "@/lib/schema";
+import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
 import { youtubeVideoId } from "@/lib/youtube";
 
@@ -58,11 +59,7 @@ export default async function RecipePage({ params }: Props) {
     auth(),
   ]);
   const toc = recipeTocItems(recipe);
-  const updated = new Date(recipe.updatedAt).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const updated = formatGmtDisplay(recipe.updatedAt);
   const hasVideo = Boolean(recipe.youtubeUrl && youtubeVideoId(recipe.youtubeUrl));
   const hasFloatingVideo = Boolean(
     recipe.floatingYoutubeUrl && youtubeVideoId(recipe.floatingYoutubeUrl),

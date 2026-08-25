@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { auth } from "@/auth";
 import { ensureMember, getStaffByEmail, getUserByEmail, removeMemberByEmail } from "@/lib/accounts";
 import { homeForRole } from "@/lib/admin-access";
+import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes } from "@/lib/recipes";
 import { ProfileFavorites } from "@/components/ProfileFavorites";
 
@@ -63,12 +64,7 @@ export default async function ProfilePage() {
       <p className="mt-2 text-muted">{email}</p>
       {user?.createdAt ? (
         <p className="mt-1 text-sm text-muted">
-          Member since{" "}
-          {user.createdAt.toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          })}
+          Member since {formatGmtDisplay(user.createdAt)}
         </p>
       ) : null}
 

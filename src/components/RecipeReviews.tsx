@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { notifyRecipeReviewsUpdated } from "@/components/RecipeRatingSummary";
 import { StarPicker, StarRating } from "@/components/StarRating";
+import { formatGmtDisplay } from "@/lib/datetime";
 import { fetchRecipeReviewData } from "@/lib/recipe-reviews-client";
 import type { RecipeReviewData, RecipeReviewReplyRow, RecipeReviewRow } from "@/lib/recipe-reviews";
 
@@ -15,14 +16,6 @@ type RecipeReviewsProps = {
 };
 
 const VISIBLE_COMMENTS = 5;
-
-function formatReviewDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 function initials(name: string) {
   return name
@@ -181,7 +174,7 @@ function ReviewReply({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-none">
             <span className="font-semibold text-ink">{label}</span>
-            <span className="text-muted">{formatReviewDate(reply.createdAt)}</span>
+            <span className="text-muted">{formatGmtDisplay(reply.createdAt, { includeTime: true })}</span>
           </div>
           <button
             type="button"
@@ -221,7 +214,7 @@ function ReviewItem({
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-none">
           <span className="font-semibold text-ink">{review.authorName}</span>
-          <span className="text-muted">{formatReviewDate(review.createdAt)}</span>
+          <span className="text-muted">{formatGmtDisplay(review.createdAt, { includeTime: true })}</span>
           <StarRating value={review.rating} size="sm" label={`${review.rating} out of 5 stars`} />
         </div>
         <button

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireAccess } from "@/lib/auth";
+import { formatGmtDateTime } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
 
 export default async function AdminHomePage() {
@@ -57,7 +58,7 @@ export default async function AdminHomePage() {
                 <td className="px-4 py-3">{recipe.type.name}</td>
                 <td className="px-4 py-3 capitalize">{recipe.status}</td>
                 <td className="px-4 py-3 text-muted">
-                  {recipe.updatedAt.toISOString().slice(0, 10)}
+                  {formatGmtDateTime(recipe.updatedAt)}
                 </td>
               </tr>
             ))}
