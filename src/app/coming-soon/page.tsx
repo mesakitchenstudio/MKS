@@ -6,6 +6,13 @@ export const metadata: Metadata = {
   title: "Coming soon",
   description: `${site.name} is still in the studio. Recipes for the table, soon.`,
   robots: { index: false, follow: false },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png" }],
+  },
 };
 
 const socials = [
