@@ -3,6 +3,7 @@
 import { SessionProvider, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
+import { GuestTracker } from "@/components/GuestTracker";
 import { writeSession } from "@/lib/auth-client";
 import { hydrateLikesFromProfile } from "@/lib/likes";
 
@@ -71,6 +72,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
       <SessionSync />
+      <GuestTracker />
       {children}
     </SessionProvider>
   );

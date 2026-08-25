@@ -12,7 +12,7 @@ export const ACCESS_LEVELS = [
   {
     id: "members",
     label: "Members",
-    help: "Member analytics only.",
+    help: "Member and guest visitor analytics only.",
   },
 ] as const;
 

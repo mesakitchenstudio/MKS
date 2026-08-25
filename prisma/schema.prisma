@@ -159,3 +159,35 @@ model PasswordReset {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+
+model GuestVisitor {
+  id          String         @id @default(cuid())
+  visitorKey  String         @unique
+  firstSeenAt DateTime       @default(now())
+  lastSeenAt  DateTime       @default(now())
+  lastPath    String         @default("")
+  ip          String         @default("")
+  country     String         @default("")
+  city        String         @default("")
+  region      String         @default("")
+  userAgent   String         @default("")
+  pageViews   GuestPageView[]
+}
+
+model GuestPageView {
+  id        String       @id @default(cuid())
+  visitorId String
+  visitor   GuestVisitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  path      String
+  referer   String       @default("")
+  ip        String       @default("")
+  country   String       @default("")
+  city      String       @default("")
+  region    String       @default("")
+  userAgent String       @default("")
+  createdAt DateTime     @default(now())
+
+  @@index([visitorId, createdAt])
+  @@index([createdAt])
+  @@index([path])
+}

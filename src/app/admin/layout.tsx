@@ -29,7 +29,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                     <Link href="/admin/categories">Categories</Link>
                   </>
                 ) : null}
-                {canAccess(admin.role, "members") ? <Link href="/admin/members">Members</Link> : null}
+                {canAccess(admin.role, "members") ? (
+                  <>
+                    <Link href="/admin/members">Members</Link>
+                    <Link href="/admin/visitors">Visitors</Link>
+                  </>
+                ) : null}
                 {canAccess(admin.role, "staff") ? <Link href="/admin/staff">Admins</Link> : null}
                 <Link href="/admin/profile">Profile</Link>
                 <Link href="/" className="text-muted">
