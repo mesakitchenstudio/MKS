@@ -7,6 +7,7 @@ import {
   getStaffByEmail,
   recordConnection,
   removeMemberByEmail,
+  syncMemberGooglePhoto,
   syncStaffGooglePhoto,
   upsertGoogleUser,
 } from "@/lib/accounts";
@@ -70,7 +71,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
       }
       if (account?.provider === "google") {
         try {
-          await upsertGoogleUser(user.email, user.name ?? "");
+          await upsertGoogleUser(user.email, user.name ?? "", user.image);
         } catch (error) {
           console.error("Could not create Google member", error);
         }
@@ -82,6 +83,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
         token.email = user.email;
         token.name = user.name;
       }
+      if (user?.image) {
+        token.picture = user.image;
+      }
       if (token.email) {
         const staff = await getStaffByEmail(String(token.email));
         token.staffRole = asStaffRole(staff?.role);
@@ -92,6 +96,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
       if (session.user) {
         session.user.email = (token.email as string) || session.user.email;
         session.user.name = (token.name as string) || session.user.name;
+        if (token.picture) session.user.image = String(token.picture);
       }
       session.staffRole = asStaffRole(token.staffRole);
       if (session.user?.email) {
@@ -100,6 +105,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
             await removeMemberByEmail(session.user.email);
           } else {
             await ensureMember(session.user.email, session.user.name ?? "", request?.headers);
+            if (token.picture) {
+              await syncMemberGooglePhoto(session.user.email, String(token.picture));
+            }
           }
         } catch (error) {
           console.error("Could not persist member profile", error);

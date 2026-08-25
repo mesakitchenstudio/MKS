@@ -66,6 +66,23 @@ export async function syncStaffGooglePhoto(email: string, imageUrl?: string | nu
   }
 }
 
+/** Keep member Google profile photos in sync for the admin members table. */
+export async function syncMemberGooglePhoto(email: string, imageUrl?: string | null) {
+  const key = emailKey(email);
+  const image = imageUrl?.trim() || "";
+  if (!key || !image) return;
+
+  try {
+    const db = getDb();
+    const user = await db.user.findUnique({ where: { email: key } });
+    if (!user) return;
+    if ((user.photoUrl || "") === image) return;
+    await db.user.update({ where: { id: user.id }, data: { photoUrl: image } });
+  } catch (error) {
+    console.error("Could not sync Google member photo", error);
+  }
+}
+
 export async function removeMemberByEmail(email: string) {
   try {
     await getDb().user.deleteMany({ where: { email: emailKey(email) } });
@@ -133,8 +150,10 @@ async function ensureMemberRecord(email: string, name = "", headers?: unknown) {
   return user;
 }
 
-export async function upsertGoogleUser(email: string, name: string) {
-  return ensureMember(email, name);
+export async function upsertGoogleUser(email: string, name: string, imageUrl?: string | null) {
+  const user = await ensureMember(email, name);
+  await syncMemberGooglePhoto(email, imageUrl);
+  return user;
 }
 
 export async function registerEmailUser(input: {

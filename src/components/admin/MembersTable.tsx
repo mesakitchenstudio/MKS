@@ -8,12 +8,13 @@ import { IpDetailsPanel } from "@/components/admin/IpDetailsPanel";
 import { formatGmtDateTime } from "@/lib/datetime";
 import { isMemberOnline } from "@/lib/member-presence";
 import { uniqueIps } from "@/lib/ip-utils";
-import { formatBrowser, formatIp, formatLocation } from "@/lib/request-meta";
+import { formatBrowser, formatLocation } from "@/lib/request-meta";
 
 type MemberRow = {
   id: string;
   name: string;
   email: string;
+  photoUrl?: string | null;
   createdAt: Date | string;
   lastSeenAt: Date | string;
   connections: {
@@ -27,6 +28,45 @@ type MemberRow = {
     createdAt: Date | string;
   }[];
 };
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function MemberStatusCell({
+  name,
+  photoUrl,
+  online,
+}: {
+  name: string;
+  photoUrl?: string | null;
+  online: boolean;
+}) {
+  return (
+    <div className="relative inline-flex">
+      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-line bg-sand text-xs font-semibold text-ink">
+        {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photoUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+        ) : (
+          initials(name) || "?"
+        )}
+      </div>
+      <span
+        className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-paper ${
+          online ? "bg-olive" : "bg-line"
+        }`}
+        title={online ? "Online" : "Offline"}
+        aria-label={online ? "Online" : "Offline"}
+      />
+    </div>
+  );
+}
 
 export function MembersTable({ users }: { users: MemberRow[] }) {
   const router = useRouter();
@@ -43,13 +83,10 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
   }, [router]);
 
   const sortedUsers = useMemo(() => {
-    return [...users].sort((left, right) => {
-      const leftOnline = isMemberOnline(left.lastSeenAt, now) ? 1 : 0;
-      const rightOnline = isMemberOnline(right.lastSeenAt, now) ? 1 : 0;
-      if (leftOnline !== rightOnline) return rightOnline - leftOnline;
-      return new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime();
-    });
-  }, [users, now]);
+    return [...users].sort(
+      (left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime(),
+    );
+  }, [users]);
 
   const onlineCount = sortedUsers.filter((user) => isMemberOnline(user.lastSeenAt, now)).length;
 
@@ -64,7 +101,7 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
           {onlineCount} online now
         </span>
         <span className="text-xs text-muted">
-          Members active on the site in the last 3 minutes · times shown in GMT · updates automatically
+          Sorted by last seen · times in GMT · updates automatically
         </span>
       </div>
 
@@ -79,7 +116,6 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
               <th className="px-4 py-3">Last seen</th>
               <th className="px-4 py-3">Event</th>
               <th className="px-4 py-3">Connected with</th>
-              <th className="px-4 py-3">IP</th>
               <th className="px-4 py-3">Where</th>
               <th className="px-4 py-3">Browser</th>
               <th className="px-4 py-3">IP details</th>
@@ -102,17 +138,7 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                   <tr className="border-t border-line align-top">
                     <td className="px-4 py-3 text-muted">{index + 1}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {online ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-olive/15 px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-olive-dark">
-                          <span className="h-1.5 w-1.5 rounded-full bg-olive" />
-                          Online
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-sand px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-muted">
-                          <span className="h-1.5 w-1.5 rounded-full bg-line" />
-                          Offline
-                        </span>
-                      )}
+                      <MemberStatusCell name={user.name} photoUrl={user.photoUrl} online={online} />
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-semibold">{user.name}</p>
@@ -122,7 +148,6 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                     <td className="px-4 py-3 whitespace-nowrap text-xs">{formatGmtDateTime(lastSeen)}</td>
                     <td className="px-4 py-3 capitalize">{first?.event || "signup"}</td>
                     <td className="px-4 py-3 capitalize">{latest?.method || "—"}</td>
-                    <td className="px-4 py-3">{latest ? formatIp(latest.ip) : "—"}</td>
                     <td className="px-4 py-3">{latest ? formatLocation(latest) || "—" : "—"}</td>
                     <td className="px-4 py-3 text-xs text-muted" title={latest?.userAgent}>
                       {formatBrowser(latest?.userAgent || "")}
@@ -149,7 +174,7 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                   </tr>
                   {open && ips.length ? (
                     <tr className="border-t border-line bg-cream/40">
-                      <td colSpan={12} className="px-4 py-5">
+                      <td colSpan={11} className="px-4 py-5">
                         <div className="grid gap-4">
                           {ips.map((ip) => (
                             <IpDetailsPanel key={`${user.id}-${ip}`} ip={ip} />
@@ -163,7 +188,7 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
             })}
             {sortedUsers.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-4 py-8 text-muted">
+                <td colSpan={11} className="px-4 py-8 text-muted">
                   No member accounts yet.{" "}
                   <Link href="/" className="font-semibold text-terracotta">
                     View the site
