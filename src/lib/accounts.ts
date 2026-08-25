@@ -289,6 +289,25 @@ export async function enrichMemberConnection(email: string, name = "", headers?:
   return user;
 }
 
+/** Lightweight heartbeat for “currently online” on the admin members page. */
+export async function touchMemberPresence(email: string, name = "") {
+  const db = getDb();
+  const key = emailKey(email);
+  if (!key || (await getStaffByEmail(key))) return null;
+
+  try {
+    return await db.user.update({
+      where: { email: key },
+      data: {
+        lastSeenAt: new Date(),
+        ...(name.trim() ? { name: name.trim() } : {}),
+      },
+    });
+  } catch {
+    return ensureMember(email, name);
+  }
+}
+
 export async function getUserByEmail(email: string) {
   try {
     return await getDb().user.findUnique({
