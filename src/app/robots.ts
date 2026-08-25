@@ -5,7 +5,13 @@ import { isSitePrivate } from "@/lib/flags";
 export default function robots(): MetadataRoute.Robots {
   if (isSitePrivate()) {
     return {
-      rules: { userAgent: "*", disallow: "/" },
+      rules: {
+        userAgent: "*",
+        // Keep brand icons crawlable so YouTube/Google can show the site favicon
+        // while the rest of the site stays gated.
+        allow: ["/favicon.ico", "/favicon.png", "/icon.png", "/apple-icon.png", "/icon.svg"],
+        disallow: "/",
+      },
     };
   }
 
