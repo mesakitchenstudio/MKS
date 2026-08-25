@@ -348,7 +348,7 @@ export async function listUsersForAdmin() {
   const staffEmails = staff.map((item) => item.email);
   return db.user.findMany({
     where: staffEmails.length ? { email: { notIn: staffEmails } } : undefined,
-    orderBy: { createdAt: "asc" },
+    orderBy: { lastSeenAt: "desc" },
     include: {
       _count: { select: { saves: true, connections: true } },
       connections: { orderBy: { createdAt: "desc" } },
