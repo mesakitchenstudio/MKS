@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdminPeopleMenu } from "@/components/admin/AdminPeopleMenu";
 import { canAccess } from "@/lib/admin-access";
 import { getAdminSession } from "@/lib/auth";
 import { logoutAction } from "./actions";
@@ -11,6 +12,17 @@ export const metadata: Metadata = {
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const admin = await getAdminSession();
+  const peopleItems = admin
+    ? [
+        ...(canAccess(admin.role, "members")
+          ? [
+              { href: "/admin/members", label: "Members" },
+              { href: "/admin/visitors", label: "Visitors" },
+            ]
+          : []),
+        ...(canAccess(admin.role, "staff") ? [{ href: "/admin/staff", label: "Admins" }] : []),
+      ]
+    : [];
 
   return (
     <div className="min-h-full bg-[#f3efe6] text-ink">
@@ -21,7 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
           {admin ? (
             <>
-              <nav className="flex flex-wrap gap-4 text-sm font-semibold">
+              <nav className="flex flex-wrap items-center gap-4 text-sm font-semibold">
                 {canAccess(admin.role, "content") ? (
                   <>
                     <Link href="/admin">Recipes</Link>
@@ -29,13 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                     <Link href="/admin/categories">Categories</Link>
                   </>
                 ) : null}
-                {canAccess(admin.role, "members") ? (
-                  <>
-                    <Link href="/admin/members">Members</Link>
-                    <Link href="/admin/visitors">Visitors</Link>
-                  </>
-                ) : null}
-                {canAccess(admin.role, "staff") ? <Link href="/admin/staff">Admins</Link> : null}
+                <AdminPeopleMenu items={peopleItems} />
                 <Link href="/admin/profile">Profile</Link>
                 <Link href="/" className="text-muted">
                   View site
