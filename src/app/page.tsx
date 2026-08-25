@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { CollectionRow } from "@/components/CollectionRow";
@@ -12,6 +13,19 @@ import {
 } from "@/lib/recipes";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: {
+    absolute: `${site.name} | ${site.tagline}`,
+  },
+  description: `${site.name} — ${site.description}`,
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: `${site.name} | ${site.tagline}`,
+    description: `${site.name} — ${site.description}`,
+    url: site.url,
+  },
+};
 
 export default async function Home() {
   const [latest, seasonal, cookies, breakfast, dinners, all] = await Promise.all([
@@ -29,12 +43,12 @@ export default async function Home() {
       <section className="relative overflow-hidden bg-ink text-cream">
         <div className="mx-auto grid min-h-[34rem] max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:px-6 md:py-20">
           <div>
-            <p className="text-[0.75rem] font-semibold uppercase tracking-[0.22em] text-sand">
+            <h1 className="max-w-xl font-serif text-5xl leading-[1.1] md:text-6xl">
               {site.name}
-            </p>
-            <h1 className="mt-4 max-w-xl font-serif text-5xl leading-[1.1] md:text-6xl">
-              {site.tagline}
             </h1>
+            <p className="mt-4 max-w-xl font-serif text-2xl leading-snug text-sand md:text-3xl">
+              {site.tagline}
+            </p>
             <p className="mt-5 max-w-md text-base leading-7 text-sand/85">
               Foolproof recipes, tested in a real kitchen, written so you know why they
               work — then you can sit down and eat.

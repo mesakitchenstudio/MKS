@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { RecipeFilters } from "@/components/RecipeFilters";
+import { site } from "@/data/site";
 import { getAllRecipes } from "@/lib/recipes";
 
 export const metadata: Metadata = {
   title: "All recipes",
-  description: "Browse every Mesa Kitchen Studio recipe — cakes, dinners, breads, and more.",
+  description: `Browse every ${site.name} recipe — cakes, dinners, breads, and more.`,
+  alternates: { canonical: "/recipes" },
 };
 
 export const dynamic = "force-dynamic";

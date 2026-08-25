@@ -3,8 +3,9 @@ import Link from "next/link";
 import { site } from "@/data/site";
 
 export const metadata: Metadata = {
-  title: "About",
-  description: `The story behind ${site.name} — a small recipe studio for the table.`,
+  title: `About ${site.name}`,
+  description: `The story behind ${site.name} — a small recipe studio for the table. Studio-tested recipes for gathering around the table.`,
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {
@@ -13,7 +14,8 @@ export default function AboutPage() {
       <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
         About
       </p>
-      <h1 className="mt-2 font-serif text-5xl">A studio for the table</h1>
+      <h1 className="mt-2 font-serif text-5xl">About {site.name}</h1>
+      <p className="mt-3 text-lg text-muted">A studio for the table</p>
       <div className="prose-mesa mt-8 text-lg leading-8 text-ink/90">
         <p>
           Mesa means the table. It is also the warm stone of the desert — a place where

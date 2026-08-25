@@ -8,7 +8,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
 import { getAllRecipes } from "@/lib/recipes";
-import { organizationJsonLd } from "@/lib/schema";
+import { siteGraphJsonLd } from "@/lib/schema";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -21,13 +21,64 @@ const sourceSans = Source_Sans_3({
   subsets: ["latin"],
 });
 
+const brandDescription = `${site.name} — ${site.description}`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
     default: `${site.name} | ${site.tagline}`,
     template: `%s | ${site.name}`,
   },
-  description: site.description,
+  description: brandDescription,
+  applicationName: site.name,
+  authors: [{ name: site.name, url: site.url }],
+  creator: site.name,
+  publisher: site.name,
+  keywords: [
+    "Mesa Kitchen Studio",
+    "Mesa Kitchen",
+    "mesa kitchen studio recipes",
+    "studio-tested recipes",
+    "home cooking",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  robots: isSitePrivate()
+    ? { index: false, follow: false }
+    : {
+        index: true,
+        follow: true,
+        googleBot: {
+          index: true,
+          follow: true,
+          "max-image-preview": "large",
+          "max-snippet": -1,
+          "max-video-preview": -1,
+        },
+      },
+  openGraph: {
+    title: `${site.name} | ${site.tagline}`,
+    description: brandDescription,
+    url: site.url,
+    siteName: site.name,
+    locale: "en_US",
+    type: "website",
+    images: [
+      {
+        url: "/icon.png",
+        width: 512,
+        height: 512,
+        alt: site.name,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${site.name} | ${site.tagline}`,
+    description: brandDescription,
+    images: ["/icon.png"],
+  },
   icons: {
     icon: [
       { url: "/favicon.ico?v=mesa", sizes: "any" },
@@ -35,15 +86,13 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-icon.png?v=mesa" }],
   },
-  openGraph: {
-    title: site.name,
-    description: site.description,
-    url: site.url,
-    siteName: site.name,
-    locale: "en_US",
-    type: "website",
-    images: [{ url: "/icon.png" }],
-  },
+  ...(process.env.GOOGLE_SITE_VERIFICATION
+    ? {
+        verification: {
+          google: process.env.GOOGLE_SITE_VERIFICATION,
+        },
+      }
+    : {}),
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
@@ -63,7 +112,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${fraunces.variable} ${sourceSans.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-cream font-sans text-ink">
-        {privateMode ? null : <JsonLd data={organizationJsonLd()} />}
+        {privateMode ? null : <JsonLd data={siteGraphJsonLd()} />}
         <AuthSessionProvider>
           <PublicChrome
             hideTools={privateMode}

@@ -30,7 +30,11 @@ Optional: set `IP2LOCATION_API_KEY` for member IP lookups (free plan at [ip2loca
 
 ## Coming soon (hide the public site)
 
-Set `SITE_PRIVATE=true` in Vercel → Production only. `/admin` stays available so you can keep adding recipes.
+Set `SITE_PRIVATE=true` in Vercel → Production only while you prep recipes. `/admin` stays available.
+
+**Important for Google:** while this flag is on, `robots.txt` blocks all crawlers and visitors see “Coming soon.” To appear in search for “Mesa Kitchen Studio”, remove `SITE_PRIVATE` from Production (or set it to `false`) and redeploy. Then verify the domain in [Google Search Console](https://search.google.com/search-console) and submit `https://mesakitchenstudio.com/sitemap.xml`.
+
+Optional: set `GOOGLE_SITE_VERIFICATION` in Vercel to the HTML-tag verification code from Search Console.
 
 ## Production database
 

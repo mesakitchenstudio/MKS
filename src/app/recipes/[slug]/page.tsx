@@ -13,6 +13,7 @@ import { RecipeReviews } from "@/components/RecipeReviews";
 import { RecipeTableOfContents } from "@/components/RecipeTableOfContents";
 import { RecipeVideo } from "@/components/RecipeVideo";
 import { ShareButtons } from "@/components/ShareButtons";
+import { site } from "@/data/site";
 import { getRecipeReviewData } from "@/lib/recipe-reviews";
 import { recipeTocItems } from "@/lib/recipe-sections";
 import { recipeJsonLd } from "@/lib/schema";
@@ -39,11 +40,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: recipe.title,
     description: recipe.excerpt,
+    alternates: {
+      canonical: `/recipes/${recipe.slug}`,
+    },
     openGraph: {
-      title: recipe.title,
+      title: `${recipe.title} | ${site.name}`,
       description: recipe.excerpt,
+      url: `${site.url}/recipes/${recipe.slug}`,
       images: [recipe.image],
       type: "article",
+      siteName: site.name,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${recipe.title} | ${site.name}`,
+      description: recipe.excerpt,
+      images: [recipe.image],
     },
   };
 }

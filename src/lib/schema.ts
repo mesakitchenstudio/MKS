@@ -3,15 +3,58 @@ import type { Recipe } from "@/data/types";
 import { bakeMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
 import type { RecipeReviewStats } from "@/lib/recipe-reviews";
 
+const logoUrl = `${site.url}/icon.png`;
+
 export function organizationJsonLd() {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": `${site.url}/#organization`,
     name: site.name,
+    alternateName: ["Mesa Kitchen", site.shortName],
     url: site.url,
+    logo: {
+      "@type": "ImageObject",
+      url: logoUrl,
+    },
+    image: logoUrl,
     description: site.description,
     email: site.email,
-    sameAs: Object.values(site.social),
+    sameAs: Object.values(site.social).filter(Boolean),
+  };
+}
+
+export function websiteJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${site.url}/#website`,
+    name: site.name,
+    alternateName: ["Mesa Kitchen", site.shortName],
+    url: site.url,
+    description: site.description,
+    publisher: { "@id": `${site.url}/#organization` },
+    inLanguage: "en-US",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${site.url}/search?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
+}
+
+/** Combined graph for the sitewide layout — helps Google connect brand + site. */
+export function siteGraphJsonLd() {
+  const organization = organizationJsonLd();
+  const website = websiteJsonLd();
+  const { "@context": _orgContext, ...orgNode } = organization;
+  const { "@context": _siteContext, ...siteNode } = website;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [orgNode, siteNode],
   };
 }
 
@@ -22,9 +65,22 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
     name: recipe.title,
     description: recipe.excerpt,
     image: [recipe.image],
+    url: `${site.url}/recipes/${recipe.slug}`,
+    mainEntityOfPage: `${site.url}/recipes/${recipe.slug}`,
     author: {
       "@type": "Organization",
+      "@id": `${site.url}/#organization`,
       name: site.name,
+      url: site.url,
+    },
+    publisher: {
+      "@type": "Organization",
+      "@id": `${site.url}/#organization`,
+      name: site.name,
+      logo: {
+        "@type": "ImageObject",
+        url: logoUrl,
+      },
     },
     datePublished: recipe.publishedAt,
     dateModified: recipe.updatedAt,
@@ -34,7 +90,7 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
     recipeYield: `${recipe.servings} ${recipe.servingsUnit}`,
     recipeCategory: recipe.course,
     recipeCuisine: recipe.cuisine,
-    keywords: recipe.tags.join(", "),
+    keywords: [...recipe.tags, site.name].filter(Boolean).join(", "),
     recipeIngredient: recipe.ingredients.flatMap((group) =>
       group.items.map((item) =>
         [item.amount, item.item, item.notes ? `(${item.notes})` : ""]
@@ -70,4 +126,3 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
 
   return data;
 }
-

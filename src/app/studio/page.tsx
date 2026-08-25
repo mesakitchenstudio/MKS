@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { lessons } from "@/data/lessons";
+import { site } from "@/data/site";
 
 export const metadata: Metadata = {
   title: "Studio lessons",
-  description:
-    "Kitchen fundamentals from Mesa Kitchen Studio — measuring, butter, ovens, and mise en place.",
+  description: `Kitchen fundamentals from ${site.name} — measuring, butter, ovens, and mise en place.`,
+  alternates: { canonical: "/studio" },
 };
 
 export default function StudioPage() {
