@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isSitePrivate } from "@/lib/flags";
+import { isBlockedApiWhilePrivate } from "@/lib/site-gate";
 
 /** Keep brand icons reachable while the public site is gated. */
 const PUBLIC_WHILE_PRIVATE = [
@@ -15,11 +17,15 @@ const PUBLIC_WHILE_PRIVATE = [
 ];
 
 export function proxy(request: NextRequest) {
-  if (process.env.SITE_PRIVATE !== "true") {
-    return NextResponse.next();
+  const { pathname } = request.nextUrl;
+
+  if (isBlockedApiWhilePrivate(pathname)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { pathname } = request.nextUrl;
+  if (!isSitePrivate()) {
+    return NextResponse.next();
+  }
   if (
     PUBLIC_WHILE_PRIVATE.includes(pathname) ||
     pathname.startsWith("/reset-password") ||

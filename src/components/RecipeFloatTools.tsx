@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signOut as signOutGoogle } from "next-auth/react";
 import { readSession, signOut } from "@/lib/auth-client";
+import { trackEvent } from "@/lib/analytics";
 import { isLiked, readLikes, toggleLike, hydrateLikesFromProfile, type LikedRecipe } from "@/lib/likes";
 import { AuthModal } from "./AuthModal";
 import { SearchOverlay, type OverlayRecipe } from "./SearchOverlay";
@@ -94,6 +95,11 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
     if (current) {
       const nextLiked = await toggleLike(current);
       setLiked(nextLiked);
+      trackEvent("recipe_favorite", {
+        recipe_slug: current.slug,
+        recipe_title: current.title,
+        source: nextLiked ? "add" : "remove",
+      });
     }
     setLikes(readLikes());
     setPanel("likes");

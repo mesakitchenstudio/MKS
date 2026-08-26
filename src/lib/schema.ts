@@ -2,6 +2,7 @@ import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
 import { bakeMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
 import type { RecipeReviewStats } from "@/lib/recipe-reviews";
+import { isSchemaVideoId } from "@/lib/recipe-youtube";
 
 const logoUrl = `${site.url}/icon.png`;
 
@@ -121,6 +122,19 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
       reviewCount: reviewStats.count,
       bestRating: 5,
       worstRating: 1,
+    };
+  }
+
+  const videoUrl = recipe.youtubeUrl?.trim();
+  if (videoUrl && isSchemaVideoId(videoUrl)) {
+    data.video = {
+      "@type": "VideoObject",
+      name: recipe.youtube?.title || recipe.title,
+      description: recipe.youtube?.hook || recipe.excerpt,
+      thumbnailUrl: recipe.youtube?.thumbnail,
+      uploadDate: recipe.publishedAt,
+      contentUrl: videoUrl,
+      embedUrl: videoUrl.includes("embed") ? videoUrl : undefined,
     };
   }
 

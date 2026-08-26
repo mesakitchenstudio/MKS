@@ -19,9 +19,9 @@ export function WatchNextPrompt({
       <a
         href={next.url}
         target="_blank"
-        rel="noreferrer"
+        rel="noopener noreferrer"
         onClick={() =>
-          trackVideoEvent("related_youtube_video_click", {
+          trackVideoEvent("recipe_related_video_click", {
             recipeSlug,
             recipeName,
             videoId: next.videoId,

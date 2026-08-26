@@ -1,7 +1,7 @@
 "use client";
 
 import type { RecipeYoutubeRelatedVideo } from "@/data/youtube-types";
-import { trackVideoEvent } from "@/lib/video-analytics";
+import { trackEvent } from "@/lib/analytics";
 import { VideoCard } from "./VideoCard";
 
 export function RelatedYouTubeVideos({
@@ -28,11 +28,11 @@ export function RelatedYouTubeVideos({
             <VideoCard
               video={video}
               onClick={() => {
-                trackVideoEvent("related_youtube_video_click", {
-                  recipeSlug,
-                  recipeName,
-                  videoId: video.videoId,
-                  videoTitle: video.title,
+                trackEvent("recipe_related_video_click", {
+                  recipe_slug: recipeSlug,
+                  recipe_title: recipeName,
+                  video_id: video.videoId,
+                  related_video_id: video.videoId,
                   source: "related_videos",
                 });
                 window.open(video.url, "_blank", "noopener,noreferrer");

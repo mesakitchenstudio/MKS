@@ -94,7 +94,7 @@ export function RecipeVideoProvider({
 
   const onCloseFloating = useCallback(() => {
     setFloatingDismissed(true);
-    trackVideoEvent("floating_video_close", {
+    trackVideoEvent("recipe_floating_video_close", {
       recipeSlug,
       recipeName,
       videoId: youtube.videoId,

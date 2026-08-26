@@ -28,6 +28,15 @@ export function FloatingRecipeVideo() {
   const autoHideTimer = useRef<number | null>(null);
   const [scrollCardExpired, setScrollCardExpired] = useState(false);
   const [footerVisible, setFooterVisible] = useState(false);
+  const [allowPrePlayCard, setAllowPrePlayCard] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () => setAllowPrePlayCard(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   const expireScrollCard = useCallback(() => {
     setScrollCardExpired(true);
@@ -45,7 +54,7 @@ export function FloatingRecipeVideo() {
         setScrollCardVisible(true);
         if (!impressionSent.current) {
           impressionSent.current = true;
-          trackVideoEvent("floating_video_impression", {
+          trackVideoEvent("recipe_floating_video_impression", {
             recipeSlug,
             recipeName,
             videoId: youtube.videoId,
@@ -129,7 +138,12 @@ export function FloatingRecipeVideo() {
   }, [mainAnchorRef, playing, setDocked]);
 
   const showScrollCard =
-    scrollCardVisible && !scrollCardExpired && !playing && !floatingDismissed && !footerVisible;
+    allowPrePlayCard &&
+    scrollCardVisible &&
+    !scrollCardExpired &&
+    !playing &&
+    !floatingDismissed &&
+    !footerVisible;
   const showMiniChrome = playing && !docked && !floatingDismissed && !footerVisible;
 
   if (!showScrollCard && !showMiniChrome) return null;
@@ -141,7 +155,7 @@ export function FloatingRecipeVideo() {
         youtube={youtube}
         onClose={onCloseFloating}
         onPlay={() => {
-          trackVideoEvent("floating_video_play", {
+          trackVideoEvent("recipe_floating_video_play", {
             recipeSlug,
             recipeName,
             videoId: youtube.videoId,

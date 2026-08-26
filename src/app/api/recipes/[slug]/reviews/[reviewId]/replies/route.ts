@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { submitRecipeReviewReply } from "@/lib/recipe-reviews";
+import { isBlockedApiWhilePrivate } from "@/lib/site-gate";
 
 type RouteContext = {
   params: Promise<{ slug: string; reviewId: string }>;
 };
 
 export async function POST(request: Request, context: RouteContext) {
+  if (isBlockedApiWhilePrivate(new URL(request.url).pathname)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const { slug, reviewId } = await context.params;
   const body = (await request.json()) as {
     authorName?: string;

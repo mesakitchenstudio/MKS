@@ -1,7 +1,7 @@
 "use client";
 
 import { site } from "@/data/site";
-import { trackVideoEvent } from "@/lib/video-analytics";
+import { trackEvent } from "@/lib/analytics";
 
 export function YouTubeSubscribeCTA({
   recipeSlug,
@@ -21,14 +21,14 @@ export function YouTubeSubscribeCTA({
       <a
         href={subscribeUrl}
         target="_blank"
-        rel="noreferrer"
-        onClick={() =>
-          trackVideoEvent("youtube_subscribe_click", {
-            recipeSlug,
-            recipeName,
+        rel="noopener noreferrer"
+        onClick={() => {
+          trackEvent("recipe_youtube_subscribe_click", {
+            recipe_slug: recipeSlug,
+            recipe_title: recipeName,
             source: "subscribe",
-          })
-        }
+          });
+        }}
         className="mt-5 inline-block rounded-full bg-olive px-6 py-3 text-sm font-semibold text-paper hover:bg-olive-dark"
       >
         Subscribe on YouTube

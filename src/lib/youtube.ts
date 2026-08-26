@@ -46,7 +46,7 @@ export function youtubeEmbedUrl(
   }
 
   const query = params.toString();
-  return `https://www.youtube.com/embed/${id}${query ? `?${query}` : ""}`;
+  return `https://www.youtube-nocookie.com/embed/${id}${query ? `?${query}` : ""}`;
 }
 
 export function youtubeWatchUrl(urlOrId: string) {

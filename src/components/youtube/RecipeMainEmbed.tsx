@@ -66,7 +66,7 @@ export function RecipeMainEmbed() {
           target="_blank"
           rel="noreferrer"
           onClick={() =>
-            trackVideoEvent("recipe_video_cta_click", {
+            trackVideoEvent("recipe_video_watch_youtube_click", {
               recipeSlug,
               recipeName,
               videoId: youtube.videoId,
@@ -84,7 +84,7 @@ export function RecipeMainEmbed() {
             target="_blank"
             rel="noreferrer"
             onClick={() =>
-              trackVideoEvent("youtube_playlist_click", {
+              trackVideoEvent("recipe_youtube_playlist_click", {
                 recipeSlug,
                 recipeName,
                 videoId: youtube.videoId,

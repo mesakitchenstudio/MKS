@@ -1,6 +1,7 @@
 import { getStaffByEmail } from "@/lib/accounts";
 import { getDb } from "@/lib/db";
 import { site } from "@/data/site";
+import { validateReviewInput } from "@/lib/user-content";
 
 export type RecipeReviewReplyRow = {
   id: string;
@@ -133,21 +134,15 @@ export async function submitRecipeReview(input: {
   userId?: string | null;
 }) {
   const db = getDb();
-  const authorName = input.authorName.trim();
-  const authorEmail = input.authorEmail.trim().toLowerCase();
-  const body = input.body.trim();
+  const { authorName, authorEmail, body } = validateReviewInput({
+    authorName: input.authorName,
+    authorEmail: input.authorEmail,
+    body: input.body,
+    minBodyLength: 10,
+  });
 
-  if (!authorName || !authorEmail || !body) {
-    throw new Error("Name, email, and comment are required.");
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authorEmail)) {
-    throw new Error("Enter a valid email address.");
-  }
   if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) {
     throw new Error("Choose a rating from 1 to 5 stars.");
-  }
-  if (body.length < 10) {
-    throw new Error("Comments must be at least 10 characters.");
   }
 
   try {
@@ -209,19 +204,12 @@ export async function submitRecipeReviewReply(input: {
   body: string;
 }) {
   const db = getDb();
-  const authorName = input.authorName.trim();
-  const authorEmail = input.authorEmail.trim().toLowerCase();
-  const body = input.body.trim();
-
-  if (!authorName || !authorEmail || !body) {
-    throw new Error("Name, email, and reply are required.");
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(authorEmail)) {
-    throw new Error("Enter a valid email address.");
-  }
-  if (body.length < 3) {
-    throw new Error("Replies must be at least 3 characters.");
-  }
+  const { authorName, authorEmail, body } = validateReviewInput({
+    authorName: input.authorName,
+    authorEmail: input.authorEmail,
+    body: input.body,
+    minBodyLength: 3,
+  });
 
   try {
     const review = await db.recipeReview.findFirst({

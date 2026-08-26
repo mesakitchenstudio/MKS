@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { notifyRecipeReviewsUpdated } from "@/components/RecipeRatingSummary";
 import { StarPicker, StarRating } from "@/components/StarRating";
+import { trackEvent } from "@/lib/analytics";
 import { formatGmtDisplay } from "@/lib/datetime";
 import { fetchRecipeReviewData } from "@/lib/recipe-reviews-client";
 import type { RecipeReviewData, RecipeReviewReplyRow, RecipeReviewRow } from "@/lib/recipe-reviews";
@@ -213,7 +214,9 @@ function ReviewItem({
     <li className="border-b border-line py-8 first:pt-0 last:border-b-0">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-none">
-          <span className="font-semibold text-ink">{review.authorName}</span>
+          <span className="max-w-[min(100%,16rem)] break-words font-semibold text-ink">
+            {review.authorName}
+          </span>
           <span className="text-muted">{formatGmtDisplay(review.createdAt, { includeTime: true })}</span>
           <StarRating value={review.rating} size="sm" label={`${review.rating} out of 5 stars`} />
         </div>
@@ -225,7 +228,7 @@ function ReviewItem({
           Reply
         </button>
       </div>
-      <p className="mt-4 leading-7 text-ink/90">{review.body}</p>
+      <p className="mt-4 break-words leading-7 text-ink/90">{review.body}</p>
 
       {review.replies.map((reply) => (
         <ReviewReply key={reply.id} reply={reply} onReply={() => onReply(review.id)} />
@@ -313,6 +316,10 @@ export function RecipeReviews({
       const payload = (await response.json()) as RecipeReviewData & { error?: string };
       if (!response.ok) throw new Error(payload.error || "Could not save your review.");
       applyReviewData(payload);
+      trackEvent("recipe_comment_submit", {
+        recipe_slug: slug,
+        recipe_title: title,
+      });
       setSubmitted(true);
       setComment("");
       setRating(0);

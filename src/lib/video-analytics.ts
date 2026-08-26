@@ -1,3 +1,6 @@
+import type { AnalyticsProperties } from "@/lib/analytics";
+import { trackEvent } from "@/lib/analytics";
+
 export type VideoAnalyticsSource =
   | "hero_cta"
   | "main_embed"
@@ -26,13 +29,14 @@ type VideoAnalyticsEvent =
   | "recipe_video_50_percent"
   | "recipe_video_75_percent"
   | "recipe_video_complete"
+  | "recipe_video_watch_youtube_click"
   | "recipe_video_timestamp_click"
-  | "floating_video_impression"
-  | "floating_video_play"
-  | "floating_video_close"
-  | "related_youtube_video_click"
-  | "youtube_playlist_click"
-  | "youtube_subscribe_click"
+  | "recipe_floating_video_impression"
+  | "recipe_floating_video_play"
+  | "recipe_floating_video_close"
+  | "recipe_related_video_click"
+  | "recipe_youtube_playlist_click"
+  | "recipe_youtube_subscribe_click"
   | "videos_page_video_click";
 
 const firedMilestones = new Set<string>();
@@ -41,18 +45,19 @@ function milestoneKey(event: string, videoId: string) {
   return `${event}:${videoId}`;
 }
 
-/** Provider-agnostic hook — wire to GA/Plausible later via window listener or tag manager. */
+function toAnalyticsProps(payload: VideoAnalyticsPayload): AnalyticsProperties {
+  return {
+    recipe_slug: payload.recipeSlug,
+    recipe_title: payload.recipeName,
+    video_id: payload.videoId,
+    video_title: payload.videoTitle,
+    source: payload.source,
+    timestamp: payload.timestamp,
+  };
+}
+
 export function trackVideoEvent(event: VideoAnalyticsEvent, payload: VideoAnalyticsPayload) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("mesa:video-analytics", {
-        detail: { event, ...payload, at: Date.now() },
-      }),
-    );
-  }
-  if (process.env.NODE_ENV === "development") {
-    console.debug("[video-analytics]", event, payload);
-  }
+  trackEvent(event, toAnalyticsProps(payload));
 }
 
 export function trackVideoMilestone(
@@ -71,7 +76,7 @@ export function trackVideoMilestone(
   const key = milestoneKey(event, payload.videoId);
   if (firedMilestones.has(key)) return;
   firedMilestones.add(key);
-  trackVideoEvent(event, payload);
+  trackEvent(event, toAnalyticsProps(payload));
 }
 
 export function resetVideoMilestones(videoId?: string) {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { CollectionRow } from "@/components/CollectionRow";
+import { JumpToRecipeLink } from "@/components/JumpToRecipeLink";
 import { JsonLd } from "@/components/JsonLd";
 import { RecipeCard } from "@/components/RecipeCard";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
@@ -91,12 +92,7 @@ export default async function RecipePage({ params }: Props) {
           <p className="text-sm text-muted">Updated {updated}</p>
           <div className="flex flex-wrap items-center gap-4">
             <ShareButtons title={recipe.title} slug={recipe.slug} />
-            <a
-              href="#recipe-card"
-              className="no-print rounded-full bg-terracotta px-4 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark"
-            >
-              Jump to recipe
-            </a>
+            <JumpToRecipeLink slug={recipe.slug} title={recipe.title} />
           </div>
         </div>
 

@@ -13,7 +13,7 @@ export function VideoCard({
       <div className="relative aspect-video overflow-hidden bg-sand">
         <Image
           src={video.thumbnail || ""}
-          alt=""
+          alt={video.title ? `Video thumbnail: ${video.title}` : ""}
           fill
           sizes="(min-width: 768px) 280px, 45vw"
           className="object-cover transition duration-300 group-hover:scale-[1.03]"
@@ -56,7 +56,7 @@ export function VideoCard({
     <a
       href={video.url}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener noreferrer"
       className="group block overflow-hidden border border-line bg-paper transition hover:border-terracotta/40"
     >
       {inner}

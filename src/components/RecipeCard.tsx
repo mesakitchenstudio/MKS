@@ -5,21 +5,10 @@ import type { Recipe } from "@/data/types";
 import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
 import { RecipeOverview } from "@/components/RecipeOverview";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
+import { trackEvent } from "@/lib/analytics";
+import { scaleAmount } from "@/lib/culinary-format";
 import { timestampForStep } from "@/lib/recipe-youtube";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
-
-function scaleAmount(amount: string, factor: number): string {
-  if (factor === 1) return amount;
-  return amount.replace(/(\d+\s*\/\s*\d+|\d+\.\d+|\d+)/g, (match) => {
-    const value = match.includes("/")
-      ? match.split("/").map(Number).reduce((n, d, i) => (i === 0 ? n : n / d))
-      : Number(match);
-    if (Number.isNaN(value)) return match;
-    const scaled = value * factor;
-    if (Number.isInteger(scaled)) return String(scaled);
-    return String(Math.round(scaled * 100) / 100);
-  });
-}
 
 export function RecipeCard({
   recipe,
@@ -53,7 +42,13 @@ export function RecipeCard({
         </div>
         <button
           type="button"
-          onClick={() => window.print()}
+          onClick={() => {
+            trackEvent("recipe_print", {
+              recipe_slug: recipe.slug,
+              recipe_title: recipe.title,
+            });
+            window.print();
+          }}
           className="no-print rounded-full border border-line px-4 py-2 text-sm font-semibold hover:border-terracotta hover:text-terracotta"
         >
           Print
@@ -73,7 +68,18 @@ export function RecipeCard({
             <button
               type="button"
               aria-label="Decrease servings"
-              onClick={() => setServings((value) => Math.max(1, value - 1))}
+              onClick={() =>
+                setServings((value) => {
+                  const next = Math.max(1, value - 1);
+                  trackEvent("recipe_servings_change", {
+                    recipe_slug: recipe.slug,
+                    recipe_title: recipe.title,
+                    direction: "decrease",
+                    servings: next,
+                  });
+                  return next;
+                })
+              }
               className="no-print inline-flex h-7 w-7 items-center justify-center rounded-full border border-line"
             >
               −
@@ -84,7 +90,18 @@ export function RecipeCard({
             <button
               type="button"
               aria-label="Increase servings"
-              onClick={() => setServings((value) => value + 1)}
+              onClick={() =>
+                setServings((value) => {
+                  const next = value + 1;
+                  trackEvent("recipe_servings_change", {
+                    recipe_slug: recipe.slug,
+                    recipe_title: recipe.title,
+                    direction: "increase",
+                    servings: next,
+                  });
+                  return next;
+                })
+              }
               className="no-print inline-flex h-7 w-7 items-center justify-center rounded-full border border-line"
             >
               +

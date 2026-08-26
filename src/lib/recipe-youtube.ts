@@ -24,10 +24,16 @@ function parseTimestamps(value: unknown): RecipeYoutubeTimestamp[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => {
-      const row = item as { label?: string; time?: unknown; stepIndex?: unknown };
-      const time = asNumber(row.time);
+      const row = item as {
+        label?: string;
+        time?: unknown;
+        seconds?: unknown;
+        stepIndex?: unknown;
+        instructionIndex?: unknown;
+      };
+      const time = asNumber(row.time) ?? asNumber(row.seconds);
       if (!row.label || time == null || time < 0) return null;
-      const stepIndex = asNumber(row.stepIndex);
+      const stepIndex = asNumber(row.stepIndex) ?? asNumber(row.instructionIndex);
       return {
         label: String(row.label),
         time,
@@ -41,7 +47,11 @@ function parseRelatedVideos(value: unknown): RecipeYoutubeRelatedVideo[] {
   if (!Array.isArray(value)) return [];
   const results: RecipeYoutubeRelatedVideo[] = [];
   for (const item of value) {
-    const row = item as Partial<RecipeYoutubeRelatedVideo> & { videoId?: string };
+    const row = item as Partial<RecipeYoutubeRelatedVideo> & {
+      videoId?: string;
+      thumbnailUrl?: string;
+      category?: string;
+    };
     const videoId = row.videoId || (row.url ? youtubeVideoId(row.url) : null);
     if (!row.title || !videoId) continue;
     const url = row.url || youtubeWatchUrl(videoId) || "";
@@ -49,9 +59,9 @@ function parseRelatedVideos(value: unknown): RecipeYoutubeRelatedVideo[] {
       title: row.title,
       videoId,
       url,
-      thumbnail: row.thumbnail || youtubeThumbnailUrl(videoId),
+      thumbnail: row.thumbnail || row.thumbnailUrl || youtubeThumbnailUrl(videoId),
       duration: row.duration,
-      label: row.label,
+      label: row.label || row.category,
     });
   }
   return results;
@@ -84,8 +94,9 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
     duration: asString(row.duration) || undefined,
     thumbnail: asString(row.thumbnail) || undefined,
     url: asString(row.url) || undefined,
-    hook: asString(row.hook) || undefined,
-    videoCtaDescription: asString(row.videoCtaDescription) || undefined,
+    hook: asString(row.hook) || asString(row.sectionDescription) || undefined,
+    videoCtaDescription:
+      asString(row.videoCtaDescription) || asString(row.ctaDescription) || undefined,
     playlistUrl: asString(row.playlistUrl) || undefined,
     playlistLabel: asString(row.playlistLabel) || undefined,
     timestamps: parseTimestamps(row.timestamps),
@@ -109,9 +120,11 @@ export function resolveRecipeYoutube(recipe: Pick<Recipe, "slug" | "title" | "yo
   const title = blob?.title?.trim() || `How to Make ${recipe.title}`;
   const hook =
     blob?.hook?.trim() ||
+    blob?.sectionDescription?.trim() ||
     `See exactly how we make ${recipe.title.toLowerCase()} in the studio — the same step-by-step flow we use when testing this recipe.`;
   const videoCtaDescription =
     blob?.videoCtaDescription?.trim() ||
+    blob?.ctaDescription?.trim() ||
     "See the key techniques and final results in the step-by-step video.";
 
   return {
@@ -147,4 +160,13 @@ export function timestampForStep(
   stepIndex: number,
 ) {
   return timestamps?.find((item) => item.stepIndex === stepIndex);
+}
+
+/** Exclude placeholder/dev IDs from structured data. */
+export function isSchemaVideoId(urlOrId: string) {
+  const id = youtubeVideoId(urlOrId) || urlOrId;
+  if (!id || id.length !== 11) return false;
+  if (/placeholder/i.test(id)) return false;
+  if (/^RELATEDVID/i.test(id)) return false;
+  return true;
 }
