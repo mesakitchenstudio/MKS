@@ -6,20 +6,23 @@ import { auth } from "@/auth";
 import { CollectionRow } from "@/components/CollectionRow";
 import { JsonLd } from "@/components/JsonLd";
 import { RecipeCard } from "@/components/RecipeCard";
-import { RecipeFloatingVideo } from "@/components/RecipeFloatingVideo";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
 import { RecipeRatingSummary } from "@/components/RecipeRatingSummary";
 import { RecipeReviews } from "@/components/RecipeReviews";
 import { RecipeTableOfContents } from "@/components/RecipeTableOfContents";
-import { RecipeVideo } from "@/components/RecipeVideo";
 import { ShareButtons } from "@/components/ShareButtons";
+import { RecipeMainEmbed } from "@/components/youtube/RecipeMainEmbed";
+import { RecipeVideoCTA } from "@/components/youtube/RecipeVideoCTA";
+import { RecipeVideoExperience } from "@/components/youtube/RecipeVideoExperience";
+import { RelatedYouTubeVideos } from "@/components/youtube/RelatedYouTubeVideos";
+import { YouTubeSubscribeCTA } from "@/components/youtube/YouTubeSubscribeCTA";
 import { site } from "@/data/site";
 import { getRecipeReviewData } from "@/lib/recipe-reviews";
+import { resolveRecipeYoutube } from "@/lib/recipe-youtube";
 import { recipeTocItems } from "@/lib/recipe-sections";
 import { recipeJsonLd } from "@/lib/schema";
 import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
-import { youtubeVideoId } from "@/lib/youtube";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -72,19 +75,10 @@ export default async function RecipePage({ params }: Props) {
   ]);
   const toc = recipeTocItems(recipe);
   const updated = formatGmtDisplay(recipe.updatedAt);
-  const hasVideo = Boolean(recipe.youtubeUrl && youtubeVideoId(recipe.youtubeUrl));
-  const hasFloatingVideo = Boolean(
-    recipe.floatingYoutubeUrl && youtubeVideoId(recipe.floatingYoutubeUrl),
-  );
+  const youtube = resolveRecipeYoutube(recipe);
 
-  return (
-    <article>
-      <SetCurrentRecipe slug={recipe.slug} title={recipe.title} />
-      <JsonLd data={recipeJsonLd(recipe, reviewData.stats)} />
-      {hasFloatingVideo && recipe.floatingYoutubeUrl ? (
-        <RecipeFloatingVideo url={recipe.floatingYoutubeUrl} title={recipe.title} />
-      ) : null}
-
+  const article = (
+    <>
       <div className="mx-auto max-w-3xl px-4 py-10 md:px-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
           {recipe.course} · {recipe.cuisine}
@@ -129,9 +123,9 @@ export default async function RecipePage({ params }: Props) {
           </div>
         </figure>
 
-        {hasVideo && recipe.youtubeUrl ? (
-          <RecipeVideo url={recipe.youtubeUrl} title={recipe.title} />
-        ) : null}
+        {youtube ? <RecipeVideoCTA /> : null}
+
+        {youtube ? <RecipeMainEmbed /> : null}
 
         <RecipeTableOfContents items={toc} />
 
@@ -171,7 +165,7 @@ export default async function RecipePage({ params }: Props) {
       </div>
 
       <div className="mx-auto max-w-4xl px-4 py-6 md:px-6">
-        <RecipeCard recipe={recipe} />
+        <RecipeCard recipe={recipe} youtube={youtube} />
       </div>
 
       <div className="mx-auto max-w-3xl px-4 pb-10 md:px-6">
@@ -212,6 +206,16 @@ export default async function RecipePage({ params }: Props) {
           defaultEmail={session?.user?.email ?? ""}
         />
 
+        {youtube?.relatedVideos?.length ? (
+          <RelatedYouTubeVideos
+            videos={youtube.relatedVideos}
+            recipeSlug={recipe.slug}
+            recipeName={recipe.title}
+          />
+        ) : null}
+
+        <YouTubeSubscribeCTA recipeSlug={recipe.slug} recipeName={recipe.title} />
+
         <p className="mt-10 text-sm text-muted">
           Filed under{" "}
           {recipe.categories.map((category, index) => (
@@ -227,6 +231,24 @@ export default async function RecipePage({ params }: Props) {
       </div>
 
       <CollectionRow title="More from the studio" recipes={related} />
+    </>
+  );
+
+  return (
+    <article>
+      <SetCurrentRecipe slug={recipe.slug} title={recipe.title} />
+      <JsonLd data={recipeJsonLd(recipe, reviewData.stats)} />
+      {youtube ? (
+        <RecipeVideoExperience
+          youtube={youtube}
+          recipeSlug={recipe.slug}
+          recipeName={recipe.title}
+        >
+          {article}
+        </RecipeVideoExperience>
+      ) : (
+        article
+      )}
     </article>
   );
 }

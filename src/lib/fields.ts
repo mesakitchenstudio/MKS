@@ -29,7 +29,7 @@ export type FieldDefinition = {
 
 export const DIFFICULTY_OPTIONS = ["Easy", "Medium", "Hard"] as const;
 
-export const RECIPE_MEDIA_KEYS = ["youtubeUrl", "floatingYoutubeUrl"] as const;
+export const RECIPE_MEDIA_KEYS = ["youtubeUrl", "floatingYoutubeUrl", "youtube"] as const;
 
 export const RECIPE_OVERVIEW_KEYS = [
   "difficulty",
@@ -44,6 +44,7 @@ export const CORE_VALUE_KEYS = [
   "imageAlt",
   "youtubeUrl",
   "floatingYoutubeUrl",
+  "youtube",
   "intro",
   "whyItWorks",
   "keyIngredients",
@@ -117,10 +118,16 @@ export const CORE_FIELDS: FieldDefinition[] = [
   },
   {
     key: "floatingYoutubeUrl",
-    label: "Floating YouTube video",
+    label: "Floating YouTube video (legacy)",
     kind: "text",
+    helpText: "Deprecated — the site now uses the main recipe video with a contextual floating card.",
+  },
+  {
+    key: "youtube",
+    label: "YouTube metadata (JSON)",
+    kind: "textarea",
     helpText:
-      "Small picture-in-picture player fixed at the bottom-right after readers scroll past the main video.",
+      "Optional rich data: hook, duration, playlistUrl, timestamps[], relatedVideos[]. Main video URL still uses the field above.",
   },
   { key: "intro", label: "Introduction", kind: "textarea", required: true },
   { key: "whyItWorks", label: "Why this works", kind: "textarea" },

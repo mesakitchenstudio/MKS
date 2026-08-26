@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
+import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
 import { RecipeOverview } from "@/components/RecipeOverview";
+import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
+import { timestampForStep } from "@/lib/recipe-youtube";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 
 function scaleAmount(amount: string, factor: number): string {
@@ -18,7 +21,13 @@ function scaleAmount(amount: string, factor: number): string {
   });
 }
 
-export function RecipeCard({ recipe }: { recipe: Recipe }) {
+export function RecipeCard({
+  recipe,
+  youtube = null,
+}: {
+  recipe: Recipe;
+  youtube?: ResolvedRecipeYoutube | null;
+}) {
   const [servings, setServings] = useState(recipe.servings);
   const factor = servings / recipe.servings;
 
@@ -115,23 +124,47 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
 
         <div>
           <h3 className="font-serif text-2xl">Instructions</h3>
-          {recipe.instructions.map((group) => (
-            <div key={group.name ?? "steps"} className="mt-4">
+          {recipe.instructions.map((group, groupIndex) => {
+            const stepOffset = recipe.instructions
+              .slice(0, groupIndex)
+              .reduce((total, item) => total + item.steps.length, 0);
+
+            return (
+            <div key={group.name ?? `steps-${groupIndex}`} className="mt-4">
               {group.name ? (
                 <p className="mb-2 text-sm font-semibold text-olive">{group.name}</p>
               ) : null}
               <ol className="space-y-4">
-                {group.steps.map((step, index) => (
-                  <li key={step} className="flex gap-3 text-sm leading-7">
+                {group.steps.map((step, index) => {
+                  const globalIndex = stepOffset + index;
+                  const ts = youtube
+                    ? timestampForStep(youtube.timestamps, globalIndex)
+                    : undefined;
+                  return (
+                  <li key={`${globalIndex}-${step}`} className="flex gap-3 text-sm leading-7">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-terracotta text-xs font-semibold text-paper">
-                      {index + 1}
+                      {globalIndex + 1}
                     </span>
-                    <span>{step}</span>
+                    <span>
+                      {step}
+                      {ts && youtube ? (
+                        <VideoTimestampLink
+                          label={ts.label}
+                          time={ts.time}
+                          videoId={youtube.videoId}
+                          recipeSlug={recipe.slug}
+                          recipeName={recipe.title}
+                          videoTitle={youtube.title}
+                        />
+                      ) : null}
+                    </span>
                   </li>
-                ))}
+                  );
+                })}
               </ol>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

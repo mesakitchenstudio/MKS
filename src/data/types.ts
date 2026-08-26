@@ -1,3 +1,5 @@
+import type { RecipeYoutube } from "@/data/youtube-types";
+
 export type Ingredient = {
   item: string;
   amount: string;
@@ -42,6 +44,7 @@ export type Recipe = {
   imageAlt: string;
   youtubeUrl?: string;
   floatingYoutubeUrl?: string;
+  youtube?: RecipeYoutube;
   publishedAt: string;
   updatedAt: string;
   prepMinutes: number;

@@ -1,5 +1,6 @@
 import type { Category, Faq, IngredientGroup, InstructionGroup, Nutrition, Recipe } from "@/data/types";
 import { CORE_VALUE_KEYS } from "@/lib/fields";
+import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 
 export type DbRecipeRecord = {
   slug: string;
@@ -103,6 +104,7 @@ export function toPublicRecipe(record: DbRecipeRecord): Recipe & { extras: Extra
     imageAlt: asString(values.imageAlt, record.title),
     youtubeUrl: asString(values.youtubeUrl) || undefined,
     floatingYoutubeUrl: asString(values.floatingYoutubeUrl) || undefined,
+    youtube: parseRecipeYoutubeBlob(values.youtube) ?? undefined,
     publishedAt: (record.publishedAt || record.updatedAt).toISOString().slice(0, 10),
     updatedAt: record.updatedAt.toISOString().slice(0, 10),
     prepMinutes: asNumber(values.prepMinutes),
@@ -146,6 +148,7 @@ export function recipeToValues(recipe: Recipe): Record<string, unknown> {
     imageAlt: recipe.imageAlt,
     youtubeUrl: recipe.youtubeUrl || "",
     floatingYoutubeUrl: recipe.floatingYoutubeUrl || "",
+    ...(recipe.youtube ? { youtube: recipe.youtube } : {}),
     intro: recipe.intro,
     whyItWorks: recipe.whyItWorks,
     keyIngredients: recipe.keyIngredients,

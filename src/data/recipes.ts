@@ -1,4 +1,5 @@
 import type { Recipe } from "./types";
+import { SALSA_VERDE_YOUTUBE } from "./sample-youtube";
 
 export const recipes: Recipe[] = [
   {
@@ -956,6 +957,8 @@ export const recipes: Recipe[] = [
     image:
       "https://images.unsplash.com/photo-1617093727343-374698b1b08d?auto=format&fit=crop&w=1600&q=80",
     imageAlt: "A bowl of green salsa with chips",
+    youtubeUrl: "https://www.youtube.com/watch?v=PLACEHOLDER",
+    youtube: SALSA_VERDE_YOUTUBE,
     publishedAt: "2026-03-03",
     updatedAt: "2026-07-14",
     prepMinutes: 10,

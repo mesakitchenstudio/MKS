@@ -9,6 +9,7 @@ import { AccountMenu } from "./AccountMenu";
 
 const links = [
   { href: "/recipes", label: "Recipes", mega: true },
+  { href: "/videos", label: "Videos" },
   { href: "/studio", label: "Studio" },
   { href: "/about", label: "About" },
 ];
@@ -148,6 +149,9 @@ export function SiteHeader() {
           <div className="flex flex-col gap-3 text-base font-semibold">
             <Link href="/recipes" onClick={closeMenus}>
               All recipes
+            </Link>
+            <Link href="/videos" onClick={closeMenus}>
+              Videos
             </Link>
             <Link href="/studio" onClick={closeMenus}>
               Studio

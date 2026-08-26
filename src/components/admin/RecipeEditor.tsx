@@ -52,6 +52,8 @@ export function RecipeEditor({
           initial.values.bakeMinutes ?? initial.values.cookMinutes ?? emptyValue(field.kind);
       } else if (field.key === "difficulty") {
         next[field.key] = initial.values.difficulty || "Easy";
+      } else if (field.key === "youtube" && initial.values.youtube && typeof initial.values.youtube === "object") {
+        next[field.key] = JSON.stringify(initial.values.youtube, null, 2);
       } else {
         next[field.key] = initial.values[field.key] ?? emptyValue(field.kind);
       }
@@ -62,6 +64,7 @@ export function RecipeEditor({
   const mediaKeys = new Set<string>(RECIPE_MEDIA_KEYS);
   mediaKeys.add("image");
   mediaKeys.add("imageAlt");
+  mediaKeys.add("youtube");
   const overviewKeys = new Set<string>(RECIPE_OVERVIEW_KEYS);
   const mediaFields = fields.filter((field) => mediaKeys.has(field.key));
   const overviewFields = fields.filter((field) => overviewKeys.has(field.key));
