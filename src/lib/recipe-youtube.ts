@@ -85,10 +85,11 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
     thumbnail: asString(row.thumbnail) || undefined,
     url: asString(row.url) || undefined,
     hook: asString(row.hook) || undefined,
+    videoCtaDescription: asString(row.videoCtaDescription) || undefined,
     playlistUrl: asString(row.playlistUrl) || undefined,
     playlistLabel: asString(row.playlistLabel) || undefined,
     timestamps: parseTimestamps(row.timestamps),
-    relatedVideos: parseRelatedVideos(row.relatedVideos),
+    relatedVideos: parseRelatedVideos(row.relatedVideos ?? row.relatedYoutubeVideos),
   };
 }
 
@@ -109,6 +110,9 @@ export function resolveRecipeYoutube(recipe: Pick<Recipe, "slug" | "title" | "yo
   const hook =
     blob?.hook?.trim() ||
     `See exactly how we make ${recipe.title.toLowerCase()} in the studio — the same step-by-step flow we use when testing this recipe.`;
+  const videoCtaDescription =
+    blob?.videoCtaDescription?.trim() ||
+    "See the key techniques and final results in the step-by-step video.";
 
   return {
     videoId,
@@ -116,6 +120,7 @@ export function resolveRecipeYoutube(recipe: Pick<Recipe, "slug" | "title" | "yo
     watchUrl,
     title,
     hook,
+    videoCtaDescription,
     duration: blob?.duration,
     thumbnail: blob?.thumbnail || youtubeThumbnailUrl(videoId),
     playlistUrl: blob?.playlistUrl,

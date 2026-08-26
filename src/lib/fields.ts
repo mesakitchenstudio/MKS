@@ -127,7 +127,7 @@ export const CORE_FIELDS: FieldDefinition[] = [
     label: "YouTube metadata (JSON)",
     kind: "textarea",
     helpText:
-      "Optional rich data: hook, duration, playlistUrl, timestamps[], relatedVideos[]. Main video URL still uses the field above.",
+      "Optional rich data: hook, videoCtaDescription, duration, playlistUrl, timestamps[], relatedVideos[]. Main video URL still uses the field above.",
   },
   { key: "intro", label: "Introduction", kind: "textarea", required: true },
   { key: "whyItWorks", label: "Why this works", kind: "textarea" },

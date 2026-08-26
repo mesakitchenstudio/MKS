@@ -43,7 +43,9 @@ export function RecipeMainEmbed() {
           videoId={youtube.videoId}
           title={youtube.title}
           thumbnail={youtube.thumbnail}
+          duration={youtube.duration}
           startSeconds={active ? startSeconds : 0}
+          forceLoad={active}
           onPlayStart={onPlayStart}
           onNearComplete={() => watchNext && setShowWatchNext(true)}
           analytics={{

@@ -28,9 +28,7 @@ export function RecipeVideoCTA() {
       >
         Watch {recipeName} being made →
       </button>
-      <p className="mt-2 text-sm leading-6 text-muted">
-        See the technique, texture, and final consistency in the step-by-step video.
-      </p>
+      <p className="mt-2 text-sm leading-6 text-muted">{youtube.videoCtaDescription}</p>
     </div>
   );
 }

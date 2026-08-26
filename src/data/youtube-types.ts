@@ -22,6 +22,8 @@ export type RecipeYoutube = {
   url?: string;
   /** Contextual sentence under the video heading */
   hook?: string;
+  /** Secondary copy under the hero “Prefer watching?” CTA */
+  videoCtaDescription?: string;
   playlistUrl?: string;
   playlistLabel?: string;
   timestamps?: RecipeYoutubeTimestamp[];
@@ -34,4 +36,6 @@ export type ResolvedRecipeYoutube = RecipeYoutube & {
   watchUrl: string;
   thumbnail: string;
   title: string;
+  hook: string;
+  videoCtaDescription: string;
 };

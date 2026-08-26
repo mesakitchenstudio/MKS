@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideo } from "./RecipeVideoContext";
 
 const SCROLL_SHOW_RATIO = 0.35;
+const AUTO_HIDE_MS = 60_000;
 
 export function FloatingRecipeVideo() {
   const {
@@ -24,14 +25,23 @@ export function FloatingRecipeVideo() {
   } = useRecipeVideo();
 
   const impressionSent = useRef(false);
+  const autoHideTimer = useRef<number | null>(null);
+  const [scrollCardExpired, setScrollCardExpired] = useState(false);
+  const [footerVisible, setFooterVisible] = useState(false);
+
+  const expireScrollCard = useCallback(() => {
+    setScrollCardExpired(true);
+    setScrollCardVisible(false);
+  }, [setScrollCardVisible]);
 
   useEffect(() => {
     function onScroll() {
+      if (floatingDismissed || scrollCardExpired || playing) return;
       const doc = document.documentElement;
       const max = doc.scrollHeight - window.innerHeight;
       if (max <= 0) return;
       const ratio = window.scrollY / max;
-      if (ratio >= SCROLL_SHOW_RATIO && !floatingDismissed) {
+      if (ratio >= SCROLL_SHOW_RATIO) {
         setScrollCardVisible(true);
         if (!impressionSent.current) {
           impressionSent.current = true;
@@ -48,7 +58,59 @@ export function FloatingRecipeVideo() {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [floatingDismissed, recipeName, recipeSlug, setScrollCardVisible, youtube.title, youtube.videoId]);
+  }, [
+    floatingDismissed,
+    playing,
+    recipeName,
+    recipeSlug,
+    scrollCardExpired,
+    setScrollCardVisible,
+    youtube.title,
+    youtube.videoId,
+  ]);
+
+  useEffect(() => {
+    if (!scrollCardVisible || playing || floatingDismissed || scrollCardExpired) return;
+    autoHideTimer.current = window.setTimeout(expireScrollCard, AUTO_HIDE_MS);
+    return () => {
+      if (autoHideTimer.current) window.clearTimeout(autoHideTimer.current);
+    };
+  }, [expireScrollCard, scrollCardVisible, playing, floatingDismissed, scrollCardExpired]);
+
+  useEffect(() => {
+    const comments = document.getElementById("recipe-comments");
+    const footer = document.querySelector("footer");
+    const observers: IntersectionObserver[] = [];
+
+    if (comments) {
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) expireScrollCard();
+        },
+        { threshold: 0.08 },
+      );
+      observer.observe(comments);
+      observers.push(observer);
+    }
+
+    if (footer) {
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          const visible = entry.isIntersecting;
+          setFooterVisible(visible);
+          if (visible) {
+            expireScrollCard();
+            if (playing) setDocked(true);
+          }
+        },
+        { threshold: 0.05 },
+      );
+      observer.observe(footer);
+      observers.push(observer);
+    }
+
+    return () => observers.forEach((observer) => observer.disconnect());
+  }, [expireScrollCard, playing, setDocked]);
 
   useEffect(() => {
     if (!playing || !mainAnchorRef.current) {
@@ -66,8 +128,9 @@ export function FloatingRecipeVideo() {
     return () => observer.disconnect();
   }, [mainAnchorRef, playing, setDocked]);
 
-  const showScrollCard = scrollCardVisible && !playing && !floatingDismissed;
-  const showMiniChrome = playing && !docked && !floatingDismissed;
+  const showScrollCard =
+    scrollCardVisible && !scrollCardExpired && !playing && !floatingDismissed && !footerVisible;
+  const showMiniChrome = playing && !docked && !floatingDismissed && !footerVisible;
 
   if (!showScrollCard && !showMiniChrome) return null;
 
@@ -117,23 +180,23 @@ function ScrollCard({
 }) {
   return (
     <div
-      className="no-print fixed bottom-20 right-4 z-[45] w-[min(100vw-2rem,16rem)] sm:bottom-24 sm:right-6 sm:w-[17.5rem]"
+      className="no-print fixed bottom-20 right-4 z-[45] w-[min(100vw-2rem,13rem)] sm:bottom-24 sm:right-6 sm:w-[14rem]"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <button
         type="button"
         aria-label="Close video suggestion"
         onClick={onClose}
-        className="absolute -left-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-paper text-sm font-semibold text-ink shadow-md hover:bg-cream"
+        className="absolute -left-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border border-line bg-paper text-xs font-semibold text-ink shadow-md hover:bg-cream"
       >
         ×
       </button>
       <button
         type="button"
         onClick={onPlay}
-        className="w-full overflow-hidden rounded-xl border border-line bg-paper text-left shadow-[0_16px_40px_rgba(42,34,24,0.18)] transition hover:border-terracotta/40"
+        className="w-full overflow-hidden rounded-lg border border-line bg-paper text-left shadow-[0_12px_32px_rgba(42,34,24,0.14)] transition hover:border-terracotta/40"
       >
-        <p className="bg-sand px-3 py-1.5 text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-olive">
+        <p className="bg-sand px-2.5 py-1 text-[0.55rem] font-semibold uppercase tracking-[0.12em] text-olive">
           Watch this recipe
         </p>
         <div className="relative aspect-video bg-ink">
@@ -143,15 +206,15 @@ function ScrollCard({
             alt={`Video thumbnail: ${youtube.title}`}
             className="h-full w-full object-cover"
           />
-          <span className="absolute inset-0 flex items-center justify-center bg-ink/25">
-            <span className="rounded-full bg-paper/95 px-3 py-1.5 text-xs font-semibold text-terracotta">
-              ▶ Play video
+          <span className="absolute inset-0 flex items-center justify-center bg-ink/20">
+            <span className="rounded-full bg-paper/95 px-2 py-1 text-[0.65rem] font-semibold text-terracotta">
+              ▶ Play
             </span>
           </span>
         </div>
-        <div className="px-3 py-2.5">
-          <p className="line-clamp-2 text-sm font-semibold text-ink">{recipeName}</p>
-          {youtube.duration ? <p className="mt-0.5 text-xs text-muted">{youtube.duration}</p> : null}
+        <div className="px-2.5 py-2">
+          <p className="line-clamp-2 text-xs font-semibold leading-snug text-ink">{recipeName}</p>
+          {youtube.duration ? <p className="mt-0.5 text-[0.65rem] text-muted">{youtube.duration}</p> : null}
         </div>
       </button>
     </div>

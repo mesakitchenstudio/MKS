@@ -19,7 +19,8 @@ export function RelatedYouTubeVideos({
 
   return (
     <section className="mt-14 scroll-mt-24 border-t border-line pt-12">
-      <h2 className="font-serif text-3xl text-ink">Keep cooking with us</h2>
+      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">YouTube</p>
+      <h2 className="mt-1 font-serif text-3xl text-ink">Keep Cooking With Us</h2>
       <p className="mt-2 text-sm text-muted">More videos that pair well with this recipe.</p>
       <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {shown.map((video) => (

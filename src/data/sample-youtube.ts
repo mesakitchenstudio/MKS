@@ -12,6 +12,8 @@ export const SALSA_VERDE_YOUTUBE: RecipeYoutube = {
   url: "https://www.youtube.com/watch?v=PLACEHOLDER",
   hook:
     "See exactly how far we roast the tomatillos and what the final texture should look like.",
+  videoCtaDescription:
+    "See the roasting technique, texture, and final consistency in the step-by-step video.",
   playlistUrl: `${site.social.youtube}/playlists`,
   playlistLabel: "Mexican recipes",
   timestamps: [
