@@ -122,12 +122,7 @@ export default function ComingSoonPage() {
           sizes="(min-width: 1024px) 55vw, 100vw"
           className="object-cover object-[center_42%]"
         />
-        {/* Soft bottom veil only — keeps “Opening soon” legible without a badge */}
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-ink/45 to-transparent sm:h-28"
-          aria-hidden
-        />
-        <p className="absolute bottom-6 left-6 font-serif text-lg text-paper [text-shadow:0_1px_2px_rgba(42,34,24,0.7),0_2px_10px_rgba(42,34,24,0.28)] md:bottom-10 md:left-10">
+        <p className="absolute bottom-6 left-6 font-serif text-lg text-paper [text-shadow:0_1px_2px_rgba(42,34,24,0.5),0_2px_10px_rgba(42,34,24,0.38),0_0_2px_rgba(42,34,24,0.45)] md:bottom-10 md:left-10">
           Opening soon
         </p>
       </section>
