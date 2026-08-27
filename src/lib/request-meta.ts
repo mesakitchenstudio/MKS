@@ -100,12 +100,47 @@ export function formatLocation(meta: { city?: string; region?: string; country?:
   return "";
 }
 
+/** Human-readable approx. place for admin UI (city + country name; skips cryptic region codes). */
+export function formatApproxLocation(meta: {
+  city?: string;
+  region?: string;
+  country?: string;
+  ip?: string;
+}) {
+  const city = meta.city?.trim() || "";
+  const region = meta.region?.trim() || "";
+  const countryRaw = meta.country?.trim() || "";
+  const country = countryDisplayName(countryRaw);
+
+  if (city && country) return `${city}, ${country}`;
+  if (city) return city;
+
+  const regionLooksLikeCode = Boolean(region && (/^\d+$/.test(region) || /^[A-Z0-9]{1,3}$/i.test(region)));
+  if (region && !regionLooksLikeCode && country) return `${region}, ${country}`;
+  if (country) return country;
+  if (meta.ip && isLoopback(meta.ip)) return "Local";
+  return "";
+}
+
+function countryDisplayName(codeOrName: string) {
+  if (!codeOrName) return "";
+  if (codeOrName.length !== 2) return codeOrName;
+  const upper = codeOrName.toUpperCase();
+  // Prefer the official short name when Intl still returns "Turkey".
+  if (upper === "TR") return "Türkiye";
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(upper) || codeOrName;
+  } catch {
+    return codeOrName;
+  }
+}
+
 export function formatBrowser(userAgent: string) {
   const { label } = classifyGuestClient(userAgent);
   return label;
 }
 
-/** Prefer a short localhost label; keep the full URL for title/tooltip. */
+/** Prefer a short host label; keep the full URL for title/tooltip. */
 export function formatReferrerDisplay(referer: string) {
   if (!referer) return { label: "—", title: undefined as string | undefined };
   try {
@@ -113,6 +148,7 @@ export function formatReferrerDisplay(referer: string) {
     if (/^(localhost|127\.0\.0\.1)$/i.test(url.hostname)) {
       return { label: "localhost", title: referer };
     }
+    return { label: url.hostname, title: referer };
   } catch {
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(referer)) {
       return { label: "localhost", title: referer };

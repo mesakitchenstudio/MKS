@@ -4,7 +4,7 @@ export type GuestClientKind = "visitor" | "bot" | "unknown";
 
 export type GuestClientInfo = {
   kind: GuestClientKind;
-  /** Short human label for tables: "Chrome · Windows", "Googlebot", … */
+  /** Short human label for tables: "Chrome · Windows", "iPhone · Safari", "Googlebot", … */
   label: string;
 };
 
@@ -34,24 +34,50 @@ const NAMED_BOTS: { test: RegExp; label: string }[] = [
   { test: /petalbot/i, label: "Petal bot" },
 ];
 
-function detectOs(userAgent: string) {
-  if (/Windows/i.test(userAgent)) return "Windows";
-  if (/Mac OS X|Macintosh/i.test(userAgent)) return "macOS";
-  if (/Android/i.test(userAgent)) return "Android";
-  if (/iPhone|iPad|iOS/i.test(userAgent)) return "iOS";
-  if (/Linux/i.test(userAgent)) return "Linux";
+/**
+ * Device / platform detection.
+ * Mobile tokens (iPhone, iPad, Android) must win before "like Mac OS X".
+ */
+export function detectGuestDevice(userAgent: string): { device: string; os: string } {
+  const ua = userAgent.trim();
+  if (!ua) return { device: "", os: "" };
+
+  if (/iPhone/i.test(ua)) return { device: "iPhone", os: "iOS" };
+  if (/iPad/i.test(ua)) return { device: "iPad", os: "iPadOS" };
+  if (/Android/i.test(ua)) return { device: "Android", os: "Android" };
+  if (/Windows/i.test(ua)) return { device: "Windows", os: "Windows" };
+  // Only after mobile checks — iOS UAs contain "like Mac OS X".
+  if (/Macintosh|Mac OS X/i.test(ua)) return { device: "macOS", os: "macOS" };
+  if (/Linux/i.test(ua)) return { device: "Linux", os: "Linux" };
+  return { device: "", os: "" };
+}
+
+export function detectGuestBrowser(userAgent: string) {
+  const ua = userAgent.trim();
+  if (!ua) return "";
+
+  if (/Edg\//i.test(ua) || /"Microsoft Edge"/i.test(ua)) return "Edge";
+  if (/OPR\/|Opera/i.test(ua)) return "Opera";
+  if (/Chrome\/|Chromium\/|CriOS\//i.test(ua) || /"Google Chrome"|"Chromium"/i.test(ua)) {
+    return "Chrome";
+  }
+  if (/Firefox\/|FxiOS\//i.test(ua)) return "Firefox";
+  // Mobile Safari and desktop Safari (Chrome already matched above when both appear).
+  if (/Safari\//i.test(ua)) return "Safari";
+  if (/WindowsPowerShell/i.test(ua)) return "PowerShell";
   return "";
 }
 
-function detectBrowser(userAgent: string) {
-  if (/Edg\//i.test(userAgent) || /"Microsoft Edge"/i.test(userAgent)) return "Edge";
-  if (/OPR\/|Opera/i.test(userAgent)) return "Opera";
-  if (/Chrome\/|Chromium\/|CriOS\//i.test(userAgent) || /"Google Chrome"|"Chromium"/i.test(userAgent)) {
-    return "Chrome";
+function formatDeviceClientLabel(device: string, os: string, browser: string) {
+  const isMobileDevice = device === "iPhone" || device === "iPad" || device === "Android";
+  if (isMobileDevice) {
+    if (browser) return `${device} · ${browser}`;
+    if (os) return `${device} · ${os}`;
+    return device;
   }
-  if (/Firefox\/|FxiOS\//i.test(userAgent)) return "Firefox";
-  if (/Safari\//i.test(userAgent)) return "Safari";
-  if (/WindowsPowerShell/i.test(userAgent)) return "PowerShell";
+  if (browser && os) return `${browser} · ${os}`;
+  if (browser) return browser;
+  if (os) return os;
   return "";
 }
 
@@ -84,11 +110,10 @@ export function classifyGuestClient(userAgent: string): GuestClientInfo {
   }
 
   // Do not treat bare "Google" / brand hints as bots without a crawler token.
-  const browser = detectBrowser(ua);
-  const os = detectOs(ua);
-  if (browser && os) return { kind: "visitor", label: `${browser} · ${os}` };
-  if (browser) return { kind: "visitor", label: browser };
-  if (os) return { kind: "visitor", label: os };
+  const { device, os } = detectGuestDevice(ua);
+  const browser = detectGuestBrowser(ua);
+  const label = formatDeviceClientLabel(device, os, browser);
+  if (label) return { kind: "visitor", label };
 
   return { kind: "unknown", label: ua.slice(0, 48) };
 }
@@ -99,16 +124,21 @@ export function guestClientKindLabel(kind: GuestClientKind) {
   return "Visitor";
 }
 
-/** OS portion for visitor detail (Unknown when unavailable). */
+/** OS / platform portion (Unknown when unavailable). */
 export function guestOsLabel(userAgent: string) {
-  return detectOs(userAgent.trim()) || "Unknown";
+  return detectGuestDevice(userAgent).os || "Unknown";
 }
 
-/** Browser/client portion for visitor detail (Unknown when unavailable). */
+/** Browser portion (Unknown when unavailable; bots return classification label). */
 export function guestBrowserLabel(userAgent: string) {
   const ua = userAgent.trim();
   if (!ua) return "Unknown";
   const classified = classifyGuestClient(ua);
   if (classified.kind === "bot") return classified.label;
-  return detectBrowser(ua) || "Unknown";
+  return detectGuestBrowser(ua) || "Unknown";
+}
+
+/** Shared Device / client string for Visitors list + detail (same as classifyGuestClient.label for humans). */
+export function guestDeviceClientLabel(userAgent: string) {
+  return classifyGuestClient(userAgent).label;
 }

@@ -40,7 +40,7 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
             <iframe
               title={`Map for ${details.ip}`}
               src={details.mapEmbedUrl!}
-              className="min-h-72 h-full w-full border border-line bg-sand lg:min-h-[22rem]"
+              className="min-h-48 h-full w-full border border-line bg-sand lg:min-h-64"
               loading="lazy"
             />
             <a
@@ -63,7 +63,7 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
       {showMap ? (
         <p className="border-t border-line bg-cream px-4 py-3 text-[0.7rem] leading-5 text-muted">
           Latitude and longitude are approximate and not precise enough to identify a specific
-          address. IP data from IP2Location.
+          address.
         </p>
       ) : null}
     </div>
