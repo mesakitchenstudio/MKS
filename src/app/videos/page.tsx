@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/videos" },
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function VideosPage() {
   const recipes = await getAllRecipes();
@@ -25,9 +25,24 @@ export default async function VideosPage() {
         written recipe on the site.
       </p>
 
-      {sections.map((section, index) => (
-        <VideoSection key={section.id} section={section} priorityFirst={index === 0} />
-      ))}
+      {sections.length === 0 ? (
+        <p className="mt-12 max-w-xl text-base leading-7 text-muted">
+          New videos are on the way. Follow along on{" "}
+          <a
+            href={site.social.youtube}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-terracotta hover:text-terracotta-dark"
+          >
+            YouTube
+          </a>{" "}
+          in the meantime.
+        </p>
+      ) : (
+        sections.map((section, index) => (
+          <VideoSection key={section.id} section={section} priorityFirst={index === 0} />
+        ))
+      )}
     </div>
   );
 }

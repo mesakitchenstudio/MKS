@@ -43,6 +43,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                   <AdminNavLink href="/admin" label="Recipes" match="recipes-index" />
                   <AdminNavLink href="/admin/types" label="Types" />
                   <AdminNavLink href="/admin/categories" label="Categories" />
+                  <AdminNavLink href="/admin/reviews" label="Reviews" />
                 </>
               ) : null}
               <AdminPeopleMenu items={peopleItems} />

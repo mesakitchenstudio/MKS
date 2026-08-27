@@ -9,7 +9,7 @@ import { homepageConfig } from "@/data/homepage";
 import { resolveHomepage } from "@/lib/homepage";
 import { getAllRecipes } from "@/lib/recipes";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: {

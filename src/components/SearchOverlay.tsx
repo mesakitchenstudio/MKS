@@ -12,6 +12,8 @@ export type OverlayRecipe = {
   title: string;
   image: string;
   imageAlt: string;
+  /** Precomputed multi-field search text (matches /recipes). */
+  searchHaystack?: string;
 };
 
 export function SearchOverlay({
@@ -53,7 +55,10 @@ export function SearchOverlay({
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return recipes;
-    return recipes.filter((recipe) => recipe.title.toLowerCase().includes(needle));
+    return recipes.filter((recipe) => {
+      const haystack = recipe.searchHaystack || recipe.title.toLowerCase();
+      return haystack.includes(needle);
+    });
   }, [query, recipes]);
 
   const latest = visible.slice(0, 8);

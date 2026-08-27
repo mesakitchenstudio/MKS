@@ -2,8 +2,6 @@ export type NewsletterResult =
   | { ok: true; duplicate?: boolean }
   | { ok: false; message: string };
 
-const STORAGE_KEY = "mesa-newsletter";
-
 export function validateNewsletterEmail(raw: string) {
   const email = raw.trim().toLowerCase();
   if (!email) {
@@ -18,22 +16,28 @@ export function validateNewsletterEmail(raw: string) {
   return { ok: true as const, email };
 }
 
-/** Provider boundary — swap implementation when ESP is connected. */
+/** Client helper — posts to the server subscribe API (persists in the database). */
 export async function subscribeToNewsletter(email: string): Promise<NewsletterResult> {
   const validated = validateNewsletterEmail(email);
   if (!validated.ok) return validated;
 
   try {
-    if (typeof window === "undefined") {
-      return { ok: true };
+    const response = await fetch("/api/newsletter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: validated.email }),
+    });
+    const data = (await response.json()) as NewsletterResult;
+    if (!response.ok || !data.ok) {
+      return {
+        ok: false,
+        message:
+          !data.ok && "message" in data
+            ? data.message
+            : "We could not save your subscription. Please try again in a moment.",
+      };
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 250));
-    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as string[];
-    const duplicate = existing.includes(validated.email);
-    if (!duplicate) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...existing, validated.email]));
-    }
-    return { ok: true, duplicate };
+    return data;
   } catch {
     return {
       ok: false,

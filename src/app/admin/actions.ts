@@ -536,3 +536,29 @@ export async function saveOwnAdminProfileAction(formData: FormData) {
   revalidatePath("/admin/staff");
   redirect("/admin/profile?saved=1");
 }
+
+export async function deleteReviewAction(formData: FormData) {
+  await requireEditor();
+  const id = String(formData.get("id") || "");
+  if (!id) redirect("/admin/reviews");
+  const { deleteReviewById } = await import("@/lib/recipe-reviews");
+  const slug = await deleteReviewById(id);
+  if (slug) {
+    revalidatePath(`/recipes/${slug}`);
+    revalidatePath("/admin/reviews");
+  }
+  redirect("/admin/reviews?removed=1");
+}
+
+export async function deleteReviewReplyAction(formData: FormData) {
+  await requireEditor();
+  const id = String(formData.get("id") || "");
+  if (!id) redirect("/admin/reviews");
+  const { deleteReviewReplyById } = await import("@/lib/recipe-reviews");
+  const slug = await deleteReviewReplyById(id);
+  if (slug) {
+    revalidatePath(`/recipes/${slug}`);
+    revalidatePath("/admin/reviews");
+  }
+  redirect("/admin/reviews?removed=1");
+}

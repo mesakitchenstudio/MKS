@@ -247,3 +247,38 @@ export async function submitRecipeReviewReply(input: {
     throw new Error("Could not save your reply. Please try again.");
   }
 }
+
+export async function listReviewsForAdmin(limit = 80) {
+  try {
+    const db = getDb();
+    return await db.recipeReview.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: {
+        replies: { orderBy: { createdAt: "asc" } },
+      },
+    });
+  } catch (error) {
+    console.error("Could not list reviews for admin", error);
+    return [];
+  }
+}
+
+export async function deleteReviewById(id: string) {
+  const db = getDb();
+  const review = await db.recipeReview.findUnique({ where: { id }, select: { recipeSlug: true } });
+  if (!review) return null;
+  await db.recipeReview.delete({ where: { id } });
+  return review.recipeSlug;
+}
+
+export async function deleteReviewReplyById(id: string) {
+  const db = getDb();
+  const reply = await db.recipeReviewReply.findUnique({
+    where: { id },
+    select: { review: { select: { recipeSlug: true } } },
+  });
+  if (!reply) return null;
+  await db.recipeReviewReply.delete({ where: { id } });
+  return reply.review.recipeSlug;
+}

@@ -24,5 +24,7 @@ describe("site-gate", () => {
     process.env.SITE_PRIVATE = "true";
     assert.equal(isBlockedApiWhilePrivate("/api/auth/signin"), false);
     assert.equal(isBlockedApiWhilePrivate("/api/admin/upload"), false);
+    assert.equal(isBlockedApiWhilePrivate("/api/newsletter"), false);
+    assert.equal(isBlockedApiWhilePrivate("/api/contact"), false);
   });
 });

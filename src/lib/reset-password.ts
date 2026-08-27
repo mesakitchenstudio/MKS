@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import { getDb } from "@/lib/db";
+import { sendTransactionalEmail, siteUrl } from "@/lib/email";
 import { hashPassword } from "@/lib/passwords";
 
 export type ResetKind = "admin" | "member";
@@ -9,16 +10,7 @@ function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export function siteUrl() {
-  const fromAuth = process.env.AUTH_URL?.trim();
-  if (fromAuth && !/localhost|127\.0\.0\.1/i.test(fromAuth)) {
-    return fromAuth.replace(/\/$/, "");
-  }
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/$/, "")}`;
-  }
-  return "https://www.mesakitchenstudio.com";
-}
+export { siteUrl };
 
 async function findAdmin(identifier: string) {
   const trimmed = identifier.trim();
@@ -120,28 +112,9 @@ export async function resetPasswordWithToken(token: string, password: string) {
 }
 
 async function sendResetEmail(to: string, url: string) {
-  const key = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.EMAIL_FROM?.trim() || "Mesa Kitchen Studio <hello@mesakitchenstudio.com>";
-  if (!key) {
-    console.info("Password reset link (email not configured):", to, url);
-    return false;
-  }
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to,
-      subject: "Reset your Mesa Kitchen Studio password",
-      html: `<p>Reset your password with this link. It expires in one hour.</p><p><a href="${url}">${url}</a></p>`,
-    }),
+  return sendTransactionalEmail({
+    to,
+    subject: "Reset your Mesa Kitchen Studio password",
+    html: `<p>Reset your password with this link. It expires in one hour.</p><p><a href="${url}">${url}</a></p>`,
   });
-  if (!response.ok) {
-    console.error("Could not send reset email", await response.text());
-    return false;
-  }
-  return true;
 }

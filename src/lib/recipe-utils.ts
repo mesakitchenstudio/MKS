@@ -4,29 +4,39 @@ export function filterRecipes(recipes: Recipe[], query: string): Recipe[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return recipes;
 
-  return recipes.filter((recipe) => {
-    const categoryTokens = recipe.categories.flatMap((slug) => [
-      slug,
-      slug.replace(/-/g, " "),
-    ]);
-    const haystack = [
-      recipe.title,
-      recipe.excerpt,
-      recipe.course,
-      recipe.cuisine,
-      recipe.method,
-      recipe.holiday || "",
-      ...recipe.tags,
-      ...categoryTokens,
-      recipe.difficulty || "",
-      ...(recipe.utensils || []),
-      ...recipe.ingredients.flatMap((group) => group.items.map((item) => item.item)),
-    ]
-      .join(" ")
-      .toLowerCase();
+  return recipes.filter((recipe) => recipeSearchHaystack(recipe).includes(needle));
+}
 
-    return haystack.includes(needle);
-  });
+/** Same fields as /recipes search — used by SearchOverlay and discovery. */
+export function recipeSearchHaystack(recipe: {
+  title: string;
+  excerpt: string;
+  course: string;
+  cuisine: string;
+  method: string;
+  holiday?: string;
+  tags: string[];
+  categories: string[];
+  difficulty?: string;
+  utensils?: string[];
+  ingredients: { items: { item: string }[] }[];
+}) {
+  const categoryTokens = recipe.categories.flatMap((slug) => [slug, slug.replace(/-/g, " ")]);
+  return [
+    recipe.title,
+    recipe.excerpt,
+    recipe.course,
+    recipe.cuisine,
+    recipe.method,
+    recipe.holiday || "",
+    ...recipe.tags,
+    ...categoryTokens,
+    recipe.difficulty || "",
+    ...(recipe.utensils || []),
+    ...recipe.ingredients.flatMap((group) => group.items.map((item) => item.item)),
+  ]
+    .join(" ")
+    .toLowerCase();
 }
 
 export function bakeMinutes(recipe: Recipe) {

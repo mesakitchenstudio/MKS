@@ -12,7 +12,7 @@ import {
 } from "@/lib/recipe-discovery";
 import { getAllCategories, getAllRecipes } from "@/lib/recipes";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export async function generateMetadata({
   searchParams,

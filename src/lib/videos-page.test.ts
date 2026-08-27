@@ -35,15 +35,15 @@ describe("videos page", () => {
     assert.equal(video.title, "Chocolate chunk cookies");
   });
 
-  it("resolves all editorial sections", () => {
+  it("omits sections until real YouTube watch URLs exist", () => {
     const sections = resolveVideoPageSections(recipes);
-    assert.equal(sections.length, 5);
-    assert.equal(sections[0]?.title, "Latest videos");
-    assert.equal(sections[0]?.videos.length, 3);
+    assert.ok(sections.every((section) => section.videos.every((video) => video.watchUrl)));
   });
 
-  it("curates most popular from real catalog entries", () => {
+  it("never fabricates popular titles", () => {
     const popular = resolveVideoPageSections(recipes).find((section) => section.id === "popular");
-    assert.ok(popular?.videos.every((video) => !/studio favorite/i.test(video.title)));
+    if (popular) {
+      assert.ok(popular.videos.every((video) => !/studio favorite/i.test(video.title)));
+    }
   });
 });

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Fraunces, Source_Sans_3 } from "next/font/google";
 import { AuthSessionProvider } from "@/components/AuthSessionProvider";
+import { AnalyticsBridge } from "@/components/AnalyticsBridge";
+import { AnalyticsScripts } from "@/components/AnalyticsScripts";
 import { JsonLd } from "@/components/JsonLd";
 import { PublicChrome } from "@/components/PublicChrome";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -8,6 +10,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
 import { getAllRecipes } from "@/lib/recipes";
+import { recipeSearchHaystack } from "@/lib/recipe-utils";
 import { siteGraphJsonLd } from "@/lib/schema";
 import "./globals.css";
 
@@ -104,6 +107,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         title: recipe.title,
         image: recipe.image,
         imageAlt: recipe.imageAlt,
+        searchHaystack: recipeSearchHaystack(recipe),
       }));
 
   return (
@@ -112,7 +116,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${fraunces.variable} ${sourceSans.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-cream font-sans text-ink">
+        <a
+          href="#main-content"
+          className="absolute left-4 top-4 z-[100] -translate-y-[200%] rounded-sm bg-paper px-4 py-2 text-sm font-semibold text-ink shadow-md transition-transform focus:translate-y-0 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-terracotta"
+        >
+          Skip to main content
+        </a>
         {privateMode ? null : <JsonLd data={siteGraphJsonLd()} />}
+        <AnalyticsScripts />
+        <AnalyticsBridge />
         <AuthSessionProvider>
           <PublicChrome
             hideTools={privateMode}
@@ -120,7 +132,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             header={privateMode ? null : <SiteHeader />}
             footer={privateMode ? null : <SiteFooter />}
           >
-            <main className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}>
+            <main
+              id="main-content"
+              className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}
+              tabIndex={-1}
+            >
               {children}
             </main>
           </PublicChrome>

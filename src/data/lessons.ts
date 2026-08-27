@@ -9,6 +9,7 @@ export const lessons: Lesson[] = [
     excerpt:
       "A scale is kinder than a scoop. Here is how we measure in the studio so cakes stay tender.",
     featured: true,
+    relatedRecipeSlugs: ["chocolate-chunk-cookies", "weeknight-chile"],
     body: [
       "Most dry-cake failures start with too much flour. Scoops packed against the bag can add 30 grams without you noticing, which is enough to turn a tender crumb tight and dry.",
       "Weigh flour, sugar, and liquids whenever you can. If you do not have a scale, fluff the flour in the container, spoon it into the cup, and level with a straight edge. Do not tap the cup on the counter.",
@@ -20,6 +21,7 @@ export const lessons: Lesson[] = [
     slug: "salted-vs-unsalted-butter",
     title: "Salted vs. unsalted butter",
     excerpt: "We bake with unsalted butter so we can season the recipe ourselves.",
+    relatedRecipeSlugs: ["chocolate-chunk-cookies"],
     body: [
       "Unsalted butter is the studio default. Salt content in salted butter varies by brand, and that swing is enough to throw off cookies and buttercream.",
       "If salted is what you have, drop the added salt in the recipe by about ¼ teaspoon per stick (113g) of butter. Taste frostings and doughs before you commit.",
@@ -31,6 +33,7 @@ export const lessons: Lesson[] = [
     slug: "knowing-your-oven",
     title: "Knowing your oven",
     excerpt: "Ovens lie. An inexpensive thermometer is the most useful tool on the studio shelf.",
+    relatedRecipeSlugs: ["chocolate-chunk-cookies"],
     body: [
       "Home ovens routinely run 15 to 25 degrees off the dial. That is the difference between a pale cookie and a bitter edge.",
       "Place an oven thermometer on the center rack and preheat a full 20 minutes. Note whether your oven runs hot or cool and adjust recipes accordingly.",
@@ -42,6 +45,7 @@ export const lessons: Lesson[] = [
     slug: "mise-en-place",
     title: "Mise en place: cooking without the scramble",
     excerpt: "Read the recipe once. Set the station. Then turn on the heat.",
+    relatedRecipeSlugs: ["weeknight-chile", "salsa-verde"],
     body: [
       "Mise en place is just a habit: gather, measure, and place everything before the first onion hits the pan. It is how we keep weeknight cooking calm.",
       "Read the whole recipe first, including the notes. Preheat the oven, then chop, measure, and line up bowls in the order you will use them.",

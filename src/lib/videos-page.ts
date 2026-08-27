@@ -89,7 +89,9 @@ export function resolveVideoPageSections(
     .map((section) => ({
       id: section.id,
       title: section.title,
-      videos: videoItemsByIds(section.videoIds).map((item) => resolveVideoItem(item, recipes)),
+      videos: videoItemsByIds(section.videoIds)
+        .map((item) => resolveVideoItem(item, recipes))
+        .filter((video) => Boolean(video.watchUrl)),
     }))
     .filter((section) => section.videos.length > 0);
 }

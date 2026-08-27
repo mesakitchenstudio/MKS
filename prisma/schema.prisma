@@ -193,3 +193,22 @@ model GuestPageView {
   @@index([createdAt])
   @@index([path])
 }
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  source    String   @default("site")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

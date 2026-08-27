@@ -34,6 +34,8 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/account") ||
     pathname.startsWith("/api/favorites") ||
+    pathname.startsWith("/api/newsletter") ||
+    pathname.startsWith("/api/contact") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/uploads")
   ) {

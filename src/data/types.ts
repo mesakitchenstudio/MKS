@@ -82,4 +82,6 @@ export type Lesson = {
   excerpt: string;
   body: string[];
   featured?: boolean;
+  /** Optional related published recipe slugs for cross-links. */
+  relatedRecipeSlugs?: string[];
 };
