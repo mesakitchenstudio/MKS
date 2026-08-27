@@ -81,15 +81,10 @@ export default function ComingSoonPage() {
               Kitchen Studio
             </p>
             <span className="mt-7 block h-px w-16 bg-terracotta sm:mt-8" aria-hidden />
-            <div className="mt-6">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-terracotta">
-                Coming soon
-              </p>
-              <p className="mt-2 max-w-md text-[0.9375rem] leading-6 text-muted">
-                The full Mesa Kitchen Studio is currently in preparation.
-              </p>
-            </div>
-            <h1 className="mt-8 max-w-sm font-serif text-[1.85rem] leading-tight text-ink sm:text-3xl md:mt-9 md:text-[2.35rem]">
+            <p className="mt-6 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-terracotta">
+              Coming soon
+            </p>
+            <h1 className="mt-7 max-w-sm font-serif text-[1.85rem] leading-tight text-ink sm:text-3xl md:mt-8 md:text-[2.35rem]">
               The table is being set.
             </h1>
             <p className="mt-4 max-w-md text-[0.95rem] leading-7 text-muted sm:mt-5 sm:text-base sm:leading-8">
