@@ -6,11 +6,8 @@ import { useRouter } from "next/navigation";
 import { PresenceDot } from "@/components/admin/MemberPresence";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { formatAdminShortDateTime } from "@/lib/datetime";
-import {
-  classifyGuestClient,
-  guestClientKindLabel,
-  isBotUserAgent,
-} from "@/lib/guest-client";
+import { classifyGuestClient, isBotUserAgent } from "@/lib/guest-client";
+import { guestPathTitle } from "@/lib/guest-path-labels";
 import { formatPresenceLabel, isMemberOnline } from "@/lib/member-presence";
 
 type GuestRow = {
@@ -34,6 +31,9 @@ type Summary = {
   pageViewsLast7Days: number;
 };
 
+const botBadgeClass =
+  "inline-flex rounded-full bg-sand px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-ink";
+
 function onlineLabel(count: number) {
   return count === 1 ? "1 visitor online" : `${count} visitors online`;
 }
@@ -42,13 +42,16 @@ export function VisitorsTable({
   visitors,
   popularPaths,
   summary,
+  recipeTitles = {},
 }: {
   visitors: GuestRow[];
   popularPaths: PopularPath[];
   summary: Summary;
+  recipeTitles?: Record<string, string>;
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
+  const titles = useMemo(() => new Map(Object.entries(recipeTitles)), [recipeTitles]);
 
   useEffect(() => {
     const tick = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -98,113 +101,121 @@ export function VisitorsTable({
         />
       </section>
 
-      {popularPaths.length ? (
-        <section>
-          <h2 className="font-serif text-xl text-ink">Popular pages</h2>
-          <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-            Last 7 days
-          </p>
-          <ul className="mt-3 divide-y divide-line border border-line bg-paper">
-            {visiblePopular.map((item) => (
-              <li
-                key={item.path}
-                className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm"
+      <section>
+        <h2 className="font-serif text-xl text-ink">Popular pages</h2>
+        <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+          Last 7 days
+        </p>
+        {popularPaths.length ? (
+          <>
+            <ul className="mt-3 divide-y divide-line border border-line bg-paper">
+              {visiblePopular.map((item) => (
+                <li
+                  key={item.path}
+                  className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-ink">{item.title}</p>
+                    <p className="mt-0.5 truncate font-mono text-[0.65rem] text-muted">
+                      {item.path}
+                    </p>
+                  </div>
+                  <span className="shrink-0 pt-0.5 text-xs text-muted">
+                    {item.views} {item.views === 1 ? "view" : "views"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {canTogglePopular ? (
+              <button
+                type="button"
+                className={`mt-2 text-sm ${adminLinkClass} ${adminFocusRing}`}
+                aria-expanded={showAllPopular}
+                onClick={() => setShowAllPopular((value) => !value)}
               >
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-ink">{item.title}</p>
-                  <p className="mt-0.5 truncate font-mono text-[0.65rem] text-muted">{item.path}</p>
-                </div>
-                <span className="shrink-0 pt-0.5 text-xs text-muted">
-                  {item.views} {item.views === 1 ? "view" : "views"}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {canTogglePopular ? (
-            <button
-              type="button"
-              className={`mt-2 text-sm ${adminLinkClass} ${adminFocusRing}`}
-              aria-expanded={showAllPopular}
-              onClick={() => setShowAllPopular((value) => !value)}
-            >
-              {showAllPopular ? "Show less" : "View all"}
-            </button>
-          ) : null}
-        </section>
-      ) : null}
+                {showAllPopular ? "Show less" : "View all"}
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <p className="mt-3 border border-dashed border-line bg-paper px-4 py-6 text-sm text-muted">
+            No page views from anonymous visitors in the last 7 days.
+          </p>
+        )}
+      </section>
 
       <section>
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
           <div>
             <h2 className="font-serif text-xl text-ink">Recent visitors</h2>
-            <p className="mt-1 text-sm text-muted">
-              Anonymous visitors · Times in GMT
-            </p>
+            <p className="mt-1 text-sm text-muted">Times in GMT</p>
           </div>
-          <div className="border border-line bg-paper px-4 py-2.5">
-            <p className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
+          <p className="text-sm text-muted">
+            <span className="inline-flex items-center gap-2 font-semibold text-ink">
               <PresenceDot online={liveOnlineCount > 0} pulse={liveOnlineCount > 0} />
               {onlineLabel(liveOnlineCount)}
-            </p>
-            <p className="mt-1 text-xs text-muted">
+            </span>
+            <span className="mt-0.5 block text-xs sm:mt-0 sm:ml-2 sm:inline">
               Active within the last 3 minutes · Updates automatically
-            </p>
-          </div>
+            </span>
+          </p>
         </div>
 
-        {/* Desktop table */}
-        <div className="mt-4 hidden border border-line bg-paper md:block">
-          <table className="w-full table-fixed text-left text-sm">
-            <colgroup>
-              <col className="w-[16%]" />
-              <col className="w-[12%]" />
-              <col className="w-[24%]" />
-              <col className="w-[14%]" />
-              <col className="w-[14%]" />
-              <col className="w-[14%]" />
-              <col className="w-[6%]" />
-            </colgroup>
-            <thead className={adminTableHeadClass}>
-              <tr>
-                <th className="px-3 py-3 font-medium">Visitor</th>
-                <th className="px-3 py-3 font-medium">Status</th>
-                <th className="px-3 py-3 font-medium">Current / last page</th>
-                <th className="px-3 py-3 font-medium">First seen</th>
-                <th className="px-3 py-3 font-medium">Last seen</th>
-                <th className="px-3 py-3 font-medium">Device / client</th>
-                <th className="px-3 py-3 font-medium">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+        {sorted.length === 0 ? (
+          <p className="mt-4 border border-dashed border-line bg-paper px-4 py-8 text-sm text-muted">
+            No anonymous visitors yet. Open the public site while signed out to generate traffic.
+          </p>
+        ) : (
+          <>
+            <div className="mt-4 hidden border border-line bg-paper md:block">
+              <table className="w-full table-fixed text-left text-sm">
+                <colgroup>
+                  <col className="w-[16%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[6%]" />
+                </colgroup>
+                <thead className={adminTableHeadClass}>
+                  <tr>
+                    <th className="px-3 py-3 font-medium">Visitor</th>
+                    <th className="px-3 py-3 font-medium">Status</th>
+                    <th className="px-3 py-3 font-medium">Current / last page</th>
+                    <th className="px-3 py-3 font-medium">First seen</th>
+                    <th className="px-3 py-3 font-medium">Last seen</th>
+                    <th className="px-3 py-3 font-medium">Device / client</th>
+                    <th className="px-3 py-3 font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((guest) => (
+                    <VisitorTableRow
+                      key={guest.id}
+                      guest={guest}
+                      now={now}
+                      recipeTitles={titles}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="mt-4 space-y-3 md:hidden">
               {sorted.map((guest) => (
-                <VisitorTableRow key={guest.id} guest={guest} now={now} />
+                <VisitorMobileCard
+                  key={guest.id}
+                  guest={guest}
+                  now={now}
+                  recipeTitles={titles}
+                />
               ))}
-              {sorted.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-muted">
-                    No anonymous visitors yet. Open the public site in a private window (signed out)
-                    to generate traffic.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile stacked rows */}
-        <ul className="mt-4 space-y-3 md:hidden">
-          {sorted.map((guest) => (
-            <VisitorMobileCard key={guest.id} guest={guest} now={now} />
-          ))}
-          {sorted.length === 0 ? (
-            <li className="border border-line bg-paper px-4 py-8 text-sm text-muted">
-              No anonymous visitors yet. Open the public site in a private window (signed out) to
-              generate traffic.
-            </li>
-          ) : null}
-        </ul>
+            </ul>
+          </>
+        )}
       </section>
     </div>
   );
@@ -228,25 +239,46 @@ function SummaryMetric({
   );
 }
 
-function VisitorTableRow({ guest, now }: { guest: GuestRow; now: number }) {
+function PageCell({ path, recipeTitles }: { path: string; recipeTitles: Map<string, string> }) {
+  if (!path) {
+    return <span className="text-muted">—</span>;
+  }
+  const title = guestPathTitle(path, recipeTitles);
+  const showPath = title !== path;
+  return (
+    <div className="min-w-0">
+      <p className="break-words text-sm leading-snug text-ink">{title}</p>
+      {showPath ? (
+        <p className="mt-0.5 break-words font-mono text-[0.65rem] leading-snug text-muted">{path}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function VisitorTableRow({
+  guest,
+  now,
+  recipeTitles,
+}: {
+  guest: GuestRow;
+  now: number;
+  recipeTitles: Map<string, string>;
+}) {
   const online = isMemberOnline(guest.lastSeenAt, now);
   const status = formatPresenceLabel(guest.lastSeenAt, now);
   const shortKey = guest.visitorKey.slice(0, 8);
   const client = classifyGuestClient(guest.userAgent);
-  const page = guest.lastPath || "—";
 
   return (
     <tr className="border-t border-line align-top hover:bg-cream/40">
       <td className="px-3 py-3">
         <Link href={`/admin/visitors/${guest.id}`} className={`block min-w-0 ${adminFocusRing}`}>
-          <span className="block truncate font-semibold text-ink transition-colors hover:text-terracotta">
-            Guest {shortKey}
-          </span>
-          {client.kind === "bot" ? (
-            <span className="mt-0.5 inline-block text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
-              Bot
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-ink transition-colors hover:text-terracotta">
+              Guest {shortKey}
             </span>
-          ) : null}
+            {client.kind === "bot" ? <span className={botBadgeClass}>Bot</span> : null}
+          </span>
         </Link>
       </td>
       <td className="px-3 py-3">
@@ -256,7 +288,7 @@ function VisitorTableRow({ guest, now }: { guest: GuestRow; now: number }) {
         </span>
       </td>
       <td className="px-3 py-3">
-        <span className="block break-words font-mono text-xs leading-snug text-muted">{page}</span>
+        <PageCell path={guest.lastPath} recipeTitles={recipeTitles} />
       </td>
       <td className="px-3 py-3 text-xs leading-snug text-muted">
         {formatAdminShortDateTime(guest.firstSeenAt)}
@@ -279,7 +311,15 @@ function VisitorTableRow({ guest, now }: { guest: GuestRow; now: number }) {
   );
 }
 
-function VisitorMobileCard({ guest, now }: { guest: GuestRow; now: number }) {
+function VisitorMobileCard({
+  guest,
+  now,
+  recipeTitles,
+}: {
+  guest: GuestRow;
+  now: number;
+  recipeTitles: Map<string, string>;
+}) {
   const online = isMemberOnline(guest.lastSeenAt, now);
   const status = formatPresenceLabel(guest.lastSeenAt, now);
   const shortKey = guest.visitorKey.slice(0, 8);
@@ -291,9 +331,10 @@ function VisitorMobileCard({ guest, now }: { guest: GuestRow; now: number }) {
         <div className="min-w-0">
           <Link
             href={`/admin/visitors/${guest.id}`}
-            className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
+            className={`inline-flex flex-wrap items-center gap-2 font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
           >
             Guest {shortKey}
+            {client.kind === "bot" ? <span className={botBadgeClass}>Bot</span> : null}
           </Link>
           <p className="mt-1 inline-flex items-center gap-2 text-sm text-ink">
             <PresenceDot online={online} />
@@ -307,10 +348,10 @@ function VisitorMobileCard({ guest, now }: { guest: GuestRow; now: number }) {
           View
         </Link>
       </div>
-      <p className="mt-2 break-words font-mono text-xs text-muted">{guest.lastPath || "—"}</p>
-      <p className="mt-2 text-xs text-muted">
-        {guestClientKindLabel(client.kind)} · {client.label}
-      </p>
+      <div className="mt-2">
+        <PageCell path={guest.lastPath} recipeTitles={recipeTitles} />
+      </div>
+      <p className="mt-2 text-xs text-muted">{client.label}</p>
       <p className="mt-1 text-xs text-muted">
         First {formatAdminShortDateTime(guest.firstSeenAt)} · Last{" "}
         {formatAdminShortDateTime(guest.lastSeenAt)}

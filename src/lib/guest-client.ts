@@ -9,7 +9,10 @@ export type GuestClientInfo = {
 };
 
 const NAMED_BOTS: { test: RegExp; label: string }[] = [
-  { test: /googlebot|adsbot-google|google-inspectiontool|mediapartners-google/i, label: "Googlebot" },
+  {
+    test: /googlebot|adsbot-google|google-inspectiontool|mediapartners-google|storebot-google|googleother|google-extended|feedfetcher-google|google-read-aloud|duplexweb-google|google-safety|googleproducer|apis-google/i,
+    label: "Googlebot",
+  },
   { test: /bingbot|bingpreview|msnbot/i, label: "Bingbot" },
   { test: /dataprovider/i, label: "Dataprovider bot" },
   { test: /facebookexternalhit|facebot/i, label: "Facebook bot" },
@@ -41,17 +44,25 @@ function detectOs(userAgent: string) {
 }
 
 function detectBrowser(userAgent: string) {
-  if (/Edg\//i.test(userAgent)) return "Edge";
+  if (/Edg\//i.test(userAgent) || /"Microsoft Edge"/i.test(userAgent)) return "Edge";
   if (/OPR\/|Opera/i.test(userAgent)) return "Opera";
-  if (/Chrome\/|Chromium\/|CriOS\//i.test(userAgent)) return "Chrome";
+  if (/Chrome\/|Chromium\/|CriOS\//i.test(userAgent) || /"Google Chrome"|"Chromium"/i.test(userAgent)) {
+    return "Chrome";
+  }
   if (/Firefox\/|FxiOS\//i.test(userAgent)) return "Firefox";
   if (/Safari\//i.test(userAgent)) return "Safari";
+  if (/WindowsPowerShell/i.test(userAgent)) return "PowerShell";
   return "";
 }
 
-/** Conservative bot check used by metrics (named bots + clear crawler tokens). */
+/** True for clearly automated crawlers — used by audience metrics. */
 export function isBotUserAgent(userAgent: string) {
   return classifyGuestClient(userAgent).kind === "bot";
+}
+
+/** Human anonymous traffic for metrics (excludes bots; members never enter guest tables). */
+export function isHumanGuestUserAgent(userAgent: string) {
+  return !isBotUserAgent(userAgent);
 }
 
 export function classifyGuestClient(userAgent: string): GuestClientInfo {
@@ -72,6 +83,7 @@ export function classifyGuestClient(userAgent: string): GuestClientInfo {
     return { kind: "bot", label: "Bot" };
   }
 
+  // Do not treat bare "Google" / brand hints as bots without a crawler token.
   const browser = detectBrowser(ua);
   const os = detectOs(ua);
   if (browser && os) return { kind: "visitor", label: `${browser} · ${os}` };

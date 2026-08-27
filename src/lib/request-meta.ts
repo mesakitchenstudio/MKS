@@ -14,15 +14,20 @@ function readHeader(headers: unknown, name: string) {
   try {
     const getter = (headers as Headers).get;
     if (typeof getter === "function") {
-      return getter.call(headers, name)?.split(",")[0]?.trim() || "";
+      return getter.call(headers, name)?.trim() || "";
     }
     const record = headers as Record<string, string | string[] | undefined>;
     const value = record[name] ?? record[name.toLowerCase()];
-    if (Array.isArray(value)) return String(value[0] ?? "").split(",")[0]?.trim() || "";
-    return String(value ?? "").split(",")[0]?.trim() || "";
+    if (Array.isArray(value)) return String(value[0] ?? "").trim() || "";
+    return String(value ?? "").trim() || "";
   } catch {
     return "";
   }
+}
+
+/** First value only — for comma-separated hop lists like x-forwarded-for. */
+function readHeaderFirst(headers: unknown, name: string) {
+  return readHeader(headers, name).split(",")[0]?.trim() || "";
 }
 
 function decodeHeader(value: string) {
@@ -58,15 +63,17 @@ export function connectionMeta(headers?: unknown): ConnectionMeta {
 
   const host = readHeader(headers, "host") || readHeader(headers, "x-forwarded-host");
   const forwarded =
-    readHeader(headers, "x-forwarded-for") ||
-    readHeader(headers, "x-real-ip") ||
-    readHeader(headers, "cf-connecting-ip") ||
-    readHeader(headers, "x-vercel-forwarded-for");
+    readHeaderFirst(headers, "x-forwarded-for") ||
+    readHeaderFirst(headers, "x-real-ip") ||
+    readHeaderFirst(headers, "cf-connecting-ip") ||
+    readHeaderFirst(headers, "x-vercel-forwarded-for");
   const localHost = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
   let ip = forwarded || (localHost ? "localhost" : "unknown");
   if (isLoopback(ip) || localHost) ip = "localhost";
 
-  const country = decodeHeader(readHeader(headers, "x-vercel-ip-country") || readHeader(headers, "cf-ipcountry"));
+  const country = decodeHeader(
+    readHeaderFirst(headers, "x-vercel-ip-country") || readHeaderFirst(headers, "cf-ipcountry"),
+  );
   const city = decodeHeader(readHeader(headers, "x-vercel-ip-city"));
   const region = decodeHeader(readHeader(headers, "x-vercel-ip-country-region"));
 
@@ -75,7 +82,8 @@ export function connectionMeta(headers?: unknown): ConnectionMeta {
     country,
     city: city || (ip === "localhost" ? "Local" : ""),
     region,
-    userAgent: readHeader(headers, "user-agent") || readHeader(headers, "sec-ch-ua"),
+    // Never fall back to sec-ch-ua — it is not a User-Agent and breaks bot/browser labels.
+    userAgent: readHeader(headers, "user-agent"),
     referer: readHeader(headers, "referer") || readHeader(headers, "origin"),
   };
 }

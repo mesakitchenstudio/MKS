@@ -25,6 +25,13 @@ describe("guest-client", () => {
     assert.equal(data.label, "Dataprovider bot");
   });
 
+  it("does not treat bare Google brand hints as bots", () => {
+    const hint = classifyGuestClient('"Google Chrome";v="131", "Chromium";v="131"');
+    assert.equal(hint.kind, "visitor");
+    assert.equal(hint.label, "Chrome");
+    assert.equal(isBotUserAgent(hint.label), false);
+  });
+
   it("does not treat empty UA as a bot", () => {
     assert.equal(classifyGuestClient("").kind, "unknown");
     assert.equal(isBotUserAgent(""), false);

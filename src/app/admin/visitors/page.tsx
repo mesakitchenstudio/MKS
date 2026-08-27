@@ -5,16 +5,20 @@ import {
   listGuestsForAdmin,
   listPopularGuestPaths,
 } from "@/lib/guest-analytics";
+import { getAllRecipes } from "@/lib/recipes";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminVisitorsPage() {
   await requireAccess("members");
-  const [visitors, popularPaths, summary] = await Promise.all([
+  const [visitors, popularPaths, summary, recipes] = await Promise.all([
     listGuestsForAdmin(),
     listPopularGuestPaths(),
     getVisitorAudienceSummary(),
+    getAllRecipes(),
   ]);
+
+  const recipeTitles = Object.fromEntries(recipes.map((recipe) => [recipe.slug, recipe.title]));
 
   return (
     <div>
@@ -25,7 +29,12 @@ export default async function AdminVisitorsPage() {
         Anonymous visitor activity. Signed-in members are excluded.
       </p>
 
-      <VisitorsTable visitors={visitors} popularPaths={popularPaths} summary={summary} />
+      <VisitorsTable
+        visitors={visitors}
+        popularPaths={popularPaths}
+        summary={summary}
+        recipeTitles={recipeTitles}
+      />
     </div>
   );
 }
