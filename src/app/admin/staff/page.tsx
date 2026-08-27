@@ -1,16 +1,14 @@
-import { AdminPhotoField } from "@/components/admin/AdminPhotoField";
-import { PendingSubmitButton } from "@/components/admin/PendingSubmitButton";
+import { StaffTeamSection } from "@/components/admin/StaffAddMemberPanel";
 import { StaffTeamList } from "@/components/admin/StaffTeamList";
 import { ACCESS_LEVELS } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { formatAdminDateTime } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
 import {
-  MIN_ADMIN_PASSWORD_LENGTH,
   shouldLockOwnerAccessSelect,
   isCurrentStaffAccount,
+  MIN_ADMIN_PASSWORD_LENGTH,
 } from "@/lib/admin-staff";
-import { saveAdminAction } from "../actions";
 
 function roleTone(role: string) {
   if (role === "owner") return "bg-terracotta/15 text-terracotta-dark";
@@ -18,11 +16,7 @@ function roleTone(role: string) {
   return "bg-sand text-ink";
 }
 
-const fieldClass =
-  "mt-1.5 w-full rounded-sm border border-line bg-cream px-3 py-2.5 text-sm text-ink outline-none transition focus:border-terracotta";
-
 const noticeOk = "mt-4 border border-olive/30 bg-olive/10 px-4 py-3 text-sm text-olive-dark";
-const noticeErr = "mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-3 text-sm text-terracotta-dark";
 
 function staffErrorMessage(error?: string) {
   switch (error) {
@@ -88,8 +82,7 @@ export default async function AdminStaffPage({
 
   const teamMembers = admins.map((admin) => {
     const isYou = isCurrentStaffAccount(actor, admin);
-    const canRemove =
-      !isYou && !(admin.role === "owner" && namedOwnerCount <= 1);
+    const canRemove = !isYou && !(admin.role === "owner" && namedOwnerCount <= 1);
     return {
       id: admin.id,
       name: admin.name,
@@ -106,6 +99,10 @@ export default async function AdminStaffPage({
     };
   });
 
+  const countLabel = teamCount
+    ? `${teamCount} team member${teamCount === 1 ? "" : "s"} · ${namedOwnerCount} owner${namedOwnerCount === 1 ? "" : "s"}`
+    : "No team members yet.";
+
   return (
     <div className="mx-auto max-w-4xl">
       <div className="border-b border-line pb-6">
@@ -114,8 +111,9 @@ export default async function AdminStaffPage({
         </p>
         <h1 className="mt-2 font-serif text-4xl text-ink">Admins</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Manage who can open Mesa admin and what each person can do. Multiple owners are allowed;
-          Mesa always keeps at least one.
+          Manage who can access Mesa admin and what each person can do.
+          <br />
+          Multiple owners are allowed; Mesa always keeps at least one owner.
         </p>
       </div>
 
@@ -166,81 +164,19 @@ export default async function AdminStaffPage({
         </div>
       </section>
 
-      <section className="mt-10 border border-line bg-paper">
-        <div className="border-b border-line bg-cream px-5 py-4">
-          <h2 className="font-serif text-2xl text-ink">Add team member</h2>
-          <p className="mt-1 text-sm text-muted">
-            Create a Mesa admin account and choose what they can access.
-          </p>
-        </div>
-        {created ? <p className={`mx-5 ${noticeOk}`}>Admin account created.</p> : null}
-        {createError ? <p className={`mx-5 ${noticeErr}`}>{createError}</p> : null}
-        <form action={saveAdminAction} className="grid gap-4 p-5 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <p className="text-sm font-semibold text-ink">Profile photo</p>
-            <div className="mt-2">
-              <AdminPhotoField />
-            </div>
-          </div>
-          <label className="grid text-sm font-semibold text-ink">
-            Full name
-            <input name="name" required autoComplete="name" className={fieldClass} />
-          </label>
-          <label className="grid text-sm font-semibold text-ink">
-            Email
-            <input name="email" type="email" required autoComplete="email" className={fieldClass} />
-          </label>
-          <label className="grid text-sm font-semibold text-ink">
-            Password
-            <input
-              name="password"
-              type="password"
-              minLength={MIN_ADMIN_PASSWORD_LENGTH}
-              required
-              autoComplete="new-password"
-              placeholder={`At least ${MIN_ADMIN_PASSWORD_LENGTH} characters`}
-              className={fieldClass}
-            />
-          </label>
-          <label className="grid text-sm font-semibold text-ink">
-            Access level
-            <select name="role" defaultValue="editor" className={fieldClass}>
-              {ACCESS_LEVELS.map((level) => (
-                <option key={level.id} value={level.id}>
-                  {level.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="md:col-span-2">
-            <PendingSubmitButton
-              pendingLabel="Adding…"
-              className="rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:hover:bg-terracotta"
-            >
-              Add admin
-            </PendingSubmitButton>
-          </div>
-        </form>
-      </section>
-
-      <section className="mt-10">
-        <div>
-          <h2 className="font-serif text-2xl text-ink">Team</h2>
-          <p className="mt-1 text-sm text-muted">
-            {teamCount
-              ? `${teamCount} team member${teamCount === 1 ? "" : "s"} · ${namedOwnerCount} owner${namedOwnerCount === 1 ? "" : "s"}.`
-              : "No team members yet."}
-          </p>
-        </div>
-
+      <StaffTeamSection
+        countLabel={countLabel}
+        created={Boolean(created)}
+        errorMessage={createError || undefined}
+      >
         {teamCount === 0 ? (
           <div className="mt-5 border border-dashed border-line bg-paper px-5 py-10 text-center text-sm leading-6 text-muted">
-            Add a team member above to give someone access to Mesa admin.
+            Add a team member to give someone access to Mesa admin.
           </div>
         ) : (
           <StaffTeamList members={teamMembers} />
         )}
-      </section>
+      </StaffTeamSection>
     </div>
   );
 }
