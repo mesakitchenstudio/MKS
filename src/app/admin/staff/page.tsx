@@ -72,9 +72,7 @@ export default async function AdminStaffPage({
   const showSystemOwner = Boolean(envOwnerEmail) && !envOwnerHasNamedRow;
   const namedOwnerCount = admins.filter((admin) => admin.role === "owner").length;
   const teamCount = admins.length;
-  const signedInAsSystemOwner =
-    showSystemOwner &&
-    (actor.id === "env" || actor.email.toLowerCase() === envOwnerEmail);
+  const signedInAsSystemOwner = showSystemOwner && actor.id === "env";
 
   const errorMessage = staffErrorMessage(error);
   const createError = errorMessage && !focusAdminId ? errorMessage : "";
@@ -109,7 +107,7 @@ export default async function AdminStaffPage({
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
           Studio access
         </p>
-        <h1 className="mt-2 font-serif text-4xl text-ink">Admins</h1>
+        <h1 className="mt-2 font-serif text-4xl text-ink">Team access</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
           Manage who can access Mesa admin and what each person can do.
           <br />

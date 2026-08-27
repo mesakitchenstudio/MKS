@@ -15,6 +15,12 @@ export const metadata: Metadata = {
 
 const guestLinkFocus = adminFocusRing;
 
+/** Presentation-only label for the signed-in admin in the header. */
+function adminNavDisplayName(admin: { id: string; name: string }) {
+  if (admin.id === "env") return "System owner";
+  return admin.name.trim() || "Admin";
+}
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const admin = await getAdminSession();
   const peopleItems = admin
@@ -52,9 +58,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </nav>
             <div className="ml-auto flex items-center gap-x-3 sm:gap-x-4">
               <p className="hidden h-8 items-center text-xs leading-none text-muted/90 sm:inline-flex">
-                {admin.name}
-                <span aria-hidden> · </span>
-                <span className="capitalize">{accessLabel(admin.role)}</span>
+                <span>{adminNavDisplayName(admin)}</span>
+                <span aria-hidden className="mx-1.5">
+                  ·
+                </span>
+                <span>{accessLabel(admin.role)}</span>
               </p>
               <form action={logoutAction} className="inline-flex items-center">
                 <button
