@@ -19,6 +19,7 @@ const PUBLIC_WHILE_PRIVATE = [
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Recipe/content APIs stay blocked while private.
   if (isBlockedApiWhilePrivate(pathname)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -26,16 +27,14 @@ export function proxy(request: NextRequest) {
   if (!isSitePrivate()) {
     return NextResponse.next();
   }
+
+  // Unblocked APIs (guest analytics, auth, admin, etc.) must not be rewritten to Coming Soon.
+  // Rewriting /api/analytics/guest previously returned HTML → POST 405 and no visitor rows.
   if (
+    pathname.startsWith("/api/") ||
     PUBLIC_WHILE_PRIVATE.includes(pathname) ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/admin") ||
-    pathname.startsWith("/api/admin") ||
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/account") ||
-    pathname.startsWith("/api/favorites") ||
-    pathname.startsWith("/api/newsletter") ||
-    pathname.startsWith("/api/contact") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/uploads")
   ) {
