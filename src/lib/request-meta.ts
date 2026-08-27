@@ -107,9 +107,9 @@ export function formatApproxLocation(meta: {
   country?: string;
   ip?: string;
 }) {
-  const city = meta.city?.trim() || "";
-  const region = meta.region?.trim() || "";
-  const countryRaw = meta.country?.trim() || "";
+  const city = cleanPlacePart(meta.city);
+  const region = cleanPlacePart(meta.region);
+  const countryRaw = cleanPlacePart(meta.country);
   const country = countryDisplayName(countryRaw);
   const regionLooksLikeCode = Boolean(
     region && (/^\d+$/.test(region) || /^[A-Z0-9]{1,3}$/i.test(region)),
@@ -126,6 +126,40 @@ export function formatApproxLocation(meta: {
   if (country) return country;
   // Do not surface "Local" for loopback/unknown IPs — omit until real place data exists.
   return "";
+}
+
+/**
+ * Compact list-table location: "Country · City".
+ * Shared by Visitors and Members overview tables (not detail pages).
+ */
+export function formatCountryCityLocation(meta: { city?: string; country?: string } | null | undefined) {
+  if (!meta) return "—";
+  const city = cleanPlacePart(meta.city);
+  const country = countryDisplayName(cleanPlacePart(meta.country));
+  if (country && city) return `${country} · ${city}`;
+  if (country) return country;
+  if (city) return city;
+  return "—";
+}
+
+/** First connection (newest-first) that has a usable country/city. */
+export function formatLatestCountryCityLocation(
+  connections: Array<{ city?: string; country?: string }> | null | undefined,
+) {
+  if (!connections?.length) return "—";
+  for (const connection of connections) {
+    const label = formatCountryCityLocation(connection);
+    if (label !== "—") return label;
+  }
+  return "—";
+}
+
+function cleanPlacePart(value?: string) {
+  const trimmed = value?.trim() || "";
+  if (!trimmed) return "";
+  if (trimmed === "—") return "";
+  if (/^(local|localhost|unknown|private network)$/i.test(trimmed)) return "";
+  return trimmed;
 }
 
 function countryDisplayName(codeOrName: string) {

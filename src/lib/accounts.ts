@@ -411,7 +411,7 @@ export async function listUsersForAdmin(limit = 200) {
     take: limit,
     include: {
       _count: { select: { saves: true, connections: true } },
-      // List only needs recent connection(s) for sign-in method / last-seen fallback.
+      // Recent connections (newest first) for sign-in method and list LOCATION.
       connections: { orderBy: { createdAt: "desc" }, take: 5 },
     },
   }) as Promise<

@@ -9,6 +9,7 @@ import { formatAdminShortDateTime } from "@/lib/datetime";
 import { classifyGuestClient, guestDeviceClientLabel, isBotUserAgent } from "@/lib/guest-client";
 import { guestPathTitle } from "@/lib/guest-path-labels";
 import { formatPresenceLabel, isMemberOnline } from "@/lib/member-presence";
+import { formatCountryCityLocation } from "@/lib/request-meta";
 
 type GuestRow = {
   id: string;
@@ -17,6 +18,8 @@ type GuestRow = {
   lastSeenAt: Date | string;
   lastPath: string;
   userAgent: string;
+  country?: string | null;
+  city?: string | null;
 };
 
 type PopularPath = {
@@ -170,12 +173,13 @@ export function VisitorsTable({
             <div className="mt-4 hidden border border-line bg-paper md:block">
               <table className="w-full table-fixed text-left text-sm">
                 <colgroup>
-                  <col className="w-[16%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[14%]" />
                   <col className="w-[12%]" />
-                  <col className="w-[24%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[14%]" />
                   <col className="w-[6%]" />
                 </colgroup>
                 <thead className={adminTableHeadClass}>
@@ -185,6 +189,7 @@ export function VisitorsTable({
                     <th className="px-3 py-3 font-medium">Current / last page</th>
                     <th className="px-3 py-3 font-medium">First seen</th>
                     <th className="px-3 py-3 font-medium">Last seen</th>
+                    <th className="px-3 py-3 font-medium">Location</th>
                     <th className="px-3 py-3 font-medium">Device / client</th>
                     <th className="px-3 py-3 font-medium">
                       <span className="sr-only">Actions</span>
@@ -255,6 +260,15 @@ function PageCell({ path, recipeTitles }: { path: string; recipeTitles: Map<stri
   );
 }
 
+function LocationCell({ country, city }: { country?: string | null; city?: string | null }) {
+  const label = formatCountryCityLocation({ country: country || "", city: city || "" });
+  return (
+    <span className="block truncate text-xs leading-snug text-muted" title={label === "—" ? undefined : label}>
+      {label}
+    </span>
+  );
+}
+
 function VisitorTableRow({
   guest,
   now,
@@ -297,8 +311,13 @@ function VisitorTableRow({
       <td className="px-3 py-3 text-xs leading-snug text-muted">
         {formatAdminShortDateTime(guest.lastSeenAt)}
       </td>
-      <td className="px-3 py-3 text-xs leading-snug text-muted" title={guest.userAgent}>
-        {deviceClient}
+      <td className="px-3 py-3">
+        <LocationCell country={guest.country} city={guest.city} />
+      </td>
+      <td className="px-3 py-3 text-xs leading-snug text-muted">
+        <span className="block truncate" title={guest.userAgent}>
+          {deviceClient}
+        </span>
       </td>
       <td className="px-3 py-3 text-right">
         <Link
@@ -326,6 +345,10 @@ function VisitorMobileCard({
   const shortKey = guest.visitorKey.slice(0, 8);
   const client = classifyGuestClient(guest.userAgent);
   const deviceClient = guestDeviceClientLabel(guest.userAgent);
+  const location = formatCountryCityLocation({
+    country: guest.country || "",
+    city: guest.city || "",
+  });
 
   return (
     <li className="border border-line bg-paper px-4 py-3">
@@ -353,7 +376,12 @@ function VisitorMobileCard({
       <div className="mt-2">
         <PageCell path={guest.lastPath} recipeTitles={recipeTitles} />
       </div>
-      <p className="mt-2 text-xs text-muted">{deviceClient}</p>
+      <p className="mt-2 truncate text-xs text-muted" title={location === "—" ? undefined : location}>
+        {location}
+      </p>
+      <p className="mt-1 truncate text-xs text-muted" title={guest.userAgent}>
+        {deviceClient}
+      </p>
       <p className="mt-1 text-xs text-muted">
         First {formatAdminShortDateTime(guest.firstSeenAt)} · Last{" "}
         {formatAdminShortDateTime(guest.lastSeenAt)}

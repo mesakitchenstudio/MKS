@@ -8,7 +8,7 @@ import {
   isBotUserAgent,
 } from "./guest-client.ts";
 import { guestPathTitle, isPopularGuestPath } from "./guest-path-labels.ts";
-import { formatApproxLocation, formatReferrerDisplay } from "./request-meta.ts";
+import { formatApproxLocation, formatCountryCityLocation, formatLatestCountryCityLocation, formatReferrerDisplay } from "./request-meta.ts";
 
 const IPHONE_SAFARI_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6 Mobile/15E148 Safari/604.1";
@@ -136,6 +136,31 @@ describe("request-meta display helpers", () => {
       "Kartal, Istanbul, Türkiye",
     );
     assert.equal(formatApproxLocation({ city: "", region: "", country: "", ip: "unknown" }), "");
+  });
+
+  it("formats list LOCATION as Country · City", () => {
+    assert.equal(
+      formatCountryCityLocation({ country: "TR", city: "Istanbul" }),
+      "Türkiye · Istanbul",
+    );
+    assert.equal(formatCountryCityLocation({ country: "TR", city: "" }), "Türkiye");
+    assert.equal(formatCountryCityLocation({ country: "", city: "Istanbul" }), "Istanbul");
+    assert.equal(formatCountryCityLocation({ country: "", city: "" }), "—");
+    assert.equal(formatCountryCityLocation({ country: "US", city: "New York" }), "United States · New York");
+    assert.equal(formatCountryCityLocation({ country: "—", city: "Local" }), "—");
+  });
+
+  it("picks the newest connection with a usable place for member LOCATION", () => {
+    assert.equal(
+      formatLatestCountryCityLocation([
+        { country: "", city: "" },
+        { country: "TR", city: "Istanbul" },
+        { country: "DE", city: "Berlin" },
+      ]),
+      "Türkiye · Istanbul",
+    );
+    assert.equal(formatLatestCountryCityLocation([{ country: "", city: "" }]), "—");
+    assert.equal(formatLatestCountryCityLocation([]), "—");
   });
 
   it("shows referrer hostname with full URL in title", () => {
