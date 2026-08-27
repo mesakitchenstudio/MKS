@@ -46,12 +46,16 @@ function DisclosureToggle({
 export function VisitorTechnicalSection({
   where,
   browser,
+  clientKind,
+  userAgent,
   referer,
   ips,
   pageViews,
 }: {
   where: string;
   browser: string;
+  clientKind?: string;
+  userAgent?: string;
   referer: string;
   ips: string[];
   pageViews: PageView[];
@@ -73,8 +77,16 @@ export function VisitorTechnicalSection({
           <dd className="min-w-0 text-sm text-muted">{where}</dd>
         </div>
         <div className="grid gap-1 border-t border-line py-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6">
-          <dt className="text-sm font-semibold text-ink">Browser</dt>
+          <dt className="text-sm font-semibold text-ink">Classification</dt>
+          <dd className="min-w-0 text-sm text-muted">{clientKind || "Visitor"}</dd>
+        </div>
+        <div className="grid gap-1 border-t border-line py-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6">
+          <dt className="text-sm font-semibold text-ink">Device / client</dt>
           <dd className="min-w-0 text-sm text-muted">{browser}</dd>
+        </div>
+        <div className="grid gap-1 border-t border-line py-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6">
+          <dt className="text-sm font-semibold text-ink">User agent</dt>
+          <dd className="min-w-0 break-all font-mono text-xs text-muted">{userAgent || "—"}</dd>
         </div>
         <div className="grid gap-1 border-t border-line py-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6">
           <dt className="text-sm font-semibold text-ink">Latest referrer</dt>

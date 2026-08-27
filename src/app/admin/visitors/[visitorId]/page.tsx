@@ -6,9 +6,11 @@ import { adminFocusRing } from "@/lib/admin-ui";
 import { requireAccess } from "@/lib/auth";
 import { formatAdminDateTime } from "@/lib/datetime";
 import { getGuestForAdmin } from "@/lib/guest-analytics";
+import { classifyGuestClient, guestClientKindLabel } from "@/lib/guest-client";
 import { uniqueIps } from "@/lib/ip-utils";
 import { formatPresenceLabel, isMemberOnline } from "@/lib/member-presence";
-import { formatBrowser, formatLocation } from "@/lib/request-meta";
+import { formatLocation } from "@/lib/request-meta";
+import { guestPathTitle } from "@/lib/guest-path-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +40,9 @@ export default async function AdminVisitorDetailPage({
   const status = formatPresenceLabel(guest.lastSeenAt);
   const shortKey = guest.visitorKey.slice(0, 8);
   const currentPage = guest.lastPath || "—";
+  const pageTitle = guest.lastPath ? guestPathTitle(guest.lastPath) : "";
   const where = formatLocation(guest) || "—";
-  const browser = formatBrowser(guest.userAgent);
+  const client = classifyGuestClient(guest.userAgent);
   const ips = uniqueIps([guest.ip, ...guest.pageViews.map((view) => view.ip)]);
   const latestReferer =
     guest.pageViews.find((view) => view.referer)?.referer || "";
@@ -58,9 +61,11 @@ export default async function AdminVisitorDetailPage({
           Guest {shortKey}
         </h1>
         <p className="mt-1 break-all font-mono text-sm text-muted">{guest.visitorKey}</p>
-        <p className="mt-3 inline-flex items-center gap-2 text-sm text-ink">
+        <p className="mt-3 inline-flex flex-wrap items-center gap-2 text-sm text-ink">
           <PresenceDot online={online} />
           {status}
+          <span className="text-muted">·</span>
+          <span className="text-muted">{guestClientKindLabel(client.kind)}</span>
         </p>
       </div>
 
@@ -74,7 +79,10 @@ export default async function AdminVisitorDetailPage({
             </span>
           </DetailRow>
           <DetailRow label={online ? "Current page" : "Last page"}>
-            <span className="font-mono text-xs text-ink sm:text-sm">{currentPage}</span>
+            <div>
+              {pageTitle ? <p className="font-semibold text-ink">{pageTitle}</p> : null}
+              <p className="font-mono text-xs text-ink sm:text-sm">{currentPage}</p>
+            </div>
           </DetailRow>
           <DetailRow label="First seen">{formatAdminDateTime(guest.firstSeenAt)}</DetailRow>
           <DetailRow label="Last seen">{formatAdminDateTime(guest.lastSeenAt)}</DetailRow>
@@ -84,7 +92,9 @@ export default async function AdminVisitorDetailPage({
 
       <VisitorTechnicalSection
         where={where}
-        browser={browser}
+        browser={client.label}
+        clientKind={guestClientKindLabel(client.kind)}
+        userAgent={guest.userAgent || "—"}
         referer={latestReferer}
         ips={ips}
         pageViews={guest.pageViews.map((view) => ({

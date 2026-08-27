@@ -1,3 +1,5 @@
+import { classifyGuestClient } from "@/lib/guest-client";
+
 export type ConnectionMeta = {
   ip: string;
   country: string;
@@ -91,33 +93,8 @@ export function formatLocation(meta: { city?: string; region?: string; country?:
 }
 
 export function formatBrowser(userAgent: string) {
-  if (!userAgent) return "—";
-  const os = /Windows/i.test(userAgent)
-    ? "Windows"
-    : /Mac OS X|Macintosh/i.test(userAgent)
-      ? "macOS"
-      : /Android/i.test(userAgent)
-        ? "Android"
-        : /iPhone|iPad|iOS/i.test(userAgent)
-          ? "iOS"
-          : /Linux/i.test(userAgent)
-            ? "Linux"
-            : "";
-  const browser = /Edg\//i.test(userAgent)
-    ? "Edge"
-    : /OPR\/|Opera/i.test(userAgent)
-      ? "Opera"
-      : /Chrome\/|Chromium\/|CriOS\//i.test(userAgent)
-        ? "Chrome"
-        : /Firefox\/|FxiOS\//i.test(userAgent)
-          ? "Firefox"
-          : /Safari\//i.test(userAgent)
-            ? "Safari"
-            : "";
-  if (browser && os) return `${browser} on ${os}`;
-  if (browser) return browser;
-  if (os) return os;
-  return userAgent.slice(0, 48);
+  const { label } = classifyGuestClient(userAgent);
+  return label;
 }
 
 /** Prefer a short localhost label; keep the full URL for title/tooltip. */

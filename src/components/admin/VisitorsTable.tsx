@@ -5,9 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PresenceDot } from "@/components/admin/MemberPresence";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
-import { formatAdminDateTime } from "@/lib/datetime";
+import { formatAdminShortDateTime } from "@/lib/datetime";
+import {
+  classifyGuestClient,
+  guestClientKindLabel,
+  isBotUserAgent,
+} from "@/lib/guest-client";
 import { formatPresenceLabel, isMemberOnline } from "@/lib/member-presence";
-import { formatBrowser } from "@/lib/request-meta";
 
 type GuestRow = {
   id: string;
@@ -15,19 +19,33 @@ type GuestRow = {
   firstSeenAt: Date | string;
   lastSeenAt: Date | string;
   lastPath: string;
-  ip: string;
-  city: string;
-  region: string;
-  country: string;
   userAgent: string;
 };
+
+type PopularPath = {
+  path: string;
+  title: string;
+  views: number;
+};
+
+type Summary = {
+  onlineNow: number;
+  visitorsLast7Days: number;
+  pageViewsLast7Days: number;
+};
+
+function onlineLabel(count: number) {
+  return count === 1 ? "1 visitor online" : `${count} visitors online`;
+}
 
 export function VisitorsTable({
   visitors,
   popularPaths,
+  summary,
 }: {
   visitors: GuestRow[];
-  popularPaths: { path: string; views: number }[];
+  popularPaths: PopularPath[];
+  summary: Summary;
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
@@ -49,8 +67,15 @@ export function VisitorsTable({
     [visitors],
   );
 
+  const liveOnlineCount = useMemo(
+    () =>
+      sorted.filter(
+        (guest) => isMemberOnline(guest.lastSeenAt, now) && !isBotUserAgent(guest.userAgent),
+      ).length,
+    [sorted, now],
+  );
+
   const [showAllPopular, setShowAllPopular] = useState(false);
-  const onlineCount = sorted.filter((guest) => isMemberOnline(guest.lastSeenAt, now)).length;
   const popularPreviewLimit = 5;
   const visiblePopular = showAllPopular
     ? popularPaths
@@ -58,112 +83,38 @@ export function VisitorsTable({
   const canTogglePopular = popularPaths.length > popularPreviewLimit;
 
   return (
-    <div className="mt-6">
-      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 border border-line bg-paper px-4 py-3">
-        <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
-          <PresenceDot online={onlineCount > 0} pulse={onlineCount > 0} />
-          {onlineCount} guest{onlineCount === 1 ? "" : "s"} online now
-        </span>
-        <span className="text-xs text-muted">
-          Unsigned visitors · Last 3 minutes · GMT · Updates automatically
-        </span>
-      </div>
-
-      <div className="overflow-x-auto border border-line bg-paper">
-        <table className="w-full min-w-[48rem] text-left text-sm">
-          <thead className={adminTableHeadClass}>
-            <tr>
-              <th className="px-4 py-3 font-medium">Visitor</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Current / last page</th>
-              <th className="px-4 py-3 font-medium">First seen</th>
-              <th className="px-4 py-3 font-medium">Last seen</th>
-              <th className="px-4 py-3 font-medium">Browser</th>
-              <th className="px-4 py-3 font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((guest) => {
-              const online = isMemberOnline(guest.lastSeenAt, now);
-              const status = formatPresenceLabel(guest.lastSeenAt, now);
-              const shortKey = guest.visitorKey.slice(0, 8);
-              const page = guest.lastPath || "—";
-
-              return (
-                <tr key={guest.id} className="border-t border-line align-middle hover:bg-cream/40">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/admin/visitors/${guest.id}`}
-                      className={`block min-w-0 ${adminFocusRing}`}
-                    >
-                      <span className="block truncate font-semibold text-ink transition-colors hover:text-terracotta">
-                        Guest {shortKey}
-                      </span>
-                      <span className="block truncate font-mono text-[0.65rem] text-muted">
-                        {guest.visitorKey}
-                      </span>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-2 text-sm text-ink">
-                      <PresenceDot online={online} />
-                      {status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted">{page}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted">
-                    {formatAdminDateTime(guest.firstSeenAt)}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted">
-                    {formatAdminDateTime(guest.lastSeenAt)}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted" title={guest.userAgent}>
-                    {formatBrowser(guest.userAgent)}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <Link
-                      href={`/admin/visitors/${guest.id}`}
-                      className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
-                    >
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-            {sorted.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-muted">
-                  No guest visitors yet. Open the public site in a private window (signed out) to
-                  generate traffic.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+    <div className="mt-6 space-y-8">
+      <section className="grid gap-3 sm:grid-cols-3">
+        <SummaryMetric value={liveOnlineCount} label="Online now" />
+        <SummaryMetric
+          value={summary.visitorsLast7Days}
+          label="Visitors"
+          hint="Last 7 days"
+        />
+        <SummaryMetric
+          value={summary.pageViewsLast7Days}
+          label="Page views"
+          hint="Last 7 days"
+        />
+      </section>
 
       {popularPaths.length ? (
-        <section className="mt-8">
+        <section>
           <h2 className="font-serif text-xl text-ink">Popular pages</h2>
           <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
             Last 7 days
-          </p>
-          <p className="mt-1 text-sm text-muted">
-            Guest page views only. Signed-in members are excluded.
           </p>
           <ul className="mt-3 divide-y divide-line border border-line bg-paper">
             {visiblePopular.map((item) => (
               <li
                 key={item.path}
-                className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm"
+                className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm"
               >
-                <span className="min-w-0 truncate font-mono text-xs text-ink sm:text-sm">
-                  {item.path}
-                </span>
-                <span className="shrink-0 text-xs text-muted">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-ink">{item.title}</p>
+                  <p className="mt-0.5 truncate font-mono text-[0.65rem] text-muted">{item.path}</p>
+                </div>
+                <span className="shrink-0 pt-0.5 text-xs text-muted">
                   {item.views} {item.views === 1 ? "view" : "views"}
                 </span>
               </li>
@@ -181,6 +132,189 @@ export function VisitorsTable({
           ) : null}
         </section>
       ) : null}
+
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-serif text-xl text-ink">Recent visitors</h2>
+            <p className="mt-1 text-sm text-muted">
+              Anonymous visitors · Times in GMT
+            </p>
+          </div>
+          <div className="border border-line bg-paper px-4 py-2.5">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
+              <PresenceDot online={liveOnlineCount > 0} pulse={liveOnlineCount > 0} />
+              {onlineLabel(liveOnlineCount)}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Active within the last 3 minutes · Updates automatically
+            </p>
+          </div>
+        </div>
+
+        {/* Desktop table */}
+        <div className="mt-4 hidden border border-line bg-paper md:block">
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[16%]" />
+              <col className="w-[12%]" />
+              <col className="w-[24%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[6%]" />
+            </colgroup>
+            <thead className={adminTableHeadClass}>
+              <tr>
+                <th className="px-3 py-3 font-medium">Visitor</th>
+                <th className="px-3 py-3 font-medium">Status</th>
+                <th className="px-3 py-3 font-medium">Current / last page</th>
+                <th className="px-3 py-3 font-medium">First seen</th>
+                <th className="px-3 py-3 font-medium">Last seen</th>
+                <th className="px-3 py-3 font-medium">Device / client</th>
+                <th className="px-3 py-3 font-medium">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((guest) => (
+                <VisitorTableRow key={guest.id} guest={guest} now={now} />
+              ))}
+              {sorted.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-muted">
+                    No anonymous visitors yet. Open the public site in a private window (signed out)
+                    to generate traffic.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile stacked rows */}
+        <ul className="mt-4 space-y-3 md:hidden">
+          {sorted.map((guest) => (
+            <VisitorMobileCard key={guest.id} guest={guest} now={now} />
+          ))}
+          {sorted.length === 0 ? (
+            <li className="border border-line bg-paper px-4 py-8 text-sm text-muted">
+              No anonymous visitors yet. Open the public site in a private window (signed out) to
+              generate traffic.
+            </li>
+          ) : null}
+        </ul>
+      </section>
     </div>
+  );
+}
+
+function SummaryMetric({
+  value,
+  label,
+  hint,
+}: {
+  value: number;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <div className="border border-line bg-paper px-4 py-3">
+      <p className="font-serif text-3xl leading-none text-ink">{value}</p>
+      <p className="mt-2 text-sm font-semibold text-ink">{label}</p>
+      {hint ? <p className="mt-0.5 text-xs text-muted">{hint}</p> : null}
+    </div>
+  );
+}
+
+function VisitorTableRow({ guest, now }: { guest: GuestRow; now: number }) {
+  const online = isMemberOnline(guest.lastSeenAt, now);
+  const status = formatPresenceLabel(guest.lastSeenAt, now);
+  const shortKey = guest.visitorKey.slice(0, 8);
+  const client = classifyGuestClient(guest.userAgent);
+  const page = guest.lastPath || "—";
+
+  return (
+    <tr className="border-t border-line align-top hover:bg-cream/40">
+      <td className="px-3 py-3">
+        <Link href={`/admin/visitors/${guest.id}`} className={`block min-w-0 ${adminFocusRing}`}>
+          <span className="block truncate font-semibold text-ink transition-colors hover:text-terracotta">
+            Guest {shortKey}
+          </span>
+          {client.kind === "bot" ? (
+            <span className="mt-0.5 inline-block text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
+              Bot
+            </span>
+          ) : null}
+        </Link>
+      </td>
+      <td className="px-3 py-3">
+        <span className="inline-flex items-center gap-2 text-sm text-ink">
+          <PresenceDot online={online} />
+          <span className="leading-snug">{status}</span>
+        </span>
+      </td>
+      <td className="px-3 py-3">
+        <span className="block break-words font-mono text-xs leading-snug text-muted">{page}</span>
+      </td>
+      <td className="px-3 py-3 text-xs leading-snug text-muted">
+        {formatAdminShortDateTime(guest.firstSeenAt)}
+      </td>
+      <td className="px-3 py-3 text-xs leading-snug text-muted">
+        {formatAdminShortDateTime(guest.lastSeenAt)}
+      </td>
+      <td className="px-3 py-3 text-xs leading-snug text-muted" title={guest.userAgent}>
+        {client.label}
+      </td>
+      <td className="px-3 py-3 text-right">
+        <Link
+          href={`/admin/visitors/${guest.id}`}
+          className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
+        >
+          View
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
+function VisitorMobileCard({ guest, now }: { guest: GuestRow; now: number }) {
+  const online = isMemberOnline(guest.lastSeenAt, now);
+  const status = formatPresenceLabel(guest.lastSeenAt, now);
+  const shortKey = guest.visitorKey.slice(0, 8);
+  const client = classifyGuestClient(guest.userAgent);
+
+  return (
+    <li className="border border-line bg-paper px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link
+            href={`/admin/visitors/${guest.id}`}
+            className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
+          >
+            Guest {shortKey}
+          </Link>
+          <p className="mt-1 inline-flex items-center gap-2 text-sm text-ink">
+            <PresenceDot online={online} />
+            {status}
+          </p>
+        </div>
+        <Link
+          href={`/admin/visitors/${guest.id}`}
+          className={`shrink-0 text-sm ${adminLinkClass} ${adminFocusRing}`}
+        >
+          View
+        </Link>
+      </div>
+      <p className="mt-2 break-words font-mono text-xs text-muted">{guest.lastPath || "—"}</p>
+      <p className="mt-2 text-xs text-muted">
+        {guestClientKindLabel(client.kind)} · {client.label}
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        First {formatAdminShortDateTime(guest.firstSeenAt)} · Last{" "}
+        {formatAdminShortDateTime(guest.lastSeenAt)}
+      </p>
+    </li>
   );
 }

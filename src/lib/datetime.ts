@@ -33,6 +33,26 @@ export function formatAdminDateTime(value: Date | string | null | undefined) {
   return `${month} ${day}, ${year} · ${time} GMT`;
 }
 
+/** Compact visitors table timestamps: Aug 25 · 11:47 AM (year if not current UTC year). */
+export function formatAdminShortDateTime(value: Date | string | null | undefined, now = new Date()) {
+  const date = asDate(value);
+  if (!date) return "—";
+
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const day = date.getUTCDate();
+  const time = date.toLocaleString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  });
+
+  if (date.getUTCFullYear() === now.getUTCFullYear()) {
+    return `${month} ${day} · ${time}`;
+  }
+  return `${month} ${day}, ${date.getUTCFullYear()} · ${time}`;
+}
+
 /** Date only for admin lists: Aug 24, 2026 */
 export function formatAdminDate(value: Date | string | null | undefined) {
   const date = asDate(value);

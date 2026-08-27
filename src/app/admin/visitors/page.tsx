@@ -1,14 +1,19 @@
 import { VisitorsTable } from "@/components/admin/VisitorsTable";
 import { requireAccess } from "@/lib/auth";
-import { listGuestsForAdmin, listPopularGuestPaths } from "@/lib/guest-analytics";
+import {
+  getVisitorAudienceSummary,
+  listGuestsForAdmin,
+  listPopularGuestPaths,
+} from "@/lib/guest-analytics";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminVisitorsPage() {
   await requireAccess("members");
-  const [visitors, popularPaths] = await Promise.all([
+  const [visitors, popularPaths, summary] = await Promise.all([
     listGuestsForAdmin(),
     listPopularGuestPaths(),
+    getVisitorAudienceSummary(),
   ]);
 
   return (
@@ -17,10 +22,10 @@ export default async function AdminVisitorsPage() {
         Visitors
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Anonymous visitors and their recent browsing activity.
+        Anonymous visitor activity. Signed-in members are excluded.
       </p>
 
-      <VisitorsTable visitors={visitors} popularPaths={popularPaths} />
+      <VisitorsTable visitors={visitors} popularPaths={popularPaths} summary={summary} />
     </div>
   );
 }

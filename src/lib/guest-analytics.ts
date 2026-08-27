@@ -2,6 +2,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { getDb } from "@/lib/db";
+import { isBotUserAgent } from "@/lib/guest-client";
+import { guestPathTitle, isPopularGuestPath } from "@/lib/guest-path-labels";
 import {
   normalizeGuestNavId,
   shouldInsertGuestPageView,
@@ -9,6 +11,7 @@ import {
 } from "@/lib/guest-tracking";
 import { MEMBER_ONLINE_WITHIN_MS } from "@/lib/member-presence";
 import { connectionMeta } from "@/lib/request-meta";
+import { getAllRecipes } from "@/lib/recipes";
 
 export const GUEST_COOKIE = "mks_guest";
 export const GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 400;
@@ -172,19 +175,72 @@ export async function getGuestForAdmin(id: string): Promise<GuestVisitorRow | nu
 
 export async function listPopularGuestPaths(days = 7, limit = 20) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const rows = await getDb().guestPageView.groupBy({
-    by: ["path"],
+  const views = await getDb().guestPageView.findMany({
     where: { createdAt: { gte: since } },
-    _count: { path: true },
-    orderBy: { _count: { path: "desc" } },
-    take: limit,
+    select: { path: true, userAgent: true },
   });
-  return rows.map((row) => ({ path: row.path, views: row._count.path }));
+
+  const counts = new Map<string, number>();
+  for (const view of views) {
+    if (isBotUserAgent(view.userAgent)) continue;
+    if (!isPopularGuestPath(view.path)) continue;
+    counts.set(view.path, (counts.get(view.path) || 0) + 1);
+  }
+
+  const recipes = await getAllRecipes();
+  const recipeTitles = new Map(recipes.map((recipe) => [recipe.slug, recipe.title]));
+
+  return [...counts.entries()]
+    .map(([path, viewsCount]) => ({
+      path,
+      views: viewsCount,
+      title: guestPathTitle(path, recipeTitles),
+    }))
+    .sort((left, right) => right.views - left.views || left.path.localeCompare(right.path))
+    .slice(0, limit);
 }
 
 export async function countOnlineGuests(now = Date.now()) {
   const since = new Date(now - MEMBER_ONLINE_WITHIN_MS);
-  return getDb().guestVisitor.count({
+  const rows = await getDb().guestVisitor.findMany({
     where: { lastSeenAt: { gte: since } },
+    select: { userAgent: true },
   });
+  return rows.filter((row) => !isBotUserAgent(row.userAgent)).length;
+}
+
+export type VisitorAudienceSummary = {
+  onlineNow: number;
+  visitorsLast7Days: number;
+  pageViewsLast7Days: number;
+};
+
+/** Human (non-bot) audience metrics for the Visitors overview. */
+export async function getVisitorAudienceSummary(
+  now = Date.now(),
+): Promise<VisitorAudienceSummary> {
+  const onlineSince = new Date(now - MEMBER_ONLINE_WITHIN_MS);
+  const weekSince = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const db = getDb();
+
+  const [weekGuests, weekViews] = await Promise.all([
+    db.guestVisitor.findMany({
+      where: { lastSeenAt: { gte: weekSince } },
+      select: { userAgent: true, lastSeenAt: true },
+    }),
+    db.guestPageView.findMany({
+      where: { createdAt: { gte: weekSince } },
+      select: { path: true, userAgent: true },
+    }),
+  ]);
+
+  const humans = weekGuests.filter((guest) => !isBotUserAgent(guest.userAgent));
+  const onlineNow = humans.filter((guest) => guest.lastSeenAt.getTime() >= onlineSince.getTime())
+    .length;
+  const visitorsLast7Days = humans.length;
+  const pageViewsLast7Days = weekViews.filter(
+    (view) => !isBotUserAgent(view.userAgent) && isPopularGuestPath(view.path),
+  ).length;
+
+  return { onlineNow, visitorsLast7Days, pageViewsLast7Days };
 }
