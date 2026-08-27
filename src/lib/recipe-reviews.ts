@@ -248,19 +248,126 @@ export async function submitRecipeReviewReply(input: {
   }
 }
 
-export async function listReviewsForAdmin(limit = 80) {
+export type AdminReviewListItem = {
+  id: string;
+  recipeSlug: string;
+  recipeTitle: string;
+  recipeId: string | null;
+  userId: string | null;
+  authorName: string;
+  authorEmail: string;
+  rating: number;
+  body: string;
+  createdAt: Date;
+  replyCount: number;
+  replies: {
+    id: string;
+    authorName: string;
+    body: string;
+    isStaff: boolean;
+    createdAt: Date;
+  }[];
+};
+
+export type AdminReviewListResult = {
+  reviews: AdminReviewListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+const ADMIN_REVIEWS_PAGE_SIZE = 40;
+
+function humanizeRecipeSlug(slug: string) {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+export function formatReviewRating(rating: number) {
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) return "—";
+  return `${Math.round(rating)} / 5`;
+}
+
+export async function listReviewsForAdmin(options?: {
+  page?: number;
+  pageSize?: number;
+}): Promise<AdminReviewListResult> {
+  const pageSize = Math.min(Math.max(options?.pageSize ?? ADMIN_REVIEWS_PAGE_SIZE, 1), 100);
+  const requestedPage = Math.max(options?.page ?? 1, 1);
+
   try {
     const db = getDb();
-    return await db.recipeReview.findMany({
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      include: {
-        replies: { orderBy: { createdAt: "asc" } },
+    const total = await db.recipeReview.count();
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const page = Math.min(requestedPage, totalPages);
+    const skip = (page - 1) * pageSize;
+
+    const rows = await db.recipeReview.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip,
+      take: pageSize,
+      select: {
+        id: true,
+        recipeSlug: true,
+        userId: true,
+        authorName: true,
+        authorEmail: true,
+        rating: true,
+        body: true,
+        createdAt: true,
+        _count: { select: { replies: true } },
+        replies: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            authorName: true,
+            body: true,
+            isStaff: true,
+            createdAt: true,
+          },
+        },
       },
     });
+
+    const slugs = [...new Set(rows.map((row) => row.recipeSlug))];
+    const recipes = slugs.length
+      ? await db.recipe.findMany({
+          where: { slug: { in: slugs } },
+          select: { id: true, slug: true, title: true },
+        })
+      : [];
+    const recipeBySlug = new Map(recipes.map((recipe) => [recipe.slug, recipe]));
+
+    return {
+      total,
+      page,
+      pageSize,
+      totalPages,
+      reviews: rows.map((row) => {
+        const recipe = recipeBySlug.get(row.recipeSlug);
+        return {
+          id: row.id,
+          recipeSlug: row.recipeSlug,
+          recipeTitle: recipe?.title?.trim() || humanizeRecipeSlug(row.recipeSlug),
+          recipeId: recipe?.id ?? null,
+          userId: row.userId,
+          authorName: row.authorName,
+          authorEmail: row.authorEmail,
+          rating: row.rating,
+          body: row.body,
+          createdAt: row.createdAt,
+          replyCount: row._count.replies,
+          replies: row.replies,
+        };
+      }),
+    };
   } catch (error) {
     console.error("Could not list reviews for admin", error);
-    return [];
+    return { reviews: [], total: 0, page: 1, pageSize, totalPages: 1 };
   }
 }
 

@@ -543,10 +543,9 @@ export async function deleteReviewAction(formData: FormData) {
   if (!id) redirect("/admin/reviews");
   const { deleteReviewById } = await import("@/lib/recipe-reviews");
   const slug = await deleteReviewById(id);
-  if (slug) {
-    revalidatePath(`/recipes/${slug}`);
-    revalidatePath("/admin/reviews");
-  }
+  if (!slug) redirect("/admin/reviews?error=missing");
+  revalidatePath(`/recipes/${slug}`);
+  revalidatePath("/admin/reviews");
   redirect("/admin/reviews?removed=1");
 }
 
@@ -556,9 +555,8 @@ export async function deleteReviewReplyAction(formData: FormData) {
   if (!id) redirect("/admin/reviews");
   const { deleteReviewReplyById } = await import("@/lib/recipe-reviews");
   const slug = await deleteReviewReplyById(id);
-  if (slug) {
-    revalidatePath(`/recipes/${slug}`);
-    revalidatePath("/admin/reviews");
-  }
+  if (!slug) redirect("/admin/reviews?error=missing");
+  revalidatePath(`/recipes/${slug}`);
+  revalidatePath("/admin/reviews");
   redirect("/admin/reviews?removed=1");
 }
