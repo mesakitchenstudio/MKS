@@ -19,6 +19,19 @@ export function SetCurrentRecipe({ slug, title }: { slug: string; title: string 
 
 export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }) {
   const pathname = usePathname();
+  const isHome = pathname === "/";
+  const [showFloatingSearch, setShowFloatingSearch] = useState(true);
+
+  useEffect(() => {
+    function update() {
+      const desktop = window.matchMedia("(min-width: 768px)").matches;
+      setShowFloatingSearch(!(isHome && desktop));
+    }
+    update();
+    const mq = window.matchMedia("(min-width: 768px)");
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [isHome]);
   const [current, setCurrent] = useState<LikedRecipe | null>(null);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState<LikedRecipe[]>([]);
@@ -141,6 +154,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
         >
           <HeartIcon filled={liked} />
         </button>
+        {showFloatingSearch ? (
         <button
           type="button"
           aria-label="Search recipes"
@@ -149,6 +163,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
         >
           <SearchIcon />
         </button>
+        ) : null}
       </div>
 
       {panel === "auth" ? (

@@ -20,6 +20,7 @@ export async function POST(request: Request) {
       path?: string;
       referer?: string;
       pageview?: boolean;
+      navId?: string;
     };
     const path = String(body.path || "").trim();
     if (!isTrackablePublicPath(path)) {
@@ -28,15 +29,17 @@ export async function POST(request: Request) {
 
     const jar = await cookies();
     let visitorKey = jar.get(GUEST_COOKIE)?.value?.trim() || "";
-    const isNew = !visitorKey;
     if (!visitorKey) visitorKey = newGuestVisitorKey();
 
+    // Heartbeats update presence only. Page views require an explicit pageview flag
+    // (never inferred from a missing cookie).
     await upsertGuestActivity({
       visitorKey,
       path,
       referer: body.referer,
       headers: await headers(),
-      recordPageView: Boolean(body.pageview) || isNew,
+      recordPageView: Boolean(body.pageview),
+      navId: body.navId,
     });
 
     const response = NextResponse.json({ ok: true });

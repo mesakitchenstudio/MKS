@@ -1,32 +1,88 @@
 import type { Metadata } from "next";
-import { RecipeFilters } from "@/components/RecipeFilters";
+import { RecipeDiscovery } from "@/components/RecipeDiscovery";
+import { RecipesCategoryBrowse } from "@/components/RecipesCategoryBrowse";
+import { megaMenu } from "@/data/categories";
+import { homepageCollectionSlugMap, homepageCollectionTitles } from "@/data/homepage";
 import { site } from "@/data/site";
-import { getAllRecipes } from "@/lib/recipes";
-
-export const metadata: Metadata = {
-  title: "All recipes",
-  description: `Browse every ${site.name} recipe — cakes, dinners, breads, and more.`,
-  alternates: { canonical: "/recipes" },
-};
+import {
+  PRIMARY_BROWSE_GROUPS,
+  applyDiscoveryFilters,
+  browsableCategoriesWithCounts,
+  parseDiscoveryParams,
+} from "@/lib/recipe-discovery";
+import { getAllCategories, getAllRecipes } from "@/lib/recipes";
 
 export const dynamic = "force-dynamic";
 
-export default async function RecipesPage() {
-  const recipes = await getAllRecipes();
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const params = parseDiscoveryParams(await searchParams);
+  const collectionTitles = homepageCollectionTitles();
+  const title = params.collection
+    ? `${collectionTitles[params.collection] ?? "Recipes"} | ${site.name}`
+    : params.q
+      ? `Search: ${params.q} | ${site.name}`
+      : "Recipes";
+
+  return {
+    title,
+    description:
+      "Tested recipes for everyday cooking, baking, drinks, sides, and the table.",
+    alternates: { canonical: "/recipes" },
+    robots: params.q || params.category || params.collection ? { index: false } : undefined,
+  };
+}
+
+export default async function RecipesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const raw = await searchParams;
+  const params = parseDiscoveryParams(raw);
+  const [recipes, categories] = await Promise.all([getAllRecipes(), getAllCategories()]);
+  const collectionMap = homepageCollectionSlugMap();
+  const filtered = applyDiscoveryFilters(recipes, params, collectionMap);
+  const preferredOrder = megaMenu
+    .filter((group) => group.label === "Desserts" || group.label === "Course")
+    .flatMap((group) => [...group.slugs]);
+  const browseItems = browsableCategoriesWithCounts(categories, recipes, preferredOrder, {
+    groups: PRIMARY_BROWSE_GROUPS,
+  });
+  const categoryLabels = Object.fromEntries(
+    categories.map((category) => [category.slug, category.name]),
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-        The catalog
-      </p>
-      <h1 className="mt-2 font-serif text-5xl">All recipes</h1>
+      <h1 className="font-serif text-5xl">Recipes</h1>
       <p className="mt-3 max-w-2xl text-muted">
-        Filter by course or method. Every recipe is written with grams where they matter
-        and notes for the next time you make it.
+        Tested recipes for everyday cooking, baking, drinks, sides, and the table.
       </p>
-      <div className="mt-10">
-        <RecipeFilters recipes={recipes} />
-      </div>
+
+      <RecipesCategoryBrowse
+        items={browseItems}
+        activeCategory={params.category}
+        currentParams={params}
+      />
+
+      <section
+        className="mt-8 border-t border-line pt-8 md:mt-10 md:pt-9"
+        aria-labelledby="all-recipes-heading"
+      >
+        <h2 id="all-recipes-heading" className="font-serif text-[1.75rem] text-ink md:text-[1.85rem]">
+          All recipes
+        </h2>
+        <RecipeDiscovery
+          recipes={filtered}
+          params={params}
+          collectionTitles={homepageCollectionTitles()}
+          categoryLabels={categoryLabels}
+        />
+      </section>
     </div>
   );
 }

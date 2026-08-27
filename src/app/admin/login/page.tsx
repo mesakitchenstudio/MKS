@@ -4,6 +4,14 @@ import { getAdminSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { loginAction } from "../actions";
 import { AdminGoogleSignIn } from "@/components/admin/AdminGoogleSignIn";
+import { AuthOrDivider } from "@/components/auth/GoogleAuthButton";
+import {
+  authFocusRing,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPrimaryButtonClass,
+} from "@/lib/auth-ui";
 
 export default async function AdminLoginPage({
   searchParams,
@@ -25,48 +33,54 @@ export default async function AdminLoginPage({
             : "";
 
   return (
-    <div className="mx-auto max-w-md border border-line bg-paper p-8">
-      <h1 className="font-serif text-3xl">Studio login</h1>
-      <p className="mt-2 text-sm text-muted">Sign in with your email or username and password.</p>
-      {reset ? <p className="mt-4 text-sm text-olive">Password updated. Sign in with your new password.</p> : null}
-      {errorMessage ? <p className="mt-4 text-sm text-terracotta">{errorMessage}</p> : null}
-      <form action={loginAction} className="mt-6 grid gap-4">
-        <label className="grid gap-1 text-sm">
+    <div className="w-full max-w-[28.125rem] rounded-sm border border-line bg-paper p-5 md:p-8">
+      <h1 className="font-serif text-3xl leading-tight text-ink md:text-[2rem]">Studio login</h1>
+      <p className="mt-4 text-sm leading-6 text-muted">
+        Sign in with your email or username and password.
+      </p>
+      {reset ? (
+        <p className="mt-4 text-sm leading-6 text-olive">
+          Password updated. Sign in with your new password.
+        </p>
+      ) : null}
+      {errorMessage ? <p className="mt-4 text-sm leading-6 text-terracotta">{errorMessage}</p> : null}
+      <form action={loginAction} className="mt-9 grid gap-6">
+        <label className={authLabelClass}>
           Email or username
           <input
             name="email"
             required
             autoComplete="username"
             placeholder="you@email.com"
-            className="rounded-sm border border-line px-3 py-2 outline-none focus:border-terracotta"
+            className={authInputClass}
           />
         </label>
-        <label className="grid gap-1 text-sm">
+        <label className={authLabelClass}>
           Password
           <input
             type="password"
             name="password"
             required
             autoComplete="current-password"
-            className="rounded-sm border border-line px-3 py-2 outline-none focus:border-terracotta"
+            className={authInputClass}
           />
         </label>
-        <button
-          type="submit"
-          className="rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper"
-        >
+        <button type="submit" className={`${authPrimaryButtonClass} ${authFocusRing}`}>
           Sign in
         </button>
       </form>
-      <p className="mt-4 text-sm">
-        <Link href="/admin/forgot-password" className="font-semibold text-terracotta">
+      <p className="mt-5 text-sm">
+        <Link
+          href="/admin/forgot-password"
+          className={`${authLinkClass} ${authFocusRing}`}
+        >
           Forgot password?
         </Link>
       </p>
-      <div className="mt-4 grid gap-3">
-        <p className="text-center text-xs uppercase tracking-wide text-muted">or</p>
-        <AdminGoogleSignIn />
+      <div className="my-7">
+        <AuthOrDivider />
       </div>
+      <AdminGoogleSignIn />
     </div>
   );
 }

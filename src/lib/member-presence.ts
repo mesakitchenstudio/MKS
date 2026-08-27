@@ -10,3 +10,10 @@ export function isMemberOnline(lastSeenAt: Date | string | null | undefined, now
 export function formatPresenceLabel(lastSeenAt: Date | string | null | undefined, now = Date.now()) {
   return isMemberOnline(lastSeenAt, now) ? "Online" : "Offline";
 }
+
+export function formatSignInMethod(method?: string | null) {
+  if (!method) return "—";
+  if (method === "google") return "Google";
+  if (method === "email") return "Email";
+  return method.charAt(0).toUpperCase() + method.slice(1);
+}

@@ -178,6 +178,8 @@ model GuestPageView {
   id        String       @id @default(cuid())
   visitorId String
   visitor   GuestVisitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  /** Client navigation event id; null on legacy rows. Dedupes Strict Mode / retries. */
+  navId     String?      @unique
   path      String
   referer   String       @default("")
   ip        String       @default("")

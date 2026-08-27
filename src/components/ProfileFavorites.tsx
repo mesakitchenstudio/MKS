@@ -1,11 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Recipe } from "@/data/types";
+import { RecipeGridCard } from "@/components/RecipeGridCard";
 import { removeLike } from "@/lib/likes";
+import { authFocusRing } from "@/lib/auth-ui";
 
 export function ProfileFavorites({
   recipes,
@@ -26,47 +27,29 @@ export function ProfileFavorites({
   }
 
   if (!visible.length && !visibleExtras.length) {
-    return (
-      <p className="mt-8 border border-line bg-paper px-5 py-8 text-sm text-muted">
-        Open a recipe and tap the heart to save it here.
-      </p>
-    );
+    return <FavoritesEmptyState />;
   }
 
   return (
     <>
       {visible.length ? (
-        <div className="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {visible.map((recipe) => (
-            <article key={recipe.slug} className="group">
-              <div className="relative aspect-[5/4] overflow-hidden bg-sand">
-                <Link href={`/recipes/${recipe.slug}`} className="absolute inset-0">
-                  <Image
-                    src={recipe.image}
-                    alt={recipe.imageAlt}
-                    fill
-                    sizes="(min-width: 768px) 33vw, 100vw"
-                    className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                  />
-                </Link>
+            <RecipeGridCard
+              key={recipe.slug}
+              recipe={recipe}
+              compact
+              mediaOverlay={
                 <button
                   type="button"
                   aria-label={`Remove ${recipe.title} from favorites`}
                   onClick={() => void remove(recipe.slug, recipe.title)}
-                  className="group/heart absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-paper/95 shadow-sm hover:bg-terracotta"
+                  className={`group/heart flex h-10 w-10 items-center justify-center rounded-full bg-paper/95 shadow-sm transition-colors hover:bg-terracotta ${authFocusRing}`}
                 >
                   <HeartIcon />
                 </button>
-              </div>
-              <p className="mt-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
-                {recipe.course}
-              </p>
-              <h3 className="mt-1 font-serif text-xl leading-tight">
-                <Link href={`/recipes/${recipe.slug}`} className="hover:text-terracotta">
-                  {recipe.title}
-                </Link>
-              </h3>
-            </article>
+              }
+            />
           ))}
         </div>
       ) : null}
@@ -74,13 +57,16 @@ export function ProfileFavorites({
         <ul className="mt-6 space-y-2 text-sm">
           {visibleExtras.map((save) => (
             <li key={save.slug} className="flex items-center justify-between gap-3">
-              <Link href={`/recipes/${save.slug}`} className="font-semibold hover:text-terracotta">
+              <Link
+                href={`/recipes/${save.slug}`}
+                className={`font-semibold hover:text-terracotta ${authFocusRing} rounded-sm`}
+              >
                 {save.title}
               </Link>
               <button
                 type="button"
                 aria-label={`Remove ${save.title} from favorites`}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-sand"
+                className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-sand ${authFocusRing}`}
                 onClick={() => void remove(save.slug, save.title)}
               >
                 <HeartIcon />
@@ -90,6 +76,23 @@ export function ProfileFavorites({
         </ul>
       ) : null}
     </>
+  );
+}
+
+export function FavoritesEmptyState() {
+  return (
+    <div className="mt-6 max-w-md">
+      <p className="text-sm font-semibold text-ink">No saved recipes yet.</p>
+      <p className="mt-1.5 text-sm leading-6 text-muted">
+        Save recipes you love and they&apos;ll appear here.
+      </p>
+      <Link
+        href="/recipes"
+        className={`mt-4 inline-block rounded-sm text-sm font-semibold text-terracotta transition-colors hover:text-terracotta-dark ${authFocusRing}`}
+      >
+        Browse recipes
+      </Link>
+    </div>
   );
 }
 

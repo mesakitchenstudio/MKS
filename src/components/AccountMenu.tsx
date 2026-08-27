@@ -1,15 +1,38 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut as signOutGoogle, useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
-import { firstName, readSession, signOut, type PublicUser } from "@/lib/auth-client";
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  firstName,
+  memberIdentityLines,
+  readSession,
+  resolveMemberDisplayName,
+  signOut,
+  type PublicUser,
+} from "@/lib/auth-client";
+
+const menuItemClass =
+  "flex w-full items-center px-4 py-3 text-left text-sm font-semibold text-ink transition-colors hover:bg-cream/80 focus-visible:bg-cream/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-terracotta";
+
+const menuItemActiveClass = "bg-sand/60 text-ink";
+
+const signOutClass =
+  "flex w-full items-center px-4 py-3 text-left text-sm font-semibold text-muted transition-colors hover:bg-cream/80 hover:text-terracotta focus-visible:bg-cream/80 focus-visible:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-terracotta";
+
+const triggerFocus =
+  "rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
 export function AccountMenu() {
   const { data } = useSession();
+  const pathname = usePathname();
   const [localUser, setLocalUser] = useState<PublicUser | null>(null);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  const onProfile = pathname === "/profile" || pathname.startsWith("/profile/");
 
   useEffect(() => {
     function sync() {
@@ -22,52 +45,105 @@ export function AccountMenu() {
 
   useEffect(() => {
     if (!open) return;
+
     function onPointer(event: MouseEvent) {
       if (root.current && !root.current.contains(event.target as Node)) {
         setOpen(false);
       }
     }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+
     window.addEventListener("mousedown", onPointer);
-    return () => window.removeEventListener("mousedown", onPointer);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointer);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   const user: PublicUser | null = data?.user?.email
     ? {
-        name: data.user.name?.trim() || localUser?.name || data.user.email,
+        name: resolveMemberDisplayName({
+          // Prefer session name, then local session copy — same sources profile uses
+          // (DB name is reflected into session via ensureMember / AuthSessionProvider).
+          name: data.user.name || localUser?.name,
+          email: data.user.email,
+        }),
         email: data.user.email,
       }
-    : localUser;
+    : localUser
+      ? {
+          name: resolveMemberDisplayName(localUser),
+          email: localUser.email,
+        }
+      : null;
 
   if (!user) {
     return (
       <button
         type="button"
         onClick={() => window.dispatchEvent(new Event("mesa-open-auth"))}
-        className="text-sm font-semibold tracking-wide text-ink/80 hover:text-terracotta"
+        className={`text-sm font-semibold tracking-wide text-ink/80 hover:text-terracotta ${triggerFocus}`}
       >
         Sign in
       </button>
     );
   }
 
+  const identity = memberIdentityLines(user);
+
   return (
     <div className="relative" ref={root}>
       <button
+        ref={triggerRef}
         type="button"
+        id={`${menuId}-trigger`}
         aria-expanded={open}
+        aria-haspopup="menu"
+        aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((value) => !value)}
-        className="max-w-[10rem] truncate rounded-full border border-olive/40 bg-cream px-3 py-1.5 text-sm font-semibold text-ink hover:border-olive"
+        className={`max-w-[10rem] truncate border px-3 py-1.5 text-sm font-semibold text-ink transition-colors ${triggerFocus} ${
+          open
+            ? "border-olive/70 bg-sand/70"
+            : "border-olive/40 bg-cream hover:border-olive/60"
+        }`}
       >
         {firstName(user)}
       </button>
       {open ? (
-        <div className="absolute right-0 top-full z-30 mt-2 w-52 rounded-sm border border-line bg-paper p-3 shadow-lg">
-          <p className="truncate text-sm font-semibold text-ink">{user.name}</p>
-          <p className="truncate text-xs text-muted">{user.email}</p>
+        <div
+          id={menuId}
+          role="menu"
+          aria-labelledby={`${menuId}-trigger`}
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-[280px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-sm border border-line bg-paper shadow-sm"
+        >
+          <div className="px-4 py-3.5" role="presentation">
+            <p className="break-words text-sm font-semibold leading-snug text-ink">
+              {identity.primary}
+            </p>
+            {identity.secondary ? (
+              <p
+                className="mt-1 break-words text-xs leading-5 text-muted"
+                title={identity.secondary}
+              >
+                {identity.secondary}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="border-t border-line" role="none" />
+
           {data?.staffRole ? (
             <Link
               href="/admin"
-              className="mt-3 block text-xs font-semibold text-olive hover:text-olive-dark"
+              role="menuitem"
+              className={menuItemClass}
               onClick={() => setOpen(false)}
             >
               Studio admin
@@ -75,15 +151,21 @@ export function AccountMenu() {
           ) : (
             <Link
               href="/profile"
-              className="mt-3 block text-xs font-semibold text-olive hover:text-olive-dark"
+              role="menuitem"
+              aria-current={onProfile ? "page" : undefined}
+              className={`${menuItemClass} ${onProfile ? menuItemActiveClass : ""}`}
               onClick={() => setOpen(false)}
             >
-              Your profile
+              Profile
             </Link>
           )}
+
+          <div className="border-t border-line" role="none" />
+
           <button
             type="button"
-            className="mt-3 text-xs font-semibold text-muted hover:text-terracotta"
+            role="menuitem"
+            className={signOutClass}
             onClick={() => {
               signOut();
               void signOutGoogle({ redirect: false });

@@ -10,7 +10,7 @@ export type DbRecipeRecord = {
   seasonal: boolean;
   publishedAt: Date | null;
   updatedAt: Date;
-  values: string;
+  values: string | Record<string, unknown>;
   categories: { category: { slug: string } }[];
   type?: { fields: { key: string; label: string; kind: string; sortOrder: number }[] };
 };
@@ -65,9 +65,22 @@ function asNutrition(value: unknown): Nutrition {
   };
 }
 
-export function parseValues(raw: string): Record<string, unknown> {
+export function parseValues(raw: string | Record<string, unknown> | null | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    return raw;
+  }
+  if (typeof raw !== "string") return {};
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    // Some rows store double-encoded JSON strings.
+    if (typeof parsed === "string") {
+      return parseValues(parsed);
+    }
+    return {};
   } catch {
     return {};
   }

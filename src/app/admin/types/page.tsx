@@ -1,57 +1,107 @@
 import Link from "next/link";
+import { AddTypeForm } from "@/components/admin/AddTypeForm";
+import { DeleteTypeButton } from "@/components/admin/DeleteTypeButton";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { deleteTypeAction, saveTypeAction } from "../actions";
+import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
+import { CORE_FIELDS } from "@/lib/fields";
+
+const coreFieldKeys = new Set(CORE_FIELDS.map((field) => field.key));
+
+function formatFieldMetadata(fieldKeys: string[], recipeCount: number) {
+  const total = fieldKeys.length;
+  const typeSpecific = fieldKeys.filter((key) => !coreFieldKeys.has(key)).length;
+  const recipeLabel = `${recipeCount} ${recipeCount === 1 ? "recipe" : "recipes"}`;
+
+  if (typeSpecific > 0) {
+    return `${total} fields (${typeSpecific} type-specific) · ${recipeLabel}`;
+  }
+
+  return `${total} ${total === 1 ? "field" : "fields"} · ${recipeLabel}`;
+}
 
 export default async function AdminTypesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; name?: string; slug?: string; description?: string }>;
 }) {
   await requireAccess("content");
-  const { error } = await searchParams;
+  const params = await searchParams;
+  const { error, name, slug, description } = params;
   const types = await getDb().recipeType.findMany({
-    include: { _count: { select: { fields: true, recipes: true } } },
+    include: {
+      fields: { select: { key: true } },
+      _count: { select: { recipes: true } },
+    },
     orderBy: { name: "asc" },
   });
 
+  const sharedFieldCount = CORE_FIELDS.length;
+
   return (
     <div>
-      <h1 className="font-serif text-4xl">Recipe types</h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted">
-        A type is the form template — Cake, Drink, Condiment. Add or remove fields without
-        changing code.
+      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+        Recipe types
+      </h1>
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+        A recipe type is the form template for new recipes — Cake, Drink, Condiment. Configure
+        which fields appear when authoring that type.
       </p>
+      <p className="mt-2 max-w-2xl text-xs text-muted">
+        New types start with {sharedFieldCount} shared recipe fields. Type-specific fields can be
+        added when editing a type.
+      </p>
+
       {error === "inuse" ? (
-        <p className="mt-4 text-sm text-terracotta">Delete or reassign recipes before removing a type.</p>
+        <p className="mt-4 text-sm text-terracotta" role="alert">
+          That type still has recipes attached. Reassign or delete those recipes before removing the
+          type.
+        </p>
       ) : null}
 
-      <form action={saveTypeAction} className="mt-8 grid gap-3 border border-line bg-paper p-5 md:grid-cols-4">
-        <input name="name" placeholder="Name" required className="border border-line px-3 py-2" />
-        <input name="slug" placeholder="slug (optional)" className="border border-line px-3 py-2" />
-        <input name="description" placeholder="Description" className="border border-line px-3 py-2 md:col-span-1" />
-        <button className="rounded-full bg-terracotta px-4 py-2 text-sm font-semibold text-paper">
-          Add type
-        </button>
-      </form>
+      <AddTypeForm
+        error={error}
+        initialName={name ?? ""}
+        initialSlug={slug ?? ""}
+        initialDescription={description ?? ""}
+      />
 
       <ul className="mt-8 divide-y divide-line border border-line bg-paper">
         {types.map((type) => (
-          <li key={type.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
-            <div>
-              <Link href={`/admin/types/${type.id}`} className="font-semibold hover:text-terracotta">
+          <li
+            key={type.id}
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3.5 transition-colors duration-150 hover:bg-cream/50"
+          >
+            <div className="min-w-0">
+              <Link
+                href={`/admin/types/${type.id}`}
+                className={`font-semibold text-ink transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
+              >
                 {type.name}
               </Link>
-              <p className="text-sm text-muted">
-                {type._count.fields} fields · {type._count.recipes} recipes
+              <p className="mt-0.5 text-sm text-muted">
+                {formatFieldMetadata(
+                  type.fields.map((field) => field.key),
+                  type._count.recipes,
+                )}
               </p>
             </div>
-            <form action={deleteTypeAction}>
-              <input type="hidden" name="id" value={type.id} />
-              <button className="text-sm text-muted hover:text-terracotta">Delete</button>
-            </form>
+            <div className="flex items-center justify-end gap-4">
+              <Link
+                href={`/admin/types/${type.id}`}
+                className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
+              >
+                Edit
+              </Link>
+              {type._count.recipes === 0 ? (
+                <DeleteTypeButton id={type.id} name={type.name} recipeCount={0} />
+              ) : null}
+            </div>
           </li>
         ))}
+        {types.length === 0 ? (
+          <li className="px-4 py-8 text-sm text-muted">No recipe types yet.</li>
+        ) : null}
       </ul>
     </div>
   );

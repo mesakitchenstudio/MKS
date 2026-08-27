@@ -26,26 +26,24 @@ export default async function NewRecipePage({
   if (!recipeType) redirect("/admin");
 
   return (
-    <div>
-      <h1 className="mb-6 font-serif text-4xl">New {recipeType.name.toLowerCase()}</h1>
-      <RecipeEditor
-        typeId={recipeType.id}
-        fields={recipeType.fields.map((field) => ({
-          ...field,
-          options: JSON.parse(field.options || "[]") as string[],
-        }))}
-        categories={categories.map((category) => ({ id: category.id, name: category.name }))}
-        initial={{
-          title: "",
-          slug: "",
-          excerpt: "",
-          status: "draft",
-          featured: false,
-          seasonal: false,
-          categoryIds: [],
-          values: parseValues("{}"),
-        }}
-      />
-    </div>
+    <RecipeEditor
+      typeId={recipeType.id}
+      typeName={recipeType.name}
+      fields={recipeType.fields.map((field) => ({
+        ...field,
+        options: JSON.parse(field.options || "[]") as string[],
+      }))}
+      categories={categories.map((category) => ({ id: category.id, name: category.name }))}
+      initial={{
+        title: "",
+        slug: "",
+        excerpt: "",
+        status: "draft",
+        featured: false,
+        seasonal: false,
+        categoryIds: [],
+        values: parseValues("{}"),
+      }}
+    />
   );
 }

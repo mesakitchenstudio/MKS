@@ -119,3 +119,19 @@ export function formatBrowser(userAgent: string) {
   if (os) return os;
   return userAgent.slice(0, 48);
 }
+
+/** Prefer a short localhost label; keep the full URL for title/tooltip. */
+export function formatReferrerDisplay(referer: string) {
+  if (!referer) return { label: "—", title: undefined as string | undefined };
+  try {
+    const url = new URL(referer);
+    if (/^(localhost|127\.0\.0\.1)$/i.test(url.hostname)) {
+      return { label: "localhost", title: referer };
+    }
+  } catch {
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(referer)) {
+      return { label: "localhost", title: referer };
+    }
+  }
+  return { label: referer, title: referer.length > 80 ? referer : undefined };
+}

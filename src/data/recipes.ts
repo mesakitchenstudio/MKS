@@ -554,7 +554,7 @@ export const recipes: Recipe[] = [
       },
     ],
     image:
-      "https://images.unsplash.com/photo-1455619455610-8d264be79813?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=1600&q=80",
     imageAlt: "A bowl of chile with toppings",
     publishedAt: "2026-01-09",
     updatedAt: "2026-07-30",

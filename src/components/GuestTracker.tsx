@@ -2,30 +2,30 @@
 
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import {
+  claimGuestPageview,
+  clearActiveGuestNavigation,
+  guestNavigationFor,
+  shouldTrackGuestPath,
+} from "@/lib/guest-tracking";
 
 const HEARTBEAT_MS = 45_000;
-
-function shouldTrackPath(pathname: string) {
-  return (
-    Boolean(pathname) &&
-    !pathname.startsWith("/admin") &&
-    !pathname.startsWith("/api") &&
-    !pathname.startsWith("/auth") &&
-    !pathname.startsWith("/profile") &&
-    !pathname.startsWith("/coming-soon")
-  );
-}
 
 export function GuestTracker() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
-  const lastPageviewPath = useRef("");
 
   useEffect(() => {
     if (status === "loading") return;
-    if (session?.user?.email) return;
-    if (!shouldTrackPath(pathname)) return;
+    if (session?.user?.email) {
+      // After sign-out, allow a fresh pageview for the current public path.
+      clearActiveGuestNavigation();
+      return;
+    }
+    if (!shouldTrackGuestPath(pathname)) return;
+
+    const { path, navId } = guestNavigationFor(pathname);
 
     function send(pageview: boolean) {
       if (document.visibilityState === "hidden" && !pageview) return;
@@ -33,20 +33,18 @@ export function GuestTracker() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          path: pathname,
+          path,
           referer: typeof document !== "undefined" ? document.referrer : "",
           pageview,
+          ...(pageview ? { navId } : {}),
         }),
         keepalive: true,
       });
     }
 
-    const isNewPage = lastPageviewPath.current !== pathname;
-    if (isNewPage) {
-      lastPageviewPath.current = pathname;
+    // One pageview claim per navigation id (covers Strict Mode double-mount).
+    if (claimGuestPageview(navId)) {
       send(true);
-    } else {
-      send(false);
     }
 
     const timer = window.setInterval(() => send(false), HEARTBEAT_MS);

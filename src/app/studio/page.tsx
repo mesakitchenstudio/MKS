@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { lessons } from "@/data/lessons";
+import { StudioFeaturedLesson } from "@/components/studio/StudioFeaturedLesson";
+import { StudioFromSection } from "@/components/studio/StudioFromSection";
+import { StudioLessonTeaser } from "@/components/studio/StudioLessonTeaser";
+import { lessons, partitionStudioLessons } from "@/data/lessons";
 import { site } from "@/data/site";
 
 export const metadata: Metadata = {
@@ -10,29 +12,40 @@ export const metadata: Metadata = {
 };
 
 export default function StudioPage() {
+  const { featured, notes } = partitionStudioLessons(lessons);
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-        The studio
-      </p>
-      <h1 className="mt-2 font-serif text-5xl">Lessons from the bench</h1>
-      <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-        Short technique notes we wish every home cook had before the first bake. Read one
-        before you start a recipe; it will save you a tray of cookies.
-      </p>
-      <div className="mt-12 grid gap-6 md:grid-cols-2">
-        {lessons.map((lesson) => (
-          <Link
-            key={lesson.slug}
-            href={`/studio/${lesson.slug}`}
-            className="group border border-line bg-paper p-8 hover:border-terracotta"
-          >
-            <h2 className="font-serif text-2xl group-hover:text-terracotta">{lesson.title}</h2>
-            <p className="mt-3 text-sm leading-6 text-muted">{lesson.excerpt}</p>
-            <p className="mt-5 text-sm font-semibold text-terracotta">Read the lesson →</p>
-          </Link>
-        ))}
+    <>
+      <div className="mx-auto max-w-6xl px-4 pt-12 md:px-6 md:pt-12">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
+          The studio
+        </p>
+        <h1 className="mt-2 font-serif text-4xl text-ink md:text-5xl">Lessons from the bench</h1>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-muted md:text-lg md:leading-8">
+          Practical technique notes from our kitchen — the small habits, methods, and details that
+          make everyday cooking more reliable.
+        </p>
+
+        <StudioFeaturedLesson lesson={featured} />
+
+        <section
+          className="mt-10 pb-10 md:mt-12 md:pb-12"
+          aria-labelledby="studio-notes-heading"
+        >
+          <h2 id="studio-notes-heading" className="font-serif text-3xl text-ink md:text-4xl">
+            Studio notes
+          </h2>
+          <ul className="mt-5 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+            {notes.map((lesson, index) => (
+              <li key={lesson.slug} className="flex min-h-0">
+                <StudioLessonTeaser lesson={lesson} number={index + 2} />
+              </li>
+            ))}
+          </ul>
+        </section>
       </div>
-    </div>
+
+      <StudioFromSection />
+    </>
   );
 }

@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { CollectionRow } from "@/components/CollectionRow";
+import { HomepageHero } from "@/components/HomepageHero";
+import { HomepageLatestSection } from "@/components/HomepageLatestSection";
 import { NewsletterForm } from "@/components/NewsletterForm";
-import { RecipeGridCard } from "@/components/RecipeGridCard";
 import { site } from "@/data/site";
-import {
-  getAllRecipes,
-  getFeaturedRecipes,
-  getRecipesByCategory,
-  getSeasonalRecipes,
-} from "@/lib/recipes";
+import { homepageConfig } from "@/data/homepage";
+import { resolveHomepage } from "@/lib/homepage";
+import { getAllRecipes } from "@/lib/recipes";
 
 export const dynamic = "force-dynamic";
 
@@ -27,22 +24,18 @@ export const metadata: Metadata = {
   },
 };
 
+const heroLinkFocus =
+  "rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+
 export default async function Home() {
-  const [latest, seasonal, cookies, breakfast, dinners, all] = await Promise.all([
-    getFeaturedRecipes(4),
-    getSeasonalRecipes(4),
-    getRecipesByCategory("desserts"),
-    getRecipesByCategory("breakfast"),
-    getRecipesByCategory("main-dishes"),
-    getAllRecipes(),
-  ]);
-  const hero = all[0];
+  const recipes = await getAllRecipes();
+  const homepage = resolveHomepage(recipes, homepageConfig);
 
   return (
     <>
       <section className="relative overflow-hidden bg-ink text-cream">
-        <div className="mx-auto grid min-h-[34rem] max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:px-6 md:py-20">
-          <div>
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-2 md:px-6 md:py-16 lg:py-18">
+          <div className="order-1">
             <h1 className="max-w-xl font-serif text-5xl leading-[1.1] md:text-6xl">
               {site.name}
             </h1>
@@ -56,67 +49,55 @@ export default async function Home() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/recipes"
-                className="rounded-full bg-terracotta px-6 py-3 text-sm font-semibold text-paper hover:bg-terracotta-dark"
+                className={`rounded-full bg-terracotta px-6 py-3 text-sm font-semibold text-paper hover:bg-terracotta-dark ${heroLinkFocus}`}
               >
                 Browse recipes
               </Link>
               <Link
                 href="/studio"
-                className="rounded-full border border-sand/40 px-6 py-3 text-sm font-semibold text-cream hover:border-cream"
+                className={`rounded-full border border-sand/40 px-6 py-3 text-sm font-semibold text-cream hover:border-cream ${heroLinkFocus}`}
               >
                 Studio lessons
               </Link>
             </div>
           </div>
-          {hero ? (
-            <Link href={`/recipes/${hero.slug}`} className="group relative block">
-              <div className="relative aspect-[4/5] overflow-hidden md:aspect-[5/6]">
-                <Image
-                  src={hero.image}
-                  alt={hero.imageAlt}
-                  fill
-                  priority
-                  sizes="(min-width: 768px) 40vw, 100vw"
-                  className="object-cover transition duration-700 group-hover:scale-[1.03]"
-                />
-              </div>
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent p-5">
-                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-sand">
-                  Latest from the studio
-                </p>
-                <p className="mt-1 font-serif text-2xl">{hero.title}</p>
-              </div>
-            </Link>
+          {homepage.hero ? (
+            <div className="order-2">
+              <HomepageHero recipe={homepage.hero} eyebrow={homepage.heroEyebrow} />
+            </div>
           ) : null}
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-        <div className="mb-8 flex items-end justify-between">
-          <h2 className="font-serif text-3xl md:text-4xl">Latest recipes</h2>
-          <Link href="/recipes" className="text-sm font-semibold text-terracotta">
-            View all
-          </Link>
-        </div>
-        <div className="grid gap-8 md:grid-cols-2">
-          {latest.slice(0, 2).map((recipe) => (
-            <RecipeGridCard key={recipe.slug} recipe={recipe} large />
-          ))}
-        </div>
-        <div className="mt-8 grid gap-8 sm:grid-cols-2">
-          {latest.slice(2).map((recipe) => (
-            <RecipeGridCard key={recipe.slug} recipe={recipe} />
-          ))}
-        </div>
-      </section>
+      {homepageConfig.latest.enabled && homepage.latest.length ? (
+        <HomepageLatestSection
+          title={homepageConfig.latest.title}
+          href={homepageConfig.latest.href}
+          viewMoreLabel={homepageConfig.latest.viewMoreLabel}
+          recipes={homepage.latest}
+        />
+      ) : null}
 
-      <section className="bg-sand/40">
-        <CollectionRow title="Summer at the table" href="/category/summer" recipes={seasonal.slice(0, 4)} />
-      </section>
-
-      <CollectionRow title="Cookies and sweets" href="/category/desserts" recipes={cookies.slice(0, 4)} />
-      <CollectionRow title="Best breakfast recipes" href="/category/breakfast" recipes={breakfast.slice(0, 4)} />
-      <CollectionRow title="Easy dinner recipes" href="/category/main-dishes" recipes={dinners.slice(0, 4)} />
+      {homepage.collections.map((collection) => {
+        const row = (
+          <CollectionRow
+            key={collection.id}
+            title={collection.title}
+            description={collection.description}
+            href={collection.href}
+            viewMoreLabel={collection.viewMoreLabel}
+            recipes={collection.recipes}
+          />
+        );
+        if (collection.tone === "sand") {
+          return (
+            <section key={collection.id} className="bg-sand/40">
+              {row}
+            </section>
+          );
+        }
+        return row;
+      })}
 
       <section className="border-y border-line bg-paper">
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:px-6">
@@ -132,7 +113,7 @@ export default async function Home() {
             </p>
             <Link
               href="/about"
-              className="mt-6 inline-block text-sm font-semibold text-terracotta hover:text-terracotta-dark"
+              className="mt-6 inline-block rounded-sm text-sm font-semibold text-terracotta hover:text-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
             >
               More about us →
             </Link>

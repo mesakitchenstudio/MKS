@@ -13,6 +13,10 @@ function emailKey(email: string) {
   return email.trim().toLowerCase();
 }
 
+export function isGooglePhotoUrl(url: string) {
+  return /googleusercontent\.com|ggpht\.com/i.test(url);
+}
+
 export async function getStaffByEmail(email: string) {
   const key = emailKey(email);
   if (!key) return null;
@@ -39,10 +43,6 @@ export async function getStaffByEmail(email: string) {
   }
 
   return null;
-}
-
-function isGooglePhotoUrl(url: string) {
-  return /googleusercontent\.com|ggpht\.com/i.test(url);
 }
 
 /** Use the Google avatar as the default admin photo unless a custom upload is set. */
@@ -239,12 +239,30 @@ export async function recordConnection(input: {
       },
     }));
 
+  // Auth callbacks can fire ensureMember + signIn nearly simultaneously.
+  // Avoid recording two connection rows for the same auth moment.
+  const recent = await db.userConnection.findFirst({
+    where: {
+      userId: user.id,
+      method: input.method,
+      createdAt: { gte: new Date(Date.now() - 3_000) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent) {
+    await db.user.update({
+      where: { id: user.id },
+      data: { lastSeenAt: new Date(), name: user.name || input.name?.trim() || user.name },
+    });
+    return user;
+  }
+
   const meta = input.meta ?? connectionMeta(input.headers);
-  const isNew = Date.now() - user.createdAt.getTime() < 20_000;
+  const priorCount = await db.userConnection.count({ where: { userId: user.id } });
   await db.userConnection.create({
     data: {
       userId: user.id,
-      event: isNew ? "signup" : "signin",
+      event: priorCount === 0 ? "signup" : "signin",
       method: input.method,
       ip: meta.ip,
       country: meta.country,
@@ -361,6 +379,23 @@ export async function listUsersForAdmin() {
       };
     }>[]
   >;
+}
+
+export async function getUserForAdmin(id: string) {
+  if (!id) return null;
+  const db = getDb();
+  const staff = await db.admin.findMany({ select: { email: true } });
+  const staffEmails = new Set(staff.map((item) => item.email));
+  const user = await db.user.findUnique({
+    where: { id },
+    include: {
+      _count: { select: { saves: true, connections: true } },
+      connections: { orderBy: { createdAt: "desc" } },
+      saves: { orderBy: { createdAt: "desc" }, take: 12 },
+    },
+  });
+  if (!user || staffEmails.has(user.email)) return null;
+  return user;
 }
 
 export async function listSaves(email: string): Promise<SavedRecipe[]> {

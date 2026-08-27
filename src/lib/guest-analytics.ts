@@ -1,22 +1,22 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { getDb } from "@/lib/db";
+import {
+  normalizeGuestNavId,
+  shouldInsertGuestPageView,
+  shouldTrackGuestPath,
+} from "@/lib/guest-tracking";
 import { MEMBER_ONLINE_WITHIN_MS } from "@/lib/member-presence";
 import { connectionMeta } from "@/lib/request-meta";
 
 export const GUEST_COOKIE = "mks_guest";
 export const GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 400;
+/** Fallback only when clients omit navId (legacy). */
 const PAGEVIEW_DEDUPE_MS = 5_000;
 
 export function isTrackablePublicPath(path: string) {
-  if (!path || !path.startsWith("/")) return false;
-  if (path.startsWith("/admin")) return false;
-  if (path.startsWith("/api")) return false;
-  if (path.startsWith("/auth")) return false;
-  if (path.startsWith("/profile")) return false;
-  if (path.startsWith("/coming-soon")) return false;
-  return true;
+  return shouldTrackGuestPath(path);
 }
 
 export function newGuestVisitorKey() {
@@ -33,12 +33,19 @@ function normalizeReferer(value: string) {
   return value.trim().slice(0, 500);
 }
 
+function isUniqueConstraintError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+  );
+}
+
 export async function upsertGuestActivity(input: {
   visitorKey: string;
   path: string;
   referer?: string;
   headers?: unknown;
   recordPageView?: boolean;
+  navId?: string;
 }) {
   const path = normalizePath(input.path);
   if (!isTrackablePublicPath(path)) return null;
@@ -47,6 +54,8 @@ export async function upsertGuestActivity(input: {
   const meta = connectionMeta(input.headers);
   const now = new Date();
   const referer = normalizeReferer(input.referer || meta.referer || "");
+  const navId = normalizeGuestNavId(input.navId);
+  const recordPageView = Boolean(input.recordPageView);
 
   const visitor = await db.guestVisitor.upsert({
     where: { visitorKey: input.visitorKey },
@@ -63,6 +72,7 @@ export async function upsertGuestActivity(input: {
     },
     update: {
       lastSeenAt: now,
+      // Keep current page in sync for presence; page-view rows only on navigation.
       lastPath: path,
       ip: meta.ip && meta.ip !== "unknown" ? meta.ip : undefined,
       country: meta.country || undefined,
@@ -72,22 +82,46 @@ export async function upsertGuestActivity(input: {
     },
   });
 
-  if (!input.recordPageView) return visitor;
+  if (!recordPageView) return visitor;
 
-  const latest = await db.guestPageView.findFirst({
-    where: { visitorId: visitor.id },
-    orderBy: { createdAt: "desc" },
-  });
+  let alreadyStoredForNavId = false;
+  if (navId) {
+    const existing = await db.guestPageView.findUnique({
+      where: { navId },
+      select: { id: true },
+    });
+    alreadyStoredForNavId = Boolean(existing);
+  }
 
-  const samePathRecently =
-    latest &&
-    latest.path === path &&
-    now.getTime() - latest.createdAt.getTime() < PAGEVIEW_DEDUPE_MS;
+  const latest = navId
+    ? null
+    : await db.guestPageView.findFirst({
+        where: { visitorId: visitor.id },
+        orderBy: { createdAt: "desc" },
+        select: { path: true, createdAt: true },
+      });
 
-  if (!samePathRecently) {
+  const latestAgeMs = latest ? now.getTime() - latest.createdAt.getTime() : null;
+
+  if (
+    !shouldInsertGuestPageView({
+      recordPageView,
+      navId,
+      alreadyStoredForNavId,
+      latestPath: latest?.path,
+      path,
+      latestAgeMs,
+      dedupeWindowMs: PAGEVIEW_DEDUPE_MS,
+    })
+  ) {
+    return visitor;
+  }
+
+  try {
     await db.guestPageView.create({
       data: {
         visitorId: visitor.id,
+        navId: navId || null,
         path,
         referer,
         ip: meta.ip,
@@ -97,6 +131,10 @@ export async function upsertGuestActivity(input: {
         userAgent: (meta.userAgent || "").slice(0, 500),
       },
     });
+  } catch (error) {
+    // Concurrent duplicate navigation (same visitorId + navId).
+    if (isUniqueConstraintError(error)) return visitor;
+    throw error;
   }
 
   return visitor;
@@ -105,23 +143,34 @@ export async function upsertGuestActivity(input: {
 export type GuestVisitorRow = Prisma.GuestVisitorGetPayload<{
   include: {
     pageViews: true;
+    _count: { select: { pageViews: true } };
   };
 }>;
 
-export async function listGuestsForAdmin(limit = 200): Promise<GuestVisitorRow[]> {
+export type GuestVisitorListRow = Prisma.GuestVisitorGetPayload<object>;
+
+export async function listGuestsForAdmin(limit = 200): Promise<GuestVisitorListRow[]> {
   return getDb().guestVisitor.findMany({
     orderBy: { lastSeenAt: "desc" },
     take: limit,
+  });
+}
+
+export async function getGuestForAdmin(id: string): Promise<GuestVisitorRow | null> {
+  if (!id) return null;
+  return getDb().guestVisitor.findUnique({
+    where: { id },
     include: {
       pageViews: {
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: 100,
       },
+      _count: { select: { pageViews: true } },
     },
   });
 }
 
-export async function listPopularGuestPaths(days = 7, limit = 12) {
+export async function listPopularGuestPaths(days = 7, limit = 20) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const rows = await getDb().guestPageView.groupBy({
     by: ["path"],

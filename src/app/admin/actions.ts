@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -8,6 +9,14 @@ import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure }
 import { ADMIN_COOKIE, authenticateAdmin, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
+import {
+  isAcceptableAdminPassword,
+  isValidAdminEmail,
+  normalizeAdminEmail,
+  shouldUpdateAdminPassword,
+  validateAdminDeletion,
+  validateAdminRoleChange,
+} from "@/lib/admin-staff";
 import { hashPassword } from "@/lib/passwords";
 import { removeMemberByEmail } from "@/lib/accounts";
 import { connectionMeta } from "@/lib/request-meta";
@@ -44,26 +53,74 @@ export async function saveCategoryAction(formData: FormData) {
   const db = getDb();
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
-  const slug = slugify(String(formData.get("slug") || name));
-  const description = String(formData.get("description") || "");
+  const description = String(formData.get("description") || "").trim();
   const group = String(formData.get("group") || "course");
-  if (!name || !slug) redirect("/admin/categories?error=missing");
+  const returnParams = new URLSearchParams({
+    name,
+    slug: String(formData.get("slug") || "").trim(),
+    description,
+    group,
+    add: "1",
+  });
+
+  if (!name) {
+    redirect(`/admin/categories?error=missing-name&${returnParams.toString()}`);
+  }
+
+  const validGroups = ["desserts", "course", "method", "holiday"];
+  if (!validGroups.includes(group)) {
+    redirect(`/admin/categories?error=invalid-group&${returnParams.toString()}`);
+  }
 
   if (id) {
-    await db.category.update({ where: { id }, data: { name, slug, description, group } });
-  } else {
-    await db.category.create({ data: { name, slug, description, group } });
+    const existing = await db.category.findUnique({ where: { id } });
+    if (!existing) redirect("/admin/categories");
+    try {
+      await db.category.update({
+        where: { id },
+        data: { name, slug: existing.slug, description, group },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        redirect(`/admin/categories?error=duplicate&categoryId=${id}`);
+      }
+      throw error;
+    }
+    revalidatePath("/admin/categories");
+    revalidatePath("/");
+    revalidatePath(`/category/${existing.slug}`);
+    redirect(`/admin/categories?saved=category&categoryId=${id}#category-${id}`);
   }
-  revalidatePath("/admin/categories");
-  revalidatePath("/");
-  redirect("/admin/categories");
+
+  const slug = slugify(String(formData.get("slug") || name));
+  if (!slug) {
+    redirect(`/admin/categories?error=invalid-slug&${returnParams.toString()}`);
+  }
+
+  try {
+    const created = await db.category.create({ data: { name, slug, description, group } });
+    revalidatePath("/admin/categories");
+    revalidatePath("/");
+    redirect(`/admin/categories?saved=category&categoryId=${created.id}#category-${created.id}`);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      redirect(`/admin/categories?error=duplicate-slug&${returnParams.toString()}`);
+    }
+    throw error;
+  }
 }
 
 export async function deleteCategoryAction(formData: FormData) {
   await requireEditor();
-  await getDb().category.delete({ where: { id: String(formData.get("id") || "") } });
+  const db = getDb();
+  const id = String(formData.get("id") || "");
+  const category = await db.category.findUnique({ where: { id } });
+  if (!category) redirect("/admin/categories");
+  await db.category.delete({ where: { id } });
   revalidatePath("/admin/categories");
-  redirect("/admin/categories");
+  revalidatePath("/");
+  revalidatePath(`/category/${category.slug}`);
+  redirect("/admin/categories?deleted=category#categories");
 }
 
 export async function saveTypeAction(formData: FormData) {
@@ -72,35 +129,57 @@ export async function saveTypeAction(formData: FormData) {
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
   const slug = slugify(String(formData.get("slug") || name));
-  const description = String(formData.get("description") || "");
-  if (!name || !slug) redirect("/admin/types?error=missing");
+  const description = String(formData.get("description") || "").trim();
+  const returnParams = new URLSearchParams({
+    name,
+    slug: String(formData.get("slug") || "").trim(),
+    description,
+  });
 
-  if (id) {
-    await db.recipeType.update({ where: { id }, data: { name, slug, description } });
-    revalidatePath(`/admin/types/${id}`);
-    redirect(`/admin/types/${id}`);
+  if (!name || !slug) {
+    redirect(`/admin/types?error=missing&${returnParams.toString()}`);
   }
 
-  const created = await db.recipeType.create({
-    data: {
-      name,
-      slug,
-      description,
-      fields: {
-        create: CORE_FIELDS.map((field, index) => ({
-          key: field.key,
-          label: field.label,
-          helpText: field.helpText || "",
-          kind: field.kind,
-          required: Boolean(field.required),
-          options: JSON.stringify(field.options || []),
-          sortOrder: index,
-        })),
+  if (id) {
+    try {
+      await db.recipeType.update({ where: { id }, data: { name, slug, description } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        redirect(`/admin/types/${id}?error=duplicate-slug`);
+      }
+      throw error;
+    }
+    revalidatePath(`/admin/types/${id}`);
+    redirect(`/admin/types/${id}?saved=type`);
+  }
+
+  try {
+    const created = await db.recipeType.create({
+      data: {
+        name,
+        slug,
+        description,
+        fields: {
+          create: CORE_FIELDS.map((field, index) => ({
+            key: field.key,
+            label: field.label,
+            helpText: field.helpText || "",
+            kind: field.kind,
+            required: Boolean(field.required),
+            options: JSON.stringify(field.options || []),
+            sortOrder: index,
+          })),
+        },
       },
-    },
-  });
-  revalidatePath("/admin/types");
-  redirect(`/admin/types/${created.id}`);
+    });
+    revalidatePath("/admin/types");
+    redirect(`/admin/types/${created.id}`);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      redirect(`/admin/types?error=duplicate&${returnParams.toString()}`);
+    }
+    throw error;
+  }
 }
 
 export async function deleteTypeAction(formData: FormData) {
@@ -119,52 +198,82 @@ export async function saveFieldAction(formData: FormData) {
   const typeId = String(formData.get("typeId") || "");
   const id = String(formData.get("id") || "");
   const label = String(formData.get("label") || "").trim();
-  const key = keyFromLabel(String(formData.get("key") || label));
   const kind = String(formData.get("kind") || "text");
-  const helpText = String(formData.get("helpText") || "");
+  const helpText = String(formData.get("helpText") || "").trim();
   const required = formData.get("required") === "on";
   const options = String(formData.get("options") || "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
 
-  if (!typeId || !label || !key) redirect(`/admin/types/${typeId}`);
+  if (!typeId || !label) {
+    redirect(`/admin/types/${typeId}?error=missing-label`);
+  }
 
   if (id) {
+    const existing = await db.recipeTypeField.findUnique({ where: { id } });
+    if (!existing || existing.typeId !== typeId) {
+      redirect(`/admin/types/${typeId}`);
+    }
     await db.recipeTypeField.update({
       where: { id },
-      data: { label, key, kind, helpText, required, options: JSON.stringify(options) },
-    });
-  } else {
-    const last = await db.recipeTypeField.aggregate({
-      where: { typeId },
-      _max: { sortOrder: true },
-    });
-    await db.recipeTypeField.create({
       data: {
-        typeId,
         label,
-        key,
+        key: existing.key,
         kind,
         helpText,
         required,
         options: JSON.stringify(options),
-        sortOrder: (last._max.sortOrder ?? -1) + 1,
       },
     });
+    revalidatePath(`/admin/types/${typeId}`);
+    redirect(`/admin/types/${typeId}?saved=field&fieldId=${id}#field-${id}`);
   }
 
+  const key = keyFromLabel(String(formData.get("key") || label));
+  if (!key) {
+    redirect(`/admin/types/${typeId}?error=invalid-key&add=1`);
+  }
+
+  const duplicate = await db.recipeTypeField.findUnique({
+    where: { typeId_key: { typeId, key } },
+  });
+  if (duplicate) {
+    redirect(`/admin/types/${typeId}?error=duplicate-key&add=1`);
+  }
+
+  const last = await db.recipeTypeField.aggregate({
+    where: { typeId },
+    _max: { sortOrder: true },
+  });
+  const created = await db.recipeTypeField.create({
+    data: {
+      typeId,
+      label,
+      key,
+      kind,
+      helpText,
+      required,
+      options: JSON.stringify(options),
+      sortOrder: (last._max.sortOrder ?? -1) + 1,
+    },
+  });
   revalidatePath(`/admin/types/${typeId}`);
-  redirect(`/admin/types/${typeId}`);
+  redirect(`/admin/types/${typeId}?saved=field&fieldId=${created.id}#field-${created.id}`);
 }
 
 export async function deleteFieldAction(formData: FormData) {
   await requireEditor();
+  const db = getDb();
   const id = String(formData.get("id") || "");
   const typeId = String(formData.get("typeId") || "");
-  await getDb().recipeTypeField.delete({ where: { id } });
+  const field = await db.recipeTypeField.findUnique({ where: { id } });
+  if (field && CORE_FIELDS.some((item) => item.key === field.key)) {
+    redirect(`/admin/types/${typeId}?error=protected-field`);
+  }
+  await db.recipeTypeField.delete({ where: { id } });
   revalidatePath(`/admin/types/${typeId}`);
-  redirect(`/admin/types/${typeId}`);
+  redirect(`/admin/types/${typeId}?deleted=field#fields`);
 }
 
 export async function moveFieldAction(formData: FormData) {
@@ -180,7 +289,7 @@ export async function moveFieldAction(formData: FormData) {
   const index = fields.findIndex((field) => field.id === id);
   const swapWith = direction === "up" ? index - 1 : index + 1;
   if (index < 0 || swapWith < 0 || swapWith >= fields.length) {
-    redirect(`/admin/types/${typeId}`);
+    redirect(`/admin/types/${typeId}#field-${id}`);
   }
   const current = fields[index];
   const other = fields[swapWith];
@@ -189,7 +298,7 @@ export async function moveFieldAction(formData: FormData) {
     db.recipeTypeField.update({ where: { id: other.id }, data: { sortOrder: current.sortOrder } }),
   ]);
   revalidatePath(`/admin/types/${typeId}`);
-  redirect(`/admin/types/${typeId}`);
+  redirect(`/admin/types/${typeId}?focus=${id}#field-${id}`);
 }
 
 function readDynamicValues(formData: FormData, fields: { key: string; kind: string }[]) {
@@ -281,49 +390,90 @@ export async function saveAdminAction(formData: FormData) {
   const db = getDb();
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
-  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const email = normalizeAdminEmail(String(formData.get("email") || ""));
   const password = String(formData.get("password") || "");
-  const role = String(formData.get("role") || "editor");
+  const roleRaw = String(formData.get("role") || "editor");
   const photoUrl = String(formData.get("photoUrl") || "").trim();
-  if (!name || !email || !isAccessLevel(role)) {
-    redirect("/admin/staff?error=missing");
+
+  const staffRedirect = (query: string): never => {
+    redirect(`/admin/staff?${query}`);
+  };
+
+  if (!name || !email || !isAccessLevel(roleRaw)) {
+    staffRedirect(id ? `error=missing&admin=${encodeURIComponent(id)}` : "error=missing");
   }
-  if (password && password.length < 10) {
-    redirect("/admin/staff?error=password");
+  if (!isValidAdminEmail(email)) {
+    staffRedirect(id ? `error=email&admin=${encodeURIComponent(id)}` : "error=email");
   }
-  if (!id && !password) {
-    redirect("/admin/staff?error=password");
+  if (!isAcceptableAdminPassword(password, { required: !id })) {
+    staffRedirect(id ? `error=password&admin=${encodeURIComponent(id)}` : "error=password");
+  }
+
+  const duplicate = await db.admin.findFirst({
+    where: {
+      email,
+      ...(id ? { NOT: { id } } : {}),
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    staffRedirect(id ? `error=exists&admin=${encodeURIComponent(id)}` : "error=exists");
   }
 
   const ownerCount = await db.admin.count({ where: { role: "owner" } });
+
   if (id) {
     const existing = await db.admin.findUnique({ where: { id } });
-    if (!existing) redirect("/admin/staff?error=missing");
-    if (existing.role === "owner" && role !== "owner" && ownerCount <= 1) {
-      redirect("/admin/staff?error=last-owner");
+    if (!existing) {
+      staffRedirect("error=missing");
     }
+
+    const roleCheck = validateAdminRoleChange({
+      actorId: actor.id,
+      actorEmail: normalizeAdminEmail(actor.email),
+      targetId: id,
+      targetEmail: existing!.email,
+      currentRole: existing!.role,
+      nextRole: roleRaw,
+      ownerCount,
+    });
+    if (!roleCheck.ok) {
+      staffRedirect(`error=${roleCheck.error}&admin=${encodeURIComponent(id)}`);
+    }
+
     await db.admin.update({
       where: { id },
       data: {
         name,
         email,
-        role,
+        role: roleCheck.ok ? roleCheck.role : existing!.role,
         photoUrl,
-        ...(password.length >= 10 ? { passwordHash: hashPassword(password) } : {}),
+        ...(password && shouldUpdateAdminPassword(password)
+          ? { passwordHash: hashPassword(password) }
+          : {}),
       },
     });
-  } else {
-    const taken = await db.admin.findUnique({ where: { email } });
-    if (taken) redirect("/admin/staff?error=exists");
-    await db.admin.create({
-      data: { name, email, role, photoUrl, passwordHash: hashPassword(password) },
-    });
+
+    await removeMemberByEmail(email);
+    revalidatePath("/admin/members");
+    revalidatePath("/admin/staff");
+    staffRedirect(`saved=1&admin=${encodeURIComponent(id)}`);
   }
+
+  await db.admin.create({
+    data: {
+      name,
+      email,
+      role: roleRaw,
+      photoUrl,
+      passwordHash: hashPassword(password),
+    },
+  });
 
   await removeMemberByEmail(email);
   revalidatePath("/admin/members");
   revalidatePath("/admin/staff");
-  redirect("/admin/staff?saved=1");
+  staffRedirect("created=1");
 }
 
 export async function deleteMemberAction(formData: FormData) {
@@ -336,6 +486,7 @@ export async function deleteMemberAction(formData: FormData) {
     redirect("/admin/members");
   }
   revalidatePath("/admin/members");
+  revalidatePath(`/admin/members/${id}`);
   revalidatePath("/profile");
   redirect("/admin/members?removed=1");
 }
@@ -345,15 +496,22 @@ export async function deleteAdminAction(formData: FormData) {
   const id = String(formData.get("id") || "");
   const db = getDb();
   const existing = await db.admin.findUnique({ where: { id } });
-  if (!existing) redirect("/admin/staff");
-  if (existing.id === actor.id) redirect("/admin/staff?error=self");
-  if (existing.role === "owner") {
-    const ownerCount = await db.admin.count({ where: { role: "owner" } });
-    if (ownerCount <= 1) redirect("/admin/staff?error=last-owner");
+  if (!existing) redirect("/admin/staff?error=missing");
+
+  const ownerCount = await db.admin.count({ where: { role: "owner" } });
+  const check = validateAdminDeletion({
+    actorId: actor.id,
+    targetId: existing.id,
+    targetRole: existing.role,
+    ownerCount,
+  });
+  if (!check.ok) {
+    redirect(`/admin/staff?error=${check.error}&admin=${encodeURIComponent(id)}`);
   }
+
   await db.admin.delete({ where: { id } });
   revalidatePath("/admin/staff");
-  redirect("/admin/staff");
+  redirect("/admin/staff?removed=1");
 }
 
 export async function saveOwnAdminProfileAction(formData: FormData) {

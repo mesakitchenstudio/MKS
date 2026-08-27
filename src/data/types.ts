@@ -81,4 +81,5 @@ export type Lesson = {
   title: string;
   excerpt: string;
   body: string[];
+  featured?: boolean;
 };

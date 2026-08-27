@@ -1,51 +1,80 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { subscribeToNewsletter } from "@/lib/newsletter";
 
 export function NewsletterForm({ tone = "light" }: { tone?: "light" | "dark" }) {
   const [email, setEmail] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!email.trim()) return;
-    const key = "mesa-newsletter";
-    const existing = JSON.parse(localStorage.getItem(key) || "[]") as string[];
-    localStorage.setItem(key, JSON.stringify([...new Set([...existing, email.trim()])]));
+    setError(null);
+    setMessage(null);
+    setLoading(true);
+    const result = await subscribeToNewsletter(email);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
     setDone(true);
+    setMessage(
+      result.duplicate
+        ? "You are already on the list. We will write when there is something good to cook."
+        : "You are on the list. We will write when there is something good to cook.",
+    );
   }
 
-  if (done) {
+  if (done && message) {
     return (
-      <p className={tone === "dark" ? "text-sm text-sand" : "text-sm text-olive"}>
-        You are on the list. We will write when there is something good to cook.
+      <p className={tone === "dark" ? "text-sm text-sand" : "text-sm text-olive"} role="status">
+        {message}
       </p>
     );
   }
 
+  const inputId = `newsletter-${tone}`;
+
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row">
-      <label className="sr-only" htmlFor={`newsletter-${tone}`}>
-        Email address
-      </label>
-      <input
-        id={`newsletter-${tone}`}
-        type="email"
-        required
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        placeholder="Your email"
-        className={
-          tone === "dark"
-            ? "min-w-0 flex-1 rounded-full border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none placeholder:text-sand/50 focus:border-terracotta"
-            : "min-w-0 flex-1 rounded-full border border-line bg-paper px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-terracotta"
-        }
-      />
+    <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row" noValidate>
+      <div className="min-w-0 flex-1">
+        <label className="sr-only" htmlFor={inputId}>
+          Email address
+        </label>
+        <input
+          id={inputId}
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            if (error) setError(null);
+          }}
+          placeholder="Your email"
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${inputId}-error` : undefined}
+          className={
+            tone === "dark"
+              ? "w-full rounded-full border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none placeholder:text-sand/50 focus:border-terracotta"
+              : "w-full rounded-full border border-line bg-paper px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-terracotta"
+          }
+        />
+        {error ? (
+          <p id={`${inputId}-error`} className="mt-1.5 text-xs text-terracotta" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
       <button
         type="submit"
-        className="rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark"
+        disabled={loading}
+        className="rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Subscribe
+        {loading ? "Subscribing…" : "Subscribe"}
       </button>
     </form>
   );

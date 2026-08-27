@@ -40,7 +40,7 @@ export function websiteJsonLd() {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${site.url}/search?q={search_term_string}`,
+        urlTemplate: `${site.url}/recipes?q={search_term_string}`,
       },
       "query-input": "required name=search_term_string",
     },

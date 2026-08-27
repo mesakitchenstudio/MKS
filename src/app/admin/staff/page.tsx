@@ -1,8 +1,14 @@
 import { AdminPhotoField } from "@/components/admin/AdminPhotoField";
+import { PendingSubmitButton } from "@/components/admin/PendingSubmitButton";
 import { ACCESS_LEVELS, accessLabel } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
-import { formatGmtDateTime } from "@/lib/datetime";
+import { formatAdminDateTime } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
+import {
+  MIN_ADMIN_PASSWORD_LENGTH,
+  shouldLockOwnerAccessSelect,
+  isCurrentStaffAccount,
+} from "@/lib/admin-staff";
 import { deleteAdminAction, saveAdminAction } from "../actions";
 
 function initials(name: string) {
@@ -23,27 +29,59 @@ function roleTone(role: string) {
 const fieldClass =
   "mt-1.5 w-full rounded-sm border border-line bg-cream px-3 py-2.5 text-sm text-ink outline-none transition focus:border-terracotta";
 
+const noticeOk = "mt-4 border border-olive/30 bg-olive/10 px-4 py-3 text-sm text-olive-dark";
+const noticeErr = "mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-3 text-sm text-terracotta-dark";
+
+function staffErrorMessage(error?: string) {
+  switch (error) {
+    case "missing":
+      return "Name, email, and access level are required.";
+    case "email":
+      return "Enter a valid email address.";
+    case "password":
+      return `Password must be at least ${MIN_ADMIN_PASSWORD_LENGTH} characters.`;
+    case "exists":
+      return "That email already has an admin account.";
+    case "last-owner":
+      return "Keep at least one owner.";
+    case "self":
+      return "You cannot remove your own account.";
+    case "self-role":
+      return "Your owner access cannot be changed while signed in.";
+    default:
+      return "";
+  }
+}
+
 export default async function AdminStaffPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
+    created?: string;
+    removed?: string;
+    admin?: string;
+  }>;
 }) {
   const actor = await requireAccess("staff");
-  const { error, saved } = await searchParams;
-  const admins = await getDb().admin.findMany({ orderBy: { createdAt: "asc" } });
+  const { error, saved, created, removed, admin: focusAdminId } = await searchParams;
+  const admins = await getDb().admin.findMany({
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      photoUrl: true,
+      lastSeenAt: true,
+      createdAt: true,
+    },
+  });
 
-  const errorMessage =
-    error === "missing"
-      ? "Name, email, and access level are required."
-      : error === "password"
-        ? "New admins need a password of at least 10 characters."
-        : error === "exists"
-          ? "That email already has an admin account."
-          : error === "last-owner"
-            ? "Keep at least one owner."
-            : error === "self"
-              ? "You cannot delete your own admin account."
-              : "";
+  const errorMessage = staffErrorMessage(error);
+  const createError = errorMessage && !focusAdminId ? errorMessage : "";
+  const pageRemoved = removed ? "Admin removed." : "";
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -62,16 +100,7 @@ export default async function AdminStaffPage({
         </div>
       </div>
 
-      {saved ? (
-        <p className="mt-5 border border-olive/30 bg-olive/10 px-4 py-3 text-sm text-olive-dark">
-          Admin saved.
-        </p>
-      ) : null}
-      {errorMessage ? (
-        <p className="mt-5 border border-terracotta/30 bg-terracotta/10 px-4 py-3 text-sm text-terracotta-dark">
-          {errorMessage}
-        </p>
-      ) : null}
+      {pageRemoved ? <p className={noticeOk}>{pageRemoved}</p> : null}
 
       <section className="mt-8">
         <h2 className="font-serif text-2xl text-ink">Access levels</h2>
@@ -92,8 +121,12 @@ export default async function AdminStaffPage({
       <section className="mt-10 border border-line bg-paper">
         <div className="border-b border-line bg-cream px-5 py-4">
           <h2 className="font-serif text-2xl text-ink">Add admin</h2>
-          <p className="mt-1 text-sm text-muted">Invite someone with a name, email, password, and role.</p>
+          <p className="mt-1 text-sm text-muted">
+            Create a studio login with a name, email, password, and access level.
+          </p>
         </div>
+        {created ? <p className={`mx-5 ${noticeOk}`}>Admin account created.</p> : null}
+        {createError ? <p className={`mx-5 ${noticeErr}`}>{createError}</p> : null}
         <form action={saveAdminAction} className="grid gap-4 p-5 md:grid-cols-2">
           <div className="md:col-span-2">
             <p className="text-sm font-semibold text-ink">Profile photo</p>
@@ -114,10 +147,10 @@ export default async function AdminStaffPage({
             <input
               name="password"
               type="password"
-              minLength={10}
+              minLength={MIN_ADMIN_PASSWORD_LENGTH}
               required
               autoComplete="new-password"
-              placeholder="At least 10 characters"
+              placeholder={`At least ${MIN_ADMIN_PASSWORD_LENGTH} characters`}
               className={fieldClass}
             />
           </label>
@@ -132,12 +165,12 @@ export default async function AdminStaffPage({
             </select>
           </label>
           <div className="md:col-span-2">
-            <button
-              type="submit"
-              className="rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark"
+            <PendingSubmitButton
+              pendingLabel="Adding…"
+              className="rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:hover:bg-terracotta"
             >
               Add admin
-            </button>
+            </PendingSubmitButton>
           </div>
         </form>
       </section>
@@ -162,9 +195,14 @@ export default async function AdminStaffPage({
         ) : (
           <ul className="mt-5 space-y-4">
             {admins.map((admin) => {
-              const isYou = admin.id === actor.id;
+              const isYou = isCurrentStaffAccount(actor, admin);
+              const lockOwnerRole = shouldLockOwnerAccessSelect(actor, admin);
+              const cardError =
+                focusAdminId === admin.id && errorMessage ? errorMessage : "";
+              const cardSaved = focusAdminId === admin.id && saved ? "Changes saved." : "";
+
               return (
-                <li key={admin.id} className="border border-line bg-paper">
+                <li key={admin.id} id={`admin-${admin.id}`} className="border border-line bg-paper">
                   <div className="flex flex-wrap items-center gap-4 border-b border-line bg-cream px-5 py-4">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sand text-sm font-semibold text-ink">
                       {admin.photoUrl ? (
@@ -190,8 +228,13 @@ export default async function AdminStaffPage({
                       </div>
                       <p className="mt-1 truncate text-sm text-muted">{admin.email}</p>
                     </div>
-                    <p className="text-xs text-muted">Last login {formatGmtDateTime(admin.lastSeenAt)}</p>
+                    <p className="text-xs text-muted">
+                      Last login {formatAdminDateTime(admin.lastSeenAt)}
+                    </p>
                   </div>
+
+                  {cardSaved ? <p className={`mx-5 ${noticeOk}`}>{cardSaved}</p> : null}
+                  {cardError ? <p className={`mx-5 ${noticeErr}`}>{cardError}</p> : null}
 
                   <form action={saveAdminAction} className="grid gap-4 p-5 md:grid-cols-2">
                     <input type="hidden" name="id" value={admin.id} />
@@ -216,43 +259,60 @@ export default async function AdminStaffPage({
                       />
                     </label>
                     <label className="grid text-sm font-semibold text-ink">
-                      Access level
-                      <select name="role" defaultValue={admin.role} className={fieldClass}>
-                        {ACCESS_LEVELS.map((level) => (
-                          <option key={level.id} value={level.id}>
-                            {level.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid text-sm font-semibold text-ink">
                       New password
                       <input
                         name="password"
                         type="password"
-                        minLength={10}
+                        minLength={MIN_ADMIN_PASSWORD_LENGTH}
                         placeholder="Leave blank to keep current"
                         autoComplete="new-password"
                         className={fieldClass}
                       />
                     </label>
+                    {lockOwnerRole ? (
+                      <div className="grid text-sm font-semibold text-ink">
+                        Access level
+                        <input type="hidden" name="role" value="owner" />
+                        <p
+                          id={`owner-role-lock-${admin.id}`}
+                          className={`${fieldClass} cursor-not-allowed opacity-70`}
+                          aria-disabled="true"
+                        >
+                          Owner
+                        </p>
+                        <p className="mt-1.5 text-xs font-normal text-muted">
+                          Your owner access cannot be changed while signed in.
+                        </p>
+                      </div>
+                    ) : (
+                      <label className="grid text-sm font-semibold text-ink">
+                        Access level
+                        <select name="role" defaultValue={admin.role} className={fieldClass}>
+                          {ACCESS_LEVELS.map((level) => (
+                            <option key={level.id} value={level.id}>
+                              {level.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                     <div className="flex flex-wrap items-center gap-3 md:col-span-2">
-                      <button
-                        type="submit"
-                        className="rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark"
+                      <PendingSubmitButton
+                        pendingLabel="Saving…"
+                        className="rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:hover:bg-terracotta"
                       >
                         Save changes
-                      </button>
+                      </PendingSubmitButton>
                       {isYou ? (
                         <span className="text-sm text-muted">You cannot remove your own account.</span>
                       ) : (
-                        <button
-                          type="submit"
+                        <PendingSubmitButton
+                          pendingLabel="Removing…"
                           formAction={deleteAdminAction}
-                          className="rounded-full border border-line px-5 py-2 text-sm font-semibold text-muted hover:border-terracotta hover:text-terracotta"
+                          className="rounded-full border border-line px-5 py-2 text-sm font-semibold text-muted hover:border-terracotta hover:text-terracotta disabled:hover:border-line disabled:hover:text-muted"
                         >
                           Remove
-                        </button>
+                        </PendingSubmitButton>
                       )}
                     </div>
                   </form>

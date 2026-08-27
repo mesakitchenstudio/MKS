@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { categories, megaMenu } from "@/data/categories";
 import { Logo } from "./Logo";
@@ -16,6 +16,7 @@ const links = [
 
 export function SiteHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [megaOpen, setMegaOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -28,7 +29,7 @@ export function SiteHeader() {
   function onSearch(event: FormEvent) {
     event.preventDefault();
     const next = query.trim();
-    router.push(next ? `/search?q=${encodeURIComponent(next)}` : "/search");
+    router.push(next ? `/recipes?q=${encodeURIComponent(next)}` : "/recipes");
     setOpen(false);
   }
 
@@ -101,7 +102,16 @@ export function SiteHeader() {
                 key={link.href}
                 href={link.href}
                 onClick={closeMenus}
-                className="px-3 py-2 text-sm font-semibold tracking-wide text-ink/80 hover:text-terracotta"
+                aria-current={
+                  pathname === link.href || (link.href === "/studio" && pathname.startsWith("/studio/"))
+                    ? "page"
+                    : undefined
+                }
+                className={`px-3 py-2 text-sm font-semibold tracking-wide hover:text-terracotta ${
+                  pathname === link.href || (link.href === "/studio" && pathname.startsWith("/studio/"))
+                    ? "text-terracotta"
+                    : "text-ink/80"
+                }`}
               >
                 {link.label}
               </Link>
@@ -150,10 +160,22 @@ export function SiteHeader() {
             <Link href="/recipes" onClick={closeMenus}>
               All recipes
             </Link>
-            <Link href="/videos" onClick={closeMenus}>
+            <Link
+              href="/videos"
+              onClick={closeMenus}
+              aria-current={pathname === "/videos" ? "page" : undefined}
+              className={pathname === "/videos" ? "text-terracotta" : undefined}
+            >
               Videos
             </Link>
-            <Link href="/studio" onClick={closeMenus}>
+            <Link
+              href="/studio"
+              onClick={closeMenus}
+              aria-current={pathname === "/studio" || pathname.startsWith("/studio/") ? "page" : undefined}
+              className={
+                pathname === "/studio" || pathname.startsWith("/studio/") ? "text-terracotta" : undefined
+              }
+            >
               Studio
             </Link>
             <Link href="/about" onClick={closeMenus}>

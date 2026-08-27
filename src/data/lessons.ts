@@ -1,10 +1,14 @@
 import type { Lesson } from "./types";
 
+export const STUDIO_LESSON_CATEGORY = "Technique";
+
 export const lessons: Lesson[] = [
   {
     slug: "how-to-measure",
     title: "How to measure ingredients correctly",
-    excerpt: "A scale is kinder than a scoop. Here is how we measure in the studio so cakes stay tender.",
+    excerpt:
+      "A scale is kinder than a scoop. Here is how we measure in the studio so cakes stay tender.",
+    featured: true,
     body: [
       "Most dry-cake failures start with too much flour. Scoops packed against the bag can add 30 grams without you noticing, which is enough to turn a tender crumb tight and dry.",
       "Weigh flour, sugar, and liquids whenever you can. If you do not have a scale, fluff the flour in the container, spoon it into the cup, and level with a straight edge. Do not tap the cup on the counter.",
@@ -46,3 +50,13 @@ export const lessons: Lesson[] = [
     ],
   },
 ];
+
+export function lessonHref(slug: string) {
+  return `/studio/${slug}`;
+}
+
+export function partitionStudioLessons(allLessons: Lesson[] = lessons) {
+  const featured = allLessons.find((lesson) => lesson.featured) ?? allLessons[0]!;
+  const notes = allLessons.filter((lesson) => lesson.slug !== featured.slug);
+  return { featured, notes };
+}

@@ -1,65 +1,109 @@
-import Image from "next/image";
-import type { RecipeYoutubeRelatedVideo } from "@/data/youtube-types";
+"use client";
+
+import Link from "next/link";
+import type { ResolvedVideoItem } from "@/lib/videos-page";
+import type { VideoAnalyticsSource } from "@/lib/video-analytics";
+import { trackVideoEvent } from "@/lib/video-analytics";
+import { VideoThumbnail } from "./VideoThumbnail";
+
+const focusRing =
+  "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
 export function VideoCard({
   video,
-  onClick,
+  priority = false,
+  analyticsSource,
+  analyticsRecipe,
 }: {
-  video: RecipeYoutubeRelatedVideo;
-  onClick?: () => void;
+  video: ResolvedVideoItem;
+  priority?: boolean;
+  analyticsSource?: VideoAnalyticsSource;
+  analyticsRecipe?: { slug: string; name: string };
 }) {
-  const inner = (
-    <>
-      <div className="relative aspect-video overflow-hidden bg-sand">
-        <Image
-          src={video.thumbnail || ""}
-          alt={video.title ? `Video thumbnail: ${video.title}` : ""}
-          fill
-          sizes="(min-width: 768px) 280px, 45vw"
-          className="object-cover transition duration-300 group-hover:scale-[1.03]"
-        />
-        <span className="absolute inset-0 flex items-center justify-center bg-ink/15 opacity-0 transition group-hover:opacity-100">
-          <span className="rounded-full bg-paper/95 px-2.5 py-1 text-xs font-semibold text-terracotta">
-            ▶
-          </span>
-        </span>
-        {video.duration ? (
-          <span className="absolute bottom-2 right-2 rounded bg-ink/80 px-1.5 py-0.5 text-[0.65rem] font-semibold text-paper">
-            {video.duration}
-          </span>
-        ) : null}
-      </div>
-      <div className="p-3">
-        {video.label ? (
-          <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-olive">
-            {video.label}
-          </p>
-        ) : null}
-        <p className="mt-1 line-clamp-2 font-semibold text-sm leading-snug text-ink">{video.title}</p>
-      </div>
-    </>
-  );
+  const playable = Boolean(video.watchUrl);
+  const watchLabel = `Watch “${video.title}” on YouTube`;
 
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="group w-full overflow-hidden border border-line bg-paper text-left transition hover:border-terracotta/40"
-      >
-        {inner}
-      </button>
-    );
+  function handleWatch() {
+    if (!video.watchUrl) return;
+    if (analyticsSource === "related_videos") {
+      trackVideoEvent("recipe_related_video_click", {
+        source: "related_videos",
+        videoId: video.videoId,
+        videoTitle: video.title,
+        recipeSlug: analyticsRecipe?.slug,
+        recipeName: analyticsRecipe?.name,
+      });
+    } else if (analyticsSource === "videos_page") {
+      trackVideoEvent("videos_page_video_click", {
+        source: "videos_page",
+        videoId: video.videoId,
+        videoTitle: video.title,
+        recipeSlug: video.recipeSlug,
+        recipeName: video.recipeTitle,
+      });
+    }
+    window.open(video.watchUrl, "_blank", "noopener,noreferrer");
   }
 
+  const thumbnail = (
+    <VideoThumbnail
+      src={video.thumbnail}
+      alt={video.thumbnailAlt}
+      showPlay={playable}
+      priority={priority}
+    />
+  );
+
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group block overflow-hidden border border-line bg-paper transition hover:border-terracotta/40"
-    >
-      {inner}
-    </a>
+    <article className="group/card">
+      {playable ? (
+        <button
+          type="button"
+          onClick={handleWatch}
+          aria-label={watchLabel}
+          className={`group/thumb block w-full text-left ${focusRing}`}
+        >
+          {thumbnail}
+        </button>
+      ) : (
+        <div className="group/thumb">{thumbnail}</div>
+      )}
+
+      {video.category ? (
+        <p className="mt-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
+          {video.category}
+        </p>
+      ) : null}
+
+      {playable ? (
+        <h3 className="mt-1 font-serif text-xl leading-tight text-ink">
+          <button
+            type="button"
+            onClick={handleWatch}
+            className={`line-clamp-2 text-left transition hover:text-terracotta group-hover/card:text-terracotta ${focusRing}`}
+          >
+            {video.title}
+          </button>
+        </h3>
+      ) : (
+        <h3 className="mt-1 line-clamp-2 font-serif text-xl leading-tight text-ink">{video.title}</h3>
+      )}
+
+      {video.duration || video.recipeSlug ? (
+        <p className="mt-2 text-xs leading-5 text-muted">
+          {video.duration ? <span>{video.duration}</span> : null}
+          {video.duration && video.recipeSlug ? <span aria-hidden> · </span> : null}
+          {video.recipeSlug ? (
+            <Link
+              href={`/recipes/${video.recipeSlug}`}
+              aria-label={`View ${video.recipeTitle ?? video.title} recipe`}
+              className={`text-muted underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
+            >
+              View recipe →
+            </Link>
+          ) : null}
+        </p>
+      ) : null}
+    </article>
   );
 }

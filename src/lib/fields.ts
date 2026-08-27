@@ -79,8 +79,10 @@ export function slugify(value: string) {
 }
 
 export function keyFromLabel(label: string) {
-  const key = slugify(label).replace(/-/g, "");
-  return key || "field";
+  const parts = slugify(label).split("-").filter(Boolean);
+  if (parts.length === 0) return "";
+  const [first, ...rest] = parts;
+  return first + rest.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("");
 }
 
 export function emptyValue(kind: string) {

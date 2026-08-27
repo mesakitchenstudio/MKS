@@ -13,10 +13,11 @@ export default async function AdminVisitorsPage() {
 
   return (
     <div>
-      <h1 className="font-serif text-4xl">Visitors</h1>
-      <p className="mt-2 max-w-3xl text-sm text-muted">
-        Anonymous guests browsing without signing in. Each browser gets a private visitor cookie;
-        page views and a 45-second heartbeat update presence while they stay on the site.
+      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+        Visitors
+      </h1>
+      <p className="mt-2 max-w-2xl text-sm text-muted">
+        Anonymous visitors and their recent browsing activity.
       </p>
 
       <VisitorsTable visitors={visitors} popularPaths={popularPaths} />

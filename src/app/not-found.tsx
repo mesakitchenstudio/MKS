@@ -18,8 +18,8 @@ export default function NotFound() {
         >
           All recipes
         </Link>
-        <Link href="/search" className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold">
-          Search
+        <Link href="/recipes" className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold">
+          Search recipes
         </Link>
       </div>
     </div>

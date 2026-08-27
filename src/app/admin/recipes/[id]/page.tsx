@@ -4,7 +4,6 @@ import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
-import { deleteRecipeAction } from "../../actions";
 
 export default async function EditRecipePage({
   params,
@@ -31,34 +30,26 @@ export default async function EditRecipePage({
   if (!recipe) notFound();
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-serif text-4xl">Edit {recipe.title}</h1>
-        <form action={deleteRecipeAction}>
-          <input type="hidden" name="id" value={recipe.id} />
-          <button className="text-sm text-muted hover:text-terracotta">Delete recipe</button>
-        </form>
-      </div>
-      {saved ? <p className="mb-4 text-sm text-olive">Saved.</p> : null}
-      <RecipeEditor
-        recipeId={recipe.id}
-        typeId={recipe.typeId}
-        fields={recipe.type.fields.map((field) => ({
-          ...field,
-          options: JSON.parse(field.options || "[]") as string[],
-        }))}
-        categories={categories.map((category) => ({ id: category.id, name: category.name }))}
-        initial={{
-          title: recipe.title,
-          slug: recipe.slug,
-          excerpt: recipe.excerpt,
-          status: recipe.status,
-          featured: recipe.featured,
-          seasonal: recipe.seasonal,
-          categoryIds: recipe.categories.map((item) => item.categoryId),
-          values: parseValues(recipe.values),
-        }}
-      />
-    </div>
+    <RecipeEditor
+      recipeId={recipe.id}
+      typeId={recipe.typeId}
+      typeName={recipe.type.name}
+      saved={Boolean(saved)}
+      fields={recipe.type.fields.map((field) => ({
+        ...field,
+        options: JSON.parse(field.options || "[]") as string[],
+      }))}
+      categories={categories.map((category) => ({ id: category.id, name: category.name }))}
+      initial={{
+        title: recipe.title,
+        slug: recipe.slug,
+        excerpt: recipe.excerpt,
+        status: recipe.status,
+        featured: recipe.featured,
+        seasonal: recipe.seasonal,
+        categoryIds: recipe.categories.map((item) => item.categoryId),
+        values: parseValues(recipe.values),
+      }}
+    />
   );
 }

@@ -3,40 +3,52 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { adminFocusRing, adminNavItemClass } from "@/lib/admin-ui";
 
 type NavItem = {
   href: string;
   label: string;
 };
 
+function isPeoplePath(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function AdminPeopleMenu({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [pathSnapshot, setPathSnapshot] = useState(pathname);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
 
-  const active = items.some(
-    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-  );
+  // Close after client navigations (including back/forward) without a layout effect.
+  if (pathname !== pathSnapshot) {
+    setPathSnapshot(pathname);
+    if (open) setOpen(false);
+  }
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  const sectionActive = items.some((item) => isPeoplePath(pathname, item.href));
 
   useEffect(() => {
     if (!open) return;
 
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+    function onPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
     }
 
-    document.addEventListener("mousedown", onPointerDown);
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    }
+
+    document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
@@ -46,39 +58,50 @@ export function AdminPeopleMenu({ items }: { items: NavItem[] }) {
   return (
     <div className="relative" ref={rootRef}>
       <button
+        ref={buttonRef}
         type="button"
         aria-expanded={open}
+        aria-haspopup="true"
         aria-controls={menuId}
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex items-center gap-1 ${active ? "text-terracotta" : ""}`}
+        className={`${adminNavItemClass} gap-1 border-0 bg-transparent p-0 ${adminFocusRing} ${
+          open || sectionActive
+            ? "text-terracotta hover:text-terracotta-dark"
+            : "text-ink hover:text-terracotta"
+        }`}
       >
         People
-        <span aria-hidden className={`text-[0.65rem] transition ${open ? "rotate-180" : ""}`}>
-          ▾
+        <span aria-hidden className="text-[0.55rem] leading-none text-current opacity-80">
+          {open ? "▴" : "▾"}
         </span>
       </button>
+
       {open ? (
         <div
           id={menuId}
-          role="menu"
-          className="absolute left-0 top-full z-30 mt-2 min-w-[10rem] border border-line bg-paper py-1 shadow-sm"
+          className="absolute left-0 top-full z-50 mt-1 w-max min-w-[7.5rem] border border-line bg-paper py-0.5 shadow-[0_1px_2px_rgba(42,34,24,0.06)]"
         >
-          {items.map((item) => {
-            const itemActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                role="menuitem"
-                className={`block px-4 py-2 text-sm font-semibold hover:bg-sand/60 ${
-                  itemActive ? "text-terracotta" : "text-ink"
-                }`}
-                onClick={() => setOpen(false)}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+          <ul className="m-0 list-none p-0">
+            {items.map((item) => {
+              const itemActive = isPeoplePath(pathname, item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={itemActive ? "page" : undefined}
+                    className={`block px-3 py-1.5 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${adminFocusRing} ${
+                      itemActive
+                        ? "bg-sand/50 text-terracotta"
+                        : "text-ink hover:bg-sand/55 hover:text-ink"
+                    }`}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       ) : null}
     </div>

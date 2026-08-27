@@ -1,62 +1,71 @@
+import { CategoriesManager } from "@/components/admin/CategoriesManager";
 import { requireAccess } from "@/lib/auth";
+import { type AdminCategory } from "@/lib/category-admin";
 import { getDb } from "@/lib/db";
-import { deleteCategoryAction, saveCategoryAction } from "../actions";
 
-const groups = ["desserts", "course", "method", "holiday"];
-
-export default async function AdminCategoriesPage() {
+export default async function AdminCategoriesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    saved?: string;
+    categoryId?: string;
+    deleted?: string;
+    error?: string;
+    add?: string;
+    name?: string;
+    slug?: string;
+    description?: string;
+    group?: string;
+  }>;
+}) {
   await requireAccess("content");
-  const categories = await getDb().category.findMany({ orderBy: { name: "asc" } });
+  const query = await searchParams;
+  const rows = await getDb().category.findMany({
+    orderBy: { name: "asc" },
+    include: { _count: { select: { recipes: true } } },
+  });
+
+  const categories: AdminCategory[] = rows.map((category) => ({
+    id: category.id,
+    name: category.name,
+    slug: category.slug,
+    description: category.description,
+    group: category.group,
+    recipeCount: category._count.recipes,
+  }));
+
+  const savedCategoryId =
+    query.saved === "category" && query.categoryId ? query.categoryId : null;
+  const addError =
+    query.error === "missing-name" ||
+    query.error === "duplicate-slug" ||
+    query.error === "invalid-slug" ||
+    query.error === "invalid-group"
+      ? query.error
+      : undefined;
 
   return (
     <div>
-      <h1 className="font-serif text-4xl">Categories</h1>
-      <p className="mt-2 text-sm text-muted">These power the public menus and recipe filters.</p>
+      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+        Categories
+      </h1>
+      <p className="mt-2 max-w-2xl text-sm text-muted">
+        These power the public menus and recipe filters.
+      </p>
 
-      <form action={saveCategoryAction} className="mt-8 grid gap-3 border border-line bg-paper p-5 md:grid-cols-2">
-        <input name="name" placeholder="Name" required className="border border-line px-3 py-2" />
-        <input name="slug" placeholder="slug (optional)" className="border border-line px-3 py-2" />
-        <select name="group" className="border border-line px-3 py-2">
-          {groups.map((group) => (
-            <option key={group} value={group}>
-              {group}
-            </option>
-          ))}
-        </select>
-        <input name="description" placeholder="Description" className="border border-line px-3 py-2" />
-        <button className="justify-self-start rounded-full bg-terracotta px-4 py-2 text-sm font-semibold text-paper">
-          Add category
-        </button>
-      </form>
-
-      <ul className="mt-8 divide-y divide-line border border-line bg-paper">
-        {categories.map((category) => (
-          <li key={category.id} className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_auto]">
-            <form action={saveCategoryAction} className="grid gap-2 md:grid-cols-2">
-              <input type="hidden" name="id" value={category.id} />
-              <input name="name" defaultValue={category.name} className="border border-line px-3 py-2" />
-              <input name="slug" defaultValue={category.slug} className="border border-line px-3 py-2" />
-              <select name="group" defaultValue={category.group} className="border border-line px-3 py-2">
-                {groups.map((group) => (
-                  <option key={group} value={group}>
-                    {group}
-                  </option>
-                ))}
-              </select>
-              <input
-                name="description"
-                defaultValue={category.description}
-                className="border border-line px-3 py-2"
-              />
-              <button className="justify-self-start text-sm font-semibold text-terracotta">Save</button>
-            </form>
-            <form action={deleteCategoryAction}>
-              <input type="hidden" name="id" value={category.id} />
-              <button className="text-sm text-muted hover:text-terracotta">Delete</button>
-            </form>
-          </li>
-        ))}
-      </ul>
+      <CategoriesManager
+        categories={categories}
+        savedCategoryId={savedCategoryId}
+        initialAddOpen={query.add === "1" || Boolean(addError)}
+        addError={addError}
+        addInitial={{
+          name: query.name,
+          slug: query.slug,
+          description: query.description,
+          group: query.group,
+        }}
+        deleted={query.deleted === "category"}
+      />
     </div>
   );
 }

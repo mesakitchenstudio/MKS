@@ -4,9 +4,11 @@ import { headers } from "next/headers";
 import { auth } from "@/auth";
 import { ensureMember, getStaffByEmail, getUserByEmail, removeMemberByEmail } from "@/lib/accounts";
 import { homeForRole } from "@/lib/admin-access";
-import { formatGmtDisplay } from "@/lib/datetime";
+import { formatLongDate } from "@/lib/datetime";
 import { getAllRecipes } from "@/lib/recipes";
-import { ProfileFavorites } from "@/components/ProfileFavorites";
+import { authFocusRing } from "@/lib/auth-ui";
+import { memberIdentityLines, resolveMemberDisplayName } from "@/lib/auth-client";
+import { FavoritesEmptyState, ProfileFavorites } from "@/components/ProfileFavorites";
 
 export const metadata: Metadata = {
   title: "Your profile",
@@ -23,8 +25,8 @@ export default async function ProfilePage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 md:px-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">Account</p>
-        <h1 className="mt-2 font-serif text-5xl">Your profile</h1>
-        <p className="mt-4 text-muted">
+        <h1 className="mt-3 font-serif text-4xl md:text-5xl">Your profile</h1>
+        <p className="mt-4 max-w-md text-muted">
           Use Sign in in the top-right corner to see the recipes you have saved.
         </p>
       </div>
@@ -37,11 +39,14 @@ export default async function ProfilePage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 md:px-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">Studio</p>
-        <h1 className="mt-2 font-serif text-5xl">{staff.name}</h1>
+        <h1 className="mt-3 font-serif text-4xl md:text-5xl">{staff.name}</h1>
         <p className="mt-4 text-muted">
           This email is a studio admin, not a public member account.
         </p>
-        <Link href={homeForRole(staff.role)} className="mt-6 inline-block font-semibold text-terracotta">
+        <Link
+          href={homeForRole(staff.role)}
+          className={`mt-6 inline-block rounded-sm font-semibold text-terracotta ${authFocusRing}`}
+        >
           Open studio admin
         </Link>
       </div>
@@ -50,43 +55,72 @@ export default async function ProfilePage() {
 
   await ensureMember(email, session.user?.name ?? "", await headers());
   const [user, recipes] = await Promise.all([getUserByEmail(email), getAllRecipes()]);
-  const name = user?.name || session.user?.name || email;
+  const identity = memberIdentityLines({
+    name: user?.name || session.user?.name,
+    email,
+  });
+  const name = resolveMemberDisplayName({
+    name: user?.name || session.user?.name,
+    email,
+  });
   const saves = user?.saves ?? [];
   const savedRecipes = saves
     .map((save) => recipes.find((recipe) => recipe.slug === save.slug))
     .filter((recipe): recipe is NonNullable<typeof recipe> => Boolean(recipe));
   const missing = saves.filter((save) => !recipes.some((recipe) => recipe.slug === save.slug));
+  const photoUrl = (user?.photoUrl || session.user?.image || "").trim();
+  const savedCount = saves.length;
+  const savedLabel =
+    savedCount === 1 ? "1 saved recipe" : `${savedCount} saved recipes`;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">Account</p>
-      <h1 className="mt-2 font-serif text-5xl">{name}</h1>
-      <p className="mt-2 text-muted">{email}</p>
-      {user?.createdAt ? (
-        <p className="mt-1 text-sm text-muted">
-          Member since {formatGmtDisplay(user.createdAt)}
+    <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-12">
+      <header>
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
+          Account
         </p>
-      ) : null}
 
-      <section className="mt-12">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 className="font-serif text-3xl">Favorite recipes</h2>
-            <p className="mt-1 text-sm text-muted">
-              Everything you have hearted is saved to this profile.
-            </p>
+        <div className="mt-3 flex items-start gap-3.5 sm:gap-4">
+          {photoUrl ? (
+            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-line bg-sand sm:h-16 sm:w-16">
+              {/* Google / remote member photos — same pattern as admin MemberAvatar */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : null}
+
+          <div className="min-w-0 flex-1">
+            <h1 className="font-serif text-4xl leading-[1.15] text-ink md:text-5xl">{name}</h1>
+            {identity.secondary ? (
+              <p className="mt-1.5 break-words text-muted">{identity.secondary}</p>
+            ) : null}
+            {user?.createdAt ? (
+              <p className={`${identity.secondary ? "mt-1" : "mt-1.5"} text-sm text-muted`}>
+                Member since {formatLongDate(user.createdAt)}
+              </p>
+            ) : null}
           </div>
-          <p className="text-sm text-muted">
-            {saves.length} {saves.length === 1 ? "save" : "saves"}
-          </p>
+        </div>
+      </header>
+
+      <section className="mt-7 border-t border-line pt-7 md:mt-8 md:pt-8">
+        <h2 className="font-serif text-3xl text-ink">Favorite recipes</h2>
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <p className="text-sm text-muted">Recipes you save are collected here.</p>
+          {savedCount > 0 ? (
+            <p className="text-sm text-muted">{savedLabel}</p>
+          ) : null}
         </div>
 
         {savedRecipes.length || missing.length ? (
           <ProfileFavorites recipes={savedRecipes} extras={missing} />
         ) : (
-          <p className="mt-8 border border-line bg-paper px-5 py-8 text-sm text-muted">
-            Open a recipe and tap the heart to save it here.
-          </p>
+          <FavoritesEmptyState />
         )}
       </section>
     </div>

@@ -1,5 +1,12 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
+/** Minimum length for manually created / updated admin passwords. */
+export const MIN_ADMIN_PASSWORD_LENGTH = 10;
+
+export function isAdminPasswordLongEnough(password: string) {
+  return password.length >= MIN_ADMIN_PASSWORD_LENGTH;
+}
+
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const hash = scryptSync(password, salt, 64).toString("hex");

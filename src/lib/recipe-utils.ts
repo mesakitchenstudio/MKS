@@ -5,13 +5,19 @@ export function filterRecipes(recipes: Recipe[], query: string): Recipe[] {
   if (!needle) return recipes;
 
   return recipes.filter((recipe) => {
+    const categoryTokens = recipe.categories.flatMap((slug) => [
+      slug,
+      slug.replace(/-/g, " "),
+    ]);
     const haystack = [
       recipe.title,
       recipe.excerpt,
       recipe.course,
       recipe.cuisine,
+      recipe.method,
+      recipe.holiday || "",
       ...recipe.tags,
-      ...recipe.categories,
+      ...categoryTokens,
       recipe.difficulty || "",
       ...(recipe.utensils || []),
       ...recipe.ingredients.flatMap((group) => group.items.map((item) => item.item)),
