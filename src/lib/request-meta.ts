@@ -100,7 +100,7 @@ export function formatLocation(meta: { city?: string; region?: string; country?:
   return "";
 }
 
-/** Human-readable approx. place for admin UI (city + country name; skips cryptic region codes). */
+/** Human-readable approx. place for admin UI (skips cryptic region codes like "34"). */
 export function formatApproxLocation(meta: {
   city?: string;
   region?: string;
@@ -111,12 +111,18 @@ export function formatApproxLocation(meta: {
   const region = meta.region?.trim() || "";
   const countryRaw = meta.country?.trim() || "";
   const country = countryDisplayName(countryRaw);
+  const regionLooksLikeCode = Boolean(
+    region && (/^\d+$/.test(region) || /^[A-Z0-9]{1,3}$/i.test(region)),
+  );
+  const namedRegion = region && !regionLooksLikeCode && region.toLowerCase() !== city.toLowerCase()
+    ? region
+    : "";
 
+  if (city && namedRegion && country) return `${city}, ${namedRegion}, ${country}`;
   if (city && country) return `${city}, ${country}`;
+  if (city && namedRegion) return `${city}, ${namedRegion}`;
   if (city) return city;
-
-  const regionLooksLikeCode = Boolean(region && (/^\d+$/.test(region) || /^[A-Z0-9]{1,3}$/i.test(region)));
-  if (region && !regionLooksLikeCode && country) return `${region}, ${country}`;
+  if (namedRegion && country) return `${namedRegion}, ${country}`;
   if (country) return country;
   if (meta.ip && isLoopback(meta.ip)) return "Local";
   return "";

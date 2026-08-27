@@ -360,16 +360,18 @@ export async function getUserByEmail(email: string) {
   }
 }
 
-export async function listUsersForAdmin() {
+export async function listUsersForAdmin(limit = 200) {
   const db = getDb();
   const staff = await db.admin.findMany({ select: { email: true } });
   const staffEmails = staff.map((item) => item.email);
   return db.user.findMany({
     where: staffEmails.length ? { email: { notIn: staffEmails } } : undefined,
     orderBy: { lastSeenAt: "desc" },
+    take: limit,
     include: {
       _count: { select: { saves: true, connections: true } },
-      connections: { orderBy: { createdAt: "desc" } },
+      // List only needs recent connection(s) for sign-in method / last-seen fallback.
+      connections: { orderBy: { createdAt: "desc" }, take: 5 },
     },
   }) as Promise<
     Prisma.UserGetPayload<{
@@ -390,7 +392,7 @@ export async function getUserForAdmin(id: string) {
     where: { id },
     include: {
       _count: { select: { saves: true, connections: true } },
-      connections: { orderBy: { createdAt: "desc" } },
+      connections: { orderBy: { createdAt: "desc" }, take: 100 },
       saves: { orderBy: { createdAt: "desc" }, take: 12 },
     },
   });

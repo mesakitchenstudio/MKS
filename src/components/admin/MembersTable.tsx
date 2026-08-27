@@ -61,16 +61,24 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
         </span>
       </div>
 
-      <div className="overflow-x-auto border border-line bg-paper">
-        <table className="w-full min-w-[40rem] text-left text-sm">
+      <div className="border border-line bg-paper">
+        <table className="w-full table-fixed text-left text-sm">
+          <colgroup>
+            <col className="w-[32%]" />
+            <col className="w-[12%]" />
+            <col className="w-[14%]" />
+            <col className="w-[18%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+          </colgroup>
           <thead className={adminTableHeadClass}>
             <tr>
-              <th className="px-4 py-3 font-medium">Member</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Joined</th>
-              <th className="px-4 py-3 font-medium">Last seen</th>
-              <th className="px-4 py-3 font-medium">Sign-in</th>
-              <th className="px-4 py-3 font-medium">
+              <th className="px-3 py-3 font-medium sm:px-4">Member</th>
+              <th className="px-3 py-3 font-medium sm:px-4">Status</th>
+              <th className="hidden px-3 py-3 font-medium sm:table-cell sm:px-4">Joined</th>
+              <th className="px-3 py-3 font-medium sm:px-4">Last seen</th>
+              <th className="hidden px-3 py-3 font-medium md:table-cell md:px-4">Sign-in</th>
+              <th className="px-3 py-3 font-medium sm:px-4">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -87,7 +95,7 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
 
               return (
                 <tr key={user.id} className="border-t border-line align-middle hover:bg-cream/40">
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3 sm:px-4">
                     <div className="inline-flex max-w-full items-center gap-3">
                       <Link
                         href={`/admin/members/${user.id}`}
@@ -108,20 +116,20 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  <td className="px-3 py-3 sm:px-4">
                     <span className="inline-flex items-center gap-2 text-sm text-ink">
                       <PresenceDot online={online} />
-                      {status}
+                      <span className="leading-snug">{status}</span>
                     </span>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted">
+                  <td className="hidden px-3 py-3 text-muted sm:table-cell sm:px-4">
                     {formatAdminDate(user.createdAt)}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted">
+                  <td className="px-3 py-3 text-xs leading-snug text-muted sm:px-4 sm:text-sm">
                     {formatAdminRelativeDateTime(lastSeen, nowDate)}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted">{signIn}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                  <td className="hidden px-3 py-3 text-muted md:table-cell md:px-4">{signIn}</td>
+                  <td className="px-3 py-3 text-right sm:px-4">
                     <Link
                       href={`/admin/members/${user.id}`}
                       className={`text-sm ${adminLinkClass} ${adminFocusRing}`}

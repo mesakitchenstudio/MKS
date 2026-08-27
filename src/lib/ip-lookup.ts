@@ -42,8 +42,10 @@ function formatDms(value: number, kind: "lat" | "lon") {
 }
 
 function mapEmbedUrl(lat: number, lon: number) {
-  const pad = 0.08;
-  const bbox = [lon - pad, lat - pad, lon + pad, lat + pad].join("%2C");
+  // City/region framing (~4–6 km); keep aspect roughly square in lon after latitude scale.
+  const latPad = 0.04;
+  const lonPad = 0.04 / Math.max(Math.cos((lat * Math.PI) / 180), 0.25);
+  const bbox = [lon - lonPad, lat - latPad, lon + lonPad, lat + latPad].join("%2C");
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat}%2C${lon}`;
 }
 

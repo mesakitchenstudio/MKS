@@ -1,22 +1,79 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import type { IpDetails } from "@/lib/ip-details";
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-3">
       <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
-      <dd className="text-sm text-ink">{value}</dd>
+      <dd className="min-w-0 break-all text-sm text-ink">{value}</dd>
+    </div>
+  );
+}
+
+/** OSM embed that mounts only after layout so hidden disclosure panels get correct framing. */
+function DeferredMapEmbed({
+  title,
+  src,
+  latitude,
+  longitude,
+}: {
+  title: string;
+  src: string;
+  latitude: number;
+  longitude: number;
+}) {
+  const [readySrc, setReadySrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const frame = window.requestAnimationFrame(() => {
+      if (!cancelled) setReadySrc(src);
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [src]);
+
+  return (
+    <div className="grid gap-3">
+      {readySrc ? (
+        <iframe
+          title={title}
+          src={readySrc}
+          className="min-h-48 h-full w-full border border-line bg-sand lg:min-h-64"
+        />
+      ) : (
+        <div className="flex min-h-48 items-center justify-center border border-line bg-sand text-sm text-muted lg:min-h-64">
+          Loading map…
+        </div>
+      )}
+      <a
+        href={`https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=13/${latitude}/${longitude}`}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-block text-center text-xs font-semibold uppercase tracking-wide text-terracotta hover:underline"
+      >
+        Open map
+      </a>
     </div>
   );
 }
 
 export function IpDetailsCard({ details }: { details: IpDetails }) {
-  const hasCoordinates = details.latitude != null && details.longitude != null;
+  const hasCoordinates =
+    typeof details.latitude === "number" &&
+    typeof details.longitude === "number" &&
+    Number.isFinite(details.latitude) &&
+    Number.isFinite(details.longitude);
   const showMap = Boolean(details.mapEmbedUrl && hasCoordinates);
 
   return (
     <div className="overflow-hidden border border-line bg-paper text-ink">
       <div className="border-b border-line bg-cream px-4 py-3">
-        <p className="text-sm font-semibold text-ink">IP details for: {details.ip}</p>
+        <p className="break-all text-sm font-semibold text-ink">IP details for: {details.ip}</p>
       </div>
       <div className={`grid gap-6 p-4 ${showMap ? "lg:grid-cols-2 lg:items-stretch" : ""}`}>
         <dl className="space-y-3">
@@ -36,22 +93,12 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
           ) : null}
         </dl>
         {showMap ? (
-          <div className="grid gap-3">
-            <iframe
-              title={`Map for ${details.ip}`}
-              src={details.mapEmbedUrl!}
-              className="min-h-48 h-full w-full border border-line bg-sand lg:min-h-64"
-              loading="lazy"
-            />
-            <a
-              href={`https://www.openstreetmap.org/?mlat=${details.latitude}&mlon=${details.longitude}#map=14/${details.latitude}/${details.longitude}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-block text-center text-xs font-semibold uppercase tracking-wide text-terracotta hover:underline"
-            >
-              Open map
-            </a>
-          </div>
+          <DeferredMapEmbed
+            title={`Map for ${details.ip}`}
+            src={details.mapEmbedUrl!}
+            latitude={details.latitude!}
+            longitude={details.longitude!}
+          />
         ) : (
           <p className="border border-line bg-cream px-4 py-3 text-sm text-muted">
             {details.services === "Local network"
