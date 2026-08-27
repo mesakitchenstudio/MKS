@@ -42,12 +42,15 @@ export function detectGuestDevice(userAgent: string): { device: string; os: stri
   const ua = userAgent.trim();
   if (!ua) return { device: "", os: "" };
 
+  // Order is intentional: specific devices before generic OS tokens.
   if (/iPhone/i.test(ua)) return { device: "iPhone", os: "iOS" };
   if (/iPad/i.test(ua)) return { device: "iPad", os: "iPadOS" };
   if (/Android/i.test(ua)) return { device: "Android", os: "Android" };
   if (/Windows/i.test(ua)) return { device: "Windows", os: "Windows" };
-  // Only after mobile checks — iOS UAs contain "like Mac OS X".
-  if (/Macintosh|Mac OS X/i.test(ua)) return { device: "macOS", os: "macOS" };
+  // Never treat "like Mac OS X" inside iPhone/iPad UAs as desktop macOS.
+  if (/Macintosh/i.test(ua) || (/Mac OS X/i.test(ua) && !/iPhone|iPad|iPod/i.test(ua))) {
+    return { device: "macOS", os: "macOS" };
+  }
   if (/Linux/i.test(ua)) return { device: "Linux", os: "Linux" };
   return { device: "", os: "" };
 }
@@ -68,16 +71,19 @@ export function detectGuestBrowser(userAgent: string) {
   return "";
 }
 
-function formatDeviceClientLabel(device: string, os: string, browser: string) {
-  const isMobileDevice = device === "iPhone" || device === "iPad" || device === "Android";
-  if (isMobileDevice) {
-    if (browser) return `${device} · ${browser}`;
-    if (os) return `${device} · ${os}`;
-    return device;
-  }
-  if (browser && os) return `${browser} · ${os}`;
+/**
+ * Device / client column label: platform for humans, bot name for crawlers.
+ * Prefer device/platform over browser branding (matches "Device / client" header).
+ */
+function formatDeviceClientLabel(device: string, _os: string, browser: string) {
+  if (device === "iPhone") return "iPhone · iOS";
+  if (device === "iPad") return "iPad · iPadOS";
+  if (device === "Android") return "Android";
+  if (device === "Windows") return "Windows";
+  if (device === "macOS") return "macOS";
+  if (device === "Linux") return "Linux";
+  // Client-only signal when no reliable device/OS was found (e.g. brand hints).
   if (browser) return browser;
-  if (os) return os;
   return "";
 }
 

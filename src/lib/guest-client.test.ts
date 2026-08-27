@@ -13,57 +13,74 @@ import { formatApproxLocation, formatReferrerDisplay } from "./request-meta.ts";
 const IPHONE_SAFARI_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6 Mobile/15E148 Safari/604.1";
 
-describe("guest-client", () => {
-  it("labels common browsers with OS", () => {
-    const chrome = classifyGuestClient(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    );
-    assert.equal(chrome.kind, "visitor");
-    assert.equal(chrome.label, "Chrome · Windows");
-  });
+const IPHONE_TRUNCATED_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML";
 
-  it("does not classify iPhone UA as macOS despite like Mac OS X", () => {
+describe("guest-client", () => {
+  it("never resolves iPhone UA with like Mac OS X to macOS", () => {
+    assert.match(IPHONE_SAFARI_UA, /like Mac OS X/i);
+    assert.match(IPHONE_SAFARI_UA, /iPhone/i);
+
     const device = detectGuestDevice(IPHONE_SAFARI_UA);
     assert.equal(device.device, "iPhone");
     assert.equal(device.os, "iOS");
-    assert.equal(guestOsLabel(IPHONE_SAFARI_UA), "iOS");
+    assert.notEqual(device.device, "macOS");
+    assert.notEqual(device.os, "macOS");
     assert.notEqual(guestOsLabel(IPHONE_SAFARI_UA), "macOS");
 
-    const client = classifyGuestClient(IPHONE_SAFARI_UA);
-    assert.equal(client.kind, "visitor");
-    assert.equal(client.label, "iPhone · Safari");
-    assert.equal(guestDeviceClientLabel(IPHONE_SAFARI_UA), "iPhone · Safari");
+    const label = guestDeviceClientLabel(IPHONE_SAFARI_UA);
+    assert.equal(label, "iPhone · iOS");
+    assert.doesNotMatch(label, /macOS/i);
+    assert.equal(classifyGuestClient(IPHONE_SAFARI_UA).label, label);
     assert.equal(isBotUserAgent(IPHONE_SAFARI_UA), false);
   });
 
-  it("labels iPad and Android distinctly from desktop Mac", () => {
-    const ipad = classifyGuestClient(
-      "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-    );
-    assert.equal(ipad.label, "iPad · Safari");
+  it("keeps truncated iPhone UAs as iPhone, not macOS", () => {
+    assert.match(IPHONE_TRUNCATED_UA, /like Mac OS X/i);
+    const label = guestDeviceClientLabel(IPHONE_TRUNCATED_UA);
+    assert.equal(label, "iPhone · iOS");
+    assert.doesNotMatch(label, /macOS/i);
+  });
 
-    const android = classifyGuestClient(
-      "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  it("labels representative devices as platform names", () => {
+    assert.equal(
+      guestDeviceClientLabel(
+        "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      ),
+      "iPad · iPadOS",
     );
-    assert.equal(android.label, "Android · Chrome");
-
-    const mac = classifyGuestClient(
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    assert.equal(
+      guestDeviceClientLabel(
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+      ),
+      "Android",
     );
-    assert.equal(mac.label, "Safari · macOS");
+    assert.equal(
+      guestDeviceClientLabel(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      ),
+      "Windows",
+    );
+    assert.equal(
+      guestDeviceClientLabel(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+      ),
+      "macOS",
+    );
   });
 
   it("classifies named bots conservatively", () => {
-    const google = classifyGuestClient(
-      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-    );
+    const googleUa = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+    const google = classifyGuestClient(googleUa);
     assert.equal(google.kind, "bot");
     assert.equal(google.label, "Googlebot");
-    assert.equal(isBotUserAgent(google.label), true);
+    assert.equal(guestDeviceClientLabel(googleUa), "Googlebot");
 
-    const data = classifyGuestClient("Mozilla/5.0 (compatible; Dataprovider.com)");
+    const dataUa = "Mozilla/5.0 (compatible; Dataprovider.com)";
+    const data = classifyGuestClient(dataUa);
     assert.equal(data.kind, "bot");
     assert.equal(data.label, "Dataprovider bot");
+    assert.equal(guestDeviceClientLabel(dataUa), "Dataprovider bot");
   });
 
   it("does not treat bare Google brand hints as bots", () => {
@@ -71,11 +88,15 @@ describe("guest-client", () => {
     assert.equal(hint.kind, "visitor");
     assert.equal(hint.label, "Chrome");
     assert.equal(isBotUserAgent(hint.label), false);
+    assert.notEqual(hint.label, "Googlebot");
+    assert.notEqual(hint.label, "Google");
   });
 
-  it("does not treat empty UA as a bot", () => {
+  it("does not treat empty or unknown UA as a bot", () => {
     assert.equal(classifyGuestClient("").kind, "unknown");
+    assert.equal(guestDeviceClientLabel(""), "Unknown");
     assert.equal(isBotUserAgent(""), false);
+    assert.equal(classifyGuestClient("some-unknown-client/1.0").kind, "unknown");
   });
 });
 

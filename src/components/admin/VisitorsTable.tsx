@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { PresenceDot } from "@/components/admin/MemberPresence";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { formatAdminShortDateTime } from "@/lib/datetime";
-import { classifyGuestClient, isBotUserAgent } from "@/lib/guest-client";
+import { classifyGuestClient, guestDeviceClientLabel, isBotUserAgent } from "@/lib/guest-client";
 import { guestPathTitle } from "@/lib/guest-path-labels";
 import { formatPresenceLabel, isMemberOnline } from "@/lib/member-presence";
 
@@ -268,6 +268,7 @@ function VisitorTableRow({
   const status = formatPresenceLabel(guest.lastSeenAt, now);
   const shortKey = guest.visitorKey.slice(0, 8);
   const client = classifyGuestClient(guest.userAgent);
+  const deviceClient = guestDeviceClientLabel(guest.userAgent);
 
   return (
     <tr className="border-t border-line align-top hover:bg-cream/40">
@@ -297,7 +298,7 @@ function VisitorTableRow({
         {formatAdminShortDateTime(guest.lastSeenAt)}
       </td>
       <td className="px-3 py-3 text-xs leading-snug text-muted" title={guest.userAgent}>
-        {client.label}
+        {deviceClient}
       </td>
       <td className="px-3 py-3 text-right">
         <Link
@@ -324,6 +325,7 @@ function VisitorMobileCard({
   const status = formatPresenceLabel(guest.lastSeenAt, now);
   const shortKey = guest.visitorKey.slice(0, 8);
   const client = classifyGuestClient(guest.userAgent);
+  const deviceClient = guestDeviceClientLabel(guest.userAgent);
 
   return (
     <li className="border border-line bg-paper px-4 py-3">
@@ -351,7 +353,7 @@ function VisitorMobileCard({
       <div className="mt-2">
         <PageCell path={guest.lastPath} recipeTitles={recipeTitles} />
       </div>
-      <p className="mt-2 text-xs text-muted">{client.label}</p>
+      <p className="mt-2 text-xs text-muted">{deviceClient}</p>
       <p className="mt-1 text-xs text-muted">
         First {formatAdminShortDateTime(guest.firstSeenAt)} · Last{" "}
         {formatAdminShortDateTime(guest.lastSeenAt)}
