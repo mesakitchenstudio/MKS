@@ -12,7 +12,7 @@ import {
   validateAdminDeletion,
   validateAdminRoleChange,
 } from "./admin-staff";
-import { validateAdminImageFile } from "./admin-upload";
+import { validateAdminImageFile, sniffAdminImageMime, validateAdminImageBytes, isOwnedAdminUploadUrl } from "./admin-upload";
 import { formatAdminDateTime } from "./datetime";
 import { hashPassword, verifyPassword } from "./passwords";
 import { isGooglePhotoUrl } from "./accounts";
@@ -201,9 +201,32 @@ test("last login uses shared admin datetime formatter", () => {
 });
 
 test("admin image uploads reject bad types and oversized files", () => {
+  const oversized = validateAdminImageFile({ type: "image/jpeg", size: 3 * 1024 * 1024 });
   assert.equal(validateAdminImageFile({ type: "image/png", size: 100 }).ok, true);
   assert.equal(validateAdminImageFile({ type: "application/pdf", size: 100 }).ok, false);
-  assert.equal(validateAdminImageFile({ type: "image/jpeg", size: 3 * 1024 * 1024 }).ok, false);
+  assert.equal(oversized.ok, false);
+  if (!oversized.ok) {
+    assert.equal(oversized.error, "Choose an image smaller than 2 MB.");
+  }
+});
+
+test("admin image sniffing accepts real signatures and rejects spoofed files", () => {
+  const jpeg = Uint8Array.of(0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0);
+  const png = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0);
+  const gif = Uint8Array.of(0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0, 0, 0, 0, 0, 0);
+  const webp = Uint8Array.of(
+    0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
+  );
+  const fake = new TextEncoder().encode("%PDF-1.4 not an image!!");
+
+  assert.equal(sniffAdminImageMime(jpeg), "image/jpeg");
+  assert.equal(sniffAdminImageMime(png), "image/png");
+  assert.equal(sniffAdminImageMime(gif), "image/gif");
+  assert.equal(sniffAdminImageMime(webp), "image/webp");
+  assert.equal(sniffAdminImageMime(fake), null);
+  assert.equal(validateAdminImageBytes(fake).ok, false);
+  assert.equal(isOwnedAdminUploadUrl("/uploads/a.jpg"), true);
+  assert.equal(isOwnedAdminUploadUrl("https://lh3.googleusercontent.com/a/x"), false);
 });
 
 test("custom admin photos are not treated as Google avatars", () => {

@@ -454,6 +454,11 @@ export async function saveAdminAction(formData: FormData) {
       },
     });
 
+    if ((existing!.photoUrl || "") && (existing!.photoUrl || "") !== photoUrl) {
+      const { deleteOwnedAdminImage } = await import("@/lib/admin-upload-store");
+      await deleteOwnedAdminImage(existing!.photoUrl || "");
+    }
+
     await removeMemberByEmail(email);
     revalidatePath("/admin/members");
     revalidatePath("/admin/staff");
@@ -518,22 +523,79 @@ export async function saveOwnAdminProfileAction(formData: FormData) {
   const actor = await getAdminSession();
   if (!actor) redirect("/admin/login");
 
-  const photoUrl = String(formData.get("photoUrl") || "").trim();
   const db = getDb();
-
+  let adminId = actor.id;
   if (actor.id === "env") {
     const email = actor.email.trim().toLowerCase();
     const existing = await db.admin.findUnique({ where: { email } });
     if (!existing) {
       redirect("/admin/profile?error=named");
     }
-    await db.admin.update({ where: { id: existing.id }, data: { photoUrl } });
-  } else {
-    await db.admin.update({ where: { id: actor.id }, data: { photoUrl } });
+    adminId = existing.id;
+  }
+
+  const current = await db.admin.findUnique({
+    where: { id: adminId },
+    select: { photoUrl: true },
+  });
+  if (!current) redirect("/admin/profile?error=named");
+
+  const previousUrl = current.photoUrl || "";
+  const removePhoto = String(formData.get("removePhoto") || "") === "1";
+  const file = formData.get("photoFile");
+  let nextUrl = previousUrl;
+  let uploadedUrl = "";
+
+  try {
+    if (removePhoto) {
+      // Drop custom override; prefer Google avatar from the current OAuth session when available.
+      const { auth } = await import("@/auth");
+      const { isGooglePhotoUrl } = await import("@/lib/accounts");
+      const session = await auth();
+      const googleImage = session?.user?.image?.trim() || "";
+      if (isGooglePhotoUrl(previousUrl)) {
+        nextUrl = "";
+      } else if (isGooglePhotoUrl(googleImage)) {
+        nextUrl = googleImage;
+      } else {
+        nextUrl = "";
+      }
+    } else if (file instanceof File && file.size > 0) {
+      const { storeAdminImage } = await import("@/lib/admin-upload-store");
+      uploadedUrl = await storeAdminImage(file, "admins");
+      nextUrl = uploadedUrl;
+    } else {
+      redirect("/admin/profile");
+    }
+
+    await db.admin.update({ where: { id: adminId }, data: { photoUrl: nextUrl } });
+
+    if (previousUrl && previousUrl !== nextUrl) {
+      const { deleteOwnedAdminImage } = await import("@/lib/admin-upload-store");
+      await deleteOwnedAdminImage(previousUrl);
+    }
+  } catch (error) {
+    // redirect() throws — rethrow so Next.js can navigate
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string" &&
+      String((error as { digest: string }).digest).startsWith("NEXT_REDIRECT")
+    ) {
+      throw error;
+    }
+    if (uploadedUrl) {
+      const { deleteOwnedAdminImage } = await import("@/lib/admin-upload-store");
+      await deleteOwnedAdminImage(uploadedUrl);
+    }
+    console.error("Could not save admin profile photo", error);
+    redirect("/admin/profile?error=upload");
   }
 
   revalidatePath("/admin/profile");
   revalidatePath("/admin/staff");
+  revalidatePath("/recipes", "layout");
   redirect("/admin/profile?saved=1");
 }
 

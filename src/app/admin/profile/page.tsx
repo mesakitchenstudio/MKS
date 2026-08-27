@@ -70,9 +70,18 @@ export default async function AdminProfilePage({
           first, then come back to upload a photo.
         </p>
       ) : null}
+      {error === "upload" ? (
+        <p
+          role="alert"
+          className="mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-2.5 text-sm text-terracotta-dark"
+        >
+          Could not save that photo. Choose a JPEG, PNG, WebP, or GIF under 2 MB and try again.
+        </p>
+      ) : null}
 
       <div className="mt-5">
         <AdminProfilePhotoForm
+          key={photoUrl || "empty"}
           defaultPhotoUrl={photoUrl}
           actorName={actor.name}
           canPersist={hasNamedAccount}

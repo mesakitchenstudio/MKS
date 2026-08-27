@@ -5,7 +5,8 @@ import { useFormStatus } from "react-dom";
 import { saveOwnAdminProfileAction } from "@/app/admin/actions";
 import { adminFocusRing, adminPrimaryButtonClass } from "@/lib/admin-ui";
 import {
-  ADMIN_IMAGE_MAX_BYTES,
+  ADMIN_IMAGE_ACCEPT,
+  ADMIN_IMAGE_HELP,
   validateAdminImageFile,
 } from "@/lib/admin-upload";
 
@@ -35,6 +36,7 @@ export function AdminPhotoField({
   const previewObjectUrl = useRef<string | null>(null);
   const errorId = useId();
   const helpId = useId();
+  const fileLabelId = useId();
   const isProfile = presentation === "profile";
 
   function clearObjectPreview() {
@@ -77,7 +79,15 @@ export function AdminPhotoField({
     body.set("folder", "admins");
     try {
       const response = await fetch("/api/admin/upload", { method: "POST", body });
-      const data = (await response.json()) as { url?: string; error?: string };
+      const raw = await response.text();
+      let data: { url?: string; error?: string } = {};
+      if (raw) {
+        try {
+          data = JSON.parse(raw) as { url?: string; error?: string };
+        } catch {
+          throw new Error("Could not upload photo.");
+        }
+      }
       if (!response.ok || !data.url) {
         throw new Error(data.error || "Could not upload photo.");
       }
@@ -140,13 +150,17 @@ export function AdminPhotoField({
           >
             {busy ? "Uploading…" : previewUrl ? "Change profile photo" : "Upload profile photo"}
           </button>
+          <span id={fileLabelId} className="sr-only">
+            Profile photo image file
+          </span>
           <input
             ref={inputRef}
             id={`${name}-file`}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            accept={ADMIN_IMAGE_ACCEPT}
             className="sr-only"
             disabled={busy}
+            aria-labelledby={fileLabelId}
             aria-invalid={Boolean(error)}
             aria-describedby={`${helpId}${error ? ` ${errorId}` : ""}`}
             onChange={(event) => {
@@ -168,9 +182,7 @@ export function AdminPhotoField({
         </div>
 
         <p id={helpId} className="max-w-md text-xs leading-5 text-muted">
-          {isProfile
-            ? `Shown on recipe comment replies. Square images work best. JPEG, PNG, WebP, or GIF · max ${Math.round(ADMIN_IMAGE_MAX_BYTES / (1024 * 1024))} MB.`
-            : `Shown on recipe comment replies. Google sign-in sets this by default; square photos work best. JPEG, PNG, WebP, or GIF up to ${Math.round(ADMIN_IMAGE_MAX_BYTES / (1024 * 1024))} MB.`}
+          Shown on recipe comment replies. Google sign-in sets this by default; {ADMIN_IMAGE_HELP}
         </p>
 
         <div className="min-h-5" aria-live="polite">
@@ -196,33 +208,236 @@ export function AdminProfilePhotoForm({
   canPersist: boolean;
   namedAccountHint?: boolean;
 }) {
-  const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [savedUrl] = useState(defaultPhotoUrl);
+  const [previewUrl, setPreviewUrl] = useState(defaultPhotoUrl);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pendingFileRef = useRef<File | null>(null);
+  const previewObjectUrl = useRef<string | null>(null);
+  const errorId = useId();
+  const helpId = useId();
+  const fileLabelId = useId();
+  const confirmTitleId = useId();
+
+  const previewPending = Boolean(pendingFile);
+  const hasPhoto = Boolean(previewUrl);
+
+  function clearObjectPreview() {
+    if (previewObjectUrl.current) {
+      URL.revokeObjectURL(previewObjectUrl.current);
+      previewObjectUrl.current = null;
+    }
+  }
+
+  useEffect(() => {
+    return () => clearObjectPreview();
+  }, []);
+
+  useEffect(() => {
+    if (!confirmRemove) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConfirmRemove(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmRemove]);
+
+  function selectFile(file: File) {
+    const localCheck = validateAdminImageFile(file);
+    if (!localCheck.ok) {
+      setError(localCheck.error);
+      return;
+    }
+    setError("");
+    clearObjectPreview();
+    const localPreview = URL.createObjectURL(file);
+    previewObjectUrl.current = localPreview;
+    setPreviewUrl(localPreview);
+    pendingFileRef.current = file;
+    setPendingFile(file);
+  }
+
+  function cancelPending() {
+    clearObjectPreview();
+    pendingFileRef.current = null;
+    setPendingFile(null);
+    setPreviewUrl(savedUrl);
+    setError("");
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  async function submitProfilePhoto(formData: FormData) {
+    const file = pendingFileRef.current;
+    if (!file) return;
+    formData.set("photoFile", file);
+    await saveOwnAdminProfileAction(formData);
+  }
+
+  const altText = previewUrl
+    ? actorName
+      ? `${actorName} profile photo`
+      : "Profile photo"
+    : "";
 
   return (
-    <form
-      action={saveOwnAdminProfileAction}
-      className="border border-line bg-paper px-5 py-4 sm:px-5 sm:py-4"
-    >
-      <AdminPhotoField
-        defaultValue={defaultPhotoUrl}
-        presentation="profile"
-        actorName={actorName}
-        onDirtyChange={setDirty}
-        onBusyChange={setBusy}
-      />
+    <>
+      <form
+        action={submitProfilePhoto}
+        className="border border-line bg-paper px-5 py-4 sm:px-5 sm:py-4"
+      >
 
-      {namedAccountHint ? (
-        <p className="mt-4 text-sm leading-6 text-muted">
-          You are signed in with the owner password. Add yourself as an Owner on the Admins page
-          (same email as ADMIN_EMAIL) so your photo can be saved.
-        </p>
+        <div className="grid gap-4 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:items-center sm:gap-5">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-sand">
+            {previewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={previewUrl} alt={altText} className="h-full w-full object-cover" />
+            ) : (
+              <span className="px-2 text-center text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
+                No photo
+              </span>
+            )}
+          </div>
+
+          <div className="grid min-w-0 gap-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <ProfileChangeButton
+                canPersist={canPersist}
+                label={hasPhoto || previewPending ? "Change profile photo" : "Upload profile photo"}
+                describedBy={`${helpId}${error ? ` ${errorId}` : ""}`}
+                onPick={() => inputRef.current?.click()}
+              />
+              <span id={fileLabelId} className="sr-only">
+                Choose a profile photo image file
+              </span>
+              <input
+                ref={inputRef}
+                id="profile-photo-file"
+                type="file"
+                accept={ADMIN_IMAGE_ACCEPT}
+                className="sr-only"
+                disabled={!canPersist}
+                aria-labelledby={fileLabelId}
+                aria-invalid={Boolean(error)}
+                aria-describedby={`${helpId}${error ? ` ${errorId}` : ""}`}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) selectFile(file);
+                }}
+              />
+              {savedUrl && !previewPending ? (
+                <button
+                  type="button"
+                  disabled={!canPersist}
+                  onClick={() => setConfirmRemove(true)}
+                  className={`inline-flex min-h-9 items-center text-xs font-semibold text-muted transition-colors duration-150 hover:text-terracotta disabled:opacity-60 ${adminFocusRing}`}
+                >
+                  Remove photo
+                </button>
+              ) : null}
+            </div>
+
+            {previewPending ? (
+              <p id={helpId} className="text-xs leading-5 text-olive-dark" role="status">
+                New photo selected
+              </p>
+            ) : (
+              <p id={helpId} className="max-w-md break-words text-xs leading-5 text-muted">
+                Shown on recipe comment replies. {ADMIN_IMAGE_HELP}
+              </p>
+            )}
+
+            <div className="min-h-5" aria-live="polite">
+              {error ? (
+                <p id={errorId} role="alert" className="text-xs text-terracotta">
+                  {error}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {namedAccountHint ? (
+          <p className="mt-4 text-sm leading-6 text-muted">
+            You are signed in with the owner password. Add yourself as an Owner on the Admins page
+            (same email as ADMIN_EMAIL) so your photo can be saved.
+          </p>
+        ) : null}
+
+        {previewPending ? (
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
+            <ProfileSaveButton disabled={!canPersist} />
+            <ProfileCancelButton onCancel={cancelPending} />
+          </div>
+        ) : null}
+      </form>
+
+      {confirmRemove ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
+          role="presentation"
+          onClick={() => setConfirmRemove(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={confirmTitleId}
+            className="w-full max-w-md border border-line bg-paper p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id={confirmTitleId} className="font-serif text-2xl text-ink">
+              Remove profile photo?
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              Your custom profile photo will be removed. If Google sign-in provides a photo, that may
+              show instead.
+            </p>
+            <form
+              action={saveOwnAdminProfileAction}
+              className="mt-6 flex flex-wrap items-center gap-3"
+            >
+              <input type="hidden" name="removePhoto" value="1" />
+              <button
+                type="button"
+                onClick={() => setConfirmRemove(false)}
+                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+              >
+                Cancel
+              </button>
+              <RemoveSubmitButton />
+            </form>
+          </div>
+        </div>
       ) : null}
+    </>
+  );
+}
 
-      <div className="mt-4 border-t border-line pt-4">
-        <ProfileSaveButton disabled={!canPersist || !dirty || busy} />
-      </div>
-    </form>
+function ProfileChangeButton({
+  canPersist,
+  label,
+  describedBy,
+  onPick,
+}: {
+  canPersist: boolean;
+  label: string;
+  describedBy: string;
+  onPick: () => void;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="button"
+      disabled={!canPersist || pending}
+      className={`inline-flex min-h-9 items-center text-sm font-semibold text-terracotta underline-offset-4 transition-colors duration-150 hover:text-terracotta-dark hover:underline disabled:cursor-not-allowed disabled:opacity-60 ${adminFocusRing}`}
+      aria-describedby={describedBy}
+      onClick={onPick}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -238,6 +453,36 @@ function ProfileSaveButton({ disabled }: { disabled: boolean }) {
       className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
     >
       {pending ? "Saving…" : "Save photo"}
+    </button>
+  );
+}
+
+function ProfileCancelButton({ onCancel }: { onCancel: () => void }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={onCancel}
+      className={`inline-flex min-h-9 items-center text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta disabled:opacity-60 ${adminFocusRing}`}
+    >
+      Cancel
+    </button>
+  );
+}
+
+function RemoveSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className={`rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:opacity-60 ${adminFocusRing}`}
+    >
+      {pending ? "Removing…" : "Remove photo"}
     </button>
   );
 }

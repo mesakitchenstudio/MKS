@@ -45,7 +45,10 @@ export async function getStaffByEmail(email: string) {
   return null;
 }
 
-/** Use the Google avatar as the default admin photo unless a custom upload is set. */
+/** Use the Google avatar as the default admin photo unless a custom upload is set.
+ * Precedence: custom owned upload > Google profile photo > empty/default avatar.
+ * Google OAuth refresh must never overwrite a custom photoUrl.
+ */
 export async function syncStaffGooglePhoto(email: string, imageUrl?: string | null) {
   const key = emailKey(email);
   const image = imageUrl?.trim() || "";
