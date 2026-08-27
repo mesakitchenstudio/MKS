@@ -6,55 +6,92 @@ import { useEffect } from "react";
 import {
   claimGuestPageview,
   clearActiveGuestNavigation,
+  GUEST_EARLY_HEARTBEAT_MS,
+  GUEST_HEARTBEAT_MS,
   guestNavigationFor,
+  shouldSendGuestPresence,
   shouldTrackGuestPath,
 } from "@/lib/guest-tracking";
-
-const HEARTBEAT_MS = 45_000;
 
 export function GuestTracker() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (status === "loading") return;
-    if (session?.user?.email) {
-      // After sign-out, allow a fresh pageview for the current public path.
+    // Signed-in members are recorded on Members, not Visitors.
+    // Do not wait for status === "loading": on mobile that delay (or a stuck
+    // session fetch) postpones or blocks presence. The API skips signed-in
+    // requests via auth() even if a brief optimistic ping races the session.
+    if (status === "authenticated" && session?.user?.email) {
       clearActiveGuestNavigation();
       return;
     }
     if (!shouldTrackGuestPath(pathname)) return;
 
     const { path, navId } = guestNavigationFor(pathname);
+    let stopped = false;
 
-    function send(pageview: boolean) {
-      if (document.visibilityState === "hidden" && !pageview) return;
+    function send(pageview: boolean, opts?: { force?: boolean; keepalive?: boolean }) {
+      if (stopped) return;
+      if (
+        !shouldSendGuestPresence({
+          pageview,
+          visibilityState: document.visibilityState,
+          force: opts?.force,
+        })
+      ) {
+        return;
+      }
       void fetch("/api/analytics/guest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           path,
           referer: typeof document !== "undefined" ? document.referrer : "",
           pageview,
           ...(pageview ? { navId } : {}),
         }),
-        keepalive: true,
-      });
+        // keepalive only for unload — routine heartbeats share Chrome's 64KiB
+        // keepalive budget with third-party analytics and can fail silently.
+        keepalive: Boolean(opts?.keepalive),
+      }).catch(() => undefined);
     }
 
     // One pageview claim per navigation id (covers Strict Mode double-mount).
+    // Remounts still refresh lastSeen so Online does not depend on the interval alone.
     if (claimGuestPageview(navId)) {
       send(true);
+    } else {
+      send(false);
     }
 
-    const timer = window.setInterval(() => send(false), HEARTBEAT_MS);
-    const onFocus = () => send(false);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
+    const early = window.setTimeout(() => send(false), GUEST_EARLY_HEARTBEAT_MS);
+    const timer = window.setInterval(() => send(false), GUEST_HEARTBEAT_MS);
+
+    function onVisible() {
+      if (document.visibilityState === "visible") send(false);
+    }
+    function onPageShow() {
+      send(false);
+    }
+    function onPageHide() {
+      send(false, { force: true, keepalive: true });
+    }
+
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("pagehide", onPageHide);
+
     return () => {
+      stopped = true;
+      window.clearTimeout(early);
       window.clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, [pathname, session?.user?.email, status]);
 

@@ -69,6 +69,24 @@ describe("guest-client", () => {
     );
   });
 
+  it("does not treat normal Android / Windows / iPhone Chrome or Safari UAs as bots", () => {
+    const androidChrome =
+      "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+    const androidSamsung =
+      "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
+    const windowsChrome =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    const iphoneChrome =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.6099.119 Mobile/15E148 Safari/604.1";
+
+    for (const ua of [androidChrome, androidSamsung, windowsChrome, iphoneChrome, IPHONE_SAFARI_UA]) {
+      assert.equal(isBotUserAgent(ua), false, ua);
+      assert.notEqual(classifyGuestClient(ua).kind, "bot", ua);
+    }
+    assert.equal(guestDeviceClientLabel(androidChrome), "Android");
+    assert.equal(guestDeviceClientLabel(windowsChrome), "Windows");
+  });
+
   it("classifies named bots conservatively", () => {
     const googleUa = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
     const google = classifyGuestClient(googleUa);

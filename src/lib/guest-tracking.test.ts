@@ -8,6 +8,7 @@ import {
   normalizeGuestNavId,
   resetGuestNavigationStateForTests,
   shouldInsertGuestPageView,
+  shouldSendGuestPresence,
   shouldTrackGuestPath,
 } from "./guest-tracking";
 
@@ -19,6 +20,32 @@ test("shouldTrackGuestPath excludes admin, auth, and member surfaces", () => {
   assert.equal(shouldTrackGuestPath("/api/analytics/guest"), false);
   assert.equal(shouldTrackGuestPath("/auth/signin"), false);
   assert.equal(shouldTrackGuestPath("/profile"), false);
+});
+
+test("Coming Soon and public roots stay presence-trackable", () => {
+  assert.equal(shouldTrackGuestPath("/"), true);
+  assert.equal(shouldTrackGuestPath("/coming-soon"), true);
+  assert.equal(guestAnalyticsPath("/", true), "/coming-soon");
+  assert.equal(guestAnalyticsPath("/coming-soon", true), "/coming-soon");
+});
+
+test("routine heartbeats skip hidden tabs; pageview and unload still send", () => {
+  assert.equal(
+    shouldSendGuestPresence({ pageview: false, visibilityState: "hidden" }),
+    false,
+  );
+  assert.equal(
+    shouldSendGuestPresence({ pageview: false, visibilityState: "visible" }),
+    true,
+  );
+  assert.equal(
+    shouldSendGuestPresence({ pageview: true, visibilityState: "hidden" }),
+    true,
+  );
+  assert.equal(
+    shouldSendGuestPresence({ pageview: false, visibilityState: "hidden", force: true }),
+    true,
+  );
 });
 
 test("guestAnalyticsPath canonicalizes Coming Soon while site is private", () => {

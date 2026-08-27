@@ -1,5 +1,24 @@
 /** Shared guest analytics helpers (safe for client + tests). */
 
+/** Heartbeat interval while a public page is open (also refreshed on focus/visibility). */
+export const GUEST_HEARTBEAT_MS = 45_000;
+/** Early follow-up so mobile timer throttling cannot leave lastSeen stuck after the first pageview. */
+export const GUEST_EARLY_HEARTBEAT_MS = 15_000;
+
+/**
+ * Whether a client presence ping should fire.
+ * Routine heartbeats skip hidden tabs (mobile Chrome suspends them anyway).
+ * Pageviews and unload (`force`) always send so lastSeen stays accurate.
+ */
+export function shouldSendGuestPresence(input: {
+  pageview: boolean;
+  visibilityState: string;
+  force?: boolean;
+}) {
+  if (input.pageview || input.force) return true;
+  return input.visibilityState !== "hidden";
+}
+
 export function shouldTrackGuestPath(pathname: string) {
   return (
     Boolean(pathname) &&
