@@ -273,10 +273,35 @@ export function AdminProfilePhotoForm({
     const file = pendingFileRef.current;
     if (!file || !canPersist || saving) return;
     setError("");
-    const body = new FormData();
-    body.set("photoFile", file);
-    startSave(() => {
-      void saveOwnAdminProfileAction(body);
+    startSave(async () => {
+      try {
+        // Upload through the same API recipe/staff photos use, then persist the URL.
+        const uploadBody = new FormData();
+        uploadBody.set("file", file);
+        uploadBody.set("folder", "admins");
+        const response = await fetch("/api/admin/upload", { method: "POST", body: uploadBody });
+        const raw = await response.text();
+        let data: { url?: string; error?: string } = {};
+        if (raw) {
+          try {
+            data = JSON.parse(raw) as { url?: string; error?: string };
+          } catch {
+            setError("Could not upload photo.");
+            return;
+          }
+        }
+        if (!response.ok || !data.url) {
+          setError(data.error || "Could not upload photo.");
+          return;
+        }
+
+        const saveBody = new FormData();
+        saveBody.set("photoUrl", data.url);
+        await saveOwnAdminProfileAction(saveBody);
+      } catch (err) {
+        if (err && typeof err === "object" && "digest" in err) throw err;
+        setError("Could not save photo. Try again.");
+      }
     });
   }
 

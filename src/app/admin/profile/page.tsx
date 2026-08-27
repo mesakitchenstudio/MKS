@@ -78,6 +78,15 @@ export default async function AdminProfilePage({
           Could not save that photo. Choose a JPEG, PNG, WebP, or GIF under 2 MB and try again.
         </p>
       ) : null}
+      {error === "storage" ? (
+        <p
+          role="alert"
+          className="mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-2.5 text-sm text-terracotta-dark"
+        >
+          Photo storage is not configured on this deployment. Add a Vercel Blob store (
+          <code className="text-xs">BLOB_READ_WRITE_TOKEN</code>) and redeploy.
+        </p>
+      ) : null}
 
       <div className="mt-5">
         <AdminProfilePhotoForm

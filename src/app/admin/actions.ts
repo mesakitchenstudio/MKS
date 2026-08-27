@@ -544,7 +544,15 @@ export async function saveOwnAdminProfileAction(formData: FormData) {
   const removePhoto = String(formData.get("removePhoto") || "") === "1";
   const fileEntry = formData.get("photoFile");
   const file =
-    fileEntry instanceof Blob && fileEntry.size > 0 ? fileEntry : null;
+    typeof fileEntry === "object" &&
+    fileEntry !== null &&
+    "arrayBuffer" in fileEntry &&
+    typeof (fileEntry as Blob).arrayBuffer === "function" &&
+    typeof (fileEntry as Blob).size === "number" &&
+    (fileEntry as Blob).size > 0
+      ? (fileEntry as Blob)
+      : null;
+  const photoUrlField = String(formData.get("photoUrl") || "").trim();
   let nextUrl = previousUrl;
   let uploadedUrl = "";
 
@@ -567,6 +575,13 @@ export async function saveOwnAdminProfileAction(formData: FormData) {
       const hint = file instanceof File && file.name ? file.name : "photo";
       uploadedUrl = await storeAdminImage(file, "admins", hint);
       nextUrl = uploadedUrl;
+    } else if (photoUrlField) {
+      // URL already uploaded via /api/admin/upload — only accept app-owned assets.
+      const { isOwnedAdminUploadUrl } = await import("@/lib/admin-upload");
+      if (!isOwnedAdminUploadUrl(photoUrlField)) {
+        redirect("/admin/profile?error=upload");
+      }
+      nextUrl = photoUrlField;
     } else {
       redirect("/admin/profile");
     }
@@ -593,6 +608,10 @@ export async function saveOwnAdminProfileAction(formData: FormData) {
       await deleteOwnedAdminImage(uploadedUrl);
     }
     console.error("Could not save admin profile photo", error);
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("not configured")) {
+      redirect("/admin/profile?error=storage");
+    }
     redirect("/admin/profile?error=upload");
   }
 
