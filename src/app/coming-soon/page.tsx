@@ -122,7 +122,7 @@ export default function ComingSoonPage() {
           sizes="(min-width: 1024px) 55vw, 100vw"
           className="object-cover object-[center_42%]"
         />
-        <p className="absolute bottom-6 left-6 font-serif text-lg text-paper [text-shadow:0_1px_2px_rgba(42,34,24,0.5),0_2px_10px_rgba(42,34,24,0.38),0_0_2px_rgba(42,34,24,0.45)] md:bottom-10 md:left-10">
+        <p className="absolute bottom-6 left-6 inline-block rounded-[2px] bg-ink/60 px-2.5 py-1.5 font-serif text-lg text-paper md:bottom-10 md:left-10">
           Opening soon
         </p>
       </section>
