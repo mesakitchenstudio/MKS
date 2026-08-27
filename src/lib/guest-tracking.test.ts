@@ -9,6 +9,7 @@ import {
   resetGuestNavigationStateForTests,
   shouldInsertGuestPageView,
   shouldSendGuestPresence,
+  shouldSkipGuestAnalytics,
   shouldTrackGuestPath,
 } from "./guest-tracking";
 
@@ -45,6 +46,20 @@ test("routine heartbeats skip hidden tabs; pageview and unload still send", () =
   assert.equal(
     shouldSendGuestPresence({ pageview: false, visibilityState: "hidden", force: true }),
     true,
+  );
+});
+
+test("members are excluded from guest analytics; staff are not", () => {
+  assert.equal(shouldSkipGuestAnalytics(null), false);
+  assert.equal(shouldSkipGuestAnalytics({ email: "" }), false);
+  assert.equal(shouldSkipGuestAnalytics({ email: "member@example.com" }), true);
+  assert.equal(
+    shouldSkipGuestAnalytics({ email: "owner@example.com", staffRole: "owner" }),
+    false,
+  );
+  assert.equal(
+    shouldSkipGuestAnalytics({ email: "editor@example.com", staffRole: "editor" }),
+    false,
   );
 });
 

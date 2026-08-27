@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { ComingSoonGuestBeacon } from "@/components/ComingSoonGuestBeacon";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
 
@@ -67,7 +68,9 @@ const socials = [
 
 export default function ComingSoonPage() {
   return (
-    <div className="grid min-h-dvh lg:h-dvh lg:grid-cols-[minmax(20rem,0.9fr)_1.1fr] lg:overflow-hidden">
+    <>
+      <ComingSoonGuestBeacon />
+      <div className="grid min-h-dvh lg:h-dvh lg:grid-cols-[minmax(20rem,0.9fr)_1.1fr] lg:overflow-hidden">
       <section className="relative flex flex-col justify-between bg-paper px-7 py-9 sm:px-10 sm:py-12 md:px-14 md:py-14 lg:overflow-y-auto lg:px-16 lg:py-16">
         <div>
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-olive">
@@ -127,5 +130,6 @@ export default function ComingSoonPage() {
         />
       </section>
     </div>
+    </>
   );
 }

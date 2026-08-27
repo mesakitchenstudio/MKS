@@ -10,19 +10,29 @@ import {
   GUEST_HEARTBEAT_MS,
   guestNavigationFor,
   shouldSendGuestPresence,
+  shouldSkipGuestAnalytics,
   shouldTrackGuestPath,
 } from "@/lib/guest-tracking";
+
+declare global {
+  interface Window {
+    /** Set by ComingSoonGuestBeacon before React hydrates — avoids duplicate pageviews. */
+    __mesaGuestDocumentPv?: number;
+  }
+}
 
 export function GuestTracker() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
 
   useEffect(() => {
-    // Signed-in members are recorded on Members, not Visitors.
-    // Do not wait for status === "loading": on mobile that delay (or a stuck
-    // session fetch) postpones or blocks presence. The API skips signed-in
-    // requests via auth() even if a brief optimistic ping races the session.
-    if (status === "authenticated" && session?.user?.email) {
+    // Members → Members page. Staff may still be tracked as Visitors for public QA.
+    if (
+      shouldSkipGuestAnalytics({
+        email: session?.user?.email,
+        staffRole: session?.staffRole,
+      })
+    ) {
       clearActiveGuestNavigation();
       return;
     }
@@ -58,9 +68,9 @@ export function GuestTracker() {
       }).catch(() => undefined);
     }
 
-    // One pageview claim per navigation id (covers Strict Mode double-mount).
-    // Remounts still refresh lastSeen so Online does not depend on the interval alone.
-    if (claimGuestPageview(navId)) {
+    // Coming Soon beacon already recorded a document pageview before hydration.
+    const documentAlreadyTracked = Boolean(window.__mesaGuestDocumentPv);
+    if (claimGuestPageview(navId) && !documentAlreadyTracked) {
       send(true);
     } else {
       send(false);
@@ -93,7 +103,7 @@ export function GuestTracker() {
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, [pathname, session?.user?.email, status]);
+  }, [pathname, session?.user?.email, session?.staffRole, status]);
 
   return null;
 }

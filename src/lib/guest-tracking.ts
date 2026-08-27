@@ -6,6 +6,20 @@ export const GUEST_HEARTBEAT_MS = 45_000;
 export const GUEST_EARLY_HEARTBEAT_MS = 15_000;
 
 /**
+ * Signed-in members are recorded on Members, not Visitors.
+ * Staff keep a NextAuth session for Admin but must still appear in Visitors while
+ * browsing the public Coming Soon page (common Android QA case).
+ */
+export function shouldSkipGuestAnalytics(session: {
+  email?: string | null;
+  staffRole?: unknown;
+} | null | undefined) {
+  if (!session?.email) return false;
+  if (session.staffRole) return false;
+  return true;
+}
+
+/**
  * Whether a client presence ping should fire.
  * Routine heartbeats skip hidden tabs (mobile Chrome suspends them anyway).
  * Pageviews and unload (`force`) always send so lastSeen stays accurate.

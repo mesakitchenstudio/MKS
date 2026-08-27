@@ -8,10 +8,16 @@ import {
   newGuestVisitorKey,
   upsertGuestActivity,
 } from "@/lib/guest-analytics";
+import { shouldSkipGuestAnalytics } from "@/lib/guest-tracking";
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (session?.user?.email) {
+  if (
+    shouldSkipGuestAnalytics({
+      email: session?.user?.email,
+      staffRole: session?.staffRole,
+    })
+  ) {
     return NextResponse.json({ ok: true, skipped: "signed-in" });
   }
 
