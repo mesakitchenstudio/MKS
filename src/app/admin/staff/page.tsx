@@ -79,6 +79,15 @@ export default async function AdminStaffPage({
     },
   });
 
+  const envOwnerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() || "";
+  const envOwnerHasNamedRow = envOwnerEmail
+    ? admins.some((admin) => admin.email.toLowerCase() === envOwnerEmail)
+    : false;
+  const showEnvOwnerCard = Boolean(envOwnerEmail) && !envOwnerHasNamedRow;
+  const ownerCount =
+    admins.filter((admin) => admin.role === "owner").length + (showEnvOwnerCard ? 1 : 0);
+  const teamCount = admins.length + (showEnvOwnerCard ? 1 : 0);
+
   const errorMessage = staffErrorMessage(error);
   const createError = errorMessage && !focusAdminId ? errorMessage : "";
   const pageRemoved = removed ? "Admin removed." : "";
@@ -90,13 +99,17 @@ export default async function AdminStaffPage({
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">Studio access</p>
           <h1 className="mt-2 font-serif text-4xl text-ink">Admins</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Create studio logins and choose what each person can open in Mesa admin.
+            Create studio logins and choose what each person can open in Mesa admin. Multiple owners
+            are allowed; the studio always keeps at least one.
           </p>
         </div>
         <div className="rounded-sm border border-line bg-paper px-4 py-3 text-sm">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Signed in</p>
           <p className="mt-1 font-semibold text-ink">{actor.name}</p>
-          <p className="text-xs text-muted">{accessLabel(actor.role)}</p>
+          <p className="text-xs text-muted">
+            {accessLabel(actor.role)}
+            {actor.email ? ` · ${actor.email}` : ""}
+          </p>
         </div>
       </div>
 
@@ -180,20 +193,60 @@ export default async function AdminStaffPage({
           <div>
             <h2 className="font-serif text-2xl text-ink">Team</h2>
             <p className="mt-1 text-sm text-muted">
-              {admins.length
-                ? `${admins.length} admin${admins.length === 1 ? "" : "s"} with studio access.`
+              {teamCount
+                ? `${teamCount} admin${teamCount === 1 ? "" : "s"} with studio access · ${ownerCount} owner${ownerCount === 1 ? "" : "s"}.`
                 : "No named admins yet."}
             </p>
           </div>
         </div>
 
-        {admins.length === 0 ? (
+        {teamCount === 0 ? (
           <div className="mt-5 border border-dashed border-line bg-paper px-5 py-10 text-center text-sm leading-6 text-muted">
             Add an admin above. The owner email from <span className="font-semibold text-ink">ADMIN_EMAIL</span>{" "}
             can still sign in with the owner password.
           </div>
         ) : (
           <ul className="mt-5 space-y-4">
+            {showEnvOwnerCard ? (
+              <li className="border border-line bg-paper">
+                <div className="flex flex-wrap items-center gap-4 border-b border-line bg-cream px-5 py-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sand text-sm font-semibold text-ink">
+                    {initials("Owner") || "O"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-ink">Owner</p>
+                      {actor.id === "env" ||
+                      actor.email.toLowerCase() === envOwnerEmail ? (
+                        <span className="rounded-full bg-paper px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
+                          You
+                        </span>
+                      ) : null}
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${roleTone("owner")}`}
+                      >
+                        Owner
+                      </span>
+                      <span className="rounded-full bg-paper px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
+                        Env login
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-sm text-muted">{envOwnerEmail}</p>
+                  </div>
+                </div>
+                <div className="space-y-3 px-5 py-5 text-sm leading-6 text-muted">
+                  <p>
+                    This is the bootstrap owner from <span className="font-semibold text-ink">ADMIN_EMAIL</span>
+                    . It signs in with the site owner password and is not a named Team row, so it cannot be
+                    edited or removed here.
+                  </p>
+                  <p>
+                    To manage this account like other admins (name, photo, password reset from this page),
+                    add an admin with the same email and Owner access — or keep using this env login as-is.
+                  </p>
+                </div>
+              </li>
+            ) : null}
             {admins.map((admin) => {
               const isYou = isCurrentStaffAccount(actor, admin);
               const lockOwnerRole = shouldLockOwnerAccessSelect(actor, admin);
