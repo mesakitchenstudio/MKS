@@ -122,7 +122,10 @@ export default function ComingSoonPage() {
           sizes="(min-width: 1024px) 55vw, 100vw"
           className="object-cover object-[center_42%]"
         />
-        <p className="absolute bottom-6 left-6 inline-block rounded-[2px] bg-ink/60 px-2.5 py-1.5 font-serif text-lg text-paper md:bottom-10 md:left-10">
+        <p
+          className="absolute bottom-6 left-6 inline-flex items-center rounded-[2px] px-[11px] py-[7px] font-serif text-lg leading-[1.2] md:bottom-10 md:left-10"
+          style={{ backgroundColor: "rgba(35, 29, 22, 0.72)", color: "#fffaf2" }}
+        >
           Opening soon
         </p>
       </section>
