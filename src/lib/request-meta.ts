@@ -124,7 +124,7 @@ export function formatApproxLocation(meta: {
   if (city) return city;
   if (namedRegion && country) return `${namedRegion}, ${country}`;
   if (country) return country;
-  if (meta.ip && isLoopback(meta.ip)) return "Local";
+  // Do not surface "Local" for loopback/unknown IPs — omit until real place data exists.
   return "";
 }
 

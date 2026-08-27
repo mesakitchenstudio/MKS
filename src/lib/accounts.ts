@@ -110,17 +110,22 @@ async function ensureMemberRecord(email: string, name = "", headers?: unknown) {
   const displayName = name.trim();
   const existing = await db.user.findUnique({ where: { email: key } });
   if (existing) {
-    const connectionCount = await db.userConnection.count({ where: { userId: existing.id } });
-    if (connectionCount === 0) {
-      try {
-        await recordConnection({
-          email: existing.email,
-          name: existing.name,
-          method: existing.passwordHash ? "email" : "google",
-          headers,
-        });
-      } catch (error) {
-        console.error("Could not backfill connection", error);
+    // Only backfill when we have request headers. Auth recording belongs to
+    // NextAuth events.signIn; recording here without headers created duplicate
+    // "Local" signup rows that raced the real connection.
+    if (headers) {
+      const connectionCount = await db.userConnection.count({ where: { userId: existing.id } });
+      if (connectionCount === 0) {
+        try {
+          await recordConnection({
+            email: existing.email,
+            name: existing.name,
+            method: existing.passwordHash ? "email" : "google",
+            headers,
+          });
+        } catch (error) {
+          console.error("Could not backfill connection", error);
+        }
       }
     }
     if (displayName && (existing.name === existing.email || !existing.name)) {
@@ -137,15 +142,19 @@ async function ensureMemberRecord(email: string, name = "", headers?: unknown) {
       name: displayName || key,
     },
   });
-  try {
-    await recordConnection({
-      email: user.email,
-      name: user.name,
-      method: user.passwordHash ? "email" : "google",
-      headers,
-    });
-  } catch (error) {
-    console.error("Could not record first connection", error);
+  // Connection rows are recorded by NextAuth events.signIn (with headers) or
+  // enrichMemberConnection — not here — to avoid duplicate signup events.
+  if (headers) {
+    try {
+      await recordConnection({
+        email: user.email,
+        name: user.name,
+        method: user.passwordHash ? "email" : "google",
+        headers,
+      });
+    } catch (error) {
+      console.error("Could not record first connection", error);
+    }
   }
   return user;
 }
@@ -217,6 +226,53 @@ export async function authenticateEmailUser(email: string, password: string) {
   });
 }
 
+/** Collapse rapid ensureMember + NextAuth signIn callbacks into one logical connection. */
+const AUTH_CONNECTION_DEDUPE_MS = 15_000;
+
+function isWeakNetworkIp(ip: string) {
+  const value = ip.trim().toLowerCase();
+  return (
+    !value ||
+    value === "unknown" ||
+    value === "localhost" ||
+    value === "::1" ||
+    value === "127.0.0.1" ||
+    value === "::ffff:127.0.0.1"
+  );
+}
+
+async function applyBetterConnectionMeta(
+  connection: {
+    id: string;
+    ip: string;
+    userAgent: string;
+    city: string;
+    region: string;
+    country: string;
+    referer: string;
+  },
+  meta: ConnectionMeta,
+) {
+  const betterIp = Boolean(meta.ip && !isWeakNetworkIp(meta.ip) && isWeakNetworkIp(connection.ip));
+  const betterAgent = Boolean(meta.userAgent && !connection.userAgent);
+  const betterPlace = Boolean((meta.city || meta.country) && !connection.city && !connection.country);
+  const betterReferer = Boolean(meta.referer && !connection.referer);
+  if (!betterIp && !betterAgent && !betterPlace && !betterReferer) return false;
+
+  await getDb().userConnection.update({
+    where: { id: connection.id },
+    data: {
+      ip: betterIp ? meta.ip : connection.ip,
+      userAgent: betterAgent ? meta.userAgent.slice(0, 500) : connection.userAgent,
+      city: connection.city || meta.city,
+      region: connection.region || meta.region,
+      country: connection.country || meta.country,
+      referer: connection.referer || meta.referer.slice(0, 500),
+    },
+  });
+  return true;
+}
+
 export async function recordConnection(input: {
   email: string;
   name?: string;
@@ -239,17 +295,19 @@ export async function recordConnection(input: {
       },
     }));
 
-  // Auth callbacks can fire ensureMember + signIn nearly simultaneously.
-  // Avoid recording two connection rows for the same auth moment.
+  const meta = input.meta ?? connectionMeta(input.headers);
+
+  // Auth callbacks can fire ensureMember + events.signIn nearly simultaneously.
+  // One logical auth moment must yield one connection row.
   const recent = await db.userConnection.findFirst({
     where: {
       userId: user.id,
-      method: input.method,
-      createdAt: { gte: new Date(Date.now() - 3_000) },
+      createdAt: { gte: new Date(Date.now() - AUTH_CONNECTION_DEDUPE_MS) },
     },
     orderBy: { createdAt: "desc" },
   });
   if (recent) {
+    await applyBetterConnectionMeta(recent, meta);
     await db.user.update({
       where: { id: user.id },
       data: { lastSeenAt: new Date(), name: user.name || input.name?.trim() || user.name },
@@ -257,7 +315,6 @@ export async function recordConnection(input: {
     return user;
   }
 
-  const meta = input.meta ?? connectionMeta(input.headers);
   const priorCount = await db.userConnection.count({ where: { userId: user.id } });
   await db.userConnection.create({
     data: {
@@ -299,30 +356,11 @@ export async function enrichMemberConnection(email: string, name = "", headers?:
     return user;
   }
 
-  const betterIp = Boolean(
-    meta.ip &&
-      meta.ip !== "unknown" &&
-      (!latest.ip || latest.ip === "unknown" || latest.ip === "::1" || latest.ip === "127.0.0.1"),
-  );
-  const betterAgent = Boolean(meta.userAgent && !latest.userAgent);
-  const betterPlace = Boolean((meta.city || meta.country) && !latest.city && !latest.country);
   await db.user.update({
     where: { id: user.id },
     data: { lastSeenAt: new Date() },
   });
-  if (!betterIp && !betterAgent && !betterPlace) return user;
-
-  await db.userConnection.update({
-    where: { id: latest.id },
-    data: {
-      ip: betterIp ? meta.ip : latest.ip,
-      userAgent: betterAgent ? meta.userAgent.slice(0, 500) : latest.userAgent,
-      city: latest.city || meta.city,
-      region: latest.region || meta.region,
-      country: latest.country || meta.country,
-      referer: latest.referer || meta.referer.slice(0, 500),
-    },
-  });
+  await applyBetterConnectionMeta(latest, meta);
   return user;
 }
 

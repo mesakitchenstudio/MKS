@@ -5,7 +5,7 @@ import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
 import { formatAdminShortDateTime } from "@/lib/datetime";
 import { guestDeviceClientLabel } from "@/lib/guest-client";
 import { formatSignInMethod } from "@/lib/member-presence";
-import { formatApproxLocation, formatIp } from "@/lib/request-meta";
+import { formatApproxLocation } from "@/lib/request-meta";
 
 type Connection = {
   id: string;
@@ -18,6 +18,15 @@ type Connection = {
   country: string;
   createdAt: Date | string;
 };
+
+function connectionSecondaryLine(connection: Connection) {
+  const device = guestDeviceClientLabel(connection.userAgent || "");
+  const place = formatApproxLocation(connection);
+  // Keep IPs in the dedicated IP diagnostics section, not the history summary.
+  return [device && device !== "Unknown" ? device : null, place || null]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 /** Collapsed-by-default connection history for member admin detail. */
 export function MemberConnectionHistory({
@@ -56,16 +65,8 @@ export function MemberConnectionHistory({
       {open && connections.length ? (
         <ul id={panelId} className="mt-4 divide-y divide-line border border-line">
           {connections.map((connection) => {
-            const place = formatApproxLocation(connection);
-            const device = guestDeviceClientLabel(connection.userAgent || "");
             const eventLabel = connection.event === "signup" ? "Signup" : "Sign-in";
-            const meta = [
-              device && device !== "Unknown" ? device : null,
-              place || null,
-              connection.ip && connection.ip !== "unknown" ? formatIp(connection.ip) : null,
-            ]
-              .filter(Boolean)
-              .join(" · ");
+            const meta = connectionSecondaryLine(connection);
 
             return (
               <li key={connection.id} className="px-4 py-3 sm:px-5">
@@ -74,7 +75,7 @@ export function MemberConnectionHistory({
                     <p className="font-semibold text-ink">
                       {eventLabel} · {formatSignInMethod(connection.method)}
                     </p>
-                    {meta ? <p className="mt-0.5 break-all text-xs text-muted">{meta}</p> : null}
+                    {meta ? <p className="mt-0.5 break-words text-xs text-muted">{meta}</p> : null}
                   </div>
                   <p className="shrink-0 text-xs text-muted sm:pt-0.5 sm:text-right">
                     {formatAdminShortDateTime(connection.createdAt, new Date(), {

@@ -134,6 +134,7 @@ describe("request-meta display helpers", () => {
       formatApproxLocation({ city: "Kartal", region: "Istanbul", country: "TR" }),
       "Kartal, Istanbul, Türkiye",
     );
+    assert.equal(formatApproxLocation({ city: "", region: "", country: "", ip: "unknown" }), "");
   });
 
   it("shows referrer hostname with full URL in title", () => {

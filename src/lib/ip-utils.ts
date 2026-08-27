@@ -22,7 +22,7 @@ export function uniqueIps(values: string[]) {
   const ips: string[] = [];
   for (const value of values) {
     const ip = value.trim();
-    if (!ip || ip === "unknown" || seen.has(ip)) continue;
+    if (!ip || isLoopback(ip) || seen.has(ip)) continue;
     seen.add(ip);
     ips.push(ip);
   }
