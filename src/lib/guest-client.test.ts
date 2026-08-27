@@ -8,7 +8,7 @@ import {
   isBotUserAgent,
 } from "./guest-client.ts";
 import { guestPathTitle, isPopularGuestPath } from "./guest-path-labels.ts";
-import { formatApproxLocation, formatCountryCityLocation, formatLatestCountryCityLocation, formatReferrerDisplay } from "./request-meta.ts";
+import { formatApproxLocation, formatCountryCityLocation, formatLatestCountryCityLocation, formatReferrerDisplay, pickLatestLocationConnection } from "./request-meta.ts";
 
 const IPHONE_SAFARI_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6 Mobile/15E148 Safari/604.1";
@@ -161,6 +161,19 @@ describe("request-meta display helpers", () => {
     );
     assert.equal(formatLatestCountryCityLocation([{ country: "", city: "" }]), "—");
     assert.equal(formatLatestCountryCityLocation([]), "—");
+    const picked = pickLatestLocationConnection([
+      { country: "", city: "", ip: "1.1.1.1" },
+      { country: "TR", city: "Istanbul", ip: "2.2.2.2" },
+    ]);
+    assert.equal(picked?.city, "Istanbul");
+    assert.equal(formatApproxLocation(picked || {}), "Istanbul, Türkiye");
+  });
+
+  it("never emits broken Country · City separators", () => {
+    assert.equal(formatCountryCityLocation({ country: "TR", city: "  " }), "Türkiye");
+    assert.equal(formatCountryCityLocation({ country: "  ", city: "Istanbul" }), "Istanbul");
+    assert.notEqual(formatCountryCityLocation({ country: "TR", city: "" }).includes("·"), true);
+    assert.notEqual(formatCountryCityLocation({ country: "", city: "Istanbul" }).includes("·"), true);
   });
 
   it("shows referrer hostname with full URL in title", () => {

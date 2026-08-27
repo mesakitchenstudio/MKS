@@ -143,15 +143,21 @@ export function formatCountryCityLocation(meta: { city?: string; country?: strin
 }
 
 /** First connection (newest-first) that has a usable country/city. */
+export function pickLatestLocationConnection<T extends { city?: string; country?: string }>(
+  connections: T[] | null | undefined,
+): T | null {
+  if (!connections?.length) return null;
+  for (const connection of connections) {
+    if (formatCountryCityLocation(connection) !== "—") return connection;
+  }
+  return null;
+}
+
+/** Compact list label from newest connection with a usable place. */
 export function formatLatestCountryCityLocation(
   connections: Array<{ city?: string; country?: string }> | null | undefined,
 ) {
-  if (!connections?.length) return "—";
-  for (const connection of connections) {
-    const label = formatCountryCityLocation(connection);
-    if (label !== "—") return label;
-  }
-  return "—";
+  return formatCountryCityLocation(pickLatestLocationConnection(connections));
 }
 
 function cleanPlacePart(value?: string) {

@@ -11,7 +11,7 @@ import { formatAdminDate, formatAdminShortDateTime } from "@/lib/datetime";
 import { guestDeviceClientLabel } from "@/lib/guest-client";
 import { uniqueIps } from "@/lib/ip-utils";
 import { formatPresenceLabel, formatSignInMethod, isMemberOnline } from "@/lib/member-presence";
-import { formatApproxLocation, formatReferrerDisplay } from "@/lib/request-meta";
+import { formatApproxLocation, formatReferrerDisplay, pickLatestLocationConnection } from "@/lib/request-meta";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +44,11 @@ export default async function AdminMemberDetailPage({
   const online = isMemberOnline(user.lastSeenAt);
   const status = formatPresenceLabel(user.lastSeenAt);
   const signIn = formatSignInMethod(latest?.method);
-  const approxLocation = latest ? formatApproxLocation(latest) || "—" : "—";
+  // Same connection selection as Members list LOCATION (newest with usable place).
+  const locationConnection = pickLatestLocationConnection(user.connections) || latest;
+  const approxLocation = locationConnection
+    ? formatApproxLocation(locationConnection) || "—"
+    : "—";
   const deviceClient = guestDeviceClientLabel(latest?.userAgent || "") || "—";
   const referrerDisplay = formatReferrerDisplay(latest?.referer || "");
   const ips = uniqueIps(user.connections.map((item) => item.ip));
