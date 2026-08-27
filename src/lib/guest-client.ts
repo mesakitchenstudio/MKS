@@ -98,3 +98,17 @@ export function guestClientKindLabel(kind: GuestClientKind) {
   if (kind === "unknown") return "Unknown";
   return "Visitor";
 }
+
+/** OS portion for visitor detail (Unknown when unavailable). */
+export function guestOsLabel(userAgent: string) {
+  return detectOs(userAgent.trim()) || "Unknown";
+}
+
+/** Browser/client portion for visitor detail (Unknown when unavailable). */
+export function guestBrowserLabel(userAgent: string) {
+  const ua = userAgent.trim();
+  if (!ua) return "Unknown";
+  const classified = classifyGuestClient(ua);
+  if (classified.kind === "bot") return classified.label;
+  return detectBrowser(ua) || "Unknown";
+}

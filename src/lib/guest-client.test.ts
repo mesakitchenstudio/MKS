@@ -42,6 +42,7 @@ describe("guest-path-labels", () => {
   it("maps known routes to friendly titles", () => {
     assert.equal(guestPathTitle("/"), "Home");
     assert.equal(guestPathTitle("/privacy"), "Privacy");
+    assert.equal(guestPathTitle("/auth/error"), "Error");
     assert.equal(
       guestPathTitle("/recipes/chocolate-chunk-cookies", new Map([["chocolate-chunk-cookies", "Chocolate Chunk Cookies"]])),
       "Chocolate Chunk Cookies",

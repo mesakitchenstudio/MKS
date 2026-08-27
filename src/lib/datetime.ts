@@ -33,8 +33,12 @@ export function formatAdminDateTime(value: Date | string | null | undefined) {
   return `${month} ${day}, ${year} · ${time} GMT`;
 }
 
-/** Compact visitors table timestamps: Aug 25 · 11:47 AM (year if not current UTC year). */
-export function formatAdminShortDateTime(value: Date | string | null | undefined, now = new Date()) {
+/** Compact visitors timestamps: Aug 25 · 11:47 AM (year when useful or requested). */
+export function formatAdminShortDateTime(
+  value: Date | string | null | undefined,
+  now = new Date(),
+  options?: { includeYear?: boolean },
+) {
   const date = asDate(value);
   if (!date) return "—";
 
@@ -47,10 +51,12 @@ export function formatAdminShortDateTime(value: Date | string | null | undefined
     timeZone: "UTC",
   });
 
-  if (date.getUTCFullYear() === now.getUTCFullYear()) {
-    return `${month} ${day} · ${time}`;
+  const showYear =
+    options?.includeYear || date.getUTCFullYear() !== now.getUTCFullYear();
+  if (showYear) {
+    return `${month} ${day}, ${date.getUTCFullYear()} · ${time}`;
   }
-  return `${month} ${day}, ${date.getUTCFullYear()} · ${time}`;
+  return `${month} ${day} · ${time}`;
 }
 
 /** Date only for admin lists: Aug 24, 2026 */

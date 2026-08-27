@@ -10,6 +10,7 @@ const STATIC_TITLES: Record<string, string> = {
   "/contact": "Contact",
   "/disclosures": "Disclosures",
   "/search": "Search",
+  "/auth/error": "Error",
 };
 
 function humanizeSlug(slug: string) {

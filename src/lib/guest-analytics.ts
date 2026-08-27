@@ -170,7 +170,7 @@ export async function getGuestForAdmin(id: string): Promise<GuestVisitorRow | nu
     include: {
       pageViews: {
         orderBy: { createdAt: "desc" },
-        take: 100,
+        take: 500,
       },
       _count: { select: { pageViews: true } },
     },
