@@ -27,13 +27,12 @@ export async function storeAdminImage(file: Blob, folder = "recipes", filenameHi
   const ext = adminImageExtension(check.mime);
   const filename = `${Date.now()}-${safeBaseName(filenameHint)}.${ext}`;
   const destFolder = safeFolder(folder);
-  const body = new Blob([bytes], { type: check.mime });
+  const buffer = Buffer.from(bytes);
 
   if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(`${destFolder}/${filename}`, body, {
+    const blob = await put(`${destFolder}/${filename}`, buffer, {
       access: "public",
       contentType: check.mime,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
     return blob.url;
   }
@@ -44,7 +43,7 @@ export async function storeAdminImage(file: Blob, folder = "recipes", filenameHi
 
   const dir = path.join(process.cwd(), "public", "uploads");
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, filename), Buffer.from(bytes));
+  await writeFile(path.join(dir, filename), buffer);
   return `/uploads/${filename}`;
 }
 
@@ -63,7 +62,7 @@ export async function deleteOwnedAdminImage(url: string) {
     }
 
     if (process.env.BLOB_READ_WRITE_TOKEN) {
-      await del(value, { token: process.env.BLOB_READ_WRITE_TOKEN });
+      await del(value);
     }
   } catch (error) {
     console.error("Could not delete owned admin image", error);

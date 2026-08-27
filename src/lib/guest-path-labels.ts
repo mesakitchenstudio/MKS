@@ -2,6 +2,7 @@ import { shouldTrackGuestPath } from "@/lib/guest-tracking";
 
 const STATIC_TITLES: Record<string, string> = {
   "/": "Home",
+  "/coming-soon": "Coming Soon",
   "/recipes": "Recipes",
   "/videos": "Videos",
   "/studio": "Studio",

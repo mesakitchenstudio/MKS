@@ -5,10 +5,11 @@ import { getDb } from "@/lib/db";
 import { isHumanGuestUserAgent } from "@/lib/guest-client";
 import { guestPathTitle, isPopularGuestPath } from "@/lib/guest-path-labels";
 import {
+  guestAnalyticsPath,
   normalizeGuestNavId,
   shouldInsertGuestPageView,
-  shouldTrackGuestPath,
 } from "@/lib/guest-tracking";
+import { isSitePrivate } from "@/lib/flags";
 import { MEMBER_ONLINE_WITHIN_MS } from "@/lib/member-presence";
 import { connectionMeta } from "@/lib/request-meta";
 import { getAllRecipes } from "@/lib/recipes";
@@ -23,7 +24,7 @@ export const GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 400;
 const PAGEVIEW_DEDUPE_MS = 5_000;
 
 export function isTrackablePublicPath(path: string) {
-  return shouldTrackGuestPath(path);
+  return Boolean(guestAnalyticsPath(path, isSitePrivate()));
 }
 
 export function newGuestVisitorKey() {
@@ -31,9 +32,7 @@ export function newGuestVisitorKey() {
 }
 
 function normalizePath(path: string) {
-  const trimmed = path.trim().slice(0, 500);
-  if (!trimmed.startsWith("/")) return "";
-  return trimmed.split("?")[0]?.split("#")[0] || "";
+  return guestAnalyticsPath(path, isSitePrivate()).slice(0, 500);
 }
 
 function normalizeReferer(value: string) {

@@ -17,7 +17,11 @@ describe("site-gate", () => {
   it("blocks recipe APIs when site is private", () => {
     process.env.SITE_PRIVATE = "true";
     assert.equal(isBlockedApiWhilePrivate("/api/recipes/salsa-verde/reviews"), true);
-    assert.equal(isBlockedApiWhilePrivate("/api/analytics/guest"), true);
+  });
+
+  it("allows guest analytics while private so Coming Soon visits are tracked", () => {
+    process.env.SITE_PRIVATE = "true";
+    assert.equal(isBlockedApiWhilePrivate("/api/analytics/guest"), false);
   });
 
   it("keeps admin/auth APIs reachable while private", () => {

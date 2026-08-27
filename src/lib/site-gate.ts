@@ -13,12 +13,12 @@ export function isPublicApiWhilePrivate(pathname: string) {
   );
 }
 
-/** Block recipe/content APIs from public access while the site is private. */
+/** Block recipe/content APIs from public access while the site is private.
+ * Guest analytics stay open so anonymous Coming Soon visits are recorded.
+ */
 export function isBlockedApiWhilePrivate(pathname: string) {
   if (!isSitePrivate()) return false;
   if (isPublicApiWhilePrivate(pathname)) return false;
-  return (
-    pathname.startsWith("/api/recipes") ||
-    pathname.startsWith("/api/analytics/guest")
-  );
+  if (pathname.startsWith("/api/analytics/guest")) return false;
+  return pathname.startsWith("/api/recipes");
 }

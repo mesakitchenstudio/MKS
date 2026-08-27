@@ -7,9 +7,16 @@ export function shouldTrackGuestPath(pathname: string) {
     !pathname.startsWith("/admin") &&
     !pathname.startsWith("/api") &&
     !pathname.startsWith("/auth") &&
-    !pathname.startsWith("/profile") &&
-    !pathname.startsWith("/coming-soon")
+    !pathname.startsWith("/profile")
   );
+}
+
+/** While SITE_PRIVATE rewrites public pages to Coming Soon, store one canonical path. */
+export function guestAnalyticsPath(pathname: string, sitePrivate: boolean) {
+  const path = pathname.trim().split("?")[0]?.split("#")[0] || "";
+  if (!shouldTrackGuestPath(path) && path !== "/coming-soon") return "";
+  if (sitePrivate) return "/coming-soon";
+  return path;
 }
 
 export function normalizeGuestNavId(value: unknown) {

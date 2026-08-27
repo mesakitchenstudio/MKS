@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { saveOwnAdminProfileAction } from "@/app/admin/actions";
 import { adminFocusRing, adminPrimaryButtonClass } from "@/lib/admin-ui";
@@ -213,6 +213,7 @@ export function AdminProfilePhotoForm({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [saving, startSave] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const pendingFileRef = useRef<File | null>(null);
   const previewObjectUrl = useRef<string | null>(null);
@@ -268,11 +269,15 @@ export function AdminProfilePhotoForm({
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  async function submitProfilePhoto(formData: FormData) {
+  function savePendingPhoto() {
     const file = pendingFileRef.current;
-    if (!file) return;
-    formData.set("photoFile", file);
-    await saveOwnAdminProfileAction(formData);
+    if (!file || !canPersist || saving) return;
+    setError("");
+    const body = new FormData();
+    body.set("photoFile", file);
+    startSave(() => {
+      void saveOwnAdminProfileAction(body);
+    });
   }
 
   const altText = previewUrl
@@ -283,11 +288,7 @@ export function AdminProfilePhotoForm({
 
   return (
     <>
-      <form
-        action={submitProfilePhoto}
-        className="border border-line bg-paper px-5 py-4 sm:px-5 sm:py-4"
-      >
-
+      <div className="border border-line bg-paper px-5 py-4 sm:px-5 sm:py-4">
         <div className="grid gap-4 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:items-center sm:gap-5">
           <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-sand">
             {previewUrl ? (
@@ -302,12 +303,15 @@ export function AdminProfilePhotoForm({
 
           <div className="grid min-w-0 gap-2">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <ProfileChangeButton
-                canPersist={canPersist}
-                label={hasPhoto || previewPending ? "Change profile photo" : "Upload profile photo"}
-                describedBy={`${helpId}${error ? ` ${errorId}` : ""}`}
-                onPick={() => inputRef.current?.click()}
-              />
+              <button
+                type="button"
+                disabled={!canPersist || saving}
+                className={`inline-flex min-h-9 items-center text-sm font-semibold text-terracotta underline-offset-4 transition-colors duration-150 hover:text-terracotta-dark hover:underline disabled:cursor-not-allowed disabled:opacity-60 ${adminFocusRing}`}
+                aria-describedby={`${helpId}${error ? ` ${errorId}` : ""}`}
+                onClick={() => inputRef.current?.click()}
+              >
+                {hasPhoto || previewPending ? "Change profile photo" : "Upload profile photo"}
+              </button>
               <span id={fileLabelId} className="sr-only">
                 Choose a profile photo image file
               </span>
@@ -317,7 +321,7 @@ export function AdminProfilePhotoForm({
                 type="file"
                 accept={ADMIN_IMAGE_ACCEPT}
                 className="sr-only"
-                disabled={!canPersist}
+                disabled={!canPersist || saving}
                 aria-labelledby={fileLabelId}
                 aria-invalid={Boolean(error)}
                 aria-describedby={`${helpId}${error ? ` ${errorId}` : ""}`}
@@ -330,7 +334,7 @@ export function AdminProfilePhotoForm({
               {savedUrl && !previewPending ? (
                 <button
                   type="button"
-                  disabled={!canPersist}
+                  disabled={!canPersist || saving}
                   onClick={() => setConfirmRemove(true)}
                   className={`inline-flex min-h-9 items-center text-xs font-semibold text-muted transition-colors duration-150 hover:text-terracotta disabled:opacity-60 ${adminFocusRing}`}
                 >
@@ -368,11 +372,26 @@ export function AdminProfilePhotoForm({
 
         {previewPending ? (
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
-            <ProfileSaveButton disabled={!canPersist} />
-            <ProfileCancelButton onCancel={cancelPending} />
+            <button
+              type="button"
+              disabled={!canPersist || saving}
+              aria-busy={saving}
+              onClick={savePendingPhoto}
+              className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+            >
+              {saving ? "Saving…" : "Save photo"}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={cancelPending}
+              className={`inline-flex min-h-9 items-center text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta disabled:opacity-60 ${adminFocusRing}`}
+            >
+              Cancel
+            </button>
           </div>
         ) : null}
-      </form>
+      </div>
 
       {confirmRemove ? (
         <div
@@ -412,63 +431,6 @@ export function AdminProfilePhotoForm({
         </div>
       ) : null}
     </>
-  );
-}
-
-function ProfileChangeButton({
-  canPersist,
-  label,
-  describedBy,
-  onPick,
-}: {
-  canPersist: boolean;
-  label: string;
-  describedBy: string;
-  onPick: () => void;
-}) {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      type="button"
-      disabled={!canPersist || pending}
-      className={`inline-flex min-h-9 items-center text-sm font-semibold text-terracotta underline-offset-4 transition-colors duration-150 hover:text-terracotta-dark hover:underline disabled:cursor-not-allowed disabled:opacity-60 ${adminFocusRing}`}
-      aria-describedby={describedBy}
-      onClick={onPick}
-    >
-      {label}
-    </button>
-  );
-}
-
-function ProfileSaveButton({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
-  const isDisabled = disabled || pending;
-
-  return (
-    <button
-      type="submit"
-      disabled={isDisabled}
-      aria-busy={pending}
-      className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-    >
-      {pending ? "Saving…" : "Save photo"}
-    </button>
-  );
-}
-
-function ProfileCancelButton({ onCancel }: { onCancel: () => void }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={onCancel}
-      className={`inline-flex min-h-9 items-center text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta disabled:opacity-60 ${adminFocusRing}`}
-    >
-      Cancel
-    </button>
   );
 }
 

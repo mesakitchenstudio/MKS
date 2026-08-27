@@ -542,7 +542,9 @@ export async function saveOwnAdminProfileAction(formData: FormData) {
 
   const previousUrl = current.photoUrl || "";
   const removePhoto = String(formData.get("removePhoto") || "") === "1";
-  const file = formData.get("photoFile");
+  const fileEntry = formData.get("photoFile");
+  const file =
+    fileEntry instanceof Blob && fileEntry.size > 0 ? fileEntry : null;
   let nextUrl = previousUrl;
   let uploadedUrl = "";
 
@@ -560,9 +562,10 @@ export async function saveOwnAdminProfileAction(formData: FormData) {
       } else {
         nextUrl = "";
       }
-    } else if (file instanceof File && file.size > 0) {
+    } else if (file) {
       const { storeAdminImage } = await import("@/lib/admin-upload-store");
-      uploadedUrl = await storeAdminImage(file, "admins");
+      const hint = file instanceof File && file.name ? file.name : "photo";
+      uploadedUrl = await storeAdminImage(file, "admins", hint);
       nextUrl = uploadedUrl;
     } else {
       redirect("/admin/profile");

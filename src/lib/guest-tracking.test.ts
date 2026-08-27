@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   claimGuestPageview,
   clearActiveGuestNavigation,
+  guestAnalyticsPath,
   guestNavigationFor,
   normalizeGuestNavId,
   resetGuestNavigationStateForTests,
@@ -12,11 +13,21 @@ import {
 
 test("shouldTrackGuestPath excludes admin, auth, and member surfaces", () => {
   assert.equal(shouldTrackGuestPath("/"), true);
+  assert.equal(shouldTrackGuestPath("/coming-soon"), true);
   assert.equal(shouldTrackGuestPath("/recipes/salsa-verde"), true);
   assert.equal(shouldTrackGuestPath("/admin/visitors"), false);
   assert.equal(shouldTrackGuestPath("/api/analytics/guest"), false);
   assert.equal(shouldTrackGuestPath("/auth/signin"), false);
   assert.equal(shouldTrackGuestPath("/profile"), false);
+});
+
+test("guestAnalyticsPath canonicalizes Coming Soon while site is private", () => {
+  assert.equal(guestAnalyticsPath("/", true), "/coming-soon");
+  assert.equal(guestAnalyticsPath("/recipes/salsa-verde", true), "/coming-soon");
+  assert.equal(guestAnalyticsPath("/coming-soon", true), "/coming-soon");
+  assert.equal(guestAnalyticsPath("/", false), "/");
+  assert.equal(guestAnalyticsPath("/coming-soon", false), "/coming-soon");
+  assert.equal(guestAnalyticsPath("/admin", true), "");
 });
 
 test("normalizeGuestNavId accepts uuid-like tokens only", () => {

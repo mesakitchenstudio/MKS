@@ -103,6 +103,7 @@ describe("guest-client", () => {
 describe("guest-path-labels", () => {
   it("maps known routes to friendly titles", () => {
     assert.equal(guestPathTitle("/"), "Home");
+    assert.equal(guestPathTitle("/coming-soon"), "Coming Soon");
     assert.equal(guestPathTitle("/privacy"), "Privacy");
     assert.equal(guestPathTitle("/auth/error"), "Error");
     assert.equal(
