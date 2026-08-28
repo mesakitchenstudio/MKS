@@ -3,22 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { adminFocusRing, adminNavItemClass } from "@/lib/admin-ui";
+import { linkIsActive, type AdminNavMatch } from "@/lib/admin-nav";
 
 type AdminNavLinkProps = {
   href: string;
   label: string;
   /** prefix: href and children; exact: href only; recipes-index: /admin and /admin/recipes/* */
-  match?: "exact" | "prefix" | "recipes-index";
+  match?: AdminNavMatch;
   muted?: boolean;
 };
-
-function linkIsActive(pathname: string, href: string, match: AdminNavLinkProps["match"]) {
-  if (match === "recipes-index") {
-    return pathname === "/admin" || pathname.startsWith("/admin/recipes");
-  }
-  if (match === "exact") return pathname === href;
-  return pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
-}
 
 export function AdminNavLink({
   href,

@@ -22,4 +22,23 @@ export const adminLinkClass =
 export const adminTableHeadClass =
   "bg-sand/45 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive";
 
-export const adminWorkspaceMaxWidth = "max-w-[77.5rem]";
+/** Data-heavy admin screens (recipes, members, visitors). */
+export const adminWorkspaceWide = "max-w-[77.5rem]";
+
+/** Forms and editorial lists (types, categories, reviews, team). */
+export const adminWorkspaceStandard = "max-w-4xl";
+
+/** Account-oriented screens (profile). */
+export const adminWorkspaceNarrow = "max-w-xl";
+
+/** @deprecated Use adminWorkspaceWide */
+export const adminWorkspaceMaxWidth = adminWorkspaceWide;
+
+/** Left admin navigation width (~240px). */
+export const adminSidebarWidthClass = "w-[15rem]";
+
+export const adminSidebarLinkClass =
+  "flex min-h-10 items-center rounded-sm px-3 text-sm font-semibold leading-snug transition-colors duration-150 motion-reduce:transition-none";
+
+export const adminSidebarSectionLabelClass =
+  "px-3 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive first:pt-0";
