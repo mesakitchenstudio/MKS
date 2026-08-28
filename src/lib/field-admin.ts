@@ -1,5 +1,55 @@
-import { FIELD_KINDS } from "@/lib/fields";
+import { FIELD_KINDS, CORE_FIELDS } from "@/lib/fields";
 import { parseValues } from "@/lib/recipe-map";
+import { getDb } from "@/lib/db";
+
+export const CORE_FIELD_KEYS = new Set(CORE_FIELDS.map((field) => field.key));
+
+export function isCoreFieldKey(key: string) {
+  return CORE_FIELD_KEYS.has(key);
+}
+
+export function coreFieldDefinition(key: string) {
+  return CORE_FIELDS.find((field) => field.key === key);
+}
+
+let sharedSchemaSync: Promise<void> | null = null;
+
+/** Repair shared-field kind/options (and label when kind drifted) across all types. */
+export function ensureSharedFieldSchemaIntegrity() {
+  if (!sharedSchemaSync) {
+    sharedSchemaSync = repairSharedFieldSchemaIntegrity().catch((error) => {
+      sharedSchemaSync = null;
+      console.error("Could not repair shared recipe field schema", error);
+    });
+  }
+  return sharedSchemaSync;
+}
+
+async function repairSharedFieldSchemaIntegrity() {
+  const db = getDb();
+  const coreByKey = new Map(CORE_FIELDS.map((field) => [field.key, field]));
+  const fields = await db.recipeTypeField.findMany();
+
+  for (const field of fields) {
+    const core = coreByKey.get(field.key);
+    if (!core) continue;
+
+    const expectedOptions = JSON.stringify(core.options || []);
+    const kindMismatch = field.kind !== core.kind;
+    const optionsMismatch = core.kind === "select" && field.options !== expectedOptions;
+
+    if (!kindMismatch && !optionsMismatch) continue;
+
+    await db.recipeTypeField.update({
+      where: { id: field.id },
+      data: {
+        kind: core.kind,
+        options: expectedOptions,
+        ...(kindMismatch ? { label: core.label } : {}),
+      },
+    });
+  }
+}
 
 /** Only `select` fields read options at render time (see RecipeEditor KindInput). */
 export function fieldKindUsesOptions(kind: string) {

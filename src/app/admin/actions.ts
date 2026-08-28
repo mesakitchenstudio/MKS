@@ -12,6 +12,8 @@ import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import {
   countRecipesMissingFieldContent,
   countRecipesWithFieldContent,
+  coreFieldDefinition,
+  isCoreFieldKey,
 } from "@/lib/field-admin";
 import {
   isAcceptableAdminPassword,
@@ -222,18 +224,30 @@ export async function saveFieldAction(formData: FormData) {
       redirect(`/admin/types/${typeId}`);
     }
 
+    const coreDef = coreFieldDefinition(existing.key);
+    const isSharedField = Boolean(coreDef);
+
     const recipes = await db.recipe.findMany({
       where: { typeId },
       select: { values: true },
     });
     const recipesWithData = countRecipesWithFieldContent(recipes, existing.key, existing.kind);
 
-    if (kind !== existing.kind && recipesWithData > 0) {
+    const resolvedKind = isSharedField ? coreDef!.kind : kind;
+    const resolvedOptions = isSharedField
+      ? coreDef!.options || []
+      : options;
+
+    if (isSharedField && kind !== coreDef!.kind) {
+      redirect(`/admin/types/${typeId}?error=shared-schema-locked&fieldId=${id}#field-${id}`);
+    }
+
+    if (!isSharedField && resolvedKind !== existing.kind && recipesWithData > 0) {
       redirect(`/admin/types/${typeId}?error=field-type-locked&fieldId=${id}#field-${id}`);
     }
 
     if (required && !existing.required) {
-      const missing = countRecipesMissingFieldContent(recipes, existing.key, kind);
+      const missing = countRecipesMissingFieldContent(recipes, existing.key, resolvedKind);
       if (missing > 0 && formData.get("confirmRequired") !== "1") {
         redirect(`/admin/types/${typeId}?error=require-confirm&fieldId=${id}#field-${id}`);
       }
@@ -244,10 +258,10 @@ export async function saveFieldAction(formData: FormData) {
       data: {
         label,
         key: existing.key,
-        kind,
+        kind: resolvedKind,
         helpText,
         required,
-        options: JSON.stringify(options),
+        options: JSON.stringify(resolvedOptions),
       },
     });
     revalidatePath(`/admin/types/${typeId}`);
@@ -257,6 +271,10 @@ export async function saveFieldAction(formData: FormData) {
   const key = keyFromLabel(String(formData.get("key") || label));
   if (!key) {
     redirect(`/admin/types/${typeId}?error=invalid-key&add=1`);
+  }
+
+  if (isCoreFieldKey(key)) {
+    redirect(`/admin/types/${typeId}?error=reserved-key&add=1`);
   }
 
   const duplicate = await db.recipeTypeField.findUnique({

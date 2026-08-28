@@ -9,7 +9,7 @@ import {
   adminPrimaryButtonClass,
   adminSelectClass,
 } from "@/lib/admin-ui";
-import { type AdminTypeField, fieldKindLabel, fieldKindUsesOptions, isStructuralFieldDraftChange } from "@/lib/field-admin";
+import { type AdminTypeField, fieldKindLabel, fieldKindUsesOptions, isCoreFieldKey, isStructuralFieldDraftChange } from "@/lib/field-admin";
 import { FIELD_KINDS, keyFromLabel } from "@/lib/fields";
 
 const helperRowClass = "mt-1.5 min-h-[2rem] text-xs leading-4 text-muted";
@@ -200,7 +200,7 @@ function FieldEditor({
   reorderDisabled?: boolean;
   recipesWithData: number;
   recipesMissingValue: number;
-  fieldError?: "field-type-locked" | "require-confirm";
+  fieldError?: "field-type-locked" | "require-confirm" | "shared-schema-locked";
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -215,12 +215,17 @@ function FieldEditor({
   const [draft, setDraft] = useState(initial);
   const deleteFormRef = useRef<HTMLFormElement>(null);
   const isDirty = !draftsEqual(draft, initial);
-  const showOptions = fieldKindUsesOptions(draft.kind);
-  const kindLocked = recipesWithData > 0;
-  const structuralDirty = isStructuralFieldDraftChange(
-    { kind: field.kind, required: field.required, options: field.options },
-    draft,
-  );
+  const sharedSchemaLocked = field.isShared;
+  const kindLocked = sharedSchemaLocked || recipesWithData > 0;
+  const optionsLocked = sharedSchemaLocked;
+  const effectiveKind = sharedSchemaLocked || kindLocked ? field.kind : draft.kind;
+  const showOptions = fieldKindUsesOptions(effectiveKind);
+  const structuralDirty = field.isShared
+    ? draft.required !== field.required
+    : isStructuralFieldDraftChange(
+        { kind: field.kind, required: field.required, options: field.options },
+        draft,
+      );
   const makingRequired = draft.required && !field.required;
 
   useEffect(() => {
@@ -255,13 +260,10 @@ function FieldEditor({
       return;
     }
 
-    if (structuralDirty && recipesWithData > 0) {
-      const sharedNote = field.isShared
-        ? `This shared field uses the common Mesa schema key “${field.key}”. Changes here apply to ${typeName} recipes in this template only.`
-        : `This change applies to the ${typeName} template.`;
+    if (!field.isShared && structuralDirty && recipesWithData > 0) {
       if (
         !window.confirm(
-          `${sharedNote}\n\n${recipesWithData} existing ${typeName} recipe(s) already store data for “${field.label}”. Continue?`,
+          `This change applies to the ${typeName} template.\n\n${recipesWithData} existing ${typeName} recipe(s) already store data for “${field.label}”. Continue?`,
         )
       ) {
         return;
@@ -320,6 +322,11 @@ function FieldEditor({
           Field type cannot change while recipes already store data for this field.
         </p>
       ) : null}
+      {fieldError === "shared-schema-locked" ? (
+        <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
+          Shared schema fields cannot change data type or options from a recipe type.
+        </p>
+      ) : null}
       {fieldError === "require-confirm" ? (
         <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
           Confirm the required change, then save again.
@@ -341,7 +348,15 @@ function FieldEditor({
               className={adminInputClass}
             />
           </EditorFieldColumn>
-          <EditorFieldColumn label="Key" htmlFor={keyId} helper="Stored in recipe data. Cannot be changed after creation.">
+          <EditorFieldColumn
+            label="Key"
+            htmlFor={keyId}
+            helper={
+              field.isShared
+                ? "Common recipe data key. Cannot be changed here."
+                : "Stored in recipe data. Cannot be changed after creation."
+            }
+          >
             <input
               id={keyId}
               name="key"
@@ -356,40 +371,68 @@ function FieldEditor({
             label="Kind"
             htmlFor={kindId}
             helper={
-              kindLocked
-                ? "Field type is locked while recipes store data for this field."
-                : undefined
+              sharedSchemaLocked
+                ? "Defined by Mesa's shared recipe schema. Cannot be changed from a recipe type."
+                : kindLocked
+                  ? "Field type is locked while recipes store data for this field."
+                  : undefined
             }
           >
-            {kindLocked ? <input type="hidden" name="kind" value={field.kind} /> : null}
-            <select
-              id={kindId}
-              name={kindLocked ? undefined : "kind"}
-              value={draft.kind}
-              disabled={kindLocked}
-              onChange={(event) => updateDraft({ kind: event.target.value })}
-              className={`${adminSelectClass} w-full${kindLocked ? " cursor-not-allowed bg-cream/60 text-muted" : ""}`}
-            >
-              {FIELD_KINDS.map((kind) => (
-                <option key={kind.id} value={kind.id}>
-                  {kind.label}
-                </option>
-              ))}
-            </select>
+            {sharedSchemaLocked || kindLocked ? (
+              <input type="hidden" name="kind" value={field.kind} />
+            ) : null}
+            {sharedSchemaLocked || kindLocked ? (
+              <input
+                id={kindId}
+                value={fieldKindLabel(field.kind)}
+                readOnly
+                tabIndex={-1}
+                aria-readonly="true"
+                className={`${adminInputClass} cursor-default bg-cream/60 text-muted`}
+              />
+            ) : (
+              <select
+                id={kindId}
+                name="kind"
+                value={draft.kind}
+                onChange={(event) => updateDraft({ kind: event.target.value })}
+                className={`${adminSelectClass} w-full`}
+              >
+                {FIELD_KINDS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </EditorFieldColumn>
           {showOptions ? (
             <EditorFieldColumn
               label="Options"
               htmlFor={optionsId}
-              helper="Enter options separated by commas."
+              helper={
+                optionsLocked
+                  ? "Defined by Mesa's shared recipe schema."
+                  : "Enter options separated by commas."
+              }
             >
+              {optionsLocked ? (
+                <input type="hidden" name="options" value={field.options.join(", ")} />
+              ) : null}
               <input
                 id={optionsId}
-                name="options"
-                value={draft.options}
-                onChange={(event) => updateDraft({ options: event.target.value })}
+                name={optionsLocked ? undefined : "options"}
+                value={optionsLocked ? field.options.join(", ") : draft.options}
+                readOnly={optionsLocked}
+                tabIndex={optionsLocked ? -1 : undefined}
+                aria-readonly={optionsLocked ? true : undefined}
+                onChange={
+                  optionsLocked
+                    ? undefined
+                    : (event) => updateDraft({ options: event.target.value })
+                }
                 placeholder="Easy, Medium, Hard"
-                className={adminInputClass}
+                className={`${adminInputClass}${optionsLocked ? " cursor-default bg-cream/60 text-muted" : ""}`}
               />
             </EditorFieldColumn>
           ) : (
@@ -514,11 +557,13 @@ function CollapsedFieldRow({
 function AddFieldPanel({
   typeId,
   typeName,
+  existingKeys,
   error,
   onCancel,
 }: {
   typeId: string;
   typeName: string;
+  existingKeys: Set<string>;
   error?: string;
   onCancel: () => void;
 }) {
@@ -528,32 +573,90 @@ function AddFieldPanel({
   const kindId = useId();
   const optionsId = useId();
   const helpId = useId();
+  const formRef = useRef<HTMLFormElement>(null);
   const [label, setLabel] = useState("");
   const [key, setKey] = useState("");
   const [keyTouched, setKeyTouched] = useState(false);
   const [kind, setKind] = useState("text");
+  const [clientKeyError, setClientKeyError] = useState<string | undefined>();
   const showOptions = fieldKindUsesOptions(kind);
 
   function onLabelChange(next: string) {
     setLabel(next);
-    if (!keyTouched) setKey(keyFromLabel(next));
+    if (!keyTouched) {
+      const generated = keyFromLabel(next);
+      setKey(generated);
+      validateKey(generated);
+    }
+  }
+
+  function validateKey(candidate: string) {
+    const normalized = keyFromLabel(candidate) || candidate.trim();
+    if (!normalized) {
+      setClientKeyError(undefined);
+      return;
+    }
+    if (isCoreFieldKey(normalized)) {
+      setClientKeyError(
+        `“${normalized}” is reserved for Mesa's shared recipe schema and cannot be used for a type-specific field.`,
+      );
+      return;
+    }
+    if (existingKeys.has(normalized)) {
+      setClientKeyError("That key is already used on this type.");
+      return;
+    }
+    setClientKeyError(undefined);
   }
 
   const keyError =
-    error === "duplicate-key"
+    clientKeyError ??
+    (error === "duplicate-key"
       ? "That key is already used on this type."
       : error === "invalid-key"
         ? "Key must include letters or numbers."
-        : undefined;
+        : error === "reserved-key"
+          ? "That key is reserved for Mesa's shared recipe schema."
+          : undefined);
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    const normalized = keyFromLabel(key) || keyFromLabel(label);
+    if (!normalized) {
+      event.preventDefault();
+      setClientKeyError("Key must include letters or numbers.");
+      return;
+    }
+    if (isCoreFieldKey(normalized)) {
+      event.preventDefault();
+      setClientKeyError(
+        `“${normalized}” is reserved for Mesa's shared recipe schema and cannot be used for a type-specific field.`,
+      );
+      return;
+    }
+    if (existingKeys.has(normalized)) {
+      event.preventDefault();
+      setClientKeyError("That key is already used on this type.");
+      return;
+    }
+    setClientKeyError(undefined);
+  }
 
   return (
     <div className="border border-line bg-cream/30 px-4 py-3.5">
-      <h3 className="text-sm font-semibold text-ink">New type-specific field</h3>
+      <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+        Add {typeName}-specific field
+      </h3>
+      <p className="mt-2 text-sm font-semibold text-ink">New type-specific field</p>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Added only to {typeName}. Choose a label and field type; the technical key stores recipe
-        data and cannot be changed later.
+        Creates a field only on {typeName}. Shared schema keys such as image, intro, and
+        ingredients cannot be reused here.
       </p>
-      <form action={saveFieldAction} className="mt-4 grid gap-4">
+      <form
+        ref={formRef}
+        action={saveFieldAction}
+        onSubmit={handleSubmit}
+        className="mt-4 grid gap-4"
+      >
         <input type="hidden" name="typeId" value={typeId} />
         <div className="grid gap-4 md:grid-cols-2">
           <EditorFieldColumn label="Label" htmlFor={labelId}>
@@ -580,7 +683,9 @@ function AddFieldPanel({
               value={key}
               onChange={(event) => {
                 setKeyTouched(true);
-                setKey(event.target.value);
+                const next = event.target.value;
+                setKey(next);
+                validateKey(next);
               }}
               placeholder="e.g. frostingNotes"
               aria-invalid={keyError ? true : undefined}
@@ -662,7 +767,7 @@ export type TypeFieldsManagerProps = {
   initialAddOpen?: boolean;
   addError?: string;
   listError?: string;
-  fieldError?: "field-type-locked" | "require-confirm";
+  fieldError?: "field-type-locked" | "require-confirm" | "shared-schema-locked";
   deleted?: boolean;
 };
 
@@ -708,6 +813,7 @@ export function TypeFieldsManager({
   const orderedFields = [...fields].sort((a, b) => a.sortOrder - b.sortOrder);
   const visibleFields = orderedFields.filter((field) => matchesFilter(field, filter));
   const reorderDisabled = filter !== "all";
+  const existingKeys = new Set(fields.map((field) => field.key));
 
   useEffect(() => {
     if (initialExpandedFieldId) {
@@ -809,6 +915,7 @@ export function TypeFieldsManager({
           <AddFieldPanel
             typeId={typeId}
             typeName={typeName}
+            existingKeys={existingKeys}
             error={addError}
             onCancel={() => setAddOpen(false)}
           />

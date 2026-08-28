@@ -4,7 +4,7 @@ import { TypeDetailsForm } from "@/components/admin/TypeDetailsForm";
 import { TypeFieldsManager } from "@/components/admin/TypeFieldsManager";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { type AdminTypeField, countRecipesMissingFieldContent, countRecipesWithFieldContent } from "@/lib/field-admin";
+import { type AdminTypeField, countRecipesMissingFieldContent, countRecipesWithFieldContent, ensureSharedFieldSchemaIntegrity } from "@/lib/field-admin";
 import { adminFocusRing } from "@/lib/admin-ui";
 import { CORE_FIELDS } from "@/lib/fields";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
@@ -18,6 +18,8 @@ const listErrorMessages: Record<string, string> = {
     "Field type cannot change while recipes already store data for this field.",
   "require-confirm":
     "Confirm the required change — some existing recipes do not yet have a value for this field.",
+  "shared-schema-locked":
+    "Shared schema fields cannot change data type or options from a recipe type.",
 };
 
 export default async function AdminTypePage({
@@ -36,6 +38,7 @@ export default async function AdminTypePage({
 }) {
   await requireAccess("content");
   await ensureRecipeOverviewFields();
+  await ensureSharedFieldSchemaIntegrity();
   const { id } = await params;
   const query = await searchParams;
   const type = await getDb().recipeType.findUnique({
@@ -81,17 +84,24 @@ export default async function AdminTypePage({
   const savedFieldId = query.saved === "field" && query.fieldId ? query.fieldId : null;
   const errorFieldId = query.fieldId ?? null;
   const addError =
-    query.error === "duplicate-key" || query.error === "invalid-key" ? query.error : undefined;
+    query.error === "duplicate-key" ||
+    query.error === "invalid-key" ||
+    query.error === "reserved-key"
+      ? query.error
+      : undefined;
   const listError =
     query.error &&
     query.error !== "duplicate-key" &&
     query.error !== "invalid-key" &&
+    query.error !== "reserved-key" &&
     query.error !== "duplicate-slug"
       ? listErrorMessages[query.error] ?? undefined
       : undefined;
   const expandFieldId =
     errorFieldId &&
-    (query.error === "field-type-locked" || query.error === "require-confirm")
+    (query.error === "field-type-locked" ||
+      query.error === "require-confirm" ||
+      query.error === "shared-schema-locked")
       ? errorFieldId
       : savedFieldId;
 
@@ -144,7 +154,13 @@ export default async function AdminTypePage({
         initialAddOpen={query.add === "1"}
         addError={addError}
         listError={listError}
-        fieldError={query.error === "field-type-locked" || query.error === "require-confirm" ? query.error : undefined}
+        fieldError={
+          query.error === "field-type-locked" ||
+          query.error === "require-confirm" ||
+          query.error === "shared-schema-locked"
+            ? query.error
+            : undefined
+        }
         deleted={query.deleted === "field"}
       />
     </div>

@@ -5,9 +5,18 @@ import {
   countRecipesWithFieldContent,
   fieldKindUsesOptions,
   fieldValueHasContent,
+  isCoreFieldKey,
   partitionTypeFields,
 } from "./field-admin";
 import { keyFromLabel } from "./fields";
+
+test("isCoreFieldKey identifies shared schema keys", () => {
+  assert.equal(isCoreFieldKey("image"), true);
+  assert.equal(isCoreFieldKey("intro"), true);
+  assert.equal(isCoreFieldKey("ingredients"), true);
+  assert.equal(isCoreFieldKey("youtubeUrl"), true);
+  assert.equal(isCoreFieldKey("dressingNotes"), false);
+});
 
 test("keyFromLabel generates camelCase keys", () => {
   assert.equal(keyFromLabel("Cake height"), "cakeHeight");
