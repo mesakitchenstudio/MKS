@@ -1,5 +1,10 @@
 /** Shared guest analytics helpers (safe for client + tests). */
 
+/** Dedupe and trim anonymous visitor ids for bulk admin deletes. */
+export function normalizeGuestVisitorIds(ids: string[]) {
+  return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+}
+
 /** Heartbeat interval while a public page is open (also refreshed on focus/visibility). */
 export const GUEST_HEARTBEAT_MS = 45_000;
 /** Early follow-up so mobile timer throttling cannot leave lastSeen stuck after the first pageview. */

@@ -19,7 +19,8 @@ import {
 } from "@/lib/admin-staff";
 import { hashPassword } from "@/lib/passwords";
 import { removeMemberByEmail } from "@/lib/accounts";
-import { deleteGuestVisitorForAdmin } from "@/lib/guest-analytics";
+import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
+import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
 
 async function requireEditor() {
@@ -501,23 +502,37 @@ export type DeleteGuestVisitorResult =
   | { ok: true }
   | { ok: false; error: "missing" | "not-found" | "failed" };
 
+export type DeleteGuestVisitorsBulkResult =
+  | { ok: true; deletedCount: number }
+  | { ok: false; error: "missing" | "not-found" | "failed" };
+
+export async function deleteGuestVisitorsAction(
+  visitorIds: string[],
+): Promise<DeleteGuestVisitorsBulkResult> {
+  await requireAccess("members");
+  const ids = normalizeGuestVisitorIds(visitorIds);
+  if (!ids.length) return { ok: false, error: "missing" };
+
+  try {
+    const deletedCount = await deleteGuestVisitorsForAdmin(ids);
+    if (deletedCount === 0) return { ok: false, error: "not-found" };
+    revalidatePath("/admin/visitors");
+    for (const id of ids) {
+      revalidatePath(`/admin/visitors/${id}`);
+    }
+    return { ok: true, deletedCount };
+  } catch (error) {
+    console.error("Could not delete guest visitors", error);
+    return { ok: false, error: "failed" };
+  }
+}
+
 export async function deleteGuestVisitorAction(
   visitorId: string,
 ): Promise<DeleteGuestVisitorResult> {
-  await requireAccess("members");
-  const id = String(visitorId || "").trim();
-  if (!id) return { ok: false, error: "missing" };
-
-  try {
-    const deleted = await deleteGuestVisitorForAdmin(id);
-    if (!deleted) return { ok: false, error: "not-found" };
-    revalidatePath("/admin/visitors");
-    revalidatePath(`/admin/visitors/${id}`);
-    return { ok: true };
-  } catch (error) {
-    console.error("Could not delete guest visitor", error);
-    return { ok: false, error: "failed" };
-  }
+  const result = await deleteGuestVisitorsAction([visitorId]);
+  if (!result.ok) return result;
+  return { ok: true };
 }
 
 export async function deleteAdminAction(formData: FormData) {

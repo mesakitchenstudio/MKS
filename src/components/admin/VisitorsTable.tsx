@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { deleteGuestVisitorsAction } from "@/app/admin/actions";
 import { PresenceDot } from "@/components/admin/MemberPresence";
 import { RemoveGuestVisitorButton } from "@/components/admin/RemoveGuestVisitorButton";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
@@ -42,6 +43,34 @@ function onlineLabel(count: number) {
   return count === 1 ? "1 visitor online" : `${count} visitors online`;
 }
 
+function bulkDeleteConfirmMessage(count: number) {
+  const label = count === 1 ? "this visitor" : `these ${count} visitors`;
+  return `Delete ${label} and all recorded page views? This action cannot be undone.`;
+}
+
+function VisitorSelectCheckbox({
+  checked,
+  disabled,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      aria-label={label}
+      className={`size-4 shrink-0 rounded-sm border-line text-terracotta accent-terracotta ${adminFocusRing}`}
+      onChange={(event) => onChange(event.target.checked)}
+    />
+  );
+}
+
 export function VisitorsTable({
   visitors,
   popularPaths,
@@ -55,6 +84,9 @@ export function VisitorsTable({
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkError, setBulkError] = useState("");
+  const [bulkPending, startBulkDelete] = useTransition();
   const titles = useMemo(() => new Map(Object.entries(recipeTitles)), [recipeTitles]);
 
   useEffect(() => {
@@ -88,6 +120,56 @@ export function VisitorsTable({
     ? popularPaths
     : popularPaths.slice(0, popularPreviewLimit);
   const canTogglePopular = popularPaths.length > popularPreviewLimit;
+
+  const visibleIds = useMemo(() => sorted.map((guest) => guest.id), [sorted]);
+  const selectedCount = selectedIds.size;
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
+
+  useEffect(() => {
+    const visible = new Set(visibleIds);
+    setSelectedIds((current) => {
+      const next = new Set([...current].filter((id) => visible.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [visibleIds]);
+
+  function toggleGuest(id: string, checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible(checked: boolean) {
+    setSelectedIds(checked ? new Set(visibleIds) : new Set());
+  }
+
+  function handleBulkDelete() {
+    if (bulkPending || selectedCount === 0) return;
+    if (!window.confirm(bulkDeleteConfirmMessage(selectedCount))) return;
+
+    setBulkError("");
+    const ids = [...selectedIds];
+    startBulkDelete(async () => {
+      const result = await deleteGuestVisitorsAction(ids);
+      if (!result.ok) {
+        if (result.error === "not-found") {
+          setBulkError("No matching visitors found.");
+        } else if (result.error === "missing") {
+          setBulkError("Select at least one visitor.");
+        } else {
+          setBulkError("Could not delete visitors. Try again.");
+        }
+        return;
+      }
+      setSelectedIds(new Set());
+      router.refresh();
+    });
+  }
 
   return (
     <div className="mt-6 space-y-8">
@@ -171,20 +253,69 @@ export function VisitorsTable({
           </p>
         ) : (
           <>
+            {selectedCount > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-line bg-paper px-4 py-3">
+                <p className="text-sm font-semibold text-ink">
+                  {selectedCount} selected
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={bulkPending}
+                    aria-busy={bulkPending}
+                    className={`text-sm font-semibold text-terracotta/90 transition-colors hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-60 ${adminFocusRing}`}
+                    onClick={handleBulkDelete}
+                  >
+                    {bulkPending ? "Deleting…" : "Delete selected"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkPending}
+                    className={`text-sm text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 ${adminFocusRing}`}
+                    onClick={() => {
+                      setBulkError("");
+                      setSelectedIds(new Set());
+                    }}
+                  >
+                    Clear selection
+                  </button>
+                </div>
+                {bulkError ? (
+                  <p className="w-full text-sm text-terracotta">{bulkError}</p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-4 hidden border border-line bg-paper md:block">
               <table className="w-full table-fixed text-left text-sm">
                 <colgroup>
-                  <col className="w-[14%]" />
+                  <col className="w-[3rem]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[21%]" />
                   <col className="w-[10%]" />
-                  <col className="w-[22%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[13%]" />
                   <col className="w-[11%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[12%]" />
                   <col className="w-[10%]" />
                 </colgroup>
                 <thead className={adminTableHeadClass}>
                   <tr>
+                    <th className="px-3 py-3 font-medium">
+                      <VisitorSelectCheckbox
+                        checked={allVisibleSelected}
+                        disabled={bulkPending}
+                        label={
+                          allVisibleSelected
+                            ? "Deselect all visitors"
+                            : "Select all visitors"
+                        }
+                        onChange={toggleAllVisible}
+                      />
+                      {someVisibleSelected && !allVisibleSelected ? (
+                        <span className="sr-only">Some visitors selected</span>
+                      ) : null}
+                    </th>
                     <th className="px-3 py-3 font-medium">Visitor</th>
                     <th className="px-3 py-3 font-medium">Status</th>
                     <th className="px-3 py-3 font-medium">Current / last page</th>
@@ -204,6 +335,9 @@ export function VisitorsTable({
                       guest={guest}
                       now={now}
                       recipeTitles={titles}
+                      selected={selectedIds.has(guest.id)}
+                      selectionDisabled={bulkPending}
+                      onSelectedChange={(checked) => toggleGuest(guest.id, checked)}
                     />
                   ))}
                 </tbody>
@@ -217,6 +351,9 @@ export function VisitorsTable({
                   guest={guest}
                   now={now}
                   recipeTitles={titles}
+                  selected={selectedIds.has(guest.id)}
+                  selectionDisabled={bulkPending}
+                  onSelectedChange={(checked) => toggleGuest(guest.id, checked)}
                 />
               ))}
             </ul>
@@ -274,10 +411,16 @@ function VisitorTableRow({
   guest,
   now,
   recipeTitles,
+  selected,
+  selectionDisabled,
+  onSelectedChange,
 }: {
   guest: GuestRow;
   now: number;
   recipeTitles: Map<string, string>;
+  selected: boolean;
+  selectionDisabled: boolean;
+  onSelectedChange: (checked: boolean) => void;
 }) {
   const online = isMemberOnline(guest.lastSeenAt, now);
   const status = formatPresenceLabel(guest.lastSeenAt, now);
@@ -287,6 +430,14 @@ function VisitorTableRow({
 
   return (
     <tr className="border-t border-line align-top hover:bg-cream/40">
+      <td className="px-3 py-3">
+        <VisitorSelectCheckbox
+          checked={selected}
+          disabled={selectionDisabled}
+          label={`Select Guest ${shortKey}`}
+          onChange={onSelectedChange}
+        />
+      </td>
       <td className="px-3 py-3">
         <Link href={`/admin/visitors/${guest.id}`} className={`block min-w-0 ${adminFocusRing}`}>
           <span className="inline-flex flex-wrap items-center gap-2">
@@ -329,7 +480,7 @@ function VisitorTableRow({
             >
               View
             </Link>
-            <RemoveGuestVisitorButton id={guest.id} />
+            <RemoveGuestVisitorButton id={guest.id} disabled={selectionDisabled} />
           </span>
         </span>
       </td>
@@ -341,10 +492,16 @@ function VisitorMobileCard({
   guest,
   now,
   recipeTitles,
+  selected,
+  selectionDisabled,
+  onSelectedChange,
 }: {
   guest: GuestRow;
   now: number;
   recipeTitles: Map<string, string>;
+  selected: boolean;
+  selectionDisabled: boolean;
+  onSelectedChange: (checked: boolean) => void;
 }) {
   const online = isMemberOnline(guest.lastSeenAt, now);
   const status = formatPresenceLabel(guest.lastSeenAt, now);
@@ -359,7 +516,14 @@ function VisitorMobileCard({
   return (
     <li className="border border-line bg-paper px-4 py-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-3">
+          <VisitorSelectCheckbox
+            checked={selected}
+            disabled={selectionDisabled}
+            label={`Select Guest ${shortKey}`}
+            onChange={onSelectedChange}
+          />
+          <div className="min-w-0">
           <Link
             href={`/admin/visitors/${guest.id}`}
             className={`inline-flex flex-wrap items-center gap-2 font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
@@ -371,6 +535,7 @@ function VisitorMobileCard({
             <PresenceDot online={online} />
             {status}
           </p>
+          </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <Link
@@ -379,7 +544,7 @@ function VisitorMobileCard({
           >
             View
           </Link>
-          <RemoveGuestVisitorButton id={guest.id} />
+          <RemoveGuestVisitorButton id={guest.id} disabled={selectionDisabled} />
         </div>
       </div>
       <div className="mt-2">

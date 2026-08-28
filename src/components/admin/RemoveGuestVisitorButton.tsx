@@ -8,13 +8,20 @@ import { adminFocusRing } from "@/lib/admin-ui";
 const confirmMessage =
   "Delete this visitor and all recorded page views? This action cannot be undone.";
 
-export function RemoveGuestVisitorButton({ id }: { id: string }) {
+export function RemoveGuestVisitorButton({
+  id,
+  disabled = false,
+}: {
+  id: string;
+  disabled?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const isDisabled = disabled || pending;
 
   function handleClick() {
-    if (pending) return;
+    if (isDisabled) return;
     if (!window.confirm(confirmMessage)) return;
 
     setError("");
@@ -38,7 +45,7 @@ export function RemoveGuestVisitorButton({ id }: { id: string }) {
     <span className="inline-flex flex-col items-end gap-0.5">
       <button
         type="button"
-        disabled={pending}
+        disabled={isDisabled}
         aria-busy={pending}
         className={`text-sm font-semibold text-terracotta/90 transition-colors hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-60 ${adminFocusRing}`}
         onClick={handleClick}

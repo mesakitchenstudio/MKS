@@ -7,6 +7,7 @@ import { guestPathTitle, isPopularGuestPath } from "@/lib/guest-path-labels";
 import {
   guestAnalyticsPath,
   normalizeGuestNavId,
+  normalizeGuestVisitorIds,
   shouldInsertGuestPageView,
 } from "@/lib/guest-tracking";
 import { isSitePrivate } from "@/lib/flags";
@@ -177,23 +178,21 @@ export async function getGuestForAdmin(id: string): Promise<GuestVisitorRow | nu
 }
 
 /**
- * Permanently remove an anonymous visitor and all related page-view rows.
+ * Permanently remove anonymous visitors and all related page-view rows.
  * GuestPageView uses onDelete: Cascade — no orphaned analytics remain.
- * Returns false when the id is missing or not a GuestVisitor record.
  */
-export async function deleteGuestVisitorForAdmin(id: string): Promise<boolean> {
-  const trimmed = id.trim();
-  if (!trimmed) return false;
+export async function deleteGuestVisitorsForAdmin(ids: string[]): Promise<number> {
+  const unique = normalizeGuestVisitorIds(ids);
+  if (!unique.length) return 0;
 
-  const db = getDb();
-  const existing = await db.guestVisitor.findUnique({
-    where: { id: trimmed },
-    select: { id: true },
+  const result = await getDb().guestVisitor.deleteMany({
+    where: { id: { in: unique } },
   });
-  if (!existing) return false;
+  return result.count;
+}
 
-  await db.guestVisitor.delete({ where: { id: trimmed } });
-  return true;
+export async function deleteGuestVisitorForAdmin(id: string): Promise<boolean> {
+  return (await deleteGuestVisitorsForAdmin([id])) > 0;
 }
 
 export async function listPopularGuestPaths(days = 7, limit = 20) {
