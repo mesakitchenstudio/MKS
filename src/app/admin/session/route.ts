@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { resolvePublicStaffForAdmin } from "@/lib/admin-bridge";
 import { homeForRole } from "@/lib/admin-access";
-import { getStaffByEmail, syncStaffGooglePhoto } from "@/lib/accounts";
+import { syncStaffGooglePhoto } from "@/lib/accounts";
 import {
   ADMIN_COOKIE,
   adminCookieOptions,
@@ -11,21 +11,27 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Bridge an existing public NextAuth session into a Studio admin session when
+ * the authenticated identity has Team Access. Used after Google admin OAuth
+ * and when a staff member opens Studio admin from the public site.
+ */
 export async function GET(request: Request) {
-  const session = await auth();
-  const email = session?.user?.email;
-  if (!email) {
-    return NextResponse.redirect(new URL("/admin/login?error=google", request.url));
+  const resolved = await resolvePublicStaffForAdmin();
+
+  if (resolved.status === "unauthenticated") {
+    return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
-  const staff = await getStaffByEmail(email);
-  if (!staff) {
+  if (resolved.status === "unauthorized") {
     return NextResponse.redirect(new URL("/admin/login?error=not-admin", request.url));
   }
 
-  await syncStaffGooglePhoto(email, session?.user?.image);
-  await persistAdminLastSeen(staff);
-  const response = NextResponse.redirect(new URL(homeForRole(staff.role), request.url));
-  response.cookies.set(ADMIN_COOKIE, createSessionToken(staff), adminCookieOptions());
+  await syncStaffGooglePhoto(resolved.email, resolved.image);
+  await persistAdminLastSeen(resolved.staff);
+  const response = NextResponse.redirect(
+    new URL(homeForRole(resolved.staff.role), request.url),
+  );
+  response.cookies.set(ADMIN_COOKIE, createSessionToken(resolved.staff), adminCookieOptions());
   return response;
 }
