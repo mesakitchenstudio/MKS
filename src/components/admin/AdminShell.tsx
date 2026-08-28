@@ -10,6 +10,7 @@ import { adminPageTitleForPath, adminWorkspaceWidthForPath } from "@/lib/admin-n
 import {
   adminFocusRing,
   adminSidebarWidthClass,
+  adminWorkspacePaddingClass,
 } from "@/lib/admin-ui";
 
 type AdminShellProps = {
@@ -147,8 +148,8 @@ export function AdminShell({
       ) : null}
 
       <main className="min-w-0 flex-1">
-        <div className={`mx-auto w-full ${workspaceWidth} px-5 py-8 md:px-6 md:py-10`}>
-          {children}
+        <div className={adminWorkspacePaddingClass}>
+          <div className={`w-full ${workspaceWidth}`}>{children}</div>
         </div>
       </main>
     </div>

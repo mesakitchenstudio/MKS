@@ -102,7 +102,7 @@ export default async function AdminStaffPage({
     : "No team members yet.";
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       <div className="border-b border-line pb-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
           Studio access

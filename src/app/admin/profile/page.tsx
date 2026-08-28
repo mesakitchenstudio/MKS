@@ -32,7 +32,7 @@ export default async function AdminProfilePage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-xl">
+    <div className="w-full">
       <header className="border-b border-line pb-4">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-olive">
           Your account

@@ -34,6 +34,10 @@ export const adminWorkspaceNarrow = "max-w-xl";
 /** @deprecated Use adminWorkspaceWide */
 export const adminWorkspaceMaxWidth = adminWorkspaceWide;
 
+/** Shared workspace inset — left grid aligns all pages; ~96–112px after sidebar on large desktop. */
+export const adminWorkspacePaddingClass =
+  "px-5 py-8 md:px-6 md:py-10 lg:pl-24 lg:pr-10 lg:py-10 xl:pl-28";
+
 /** Left admin navigation width (~240px). */
 export const adminSidebarWidthClass = "w-[15rem]";
 
