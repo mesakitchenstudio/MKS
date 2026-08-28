@@ -1,14 +1,29 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { importSaves, listSaves, removeSave, toggleSave } from "@/lib/accounts";
+import {
+  findActiveMemberByEmail,
+  importSaves,
+  listSaves,
+  MemberSessionRevokedError,
+  removeSave,
+  toggleSave,
+} from "@/lib/accounts";
+
+function unauthorized() {
+  return NextResponse.json({ error: "Sign in to save recipes." }, { status: 401 });
+}
 
 export async function GET() {
   const session = await auth();
   const email = session?.user?.email;
-  if (!email) {
+  if (!email || session?.error === "MemberDeleted") {
     return NextResponse.json({ favorites: [] }, { status: 401 });
   }
   try {
+    const member = await findActiveMemberByEmail(email);
+    if (!member) {
+      return NextResponse.json({ favorites: [] }, { status: 401 });
+    }
     return NextResponse.json({ favorites: await listSaves(email) });
   } catch {
     return NextResponse.json({ favorites: [] }, { status: 500 });
@@ -18,9 +33,15 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await auth();
   const email = session?.user?.email;
-  if (!email) {
-    return NextResponse.json({ error: "Sign in to save recipes." }, { status: 401 });
+  if (!email || session?.error === "MemberDeleted") {
+    return unauthorized();
   }
+
+  const member = await findActiveMemberByEmail(email);
+  if (!member) {
+    return unauthorized();
+  }
+
   const body = (await request.json()) as {
     slug?: string;
     title?: string;
@@ -29,7 +50,7 @@ export async function POST(request: Request) {
   };
   try {
     if (body.import) {
-      const favorites = await importSaves(email, body.import, session.user?.name ?? "", request.headers);
+      const favorites = await importSaves(email, body.import);
       return NextResponse.json({ favorites });
     }
     if (!body.slug || !body.title) {
@@ -39,14 +60,12 @@ export async function POST(request: Request) {
       const favorites = await removeSave(email, body.slug);
       return NextResponse.json({ liked: false, favorites });
     }
-    const result = await toggleSave(
-      email,
-      { slug: body.slug, title: body.title },
-      session.user?.name ?? "",
-      request.headers,
-    );
+    const result = await toggleSave(email, { slug: body.slug, title: body.title });
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof MemberSessionRevokedError) {
+      return unauthorized();
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not save recipe." },
       { status: 500 },

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Recipe } from "@/data/types";
 import { RecipeGridCard } from "@/components/RecipeGridCard";
+import { MemberSessionExpiredError } from "@/lib/auth-client";
 import { removeLike } from "@/lib/likes";
 import { authFocusRing } from "@/lib/auth-ui";
 
@@ -22,8 +23,17 @@ export function ProfileFavorites({
 
   async function remove(slug: string, title: string) {
     setHidden((current) => [...current, slug]);
-    await removeLike({ slug, title });
-    router.refresh();
+    try {
+      await removeLike({ slug, title });
+      router.refresh();
+    } catch (error) {
+      setHidden((current) => current.filter((item) => item !== slug));
+      if (error instanceof MemberSessionExpiredError) {
+        router.refresh();
+        window.dispatchEvent(new Event("mesa-open-auth"));
+        return;
+      }
+    }
   }
 
   if (!visible.length && !visibleExtras.length) {

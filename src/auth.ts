@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import {
   authenticateEmailUser,
-  ensureMember,
+  findActiveMemberByEmail,
   getStaffByEmail,
   recordConnection,
   removeMemberByEmail,
@@ -90,6 +90,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
       if (user?.email) {
         token.email = user.email;
         token.name = user.name;
+        delete token.error;
       }
       if (user?.image) {
         token.picture = user.image;
@@ -97,28 +98,57 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
       if (token.email) {
         const staff = await getStaffByEmail(String(token.email));
         token.staffRole = asStaffRole(staff?.role);
+        // JWT alone must not keep a deleted member authenticated.
+        if (!token.staffRole) {
+          const member = await findActiveMemberByEmail(String(token.email));
+          if (!member) {
+            return { error: "MemberDeleted" };
+          }
+        }
       }
       return token;
     },
     async session({ session, token }) {
+      if (token.error === "MemberDeleted") {
+        return {
+          expires: session.expires,
+          user: undefined,
+          staffRole: null,
+          error: "MemberDeleted",
+        };
+      }
+
       if (session.user) {
         session.user.email = (token.email as string) || session.user.email;
         session.user.name = (token.name as string) || session.user.name;
         if (token.picture) session.user.image = String(token.picture);
       }
       session.staffRole = asStaffRole(token.staffRole);
+      session.error = undefined;
+
       if (session.user?.email) {
         try {
           if (session.staffRole) {
             await removeMemberByEmail(session.user.email);
           } else {
-            await ensureMember(session.user.email, session.user.name ?? "", request?.headers);
+            const member = await findActiveMemberByEmail(session.user.email);
+            if (!member) {
+              return {
+                expires: session.expires,
+                user: undefined,
+                staffRole: null,
+                error: "MemberDeleted",
+              };
+            }
             if (token.picture) {
               await syncMemberGooglePhoto(session.user.email, String(token.picture));
             }
+            if (member.name && member.name !== session.user.name) {
+              session.user.name = member.name;
+            }
           }
         } catch (error) {
-          console.error("Could not persist member profile", error);
+          console.error("Could not validate member session", error);
         }
       }
       return session;

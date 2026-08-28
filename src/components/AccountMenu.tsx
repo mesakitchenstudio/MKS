@@ -26,7 +26,7 @@ const triggerFocus =
   "rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
 export function AccountMenu() {
-  const { data } = useSession();
+  const { data, status } = useSession();
   const pathname = usePathname();
   const [localUser, setLocalUser] = useState<PublicUser | null>(null);
   const [open, setOpen] = useState(false);
@@ -68,22 +68,26 @@ export function AccountMenu() {
     };
   }, [open]);
 
-  const user: PublicUser | null = data?.user?.email
-    ? {
-        name: resolveMemberDisplayName({
-          // Prefer session name, then local session copy — same sources profile uses
-          // (DB name is reflected into session via ensureMember / AuthSessionProvider).
-          name: data.user.name || localUser?.name,
-          email: data.user.email,
-        }),
-        email: data.user.email,
-      }
-    : localUser
-      ? {
-          name: resolveMemberDisplayName(localUser),
-          email: localUser.email,
-        }
-      : null;
+  // Never keep showing a deleted member from localStorage after Auth.js rejected the session.
+  const user: PublicUser | null =
+    data?.error === "MemberDeleted"
+      ? null
+      : data?.user?.email
+        ? {
+            name: resolveMemberDisplayName({
+              name: data.user.name || localUser?.name,
+              email: data.user.email,
+            }),
+            email: data.user.email,
+          }
+        : status === "loading"
+          ? localUser
+            ? {
+                name: resolveMemberDisplayName(localUser),
+                email: localUser.email,
+              }
+            : null
+          : null;
 
   if (!user) {
     return (

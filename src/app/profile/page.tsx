@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { auth } from "@/auth";
-import { ensureMember, getStaffByEmail, getUserByEmail, removeMemberByEmail } from "@/lib/accounts";
+import { getStaffByEmail, getUserByEmail, removeMemberByEmail } from "@/lib/accounts";
 import { homeForRole } from "@/lib/admin-access";
 import { formatLongDate } from "@/lib/datetime";
 import { getAllRecipes } from "@/lib/recipes";
@@ -21,7 +20,7 @@ export default async function ProfilePage() {
   const session = await auth();
   const email = session?.user?.email;
 
-  if (!email) {
+  if (!email || session?.error === "MemberDeleted") {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 md:px-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">Account</p>
@@ -53,22 +52,33 @@ export default async function ProfilePage() {
     );
   }
 
-  await ensureMember(email, session.user?.name ?? "", await headers());
   const [user, recipes] = await Promise.all([getUserByEmail(email), getAllRecipes()]);
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 md:px-6">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">Account</p>
+        <h1 className="mt-3 font-serif text-4xl md:text-5xl">Your profile</h1>
+        <p className="mt-4 max-w-md text-muted">
+          Use Sign in in the top-right corner to see the recipes you have saved.
+        </p>
+      </div>
+    );
+  }
+
   const identity = memberIdentityLines({
-    name: user?.name || session.user?.name,
+    name: user.name || session.user?.name,
     email,
   });
   const name = resolveMemberDisplayName({
-    name: user?.name || session.user?.name,
+    name: user.name || session.user?.name,
     email,
   });
-  const saves = user?.saves ?? [];
+  const saves = user.saves ?? [];
   const savedRecipes = saves
     .map((save) => recipes.find((recipe) => recipe.slug === save.slug))
     .filter((recipe): recipe is NonNullable<typeof recipe> => Boolean(recipe));
   const missing = saves.filter((save) => !recipes.some((recipe) => recipe.slug === save.slug));
-  const photoUrl = (user?.photoUrl || session.user?.image || "").trim();
+  const photoUrl = (user.photoUrl || session.user?.image || "").trim();
   const savedCount = saves.length;
   const savedLabel =
     savedCount === 1 ? "1 saved recipe" : `${savedCount} saved recipes`;
@@ -99,7 +109,7 @@ export default async function ProfilePage() {
             {identity.secondary ? (
               <p className="mt-1.5 break-words text-muted">{identity.secondary}</p>
             ) : null}
-            {user?.createdAt ? (
+            {user.createdAt ? (
               <p className={`${identity.secondary ? "mt-1" : "mt-1.5"} text-sm text-muted`}>
                 Member since {formatLongDate(user.createdAt)}
               </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { SessionProvider, useSession } from "next-auth/react";
+import { SessionProvider, signOut as signOutGoogle, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { GuestTracker } from "@/components/GuestTracker";
@@ -19,9 +19,22 @@ function SessionSync() {
   const router = useRouter();
   const didRefreshProfile = useRef(false);
   const didEnrich = useRef(false);
+  const didForceSignOut = useRef(false);
 
   useEffect(() => {
     if (status === "loading") return;
+
+    if (session?.error === "MemberDeleted" || (status === "authenticated" && !session?.user?.email)) {
+      if (!didForceSignOut.current) {
+        didForceSignOut.current = true;
+        clearLocalSession();
+        void signOutGoogle({ redirect: false });
+      }
+      return;
+    }
+
+    didForceSignOut.current = false;
+
     if (!session?.user?.email) {
       clearLocalSession();
       return;
@@ -41,6 +54,11 @@ function SessionSync() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enrich: true, sessionKey }),
+      }).then((response) => {
+        if (response.status === 401) {
+          clearLocalSession();
+          void signOutGoogle({ redirect: false });
+        }
       });
     }
 
@@ -51,6 +69,11 @@ function SessionSync() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enrich: false, sessionKey }),
         keepalive: true,
+      }).then((response) => {
+        if (response.status === 401) {
+          clearLocalSession();
+          void signOutGoogle({ redirect: false });
+        }
       });
     }
 
@@ -66,7 +89,7 @@ function SessionSync() {
   }, [session, status]);
 
   useEffect(() => {
-    if (!session?.user?.email || session.staffRole) return;
+    if (!session?.user?.email || session.staffRole || session.error === "MemberDeleted") return;
     void hydrateLikesFromProfile().then((favorites) => {
       if (pathname === "/profile" && favorites.length && !didRefreshProfile.current) {
         didRefreshProfile.current = true;

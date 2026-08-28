@@ -30,6 +30,30 @@ export function signOut() {
   emitSessionChanged();
 }
 
+/** Clear local + Auth.js session after the server rejects a deleted/expired member. */
+export async function forcePublicSignOut() {
+  if (typeof window === "undefined") return;
+  try {
+    await clearMemberPresenceSession();
+  } catch {
+    // Presence clear is best-effort once the member row is already gone.
+  }
+  signOut();
+  try {
+    const { signOut: signOutGoogle } = await import("next-auth/react");
+    await signOutGoogle({ redirect: false });
+  } catch {
+    // Cookie clear may already have been handled by the Auth.js session callback.
+  }
+}
+
+export class MemberSessionExpiredError extends Error {
+  constructor(message = "Your session has expired. Please sign in again.") {
+    super(message);
+    this.name = "MemberSessionExpiredError";
+  }
+}
+
 /** Stable per-browser presence id so logout can clear only this device's Online row. */
 export function getPresenceSessionKey() {
   if (typeof window === "undefined") return "";

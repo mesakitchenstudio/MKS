@@ -95,6 +95,33 @@ export async function removeMemberByEmail(email: string) {
   }
 }
 
+/** Thrown when a JWT/cookie is still present but the member row was deleted. */
+export class MemberSessionRevokedError extends Error {
+  constructor(message = "Member session is no longer valid.") {
+    super(message);
+    this.name = "MemberSessionRevokedError";
+  }
+}
+
+/** Lookup only — never creates a member from a leftover session. */
+export async function findActiveMemberByEmail(email: string) {
+  const key = emailKey(email);
+  if (!key) return null;
+  if (await getStaffByEmail(key)) return null;
+  try {
+    return await getDb().user.findUnique({ where: { email: key } });
+  } catch (error) {
+    console.error("Could not load active member", error);
+    return null;
+  }
+}
+
+export async function requireActiveMember(email: string) {
+  const user = await findActiveMemberByEmail(email);
+  if (!user) throw new MemberSessionRevokedError();
+  return user;
+}
+
 export async function ensureMember(email: string, name = "", headers?: unknown) {
   try {
     return await ensureMemberRecord(email, name, headers);
@@ -290,14 +317,10 @@ export async function recordConnection(input: {
     await removeMemberByEmail(email);
     return null;
   }
-  const user =
-    (await db.user.findUnique({ where: { email } })) ||
-    (await db.user.create({
-      data: {
-        email,
-        name: input.name?.trim() || email,
-      },
-    }));
+  // Sign-in paths create the user first (upsertGoogleUser / register). Never revive
+  // a deleted member from a leftover JWT via connection recording alone.
+  const user = await db.user.findUnique({ where: { email } });
+  if (!user) return null;
 
   const meta = input.meta ?? connectionMeta(input.headers);
 
@@ -340,9 +363,9 @@ export async function recordConnection(input: {
   return user;
 }
 
-export async function enrichMemberConnection(email: string, name = "", headers?: unknown) {
+export async function enrichMemberConnection(email: string, headers?: unknown) {
   const db = getDb();
-  const user = await ensureMember(email, name, headers);
+  const user = await findActiveMemberByEmail(email);
   if (!user) return null;
   const meta = connectionMeta(headers);
   const latest = await db.userConnection.findFirst({
@@ -389,7 +412,8 @@ export async function touchMemberPresence(
       },
     });
   } catch {
-    user = await ensureMember(email, name);
+    // Member was deleted (or never existed) — do not recreate from the heartbeat.
+    return null;
   }
   if (!user) return null;
 
@@ -515,12 +539,9 @@ export async function listSaves(email: string): Promise<SavedRecipe[]> {
   return (user?.saves ?? []).map((save) => ({ slug: save.slug, title: save.title }));
 }
 
-export async function toggleSave(email: string, recipe: SavedRecipe, name = "", headers?: unknown) {
+export async function toggleSave(email: string, recipe: SavedRecipe) {
   const db = getDb();
-  const user = await ensureMember(email, name, headers);
-  if (!user) {
-    return { liked: false, favorites: [] as SavedRecipe[] };
-  }
+  const user = await requireActiveMember(email);
   const existing = await db.recipeSave.findUnique({
     where: { userId_slug: { userId: user.id, slug: recipe.slug } },
   });
@@ -539,16 +560,14 @@ export async function toggleSave(email: string, recipe: SavedRecipe, name = "", 
 
 export async function removeSave(email: string, slug: string) {
   const db = getDb();
-  const user = await db.user.findUnique({ where: { email: emailKey(email) } });
-  if (!user) return listSaves(email);
+  const user = await requireActiveMember(email);
   await db.recipeSave.deleteMany({ where: { userId: user.id, slug } });
   return listSaves(email);
 }
 
-export async function importSaves(email: string, recipes: SavedRecipe[], name = "", headers?: unknown) {
+export async function importSaves(email: string, recipes: SavedRecipe[]) {
   const db = getDb();
-  const user = await ensureMember(email, name, headers);
-  if (!user) return listSaves(email);
+  const user = await requireActiveMember(email);
   if (recipes.length === 0) return listSaves(email);
   for (const recipe of recipes) {
     await db.recipeSave.upsert({

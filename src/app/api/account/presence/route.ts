@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import {
   clearMemberPresenceSession,
   enrichMemberConnection,
+  findActiveMemberByEmail,
   touchMemberPresence,
 } from "@/lib/accounts";
 import { normalizePresenceSessionKey } from "@/lib/member-presence";
@@ -11,7 +12,7 @@ import { headers } from "next/headers";
 export async function POST(request: Request) {
   const session = await auth();
   const email = session?.user?.email;
-  if (!email) {
+  if (!email || session?.error === "MemberDeleted") {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
@@ -28,10 +29,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    if (body.enrich) {
-      await enrichMemberConnection(email, session.user?.name ?? "", await headers());
+    const member = await findActiveMemberByEmail(email);
+    if (!member) {
+      return NextResponse.json({ ok: false }, { status: 401 });
     }
-    await touchMemberPresence(email, session.user?.name ?? "", sessionKey);
+
+    if (body.enrich) {
+      await enrichMemberConnection(email, await headers());
+    }
+    const touched = await touchMemberPresence(email, session.user?.name ?? "", sessionKey);
+    if (!touched) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Could not record member presence", error);

@@ -7,6 +7,7 @@ import { signOut as signOutGoogle } from "next-auth/react";
 import { clearMemberPresenceSession, readSession, signOut } from "@/lib/auth-client";
 import { trackEvent } from "@/lib/analytics";
 import { isLiked, readLikes, toggleLike, hydrateLikesFromProfile, type LikedRecipe } from "@/lib/likes";
+import { MemberSessionExpiredError } from "@/lib/auth-client";
 import { AuthModal } from "./AuthModal";
 import { SearchOverlay, type OverlayRecipe } from "./SearchOverlay";
 
@@ -105,7 +106,8 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
   }, [current, pathname, sessionTick]);
 
   async function applyLike() {
-    if (current) {
+    if (!current) return;
+    try {
       const nextLiked = await toggleLike(current);
       setLiked(nextLiked);
       trackEvent("recipe_favorite", {
@@ -113,9 +115,17 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
         recipe_title: current.title,
         source: nextLiked ? "add" : "remove",
       });
+      setLikes(readLikes());
+      setPanel("likes");
+    } catch (error) {
+      setLiked(isLiked(current.slug));
+      setLikes(readLikes());
+      if (error instanceof MemberSessionExpiredError) {
+        setPanel("auth");
+        return;
+      }
+      setPanel(null);
     }
-    setLikes(readLikes());
-    setPanel("likes");
   }
 
   function onHeart() {
