@@ -9,6 +9,7 @@ import type { AdminNavSection } from "@/lib/admin-nav";
 import { adminPageTitleForPath, adminWorkspaceWidthForPath } from "@/lib/admin-nav";
 import {
   adminFocusRing,
+  adminMobileDrawerWidthClass,
   adminSidebarWidthClass,
   adminWorkspacePaddingClass,
 } from "@/lib/admin-ui";
@@ -124,7 +125,7 @@ export function AdminShell({
             role="dialog"
             aria-modal="true"
             aria-label="Admin navigation"
-            className={`relative flex h-full ${adminSidebarWidthClass} max-w-[85vw] flex-col border-r border-line bg-paper shadow-none`}
+            className={`relative flex h-full ${adminMobileDrawerWidthClass} flex-col border-r border-line bg-paper shadow-none`}
           >
             <div className="flex items-center justify-between gap-3 border-b border-line/80 px-4 py-3">
               <Logo href={homeHref} aside="Admin" className="scale-[0.92] origin-left" />

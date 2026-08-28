@@ -38,8 +38,11 @@ export const adminWorkspaceMaxWidth = adminWorkspaceWide;
 export const adminWorkspacePaddingClass =
   "px-5 py-8 md:px-6 md:py-10 lg:pl-24 lg:pr-10 lg:py-10 xl:pl-28";
 
-/** Left admin navigation width (~240px). */
+/** Left admin navigation width (~240px) — desktop sidebar only. */
 export const adminSidebarWidthClass = "w-[15rem]";
+
+/** Mobile nav drawer — ~82vw with a cap so labels fit without going full-screen. */
+export const adminMobileDrawerWidthClass = "w-[82vw] max-w-[22rem] shrink-0";
 
 export const adminSidebarLinkClass =
   "flex min-h-10 items-center rounded-sm px-3 text-sm font-semibold leading-snug transition-colors duration-150 motion-reduce:transition-none";
