@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/admin/actions";
 import type { AdminNavSection } from "@/lib/admin-nav";
 import { linkIsActive } from "@/lib/admin-nav";
+import type { AdminDeployInfo } from "@/lib/admin-deploy";
+import { formatAdminDeployLine } from "@/lib/admin-deploy";
 import {
   adminFocusRing,
   adminNavItemClass,
@@ -16,6 +18,7 @@ type AdminSidebarNavProps = {
   sections: AdminNavSection[];
   displayName: string;
   roleLabel: string;
+  deployInfo: AdminDeployInfo;
   onNavigate?: () => void;
   id?: string;
 };
@@ -66,6 +69,7 @@ export function AdminSidebarNav({
   sections,
   displayName,
   roleLabel,
+  deployInfo,
   onNavigate,
   id,
 }: AdminSidebarNavProps) {
@@ -95,6 +99,16 @@ export function AdminSidebarNav({
         <p className="px-3 text-xs leading-snug text-muted">
           <span className="block font-semibold text-ink/85">{displayName}</span>
           <span>{roleLabel}</span>
+        </p>
+        <p
+          className="mt-2 px-3 font-mono text-[0.65rem] leading-snug tracking-wide text-muted"
+          title={
+            deployInfo.fullSha
+              ? `Deployed commit ${deployInfo.fullSha} (${deployInfo.envLabel})`
+              : "Local development build"
+          }
+        >
+          Build {formatAdminDeployLine(deployInfo)}
         </p>
 
         <p className={`${adminSidebarSectionLabelClass} mt-3`}>Account</p>

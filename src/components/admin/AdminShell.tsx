@@ -7,6 +7,8 @@ import { AdminSidebarNav, adminMobileNavTriggerClass } from "@/components/admin/
 import { Logo } from "@/components/Logo";
 import type { AdminNavSection } from "@/lib/admin-nav";
 import { adminPageTitleForPath, adminWorkspaceWidthForPath } from "@/lib/admin-nav";
+import type { AdminDeployInfo } from "@/lib/admin-deploy";
+import { formatAdminDeployLine } from "@/lib/admin-deploy";
 import {
   adminFocusRing,
   adminMobileDrawerWidthClass,
@@ -20,6 +22,7 @@ type AdminShellProps = {
   displayName: string;
   roleLabel: string;
   sections: AdminNavSection[];
+  deployInfo: AdminDeployInfo;
   children: React.ReactNode;
 };
 
@@ -28,6 +31,7 @@ export function AdminShell({
   displayName,
   roleLabel,
   sections,
+  deployInfo,
   children,
 }: AdminShellProps) {
   const pathname = usePathname();
@@ -82,6 +86,7 @@ export function AdminShell({
           sections={sections}
           displayName={displayName}
           roleLabel={roleLabel}
+          deployInfo={deployInfo}
         />
       </aside>
 
@@ -99,8 +104,15 @@ export function AdminShell({
         </button>
         <div className="min-w-0 flex-1">
           <p className="truncate font-serif text-lg leading-tight text-ink">{pageTitle}</p>
-          <p className="truncate text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-            Mesa admin
+          <p
+            className="truncate font-mono text-[0.65rem] tracking-wide text-olive"
+            title={
+              deployInfo.fullSha
+                ? `Deployed commit ${deployInfo.fullSha} (${deployInfo.envLabel})`
+                : "Local development build"
+            }
+          >
+            {formatAdminDeployLine(deployInfo)}
           </p>
         </div>
         <Link
@@ -143,6 +155,7 @@ export function AdminShell({
               sections={sections}
               displayName={displayName}
               roleLabel={roleLabel}
+              deployInfo={deployInfo}
               onNavigate={closeMobileNav}
             />
           </div>

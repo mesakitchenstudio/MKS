@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Logo } from "@/components/Logo";
 import { accessLabel, homeForRole } from "@/lib/admin-access";
+import { getAdminDeployInfo } from "@/lib/admin-deploy";
 import { buildAdminNavSections } from "@/lib/admin-nav";
 import { adminFocusRing, adminNavItemClass } from "@/lib/admin-ui";
 import { getAdminSession } from "@/lib/auth";
@@ -45,6 +46,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const sections = buildAdminNavSections(admin.role);
+  const deployInfo = getAdminDeployInfo();
 
   return (
     <div className="min-h-full bg-cream text-ink">
@@ -53,6 +55,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         displayName={adminNavDisplayName(admin)}
         roleLabel={accessLabel(admin.role)}
         sections={sections}
+        deployInfo={deployInfo}
       >
         {children}
       </AdminShell>
