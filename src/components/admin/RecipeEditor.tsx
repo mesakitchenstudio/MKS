@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { saveRecipeAction } from "@/app/admin/actions";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import {
@@ -185,12 +185,115 @@ function moveArrayItem<T>(items: T[], from: number, to: number) {
   return next;
 }
 
-function reorderActionClass(disabled: boolean) {
-  return `text-xs font-semibold transition-colors duration-150 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta ${
+function hydrateEditorValues(
+  fields: Field[],
+  rawValues: Record<string, unknown>,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (field.key === "bakeMinutes") {
+      next[field.key] =
+        rawValues.bakeMinutes ?? rawValues.cookMinutes ?? emptyValue(field.kind);
+    } else if (field.key === "difficulty") {
+      next[field.key] = rawValues.difficulty || "Easy";
+    } else if (
+      field.key === "youtube" &&
+      rawValues.youtube &&
+      typeof rawValues.youtube === "object"
+    ) {
+      next[field.key] = JSON.stringify(rawValues.youtube, null, 2);
+    } else {
+      next[field.key] = rawValues[field.key] ?? emptyValue(field.kind);
+    }
+  }
+  return next;
+}
+
+function editorFormSnapshot(payload: {
+  title: string;
+  slug: string;
+  excerpt: string;
+  featured: boolean;
+  seasonal: boolean;
+  categoryIds: string[];
+  values: Record<string, unknown>;
+}) {
+  return JSON.stringify({
+    ...payload,
+    categoryIds: [...payload.categoryIds].sort(),
+  });
+}
+
+function reorderButtonClass(disabled: boolean) {
+  return `min-w-[2.25rem] px-2 py-1 text-xs font-semibold transition-colors duration-150 motion-reduce:transition-none focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-terracotta ${
     disabled
-      ? "cursor-not-allowed text-muted/40"
-      : "text-muted hover:text-terracotta"
+      ? "cursor-not-allowed text-muted/35"
+      : "text-muted hover:bg-cream hover:text-terracotta"
   }`;
+}
+
+function ReorderControls({
+  itemLabel,
+  onMoveUp,
+  onMoveDown,
+  onRemove,
+  upDisabled,
+  downDisabled,
+  hideReorderWhenStatic = false,
+  showRemove = true,
+}: {
+  itemLabel: string;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRemove?: () => void;
+  upDisabled: boolean;
+  downDisabled: boolean;
+  hideReorderWhenStatic?: boolean;
+  showRemove?: boolean;
+}) {
+  const reorderAvailable = !(upDisabled && downDisabled);
+  const showReorder = reorderAvailable && !(hideReorderWhenStatic && upDisabled && downDisabled);
+
+  return (
+    <div className="flex shrink-0 flex-wrap items-center gap-2">
+      {showReorder ? (
+        <div
+          role="group"
+          aria-label={`Reorder ${itemLabel}`}
+          className="inline-flex overflow-hidden rounded-sm border border-line bg-paper"
+        >
+          <button
+            type="button"
+            aria-label={`Move ${itemLabel} up`}
+            disabled={upDisabled}
+            className={`${reorderButtonClass(upDisabled)} border-r border-line`}
+            onClick={onMoveUp}
+          >
+            Up
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${itemLabel} down`}
+            disabled={downDisabled}
+            className={reorderButtonClass(downDisabled)}
+            onClick={onMoveDown}
+          >
+            Down
+          </button>
+        </div>
+      ) : null}
+      {showRemove && onRemove ? (
+        <button
+          type="button"
+          aria-label={`Remove ${itemLabel}`}
+          className={removeActionClass}
+          onClick={onRemove}
+        >
+          Remove
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function pickFieldsOrdered(fields: Field[], keys: readonly string[]) {
@@ -313,8 +416,12 @@ export function RecipeEditor({
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
+  const sectionNavRef = useRef<HTMLElement>(null);
+  const moveToDraftCancelRef = useRef<HTMLButtonElement>(null);
+  const moveToDraftTitleId = useId();
   const [headerHeight, setHeaderHeight] = useState(84);
   const [scrollOffset, setScrollOffset] = useState(96);
+  const [moveToDraftOpen, setMoveToDraftOpen] = useState(false);
   const [title, setTitle] = useState(initial.title);
   const [slug, setSlug] = useState(initial.slug);
   const [slugTouched, setSlugTouched] = useState(Boolean(initial.slug));
@@ -326,22 +433,23 @@ export function RecipeEditor({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [publishAlert, setPublishAlert] = useState("");
-  const [values, setValues] = useState<Record<string, unknown>>(() => {
-    const next: Record<string, unknown> = {};
-    for (const field of fields) {
-      if (field.key === "bakeMinutes") {
-        next[field.key] =
-          initial.values.bakeMinutes ?? initial.values.cookMinutes ?? emptyValue(field.kind);
-      } else if (field.key === "difficulty") {
-        next[field.key] = initial.values.difficulty || "Easy";
-      } else if (field.key === "youtube" && initial.values.youtube && typeof initial.values.youtube === "object") {
-        next[field.key] = JSON.stringify(initial.values.youtube, null, 2);
-      } else {
-        next[field.key] = initial.values[field.key] ?? emptyValue(field.kind);
-      }
-    }
-    return next;
-  });
+  const [values, setValues] = useState<Record<string, unknown>>(() =>
+    hydrateEditorValues(fields, initial.values),
+  );
+
+  const baselineSnapshot = useMemo(
+    () =>
+      editorFormSnapshot({
+        title: initial.title,
+        slug: initial.slug,
+        excerpt: initial.excerpt,
+        featured: initial.featured,
+        seasonal: initial.seasonal,
+        categoryIds: initial.categoryIds,
+        values: hydrateEditorValues(fields, initial.values),
+      }),
+    [fields, initial],
+  );
 
   const detailFields = pickFieldsOrdered(fields, DETAILS_KEYS);
   const contentFields = pickFieldsOrdered(fields, CONTENT_KEYS);
@@ -375,36 +483,25 @@ export function RecipeEditor({
     return links;
   }, [advancedFields.length, contentFields.length, detailFields.length, mediaFields.length, specialistFields.length]);
 
-  const initialSnapshot = useMemo(
-    () =>
-      JSON.stringify({
-        title: initial.title,
-        slug: initial.slug,
-        excerpt: initial.excerpt,
-        featured: initial.featured,
-        seasonal: initial.seasonal,
-        categoryIds: [...initial.categoryIds].sort(),
-        values: initial.values,
-      }),
-    [initial],
-  );
+  const isPublished = normalizeStatus(status) === "published";
 
   const isDirty = useMemo(
     () =>
-      JSON.stringify({
+      editorFormSnapshot({
         title,
         slug,
         excerpt,
         featured,
         seasonal,
-        categoryIds: [...categoryIds].sort(),
+        categoryIds,
         values,
-      }) !== initialSnapshot,
-    [categoryIds, excerpt, featured, initialSnapshot, seasonal, title, slug, values],
+      }) !== baselineSnapshot,
+    [baselineSnapshot, categoryIds, excerpt, featured, seasonal, title, slug, values],
   );
 
-  const publishButtonLabel =
-    normalizeStatus(status) === "published" ? "Update published recipe" : "Publish";
+  const draftActionLabel = isPublished ? "Move to draft" : "Save draft";
+
+  const publishButtonLabel = isPublished ? "Update published recipe" : "Publish";
 
   const encoded = useMemo(() => {
     const out: Record<string, string> = {};
@@ -421,21 +518,35 @@ export function RecipeEditor({
     if (!header) return;
 
     function updateScrollOffset() {
-      const node = stickyHeaderRef.current;
-      if (!node) return;
-      setHeaderHeight(node.offsetHeight);
-      setScrollOffset(node.offsetHeight + 12);
+      const headerNode = stickyHeaderRef.current;
+      const navNode = sectionNavRef.current;
+      if (!headerNode) return;
+      const nextHeaderHeight = headerNode.offsetHeight;
+      const navHeight = navNode?.offsetHeight ?? 0;
+      setHeaderHeight(nextHeaderHeight);
+      setScrollOffset(nextHeaderHeight + navHeight + 12);
     }
 
     updateScrollOffset();
     const observer = new ResizeObserver(updateScrollOffset);
     observer.observe(header);
+    if (sectionNavRef.current) observer.observe(sectionNavRef.current);
     window.addEventListener("resize", updateScrollOffset);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", updateScrollOffset);
     };
-  }, []);
+  }, [sectionLinks.length]);
+
+  useEffect(() => {
+    if (!moveToDraftOpen) return;
+    moveToDraftCancelRef.current?.focus();
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setMoveToDraftOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [moveToDraftOpen]);
 
   const scrollTargetStyle = useMemo(
     () => ({ scrollMarginTop: scrollOffset }) as const,
@@ -488,6 +599,13 @@ export function RecipeEditor({
     formRef.current?.requestSubmit();
   }
 
+  function proceedSaveDraft() {
+    setFieldErrors({});
+    setPublishAlert("");
+    setMoveToDraftOpen(false);
+    submitWithStatus("draft");
+  }
+
   function attemptSaveDraft() {
     if (!title.trim()) {
       const errors = { title: "Title is required to save a draft." };
@@ -496,9 +614,11 @@ export function RecipeEditor({
       scrollToField("title");
       return;
     }
-    setFieldErrors({});
-    setPublishAlert("");
-    submitWithStatus("draft");
+    if (isPublished) {
+      setMoveToDraftOpen(true);
+      return;
+    }
+    proceedSaveDraft();
   }
 
   function attemptPublish() {
@@ -644,7 +764,7 @@ export function RecipeEditor({
               onClick={attemptSaveDraft}
               className={`${editorSecondaryBtn} ${adminFocusRing}`}
             >
-              Save draft
+              {draftActionLabel}
             </button>
             <button
               type="button"
@@ -704,6 +824,7 @@ export function RecipeEditor({
         ) : null}
 
         <RecipeEditorSectionNav
+          ref={sectionNavRef}
           sections={sectionLinks}
           stickyTop={headerHeight}
           scrollMarginTop={scrollOffset}
@@ -970,13 +1091,55 @@ export function RecipeEditor({
 
         <div className="flex flex-wrap items-center gap-3 border-t border-line pt-6">
           <button type="button" onClick={attemptSaveDraft} className={`${editorSecondaryBtn} ${adminFocusRing}`}>
-            Save draft
+            {draftActionLabel}
           </button>
           <button type="button" onClick={attemptPublish} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
             {publishButtonLabel}
           </button>
         </div>
       </form>
+
+      {moveToDraftOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 px-4"
+          role="presentation"
+          onClick={() => setMoveToDraftOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={moveToDraftTitleId}
+            className="w-full max-w-md border border-line bg-paper p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id={moveToDraftTitleId} className="font-serif text-2xl text-ink">
+              Move to draft?
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              This saves your edits and removes{" "}
+              <span className="font-semibold text-ink">{pageTitle}</span> from the public site until
+              you publish again.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                ref={moveToDraftCancelRef}
+                type="button"
+                onClick={() => setMoveToDraftOpen(false)}
+                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={proceedSaveDraft}
+                className={`rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark ${adminFocusRing}`}
+              >
+                Move to draft
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -1304,38 +1467,28 @@ function IngredientsEditor({
               }}
               className={`${compactInputClass} max-w-md flex-1`}
             />
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                aria-label={`Move group ${groupIndex + 1} up`}
-                disabled={groupIndex === 0}
-                className={reorderActionClass(groupIndex === 0)}
-                onClick={() => update(moveArrayItem(groups, groupIndex, groupIndex - 1))}
-              >
-                Move group up
-              </button>
-              <button
-                type="button"
-                aria-label={`Move group ${groupIndex + 1} down`}
-                disabled={groupIndex === groups.length - 1}
-                className={reorderActionClass(groupIndex === groups.length - 1)}
-                onClick={() => update(moveArrayItem(groups, groupIndex, groupIndex + 1))}
-              >
-                Move group down
-              </button>
-            </div>
+            {groups.length > 1 ? (
+              <ReorderControls
+                itemLabel={`ingredient group ${groupIndex + 1}`}
+                upDisabled={groupIndex === 0}
+                downDisabled={groupIndex === groups.length - 1}
+                hideReorderWhenStatic
+                showRemove={false}
+                onMoveUp={() => update(moveArrayItem(groups, groupIndex, groupIndex - 1))}
+                onMoveDown={() => update(moveArrayItem(groups, groupIndex, groupIndex + 1))}
+              />
+            ) : null}
           </div>
-          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted md:grid md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_3.5rem]">
+          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted md:grid md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_auto]">
             <span>Amount</span>
             <span>Ingredient</span>
             <span>Notes</span>
-            <span className="sr-only">Reorder</span>
-            <span className="sr-only">Remove</span>
+            <span className="sr-only">Actions</span>
           </div>
           {group.items.map((item, itemIndex) => (
             <div
               key={itemIndex}
-              className="grid gap-2 md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_3.5rem] md:items-center"
+              className="grid gap-2 md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_auto] md:items-center"
             >
               <input
                 value={item.amount}
@@ -1376,53 +1529,37 @@ function IngredientsEditor({
                 }}
                 className={compactInputClass}
               />
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  aria-label={`Move ingredient ${itemIndex + 1} up`}
-                  disabled={itemIndex === 0}
-                  className={reorderActionClass(itemIndex === 0)}
-                  onClick={() => {
-                    const next = [...groups];
-                    next[groupIndex] = {
-                      ...group,
-                      items: moveArrayItem(group.items, itemIndex, itemIndex - 1),
-                    };
-                    update(next);
-                  }}
-                >
-                  Up
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Move ingredient ${itemIndex + 1} down`}
-                  disabled={itemIndex === group.items.length - 1}
-                  className={reorderActionClass(itemIndex === group.items.length - 1)}
-                  onClick={() => {
-                    const next = [...groups];
-                    next[groupIndex] = {
-                      ...group,
-                      items: moveArrayItem(group.items, itemIndex, itemIndex + 1),
-                    };
-                    update(next);
-                  }}
-                >
-                  Down
-                </button>
-              </div>
-              <button
-                type="button"
-                aria-label={`Remove ingredient ${itemIndex + 1}`}
-                className={removeActionClass}
-                onClick={() => {
+              <ReorderControls
+                itemLabel={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                upDisabled={itemIndex === 0}
+                downDisabled={itemIndex === group.items.length - 1}
+                hideReorderWhenStatic
+                onMoveUp={() => {
                   const next = [...groups];
-                  const items = group.items.filter((_, i) => i !== itemIndex);
-                  next[groupIndex] = { ...group, items: items.length ? items : [{ item: "", amount: "", notes: "" }] };
+                  next[groupIndex] = {
+                    ...group,
+                    items: moveArrayItem(group.items, itemIndex, itemIndex - 1),
+                  };
                   update(next);
                 }}
-              >
-                Remove
-              </button>
+                onMoveDown={() => {
+                  const next = [...groups];
+                  next[groupIndex] = {
+                    ...group,
+                    items: moveArrayItem(group.items, itemIndex, itemIndex + 1),
+                  };
+                  update(next);
+                }}
+                onRemove={() => {
+                  const next = [...groups];
+                  const items = group.items.filter((_, i) => i !== itemIndex);
+                  next[groupIndex] = {
+                    ...group,
+                    items: items.length ? items : [{ item: "", amount: "", notes: "" }],
+                  };
+                  update(next);
+                }}
+              />
             </div>
           ))}
           <button
@@ -1496,53 +1633,34 @@ function InstructionsEditor({
                   }}
                   className={`${adminInputClass} min-h-[2.75rem] flex-1`}
                 />
-                <div className="flex shrink-0 items-center gap-1.5 sm:flex-col sm:items-stretch">
-                  <button
-                    type="button"
-                    aria-label={`Move step ${stepNumber} up`}
-                    disabled={stepIndex === 0}
-                    className={reorderActionClass(stepIndex === 0)}
-                    onClick={() => {
-                      const next = [...groups];
-                      next[groupIndex] = {
-                        ...group,
-                        steps: moveArrayItem(group.steps, stepIndex, stepIndex - 1),
-                      };
-                      onChange(next);
-                    }}
-                  >
-                    Up
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Move step ${stepNumber} down`}
-                    disabled={stepIndex === group.steps.length - 1}
-                    className={reorderActionClass(stepIndex === group.steps.length - 1)}
-                    onClick={() => {
-                      const next = [...groups];
-                      next[groupIndex] = {
-                        ...group,
-                        steps: moveArrayItem(group.steps, stepIndex, stepIndex + 1),
-                      };
-                      onChange(next);
-                    }}
-                  >
-                    Down
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Remove step ${stepNumber}`}
-                    className={`${removeActionClass} sm:text-center`}
-                    onClick={() => {
-                      const next = [...groups];
-                      const steps = group.steps.filter((_, i) => i !== stepIndex);
-                      next[groupIndex] = { ...group, steps: steps.length ? steps : [""] };
-                      onChange(next);
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
+                <ReorderControls
+                  itemLabel={`step ${stepNumber}${group.name ? ` in ${group.name}` : ""}`}
+                  upDisabled={stepIndex === 0}
+                  downDisabled={stepIndex === group.steps.length - 1}
+                  hideReorderWhenStatic
+                  onMoveUp={() => {
+                    const next = [...groups];
+                    next[groupIndex] = {
+                      ...group,
+                      steps: moveArrayItem(group.steps, stepIndex, stepIndex - 1),
+                    };
+                    onChange(next);
+                  }}
+                  onMoveDown={() => {
+                    const next = [...groups];
+                    next[groupIndex] = {
+                      ...group,
+                      steps: moveArrayItem(group.steps, stepIndex, stepIndex + 1),
+                    };
+                    onChange(next);
+                  }}
+                  onRemove={() => {
+                    const next = [...groups];
+                    const steps = group.steps.filter((_, i) => i !== stepIndex);
+                    next[groupIndex] = { ...group, steps: steps.length ? steps : [""] };
+                    onChange(next);
+                  }}
+                />
               </div>
             );
           })}

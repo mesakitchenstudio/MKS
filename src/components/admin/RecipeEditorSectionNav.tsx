@@ -1,5 +1,6 @@
 "use client";
 
+import { forwardRef } from "react";
 import { adminFocusRing } from "@/lib/admin-ui";
 
 export type RecipeEditorSectionLink = {
@@ -7,21 +8,23 @@ export type RecipeEditorSectionLink = {
   label: string;
 };
 
-export function RecipeEditorSectionNav({
-  sections,
-  stickyTop,
-  scrollMarginTop,
-  onNavigate,
-}: {
-  sections: RecipeEditorSectionLink[];
-  stickyTop: number;
-  scrollMarginTop: number;
-  onNavigate: (sectionId: string) => void;
-}) {
+export const RecipeEditorSectionNav = forwardRef<
+  HTMLElement,
+  {
+    sections: RecipeEditorSectionLink[];
+    stickyTop: number;
+    scrollMarginTop: number;
+    onNavigate: (sectionId: string) => void;
+  }
+>(function RecipeEditorSectionNav(
+  { sections, stickyTop, scrollMarginTop, onNavigate },
+  ref,
+) {
   if (!sections.length) return null;
 
   return (
     <nav
+      ref={ref}
       aria-label="On this recipe"
       className="sticky z-40 -mx-5 mb-6 border-b border-line/70 bg-[var(--cream)]/95 px-5 py-2 backdrop-blur-sm md:-mx-6 md:px-6"
       style={{ top: stickyTop, scrollMarginTop }}
@@ -44,4 +47,4 @@ export function RecipeEditorSectionNav({
       </ul>
     </nav>
   );
-}
+});
