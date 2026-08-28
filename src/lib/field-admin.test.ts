@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fieldKindUsesOptions, partitionTypeFields } from "./field-admin";
+import {
+  countRecipesMissingFieldContent,
+  countRecipesWithFieldContent,
+  fieldKindUsesOptions,
+  fieldValueHasContent,
+  partitionTypeFields,
+} from "./field-admin";
 import { keyFromLabel } from "./fields";
 
 test("keyFromLabel generates camelCase keys", () => {
@@ -59,4 +65,23 @@ test("partitionTypeFields preserves sortOrder within each group", () => {
   assert.equal(typeSpecific[1]?.key, "a");
   assert.equal(shared.length, 1);
   assert.equal(shared[0]?.key, "c");
+});
+
+test("fieldValueHasContent detects stored recipe values by kind", () => {
+  assert.equal(fieldValueHasContent("hello", "text"), true);
+  assert.equal(fieldValueHasContent("", "text"), false);
+  assert.equal(fieldValueHasContent(["tag"], "tags"), true);
+  assert.equal(fieldValueHasContent([""], "tags"), false);
+  assert.equal(fieldValueHasContent(0, "minutes"), false);
+  assert.equal(fieldValueHasContent(15, "minutes"), true);
+});
+
+test("countRecipesWithFieldContent counts recipes by key", () => {
+  const recipes = [
+    { values: JSON.stringify({ intro: "Hello" }) },
+    { values: JSON.stringify({ intro: "" }) },
+    { values: JSON.stringify({ intro: "Again" }) },
+  ];
+  assert.equal(countRecipesWithFieldContent(recipes, "intro", "textarea"), 2);
+  assert.equal(countRecipesMissingFieldContent(recipes, "intro", "textarea"), 1);
 });

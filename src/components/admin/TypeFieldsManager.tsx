@@ -9,7 +9,7 @@ import {
   adminPrimaryButtonClass,
   adminSelectClass,
 } from "@/lib/admin-ui";
-import { type AdminTypeField, fieldKindLabel, fieldKindUsesOptions } from "@/lib/field-admin";
+import { type AdminTypeField, fieldKindLabel, fieldKindUsesOptions, isStructuralFieldDraftChange } from "@/lib/field-admin";
 import { FIELD_KINDS, keyFromLabel } from "@/lib/fields";
 
 const helperRowClass = "mt-1.5 min-h-[2rem] text-xs leading-4 text-muted";
@@ -101,13 +101,38 @@ function FieldSummaryMeta({ field }: { field: AdminTypeField }) {
   );
 }
 
-function ScopeLabel({ field }: { field: AdminTypeField }) {
+type FieldFilter = "all" | "shared" | "type-specific" | "required";
+
+const filterOptions: { id: FieldFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "shared", label: "Shared" },
+  { id: "type-specific", label: "Type-specific" },
+  { id: "required", label: "Required" },
+];
+
+function typeSpecificLabel(typeName: string) {
+  return `${typeName.toUpperCase()}-SPECIFIC`;
+}
+
+function ScopeLabel({ field, typeName }: { field: AdminTypeField; typeName: string }) {
+  if (field.isShared) {
+    return (
+      <div className="min-w-0">
+        <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
+          Shared
+        </span>
+        <p className="text-xs leading-4 text-muted">Used across recipe types</p>
+      </div>
+    );
+  }
+
   return (
-    <span
-      className={`text-[0.65rem] font-semibold uppercase tracking-[0.12em] ${field.isShared ? "text-muted" : "text-olive"}`}
-    >
-      {field.isShared ? "Shared" : "Type-specific"}
-    </span>
+    <div className="min-w-0">
+      <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+        {typeSpecificLabel(typeName)}
+      </span>
+      <p className="text-xs leading-4 text-muted">Only on {typeName} recipes</p>
+    </div>
   );
 }
 
@@ -115,11 +140,15 @@ function ReorderControls({
   field,
   typeId,
   total,
+  disabled = false,
 }: {
   field: AdminTypeField;
   typeId: string;
   total: number;
+  disabled?: boolean;
 }) {
+  if (disabled) return null;
+
   return (
     <div className="flex items-center gap-1">
       <form action={moveFieldAction}>
@@ -157,6 +186,10 @@ function FieldEditor({
   typeId,
   typeName,
   total,
+  reorderDisabled,
+  recipesWithData,
+  recipesMissingValue,
+  fieldError,
   onCancel,
   onDirtyChange,
 }: {
@@ -164,6 +197,10 @@ function FieldEditor({
   typeId: string;
   typeName: string;
   total: number;
+  reorderDisabled?: boolean;
+  recipesWithData: number;
+  recipesMissingValue: number;
+  fieldError?: "field-type-locked" | "require-confirm";
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -173,11 +210,18 @@ function FieldEditor({
   const optionsId = useId();
   const helpId = useId();
   const labelRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const initial = draftFromField(field);
   const [draft, setDraft] = useState(initial);
   const deleteFormRef = useRef<HTMLFormElement>(null);
   const isDirty = !draftsEqual(draft, initial);
   const showOptions = fieldKindUsesOptions(draft.kind);
+  const kindLocked = recipesWithData > 0;
+  const structuralDirty = isStructuralFieldDraftChange(
+    { kind: field.kind, required: field.required, options: field.options },
+    draft,
+  );
+  const makingRequired = draft.required && !field.required;
 
   useEffect(() => {
     onDirtyChange(isDirty);
@@ -197,25 +241,92 @@ function FieldEditor({
     onCancel();
   }
 
+  function appendConfirmRequired(form: HTMLFormElement) {
+    if (form.querySelector('input[name="confirmRequired"]')) return;
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "confirmRequired";
+    input.value = "1";
+    form.appendChild(input);
+  }
+
+  function attemptSave() {
+    if (kindLocked && draft.kind !== field.kind) {
+      return;
+    }
+
+    if (structuralDirty && recipesWithData > 0) {
+      const sharedNote = field.isShared
+        ? `This shared field uses the common Mesa schema key “${field.key}”. Changes here apply to ${typeName} recipes in this template only.`
+        : `This change applies to the ${typeName} template.`;
+      if (
+        !window.confirm(
+          `${sharedNote}\n\n${recipesWithData} existing ${typeName} recipe(s) already store data for “${field.label}”. Continue?`,
+        )
+      ) {
+        return;
+      }
+    }
+
+    if (makingRequired && recipesMissingValue > 0) {
+      if (
+        !window.confirm(
+          `Make “${field.label}” required on publish?\n\n${recipesMissingValue} existing ${typeName} recipe(s) do not yet have a value. They will need this field before they can be published again.`,
+        )
+      ) {
+        return;
+      }
+      const form = formRef.current;
+      if (!form) return;
+      appendConfirmRequired(form);
+      form.requestSubmit();
+      return;
+    }
+
+    formRef.current?.requestSubmit();
+  }
+
   return (
     <div className="border-l-2 border-olive/35 bg-cream/25 px-4 py-3.5">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-4">
             <p className="text-sm font-semibold text-ink">{field.label}</p>
-            <ScopeLabel field={field} />
+            <ScopeLabel field={field} typeName={typeName} />
           </div>
           {field.isShared ? (
             <p className="mt-2 max-w-xl text-xs leading-5 text-muted">
-              Shared field — uses the same key as other recipe types. Edits here apply only to{" "}
-              {typeName}, not to other types.
+              Part of Mesa&apos;s common recipe schema. Each recipe type keeps its own template
+              copy — label, help text, and required settings here apply to {typeName} only.
+            </p>
+          ) : null}
+          {recipesWithData > 0 ? (
+            <p className="mt-2 text-xs leading-5 text-muted">
+              {recipesWithData} {typeName} recipe{recipesWithData === 1 ? "" : "s"} store data under
+              key <span className="font-mono text-ink/80">{field.key}</span>.
             </p>
           ) : null}
         </div>
-        <ReorderControls field={field} typeId={typeId} total={total} />
+        <ReorderControls
+          field={field}
+          typeId={typeId}
+          total={total}
+          disabled={reorderDisabled}
+        />
       </div>
 
-      <form action={saveFieldAction} className="mt-4 grid gap-4">
+      {fieldError === "field-type-locked" ? (
+        <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
+          Field type cannot change while recipes already store data for this field.
+        </p>
+      ) : null}
+      {fieldError === "require-confirm" ? (
+        <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
+          Confirm the required change, then save again.
+        </p>
+      ) : null}
+
+      <form ref={formRef} action={saveFieldAction} className="mt-4 grid gap-4">
         <input type="hidden" name="id" value={field.id} />
         <input type="hidden" name="typeId" value={typeId} />
         <div className="grid gap-4 md:grid-cols-2">
@@ -230,7 +341,7 @@ function FieldEditor({
               className={adminInputClass}
             />
           </EditorFieldColumn>
-          <EditorFieldColumn label="Key" htmlFor={keyId} helper="Field keys cannot be changed after creation.">
+          <EditorFieldColumn label="Key" htmlFor={keyId} helper="Stored in recipe data. Cannot be changed after creation.">
             <input
               id={keyId}
               name="key"
@@ -241,13 +352,23 @@ function FieldEditor({
               className={`${adminInputClass} cursor-default bg-cream/60 text-muted`}
             />
           </EditorFieldColumn>
-          <EditorFieldColumn label="Kind" htmlFor={kindId}>
+          <EditorFieldColumn
+            label="Kind"
+            htmlFor={kindId}
+            helper={
+              kindLocked
+                ? "Field type is locked while recipes store data for this field."
+                : undefined
+            }
+          >
+            {kindLocked ? <input type="hidden" name="kind" value={field.kind} /> : null}
             <select
               id={kindId}
-              name="kind"
+              name={kindLocked ? undefined : "kind"}
               value={draft.kind}
+              disabled={kindLocked}
               onChange={(event) => updateDraft({ kind: event.target.value })}
-              className={`${adminSelectClass} w-full`}
+              className={`${adminSelectClass} w-full${kindLocked ? " cursor-not-allowed bg-cream/60 text-muted" : ""}`}
             >
               {FIELD_KINDS.map((kind) => (
                 <option key={kind.id} value={kind.id}>
@@ -301,8 +422,9 @@ function FieldEditor({
             Cancel
           </button>
           <button
-            type="submit"
+            type="button"
             disabled={!isDirty}
+            onClick={attemptSave}
             className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
           >
             Save field
@@ -318,9 +440,13 @@ function FieldEditor({
             type="button"
             className={`text-sm font-semibold text-terracotta/90 transition-colors hover:text-terracotta ${adminFocusRing}`}
             onClick={() => {
+              const affectedLine =
+                recipesWithData > 0
+                  ? `\n\n${recipesWithData} ${typeName} recipe${recipesWithData === 1 ? "" : "s"} store data for this field. Values remain in the database but will no longer appear in the editor or on the public site.`
+                  : "\n\nNo recipes currently store data for this field.";
               if (
                 window.confirm(
-                  `Delete “${field.label}”?\nThis removes the field from the ${typeName} template. Existing recipe data stored under “${field.key}” remains in the database but will no longer appear in the editor.`,
+                  `Delete “${field.label}” from the ${typeName} template?${affectedLine}`,
                 )
               ) {
                 deleteFormRef.current?.requestSubmit();
@@ -330,7 +456,11 @@ function FieldEditor({
             Delete field
           </button>
         </form>
-      ) : null}
+      ) : (
+        <p className="mt-4 border-t border-line pt-4 text-xs text-muted">
+          Shared schema fields cannot be deleted from a type template.
+        </p>
+      )}
     </div>
   );
 }
@@ -338,25 +468,30 @@ function FieldEditor({
 function CollapsedFieldRow({
   field,
   typeId,
+  typeName,
   total,
   saved,
+  reorderDisabled,
   onEdit,
 }: {
   field: AdminTypeField;
   typeId: string;
+  typeName: string;
   total: number;
   saved: boolean;
+  reorderDisabled?: boolean;
   onEdit: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2.5">
+    <div className="flex flex-col gap-3 px-4 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4 sm:gap-y-1.5">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold leading-5 text-ink">{field.label}</p>
         <FieldSummaryMeta field={field} />
+        <p className="mt-0.5 font-mono text-xs text-muted/80">{field.key}</p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-3 sm:gap-4">
         {saved ? <span className="text-sm text-olive">Saved.</span> : null}
-        <ScopeLabel field={field} />
+        <ScopeLabel field={field} typeName={typeName} />
         <button
           type="button"
           onClick={onEdit}
@@ -365,7 +500,12 @@ function CollapsedFieldRow({
         >
           Edit
         </button>
-        <ReorderControls field={field} typeId={typeId} total={total} />
+        <ReorderControls
+          field={field}
+          typeId={typeId}
+          total={total}
+          disabled={reorderDisabled}
+        />
       </div>
     </div>
   );
@@ -409,7 +549,10 @@ function AddFieldPanel({
   return (
     <div className="border border-line bg-cream/30 px-4 py-3.5">
       <h3 className="text-sm font-semibold text-ink">New type-specific field</h3>
-      <p className="mt-1 text-xs text-muted">Added only to {typeName}.</p>
+      <p className="mt-1 text-xs leading-5 text-muted">
+        Added only to {typeName}. Choose a label and field type; the technical key stores recipe
+        data and cannot be changed later.
+      </p>
       <form action={saveFieldAction} className="mt-4 grid gap-4">
         <input type="hidden" name="typeId" value={typeId} />
         <div className="grid gap-4 md:grid-cols-2">
@@ -510,13 +653,31 @@ export type TypeFieldsManagerProps = {
   fields: AdminTypeField[];
   typeSpecificCount: number;
   sharedCount: number;
+  recipeCount: number;
+  fieldUsageByKey: Record<string, number>;
+  fieldMissingByKey: Record<string, number>;
   savedFieldId?: string | null;
   focusFieldId?: string | null;
+  initialExpandedFieldId?: string | null;
   initialAddOpen?: boolean;
   addError?: string;
   listError?: string;
+  fieldError?: "field-type-locked" | "require-confirm";
   deleted?: boolean;
 };
+
+function matchesFilter(field: AdminTypeField, filter: FieldFilter) {
+  switch (filter) {
+    case "shared":
+      return field.isShared;
+    case "type-specific":
+      return !field.isShared;
+    case "required":
+      return field.required;
+    default:
+      return true;
+  }
+}
 
 export function TypeFieldsManager({
   typeId,
@@ -524,21 +685,35 @@ export function TypeFieldsManager({
   fields,
   typeSpecificCount,
   sharedCount,
+  recipeCount,
+  fieldUsageByKey,
+  fieldMissingByKey,
   savedFieldId = null,
   focusFieldId = null,
+  initialExpandedFieldId = null,
   initialAddOpen = false,
   addError,
   listError,
+  fieldError,
   deleted = false,
 }: TypeFieldsManagerProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(initialExpandedFieldId);
   const [addOpen, setAddOpen] = useState(initialAddOpen);
+  const [filter, setFilter] = useState<FieldFilter>("all");
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
 
   const total = fields.length;
   const orderedFields = [...fields].sort((a, b) => a.sortOrder - b.sortOrder);
+  const visibleFields = orderedFields.filter((field) => matchesFilter(field, filter));
+  const reorderDisabled = filter !== "all";
+
+  useEffect(() => {
+    if (initialExpandedFieldId) {
+      setExpandedId(initialExpandedFieldId);
+    }
+  }, [initialExpandedFieldId]);
 
   const tryExpand = useCallback(
     (id: string) => {
@@ -573,9 +748,35 @@ export function TypeFieldsManager({
         {total} fields · {typeSpecificCount} type-specific · {sharedCount} shared
       </p>
       <p className="mt-1 max-w-2xl text-sm text-muted">
-        Listed in template order. Reorder changes placement for type-specific fields in the
-        recipe editor and on public recipe pages.
+        Listed in template order. Reorder changes field placement in the recipe editor and on public
+        recipe pages for this type.
       </p>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {filterOptions.map((option) => {
+          const active = filter === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setFilter(option.id)}
+              className={`rounded-sm border px-2.5 py-1 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${adminFocusRing} ${
+                active
+                  ? "border-terracotta/40 bg-terracotta/5 text-terracotta"
+                  : "border-line text-muted hover:bg-cream hover:text-ink"
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      {reorderDisabled ? (
+        <p className="mt-2 text-xs text-muted">
+          Reorder is available when viewing all fields so template order stays unambiguous.
+        </p>
+      ) : null}
 
       {listError ? (
         <p className="mt-3 text-sm text-terracotta" role="alert">
@@ -615,9 +816,13 @@ export function TypeFieldsManager({
       )}
 
       <ul className="mt-4 divide-y divide-line border border-line bg-paper">
-        {orderedFields.map((field) => {
+        {visibleFields.length === 0 ? (
+          <li className="px-4 py-6 text-sm text-muted">No fields match this filter.</li>
+        ) : null}
+        {visibleFields.map((field) => {
           const expanded = expandedId === field.id;
           const saved = savedFieldId === field.id;
+          const showFieldError = expanded && fieldError && initialExpandedFieldId === field.id;
           return (
             <li key={field.id} id={`field-${field.id}`}>
               {expanded ? (
@@ -626,6 +831,10 @@ export function TypeFieldsManager({
                   typeId={typeId}
                   typeName={typeName}
                   total={total}
+                  reorderDisabled={reorderDisabled}
+                  recipesWithData={fieldUsageByKey[field.key] ?? 0}
+                  recipesMissingValue={fieldMissingByKey[field.key] ?? 0}
+                  fieldError={showFieldError ? fieldError : undefined}
                   onCancel={() => {
                     setDirty(false);
                     setExpandedId(null);
@@ -636,8 +845,10 @@ export function TypeFieldsManager({
                 <CollapsedFieldRow
                   field={field}
                   typeId={typeId}
+                  typeName={typeName}
                   total={total}
                   saved={saved}
+                  reorderDisabled={reorderDisabled}
                   onEdit={() => tryExpand(field.id)}
                 />
               )}

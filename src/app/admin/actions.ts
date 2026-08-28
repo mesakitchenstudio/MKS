@@ -10,6 +10,10 @@ import { ADMIN_COOKIE, authenticateAdmin, getAdminSession, requireAccess, writeA
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import {
+  countRecipesMissingFieldContent,
+  countRecipesWithFieldContent,
+} from "@/lib/field-admin";
+import {
   isAcceptableAdminPassword,
   isValidAdminEmail,
   normalizeAdminEmail,
@@ -217,6 +221,24 @@ export async function saveFieldAction(formData: FormData) {
     if (!existing || existing.typeId !== typeId) {
       redirect(`/admin/types/${typeId}`);
     }
+
+    const recipes = await db.recipe.findMany({
+      where: { typeId },
+      select: { values: true },
+    });
+    const recipesWithData = countRecipesWithFieldContent(recipes, existing.key, existing.kind);
+
+    if (kind !== existing.kind && recipesWithData > 0) {
+      redirect(`/admin/types/${typeId}?error=field-type-locked&fieldId=${id}#field-${id}`);
+    }
+
+    if (required && !existing.required) {
+      const missing = countRecipesMissingFieldContent(recipes, existing.key, kind);
+      if (missing > 0 && formData.get("confirmRequired") !== "1") {
+        redirect(`/admin/types/${typeId}?error=require-confirm&fieldId=${id}#field-${id}`);
+      }
+    }
+
     await db.recipeTypeField.update({
       where: { id },
       data: {
@@ -272,6 +294,9 @@ export async function deleteFieldAction(formData: FormData) {
   const field = await db.recipeTypeField.findUnique({ where: { id } });
   if (field && CORE_FIELDS.some((item) => item.key === field.key)) {
     redirect(`/admin/types/${typeId}?error=protected-field`);
+  }
+  if (!field || field.typeId !== typeId) {
+    redirect(`/admin/types/${typeId}#fields`);
   }
   await db.recipeTypeField.delete({ where: { id } });
   revalidatePath(`/admin/types/${typeId}`);

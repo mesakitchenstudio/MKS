@@ -4,7 +4,7 @@ import { TypeDetailsForm } from "@/components/admin/TypeDetailsForm";
 import { TypeFieldsManager } from "@/components/admin/TypeFieldsManager";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { type AdminTypeField } from "@/lib/field-admin";
+import { type AdminTypeField, countRecipesMissingFieldContent, countRecipesWithFieldContent } from "@/lib/field-admin";
 import { adminFocusRing } from "@/lib/admin-ui";
 import { CORE_FIELDS } from "@/lib/fields";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
@@ -14,6 +14,10 @@ const coreFieldKeys = new Set(CORE_FIELDS.map((field) => field.key));
 const listErrorMessages: Record<string, string> = {
   "protected-field": "Shared fields cannot be deleted.",
   "missing-label": "Field label is required.",
+  "field-type-locked":
+    "Field type cannot change while recipes already store data for this field.",
+  "require-confirm":
+    "Confirm the required change — some existing recipes do not yet have a value for this field.",
 };
 
 export default async function AdminTypePage({
@@ -39,12 +43,27 @@ export default async function AdminTypePage({
     include: {
       fields: { orderBy: { sortOrder: "asc" } },
       _count: { select: { recipes: true } },
+      recipes: { select: { values: true } },
     },
   });
   if (!type) notFound();
 
   const typeSpecificCount = type.fields.filter((field) => !coreFieldKeys.has(field.key)).length;
   const sharedCount = type.fields.length - typeSpecificCount;
+
+  const fieldUsageByKey = Object.fromEntries(
+    type.fields.map((field) => [
+      field.key,
+      countRecipesWithFieldContent(type.recipes, field.key, field.kind),
+    ]),
+  ) as Record<string, number>;
+
+  const fieldMissingByKey = Object.fromEntries(
+    type.fields.map((field) => [
+      field.key,
+      countRecipesMissingFieldContent(type.recipes, field.key, field.kind),
+    ]),
+  ) as Record<string, number>;
 
   const adminFields: AdminTypeField[] = type.fields.map((field, globalIndex) => ({
     id: field.id,
@@ -60,6 +79,7 @@ export default async function AdminTypePage({
   }));
 
   const savedFieldId = query.saved === "field" && query.fieldId ? query.fieldId : null;
+  const errorFieldId = query.fieldId ?? null;
   const addError =
     query.error === "duplicate-key" || query.error === "invalid-key" ? query.error : undefined;
   const listError =
@@ -69,6 +89,11 @@ export default async function AdminTypePage({
     query.error !== "duplicate-slug"
       ? listErrorMessages[query.error] ?? undefined
       : undefined;
+  const expandFieldId =
+    errorFieldId &&
+    (query.error === "field-type-locked" || query.error === "require-confirm")
+      ? errorFieldId
+      : savedFieldId;
 
   return (
     <div>
@@ -110,11 +135,16 @@ export default async function AdminTypePage({
         fields={adminFields}
         typeSpecificCount={typeSpecificCount}
         sharedCount={sharedCount}
+        recipeCount={type._count.recipes}
+        fieldUsageByKey={fieldUsageByKey}
+        fieldMissingByKey={fieldMissingByKey}
         savedFieldId={savedFieldId}
         focusFieldId={query.focus ?? null}
+        initialExpandedFieldId={expandFieldId}
         initialAddOpen={query.add === "1"}
         addError={addError}
         listError={listError}
+        fieldError={query.error === "field-type-locked" || query.error === "require-confirm" ? query.error : undefined}
         deleted={query.deleted === "field"}
       />
     </div>
