@@ -39,7 +39,11 @@ export default async function EditRecipePage({
         ...field,
         options: JSON.parse(field.options || "[]") as string[],
       }))}
-      categories={categories.map((category) => ({ id: category.id, name: category.name }))}
+      categories={categories.map((category) => ({
+        id: category.id,
+        name: category.name,
+        group: category.group,
+      }))}
       initial={{
         title: recipe.title,
         slug: recipe.slug,

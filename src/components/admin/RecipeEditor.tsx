@@ -5,11 +5,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { saveRecipeAction } from "@/app/admin/actions";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import {
+  RecipeEditorSectionNav,
+  type RecipeEditorSectionLink,
+} from "@/components/admin/RecipeEditorSectionNav";
+import {
   adminFocusRing,
   adminInputClass,
   adminPrimaryButtonClass,
 } from "@/lib/admin-ui";
+import { ADMIN_IMAGE_HELP } from "@/lib/admin-upload";
+import { partitionCategoriesByGroup } from "@/lib/category-admin";
 import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS, slugify } from "@/lib/fields";
+import { youtubeThumbnailUrl, youtubeVideoId } from "@/lib/youtube";
 
 type Field = {
   key: string;
@@ -20,7 +27,19 @@ type Field = {
   options: string[];
 };
 
-type CategoryOption = { id: string; name: string };
+type CategoryOption = { id: string; name: string; group: string };
+
+const SECTION_BASICS = "recipe-section-basics";
+const SECTION_DETAILS = "recipe-section-details";
+const SECTION_CONTENT = "recipe-section-content";
+const SECTION_MEDIA = "recipe-section-media";
+const SECTION_ADVANCED = "recipe-section-advanced";
+
+const YIELD_KEYS = ["servings", "servingsUnit"] as const;
+const TIMING_KEYS = ["prepMinutes", "bakeMinutes", "restMinutes"] as const;
+const CLASSIFICATION_KEYS = ["difficulty", "course", "method", "holiday", "cuisine"] as const;
+const TOOLS_KEYS = ["utensils"] as const;
+const TAG_KEYS = ["tags"] as const;
 
 const DETAILS_KEYS = [
   "servings",
@@ -136,7 +155,42 @@ function validateForPublish(
       errors[field.key] = `${field.label} is required before publishing.`;
     }
   }
+  const youtubeUrl = String(values.youtubeUrl ?? "").trim();
+  if (youtubeUrl && !youtubeVideoId(youtubeUrl)) {
+    errors.youtubeUrl = "Enter a valid YouTube watch or youtu.be URL.";
+  }
   return errors;
+}
+
+function bakeTimeDisplayLabel(typeName: string, fieldLabel: string) {
+  const lower = typeName.toLowerCase();
+  if (
+    lower.includes("drink") ||
+    lower.includes("condiment") ||
+    lower.includes("sauce") ||
+    lower.includes("salad")
+  ) {
+    return "Cooking time";
+  }
+  return fieldLabel;
+}
+
+function moveArrayItem<T>(items: T[], from: number, to: number) {
+  if (from === to || from < 0 || from >= items.length || to < 0 || to >= items.length) {
+    return items;
+  }
+  const next = [...items];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+function reorderActionClass(disabled: boolean) {
+  return `text-xs font-semibold transition-colors duration-150 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta ${
+    disabled
+      ? "cursor-not-allowed text-muted/40"
+      : "text-muted hover:text-terracotta"
+  }`;
 }
 
 function pickFieldsOrdered(fields: Field[], keys: readonly string[]) {
@@ -145,24 +199,49 @@ function pickFieldsOrdered(fields: Field[], keys: readonly string[]) {
 }
 
 function EditorSection({
+  id,
   title,
   description,
   children,
   emphasis = false,
+  scrollTargetStyle,
 }: {
+  id: string;
   title: string;
   description?: string;
   children: React.ReactNode;
   emphasis?: boolean;
+  scrollTargetStyle?: React.CSSProperties;
 }) {
   return (
-    <section className="border border-line bg-paper p-5 md:p-6">
+    <section
+      id={id}
+      style={scrollTargetStyle}
+      className="border border-line bg-paper p-5 md:p-6"
+    >
       <header className={`mb-5 ${emphasis ? "border-b border-line pb-4" : ""}`}>
         <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">{title}</h2>
         {description ? <p className="mt-1.5 text-xs leading-relaxed text-muted">{description}</p> : null}
       </header>
       {children}
     </section>
+  );
+}
+
+function DetailSubgroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h3 className="mb-3 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive/90">
+        {label}
+      </h3>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{children}</div>
+    </div>
   );
 }
 
@@ -188,8 +267,12 @@ function FieldLabel({
   );
 }
 
+function normalizeStatus(status: string) {
+  return status.toLowerCase();
+}
+
 function RecipeStatusBadge({ status }: { status: string }) {
-  const published = status === "published";
+  const published = normalizeStatus(status) === "published";
   return (
     <span className="inline-flex items-center gap-2 text-sm text-muted">
       <span
@@ -230,6 +313,7 @@ export function RecipeEditor({
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(84);
   const [scrollOffset, setScrollOffset] = useState(96);
   const [title, setTitle] = useState(initial.title);
   const [slug, setSlug] = useState(initial.slug);
@@ -265,6 +349,63 @@ export function RecipeEditor({
   const advancedFields = pickFieldsOrdered(fields, ADVANCED_KEYS);
   const specialistFields = fields.filter((field) => !ALL_GROUPED.has(field.key));
 
+  const categoryGroups = useMemo(
+    () =>
+      partitionCategoriesByGroup(
+        categories.map((category) => ({
+          ...category,
+          slug: category.id,
+          description: "",
+          recipeCount: 0,
+        })),
+      ).filter((group) => group.categories.length > 0),
+    [categories],
+  );
+
+  const sectionLinks = useMemo(() => {
+    const links: RecipeEditorSectionLink[] = [
+      { id: SECTION_BASICS, label: "Basics" },
+    ];
+    if (detailFields.length) links.push({ id: SECTION_DETAILS, label: "Details" });
+    if (contentFields.length) links.push({ id: SECTION_CONTENT, label: "Content" });
+    if (mediaFields.length) links.push({ id: SECTION_MEDIA, label: "Media" });
+    if (advancedFields.length || specialistFields.length) {
+      links.push({ id: SECTION_ADVANCED, label: "Advanced" });
+    }
+    return links;
+  }, [advancedFields.length, contentFields.length, detailFields.length, mediaFields.length, specialistFields.length]);
+
+  const initialSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        title: initial.title,
+        slug: initial.slug,
+        excerpt: initial.excerpt,
+        featured: initial.featured,
+        seasonal: initial.seasonal,
+        categoryIds: [...initial.categoryIds].sort(),
+        values: initial.values,
+      }),
+    [initial],
+  );
+
+  const isDirty = useMemo(
+    () =>
+      JSON.stringify({
+        title,
+        slug,
+        excerpt,
+        featured,
+        seasonal,
+        categoryIds: [...categoryIds].sort(),
+        values,
+      }) !== initialSnapshot,
+    [categoryIds, excerpt, featured, initialSnapshot, seasonal, title, slug, values],
+  );
+
+  const publishButtonLabel =
+    normalizeStatus(status) === "published" ? "Update published recipe" : "Publish";
+
   const encoded = useMemo(() => {
     const out: Record<string, string> = {};
     for (const field of fields) {
@@ -282,6 +423,7 @@ export function RecipeEditor({
     function updateScrollOffset() {
       const node = stickyHeaderRef.current;
       if (!node) return;
+      setHeaderHeight(node.offsetHeight);
       setScrollOffset(node.offsetHeight + 12);
     }
 
@@ -299,6 +441,13 @@ export function RecipeEditor({
     () => ({ scrollMarginTop: scrollOffset }) as const,
     [scrollOffset],
   );
+
+  function scrollToSection(sectionId: string) {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+  }
 
   function scrollToField(fieldKey: string) {
     const target = document.getElementById(`recipe-field-${fieldKey}`);
@@ -356,7 +505,12 @@ export function RecipeEditor({
     const errors = validateForPublish(title, fields, values);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setPublishAlert("Complete the required fields below before publishing.");
+      const count = Object.keys(errors).length;
+      setPublishAlert(
+        count === 1
+          ? "1 issue must be resolved before publishing."
+          : `${count} issues must be resolved before publishing.`,
+      );
       const firstKey = errors.title ? "title" : Object.keys(errors)[0];
       const advancedKeys = new Set([
         ...ADVANCED_KEYS,
@@ -385,6 +539,18 @@ export function RecipeEditor({
       field.key === "utensils" ||
       field.key === "tags";
 
+    const displayLabel =
+      field.key === "bakeMinutes"
+        ? bakeTimeDisplayLabel(typeName, field.label)
+        : field.key === "imageAlt"
+          ? "Image description (alt text)"
+          : field.label;
+
+    const displayHelp =
+      field.key === "imageAlt"
+        ? "Describe the hero image for accessibility. Write what a sighted reader needs to understand the photo."
+        : field.helpText;
+
     return (
       <div
         key={field.key}
@@ -393,30 +559,47 @@ export function RecipeEditor({
         className={isWide ? "md:col-span-2" : ""}
       >
         <FieldLabel
-          label={field.label}
+          label={displayLabel}
           required={field.required}
-          helpText={field.helpText}
+          helpText={displayHelp}
           compact={compact}
         />
-        <KindInput
-          fieldKey={field.key}
-          kind={field.kind}
-          options={field.options}
-          value={values[field.key]}
-          onChange={(value) => {
-            setField(field.key, value);
-            if (fieldErrors[field.key]) {
-              setFieldErrors((current) => {
-                const next = { ...current };
-                delete next[field.key];
-                return next;
-              });
-            }
-          }}
-          compact={compact}
-          emphasis={emphasis}
-          invalid={Boolean(fieldErrors[field.key])}
-        />
+        {field.key === "youtubeUrl" ? (
+          <YoutubeUrlField
+            value={String(values[field.key] ?? "")}
+            onChange={(value) => {
+              setField(field.key, value);
+              if (fieldErrors[field.key]) {
+                setFieldErrors((current) => {
+                  const next = { ...current };
+                  delete next[field.key];
+                  return next;
+                });
+              }
+            }}
+            invalid={Boolean(fieldErrors[field.key])}
+          />
+        ) : (
+          <KindInput
+            fieldKey={field.key}
+            kind={field.kind}
+            options={field.options}
+            value={values[field.key]}
+            onChange={(value) => {
+              setField(field.key, value);
+              if (fieldErrors[field.key]) {
+                setFieldErrors((current) => {
+                  const next = { ...current };
+                  delete next[field.key];
+                  return next;
+                });
+              }
+            }}
+            compact={compact}
+            emphasis={emphasis}
+            invalid={Boolean(fieldErrors[field.key])}
+          />
+        )}
         {fieldErrors[field.key] ? (
           <p className={fieldErrorClass} role="alert">
             {fieldErrors[field.key]}
@@ -449,6 +632,9 @@ export function RecipeEditor({
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {saved ? <span className="text-sm text-olive">Saved.</span> : null}
+            {isDirty && !saved ? (
+              <span className="text-xs font-semibold text-muted">Unsaved changes</span>
+            ) : null}
             <RecipeStatusBadge status={status} />
             {recipeId ? (
               <DeleteRecipeButton recipeId={recipeId} recipeTitle={pageTitle} />
@@ -465,7 +651,7 @@ export function RecipeEditor({
               onClick={attemptPublish}
               className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
             >
-              Publish
+              {publishButtonLabel}
             </button>
           </div>
         </div>
@@ -493,16 +679,43 @@ export function RecipeEditor({
         ))}
 
         {publishAlert ? (
-          <p
-            className="rounded-sm border border-line bg-paper px-4 py-3 text-sm text-terracotta"
+          <div
+            className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-4 py-3"
             role="alert"
             style={scrollTargetStyle}
           >
-            {publishAlert}
-          </p>
+            <p className="text-sm font-semibold text-terracotta">{publishAlert}</p>
+            {Object.keys(fieldErrors).length > 0 ? (
+              <ul className="mt-2 list-none space-y-1 p-0 text-sm">
+                {Object.entries(fieldErrors).map(([key, message]) => (
+                  <li key={key}>
+                    <button
+                      type="button"
+                      onClick={() => scrollToField(key)}
+                      className={`text-left font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
+                    >
+                      {message}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : null}
 
-        <EditorSection title="Basics" description="Title, summary, and discovery settings.">
+        <RecipeEditorSectionNav
+          sections={sectionLinks}
+          stickyTop={headerHeight}
+          scrollMarginTop={scrollOffset}
+          onNavigate={scrollToSection}
+        />
+
+        <EditorSection
+          id={SECTION_BASICS}
+          scrollTargetStyle={scrollTargetStyle}
+          title="Basics"
+          description="Identity, summary, and discovery settings."
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <label id="recipe-field-title" className="grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
               <span className="text-sm font-semibold text-ink">
@@ -543,28 +756,6 @@ export function RecipeEditor({
                 className={compactInputClass}
               />
             </label>
-            <div className="flex flex-wrap items-end gap-4 pb-1">
-              <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <input
-                  type="checkbox"
-                  name="featured"
-                  checked={featured}
-                  onChange={(event) => setFeatured(event.target.checked)}
-                  className="rounded-sm border-line"
-                />
-                Featured
-              </label>
-              <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <input
-                  type="checkbox"
-                  name="seasonal"
-                  checked={seasonal}
-                  onChange={(event) => setSeasonal(event.target.checked)}
-                  className="rounded-sm border-line"
-                />
-                Seasonal
-              </label>
-            </div>
             <label className="grid gap-1.5 md:col-span-2">
               <span className="text-sm font-semibold text-ink">Excerpt</span>
               <textarea
@@ -575,22 +766,69 @@ export function RecipeEditor({
                 className={adminInputClass}
               />
             </label>
-            <div className="md:col-span-2">
-              <p className="mb-2 text-sm font-semibold text-ink">Categories</p>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <label
-                    key={category.id}
-                    className="flex items-center gap-2 rounded-sm border border-line px-3 py-1.5 text-sm transition-colors hover:bg-cream"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={categoryIds.includes(category.id)}
-                      onChange={() => toggleCategory(category.id)}
-                    />
-                    {category.name}
-                  </label>
-                ))}
+
+            <div className="md:col-span-2 border-t border-line/80 pt-5">
+              <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive/90">
+                Discovery
+              </h3>
+              <p className="mt-1 text-xs text-muted">
+                Editorial flags and taxonomy for menus, filters, and featured placement.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <input
+                    type="checkbox"
+                    name="featured"
+                    checked={featured}
+                    onChange={(event) => setFeatured(event.target.checked)}
+                    className="rounded-sm border-line"
+                  />
+                  Featured
+                </label>
+                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <input
+                    type="checkbox"
+                    name="seasonal"
+                    checked={seasonal}
+                    onChange={(event) => setSeasonal(event.target.checked)}
+                    className="rounded-sm border-line"
+                  />
+                  Seasonal
+                </label>
+              </div>
+              <div className="mt-5">
+                <p className="mb-3 text-sm font-semibold text-ink">Categories</p>
+                <div className="grid gap-4">
+                  {categoryGroups.map((group) => (
+                    <div key={group.group}>
+                      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+                        {group.label}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {group.categories.map((category) => {
+                          const selected = categoryIds.includes(category.id);
+                          return (
+                            <label
+                              key={category.id}
+                              className={`flex items-center gap-2 rounded-sm border px-3 py-1.5 text-sm transition-colors ${adminFocusRing} ${
+                                selected
+                                  ? "border-terracotta/40 bg-terracotta/5 text-ink"
+                                  : "border-line hover:bg-cream"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => toggleCategory(category.id)}
+                              />
+                              {category.name}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -598,17 +836,55 @@ export function RecipeEditor({
 
         {detailFields.length ? (
           <EditorSection
+            id={SECTION_DETAILS}
+            scrollTargetStyle={scrollTargetStyle}
             title="Recipe details"
             description="Times, yield, and metadata shown on the public recipe card."
           >
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {detailFields.map((field) => renderField(field, { compact: true }))}
+            <div className="grid gap-8">
+              {pickFieldsOrdered(detailFields, YIELD_KEYS).length ? (
+                <DetailSubgroup label="Yield">
+                  {pickFieldsOrdered(detailFields, YIELD_KEYS).map((field) =>
+                    renderField(field, { compact: true }),
+                  )}
+                </DetailSubgroup>
+              ) : null}
+              {pickFieldsOrdered(detailFields, TIMING_KEYS).length ? (
+                <DetailSubgroup label="Timing">
+                  {pickFieldsOrdered(detailFields, TIMING_KEYS).map((field) =>
+                    renderField(field, { compact: true }),
+                  )}
+                </DetailSubgroup>
+              ) : null}
+              {pickFieldsOrdered(detailFields, CLASSIFICATION_KEYS).length ? (
+                <DetailSubgroup label="Classification">
+                  {pickFieldsOrdered(detailFields, CLASSIFICATION_KEYS).map((field) =>
+                    renderField(field, { compact: true }),
+                  )}
+                </DetailSubgroup>
+              ) : null}
+              {pickFieldsOrdered(detailFields, TOOLS_KEYS).length ? (
+                <DetailSubgroup label="Tools">
+                  {pickFieldsOrdered(detailFields, TOOLS_KEYS).map((field) =>
+                    renderField(field, { compact: true }),
+                  )}
+                </DetailSubgroup>
+              ) : null}
+              {pickFieldsOrdered(detailFields, TAG_KEYS).length ? (
+                <DetailSubgroup label="Discovery">
+                  {pickFieldsOrdered(detailFields, TAG_KEYS).map((field) =>
+                    renderField(field, { compact: true }),
+                  )}
+                </DetailSubgroup>
+              ) : null}
             </div>
           </EditorSection>
         ) : null}
 
         {contentFields.length ? (
           <EditorSection
+            id={SECTION_CONTENT}
+            scrollTargetStyle={scrollTargetStyle}
             title="Recipe content"
             description="The story, ingredients, and method — the heart of the recipe."
             emphasis
@@ -635,7 +911,12 @@ export function RecipeEditor({
         ) : null}
 
         {mediaFields.length ? (
-          <EditorSection title="Media" description="Hero image and main walkthrough video.">
+          <EditorSection
+            id={SECTION_MEDIA}
+            scrollTargetStyle={scrollTargetStyle}
+            title="Media"
+            description="Hero image and main walkthrough video."
+          >
             <div className="grid gap-5 md:grid-cols-2">
               {mediaFields.map((field) => renderField(field))}
             </div>
@@ -643,7 +924,11 @@ export function RecipeEditor({
         ) : null}
 
         {advancedFields.length || specialistFields.length ? (
-          <section className="border border-line bg-paper">
+          <section
+            id={SECTION_ADVANCED}
+            style={scrollTargetStyle}
+            className="border border-line bg-paper"
+          >
             <button
               type="button"
               id="recipe-advanced-toggle"
@@ -658,6 +943,10 @@ export function RecipeEditor({
                 </h2>
                 <p className="mt-1 text-xs text-muted">
                   Optional video metadata, nutrition, and type-specific fields.
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-muted">
+                  Rich YouTube metadata is currently edited as JSON in Advanced. A structured
+                  editor for hooks, timestamps, and related videos is planned for a later phase.
                 </p>
               </div>
               <span className="text-sm text-muted" aria-hidden>
@@ -684,7 +973,7 @@ export function RecipeEditor({
             Save draft
           </button>
           <button type="button" onClick={attemptPublish} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
-            Publish
+            {publishButtonLabel}
           </button>
         </div>
       </form>
@@ -1002,31 +1291,56 @@ function IngredientsEditor({
   return (
     <div className="grid gap-5">
       {groups.map((group, groupIndex) => (
-        <div key={groupIndex} className="grid gap-3">
-          <input
-            value={group.name || ""}
-            placeholder="Group name (optional)"
-            onChange={(event) => {
-              const next = [...groups];
-              next[groupIndex] = { ...group, name: event.target.value };
-              update(next);
-            }}
-            className={`${compactInputClass} max-w-md`}
-          />
-          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted md:grid md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_3.5rem]">
+        <div key={groupIndex} className="grid gap-3 border-t border-line/70 pt-4 first:border-t-0 first:pt-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={group.name || ""}
+              placeholder="Group name (optional)"
+              aria-label={`Ingredient group ${groupIndex + 1} name`}
+              onChange={(event) => {
+                const next = [...groups];
+                next[groupIndex] = { ...group, name: event.target.value };
+                update(next);
+              }}
+              className={`${compactInputClass} max-w-md flex-1`}
+            />
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                aria-label={`Move group ${groupIndex + 1} up`}
+                disabled={groupIndex === 0}
+                className={reorderActionClass(groupIndex === 0)}
+                onClick={() => update(moveArrayItem(groups, groupIndex, groupIndex - 1))}
+              >
+                Move group up
+              </button>
+              <button
+                type="button"
+                aria-label={`Move group ${groupIndex + 1} down`}
+                disabled={groupIndex === groups.length - 1}
+                className={reorderActionClass(groupIndex === groups.length - 1)}
+                onClick={() => update(moveArrayItem(groups, groupIndex, groupIndex + 1))}
+              >
+                Move group down
+              </button>
+            </div>
+          </div>
+          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted md:grid md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_3.5rem]">
             <span>Amount</span>
             <span>Ingredient</span>
             <span>Notes</span>
-            <span className="sr-only">Actions</span>
+            <span className="sr-only">Reorder</span>
+            <span className="sr-only">Remove</span>
           </div>
           {group.items.map((item, itemIndex) => (
             <div
               key={itemIndex}
-              className="grid gap-2 md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_3.5rem] md:items-center"
+              className="grid gap-2 md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_3.5rem] md:items-center"
             >
               <input
                 value={item.amount}
                 placeholder="Amount"
+                aria-label={`Amount for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
                 onChange={(event) => {
                   const next = [...groups];
                   const items = [...group.items];
@@ -1039,6 +1353,7 @@ function IngredientsEditor({
               <input
                 value={item.item}
                 placeholder="Ingredient"
+                aria-label={`Ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
                 onChange={(event) => {
                   const next = [...groups];
                   const items = [...group.items];
@@ -1051,6 +1366,7 @@ function IngredientsEditor({
               <input
                 value={item.notes || ""}
                 placeholder="Notes"
+                aria-label={`Notes for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
                 onChange={(event) => {
                   const next = [...groups];
                   const items = [...group.items];
@@ -1060,8 +1376,43 @@ function IngredientsEditor({
                 }}
                 className={compactInputClass}
               />
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label={`Move ingredient ${itemIndex + 1} up`}
+                  disabled={itemIndex === 0}
+                  className={reorderActionClass(itemIndex === 0)}
+                  onClick={() => {
+                    const next = [...groups];
+                    next[groupIndex] = {
+                      ...group,
+                      items: moveArrayItem(group.items, itemIndex, itemIndex - 1),
+                    };
+                    update(next);
+                  }}
+                >
+                  Up
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Move ingredient ${itemIndex + 1} down`}
+                  disabled={itemIndex === group.items.length - 1}
+                  className={reorderActionClass(itemIndex === group.items.length - 1)}
+                  onClick={() => {
+                    const next = [...groups];
+                    next[groupIndex] = {
+                      ...group,
+                      items: moveArrayItem(group.items, itemIndex, itemIndex + 1),
+                    };
+                    update(next);
+                  }}
+                >
+                  Down
+                </button>
+              </div>
               <button
                 type="button"
+                aria-label={`Remove ingredient ${itemIndex + 1}`}
                 className={removeActionClass}
                 onClick={() => {
                   const next = [...groups];
@@ -1128,13 +1479,14 @@ function InstructionsEditor({
             stepCounter += 1;
             const stepNumber = stepCounter;
             return (
-              <div key={stepIndex} className="flex gap-3">
-                <span className="mt-2.5 w-5 shrink-0 text-xs font-semibold tabular-nums text-muted">
+              <div key={stepIndex} className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+                <span className="shrink-0 text-xs font-semibold tabular-nums text-muted sm:mt-2.5 sm:w-5">
                   {stepNumber}
                 </span>
                 <textarea
                   value={step}
                   rows={2}
+                  aria-label={`Step ${stepNumber}${group.name ? ` in ${group.name}` : ""}`}
                   onChange={(event) => {
                     const next = [...groups];
                     const steps = [...group.steps];
@@ -1144,18 +1496,53 @@ function InstructionsEditor({
                   }}
                   className={`${adminInputClass} min-h-[2.75rem] flex-1`}
                 />
-                <button
-                  type="button"
-                  className={`${removeActionClass} mt-2 self-start`}
-                  onClick={() => {
-                    const next = [...groups];
-                    const steps = group.steps.filter((_, i) => i !== stepIndex);
-                    next[groupIndex] = { ...group, steps: steps.length ? steps : [""] };
-                    onChange(next);
-                  }}
-                >
-                  Remove
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5 sm:flex-col sm:items-stretch">
+                  <button
+                    type="button"
+                    aria-label={`Move step ${stepNumber} up`}
+                    disabled={stepIndex === 0}
+                    className={reorderActionClass(stepIndex === 0)}
+                    onClick={() => {
+                      const next = [...groups];
+                      next[groupIndex] = {
+                        ...group,
+                        steps: moveArrayItem(group.steps, stepIndex, stepIndex - 1),
+                      };
+                      onChange(next);
+                    }}
+                  >
+                    Up
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move step ${stepNumber} down`}
+                    disabled={stepIndex === group.steps.length - 1}
+                    className={reorderActionClass(stepIndex === group.steps.length - 1)}
+                    onClick={() => {
+                      const next = [...groups];
+                      next[groupIndex] = {
+                        ...group,
+                        steps: moveArrayItem(group.steps, stepIndex, stepIndex + 1),
+                      };
+                      onChange(next);
+                    }}
+                  >
+                    Down
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Remove step ${stepNumber}`}
+                    className={`${removeActionClass} sm:text-center`}
+                    onClick={() => {
+                      const next = [...groups];
+                      const steps = group.steps.filter((_, i) => i !== stepIndex);
+                      next[groupIndex] = { ...group, steps: steps.length ? steps : [""] };
+                      onChange(next);
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -1179,6 +1566,57 @@ function InstructionsEditor({
       >
         + Add section
       </button>
+    </div>
+  );
+}
+
+function YoutubeUrlField({
+  value,
+  onChange,
+  invalid = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  invalid?: boolean;
+}) {
+  const trimmed = value.trim();
+  const videoId = trimmed ? youtubeVideoId(trimmed) : null;
+  const showInvalid = trimmed.length > 0 && !videoId;
+
+  return (
+    <div className="grid gap-3">
+      <input
+        value={value}
+        placeholder="https://www.youtube.com/watch?v=…"
+        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={invalid || showInvalid}
+        aria-describedby={showInvalid ? "youtube-url-hint" : undefined}
+        className={`${adminInputClass}${invalid || showInvalid ? ` ${inputErrorClass}` : ""}`}
+      />
+      {trimmed ? (
+        videoId ? (
+          <div className="flex gap-3 rounded-sm border border-line bg-cream/40 p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={youtubeThumbnailUrl(videoId)}
+              alt=""
+              className="h-16 w-[7.125rem] shrink-0 rounded-sm object-cover"
+            />
+            <div className="min-w-0 text-sm">
+              <p className="font-semibold text-olive">Valid YouTube video</p>
+              <p className="mt-0.5 break-all font-mono text-xs text-muted">{videoId}</p>
+            </div>
+          </div>
+        ) : (
+          <p id="youtube-url-hint" className="text-xs font-semibold text-terracotta" role="status">
+            Enter a valid YouTube watch, embed, shorts, or youtu.be URL.
+          </p>
+        )
+      ) : (
+        <p className="text-xs text-muted">
+          Optional. Links to the main studio walkthrough on Mesa&apos;s YouTube channel.
+        </p>
+      )}
     </div>
   );
 }
@@ -1208,6 +1646,7 @@ function ImageField({
 
   return (
     <div className="grid gap-3">
+      <p className="text-xs text-muted">{ADMIN_IMAGE_HELP}</p>
       <label className="cursor-pointer">
         <span
           className={`inline-flex h-10 items-center justify-center rounded-full bg-terracotta px-5 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 hover:bg-terracotta-dark active:scale-[0.995] ${adminFocusRing}`}
@@ -1235,8 +1674,14 @@ function ImageField({
         />
       </div>
       {value ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={value} alt="" className="max-h-48 object-cover" />
+        <figure className="overflow-hidden rounded-sm border border-line bg-cream/50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={value}
+            alt="Hero image preview"
+            className="max-h-72 w-full object-contain"
+          />
+        </figure>
       ) : null}
     </div>
   );
