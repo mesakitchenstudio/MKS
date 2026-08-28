@@ -19,6 +19,7 @@ import {
 } from "@/lib/admin-staff";
 import { hashPassword } from "@/lib/passwords";
 import { removeMemberByEmail } from "@/lib/accounts";
+import { deleteGuestVisitorForAdmin } from "@/lib/guest-analytics";
 import { connectionMeta } from "@/lib/request-meta";
 
 async function requireEditor() {
@@ -494,6 +495,29 @@ export async function deleteMemberAction(formData: FormData) {
   revalidatePath(`/admin/members/${id}`);
   revalidatePath("/profile");
   redirect("/admin/members?removed=1");
+}
+
+export type DeleteGuestVisitorResult =
+  | { ok: true }
+  | { ok: false; error: "missing" | "not-found" | "failed" };
+
+export async function deleteGuestVisitorAction(
+  visitorId: string,
+): Promise<DeleteGuestVisitorResult> {
+  await requireAccess("members");
+  const id = String(visitorId || "").trim();
+  if (!id) return { ok: false, error: "missing" };
+
+  try {
+    const deleted = await deleteGuestVisitorForAdmin(id);
+    if (!deleted) return { ok: false, error: "not-found" };
+    revalidatePath("/admin/visitors");
+    revalidatePath(`/admin/visitors/${id}`);
+    return { ok: true };
+  } catch (error) {
+    console.error("Could not delete guest visitor", error);
+    return { ok: false, error: "failed" };
+  }
 }
 
 export async function deleteAdminAction(formData: FormData) {

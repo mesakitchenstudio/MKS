@@ -176,6 +176,26 @@ export async function getGuestForAdmin(id: string): Promise<GuestVisitorRow | nu
   });
 }
 
+/**
+ * Permanently remove an anonymous visitor and all related page-view rows.
+ * GuestPageView uses onDelete: Cascade — no orphaned analytics remain.
+ * Returns false when the id is missing or not a GuestVisitor record.
+ */
+export async function deleteGuestVisitorForAdmin(id: string): Promise<boolean> {
+  const trimmed = id.trim();
+  if (!trimmed) return false;
+
+  const db = getDb();
+  const existing = await db.guestVisitor.findUnique({
+    where: { id: trimmed },
+    select: { id: true },
+  });
+  if (!existing) return false;
+
+  await db.guestVisitor.delete({ where: { id: trimmed } });
+  return true;
+}
+
 export async function listPopularGuestPaths(days = 7, limit = 20) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const views = await getDb().guestPageView.findMany({

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PresenceDot } from "@/components/admin/MemberPresence";
+import { RemoveGuestVisitorButton } from "@/components/admin/RemoveGuestVisitorButton";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { formatAdminShortDateTime } from "@/lib/datetime";
 import { classifyGuestClient, guestDeviceClientLabel, isBotUserAgent } from "@/lib/guest-client";
@@ -180,7 +181,7 @@ export function VisitorsTable({
                   <col className="w-[11%]" />
                   <col className="w-[14%]" />
                   <col className="w-[12%]" />
-                  <col className="w-[6%]" />
+                  <col className="w-[10%]" />
                 </colgroup>
                 <thead className={adminTableHeadClass}>
                   <tr>
@@ -320,12 +321,17 @@ function VisitorTableRow({
         </span>
       </td>
       <td className="px-3 py-3 text-right">
-        <Link
-          href={`/admin/visitors/${guest.id}`}
-          className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
-        >
-          View
-        </Link>
+        <span className="inline-flex flex-col items-end gap-1">
+          <span className="inline-flex items-center justify-end gap-3">
+            <Link
+              href={`/admin/visitors/${guest.id}`}
+              className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
+            >
+              View
+            </Link>
+            <RemoveGuestVisitorButton id={guest.id} />
+          </span>
+        </span>
       </td>
     </tr>
   );
@@ -366,12 +372,15 @@ function VisitorMobileCard({
             {status}
           </p>
         </div>
-        <Link
-          href={`/admin/visitors/${guest.id}`}
-          className={`shrink-0 text-sm ${adminLinkClass} ${adminFocusRing}`}
-        >
-          View
-        </Link>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <Link
+            href={`/admin/visitors/${guest.id}`}
+            className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
+          >
+            View
+          </Link>
+          <RemoveGuestVisitorButton id={guest.id} />
+        </div>
       </div>
       <div className="mt-2">
         <PageCell path={guest.lastPath} recipeTitles={recipeTitles} />
