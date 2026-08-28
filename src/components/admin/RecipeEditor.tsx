@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deleteRecipeAction, saveRecipeAction } from "@/app/admin/actions";
+import { saveRecipeAction } from "@/app/admin/actions";
+import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import {
   adminFocusRing,
   adminInputClass,
@@ -427,12 +428,6 @@ export function RecipeEditor({
 
   return (
     <>
-      {recipeId ? (
-        <form id="delete-recipe-form" action={deleteRecipeAction} className="hidden">
-          <input type="hidden" name="id" value={recipeId} />
-        </form>
-      ) : null}
-
       <div
         ref={stickyHeaderRef}
         className="sticky top-0 z-50 -mx-5 mb-8 border-b border-line bg-[var(--cream)] px-5 py-3 md:-mx-6 md:px-6"
@@ -456,13 +451,7 @@ export function RecipeEditor({
             {saved ? <span className="text-sm text-olive">Saved.</span> : null}
             <RecipeStatusBadge status={status} />
             {recipeId ? (
-              <button
-                type="submit"
-                form="delete-recipe-form"
-                className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
-              >
-                Delete
-              </button>
+              <DeleteRecipeButton recipeId={recipeId} recipeTitle={pageTitle} />
             ) : null}
             <button
               type="button"

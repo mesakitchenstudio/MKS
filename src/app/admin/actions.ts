@@ -372,7 +372,6 @@ export async function saveRecipeAction(formData: FormData) {
   }
 
   revalidatePath("/admin");
-  revalidatePath("/admin/recipes");
   revalidatePath("/");
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${slug}`);
@@ -382,9 +381,9 @@ export async function saveRecipeAction(formData: FormData) {
 export async function deleteRecipeAction(formData: FormData) {
   await requireEditor();
   await getDb().recipe.delete({ where: { id: String(formData.get("id") || "") } });
-  revalidatePath("/admin/recipes");
+  revalidatePath("/admin");
   revalidatePath("/");
-  redirect("/admin/recipes");
+  redirect("/admin");
 }
 
 export async function saveAdminAction(formData: FormData) {
