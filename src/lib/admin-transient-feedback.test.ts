@@ -12,6 +12,16 @@ test("stripSearchParams removes transient keys and keeps the field hash", () => 
   );
 });
 
+test("stripSearchParams removes deleted status and keeps the categories hash", () => {
+  assert.equal(
+    stripSearchParams(
+      "http://localhost/admin/categories?deleted=category#categories",
+      ["deleted"],
+    ),
+    "/admin/categories#categories",
+  );
+});
+
 test("stripSearchParams preserves unrelated query params", () => {
   assert.equal(
     stripSearchParams(

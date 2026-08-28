@@ -11,7 +11,9 @@ import {
 } from "@/lib/admin-ui";
 import {
   AdminSavedStatus,
+  TYPE_FIELD_DELETED_PARAMS,
   TYPE_FIELD_SAVED_PARAMS,
+  useTransientSavedFlag,
   useTransientSavedId,
 } from "@/lib/admin-transient-feedback";
 import { type AdminTypeField, fieldKindLabel, fieldKindUsesOptions, isCoreFieldKey, isStructuralFieldDraftChange } from "@/lib/field-admin";
@@ -817,6 +819,7 @@ export function TypeFieldsManager({
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
   const visibleSavedFieldId = useTransientSavedId(savedFieldId, TYPE_FIELD_SAVED_PARAMS);
+  const showDeleted = useTransientSavedFlag(deleted, TYPE_FIELD_DELETED_PARAMS);
 
   const total = fields.length;
   const orderedFields = [...fields].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -898,8 +901,8 @@ export function TypeFieldsManager({
           {listError}
         </p>
       ) : null}
-      {deleted ? (
-        <p className="mt-3 text-sm text-olive" role="status">
+      {showDeleted ? (
+        <p className="mt-3 text-sm text-olive" role="status" aria-live="polite">
           Field deleted.
         </p>
       ) : null}

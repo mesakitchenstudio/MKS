@@ -8,6 +8,8 @@ export const ADMIN_SAVED_FEEDBACK_MS = 3000;
 export const TYPE_FIELD_SAVED_PARAMS = ["saved", "fieldId"] as const;
 export const TYPE_DETAILS_SAVED_PARAMS = ["saved"] as const;
 export const CATEGORY_SAVED_PARAMS = ["saved", "categoryId"] as const;
+export const CATEGORY_DELETED_PARAMS = ["deleted"] as const;
+export const TYPE_FIELD_DELETED_PARAMS = ["deleted"] as const;
 
 /** Strip transient query keys while preserving pathname and hash. */
 export function stripSearchParams(href: string, keys: readonly string[]): string {

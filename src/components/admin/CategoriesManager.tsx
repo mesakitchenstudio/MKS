@@ -11,7 +11,9 @@ import {
 } from "@/lib/admin-ui";
 import {
   AdminSavedStatus,
+  CATEGORY_DELETED_PARAMS,
   CATEGORY_SAVED_PARAMS,
+  useTransientSavedFlag,
   useTransientSavedId,
 } from "@/lib/admin-transient-feedback";
 import {
@@ -427,6 +429,7 @@ export function CategoriesManager({
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
   const visibleSavedCategoryId = useTransientSavedId(savedCategoryId, CATEGORY_SAVED_PARAMS);
+  const showDeleted = useTransientSavedFlag(deleted, CATEGORY_DELETED_PARAMS);
 
   const sections = partitionCategoriesByGroup(categories);
 
@@ -487,8 +490,8 @@ export function CategoriesManager({
         </div>
       )}
 
-      {deleted ? (
-        <p className="mt-4 text-sm text-olive" role="status">
+      {showDeleted ? (
+        <p className="mt-4 text-sm text-olive" role="status" aria-live="polite">
           Category deleted.
         </p>
       ) : null}
