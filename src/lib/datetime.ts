@@ -33,7 +33,7 @@ export function formatAdminDateTime(value: Date | string | null | undefined) {
   return `${month} ${day}, ${year} · ${time} GMT`;
 }
 
-/** Compact visitors timestamps: Aug 25 · 11:47 AM (year when useful or requested). */
+/** Compact visitors timestamps: Aug 25 · 11:47 AM GMT (year when useful or requested). */
 export function formatAdminShortDateTime(
   value: Date | string | null | undefined,
   now = new Date(),
@@ -54,9 +54,9 @@ export function formatAdminShortDateTime(
   const showYear =
     options?.includeYear || date.getUTCFullYear() !== now.getUTCFullYear();
   if (showYear) {
-    return `${month} ${day}, ${date.getUTCFullYear()} · ${time}`;
+    return `${month} ${day}, ${date.getUTCFullYear()} · ${time} GMT`;
   }
-  return `${month} ${day} · ${time}`;
+  return `${month} ${day} · ${time} GMT`;
 }
 
 /** Date only for admin lists: Aug 24, 2026 */
