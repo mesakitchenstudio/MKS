@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import { homeForRole, isAccessLevel } from "@/lib/admin-access";
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
-import { ADMIN_COOKIE, authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
+import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import {
