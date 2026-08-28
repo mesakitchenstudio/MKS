@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { signOut } from "@/auth";
 import { homeForRole, isAccessLevel } from "@/lib/admin-access";
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
 import { ADMIN_COOKIE, authenticateAdmin, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
@@ -53,7 +54,8 @@ export async function loginAction(formData: FormData) {
 export async function logoutAction() {
   const jar = await cookies();
   jar.delete(ADMIN_COOKIE);
-  redirect("/admin/login");
+  // Also end the public NextAuth session so the site header returns to Sign in.
+  await signOut({ redirectTo: "/admin/login" });
 }
 
 export async function saveCategoryAction(formData: FormData) {

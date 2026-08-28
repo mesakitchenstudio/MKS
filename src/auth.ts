@@ -12,7 +12,6 @@ import {
   upsertGoogleUser,
 } from "@/lib/accounts";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
-import { writeAdminSession } from "@/lib/auth";
 
 if (process.env.VERCEL) {
   // Always pin the public host so OAuth callbacks match Google Cloud redirect URIs.
@@ -66,13 +65,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
       if (!user.email) return true;
       const staff = await getStaffByEmail(user.email);
       if (staff) {
+        // Team access may use the public NextAuth session, but admin access requires
+        // a separate mesa_admin_session from /admin/login or /admin/session.
         try {
           if (account?.provider === "google") {
             await syncStaffGooglePhoto(user.email, user.image);
           }
-          await writeAdminSession(staff);
         } catch (error) {
-          console.error("Could not open admin session", error);
+          console.error("Could not sync staff Google photo", error);
         }
         await removeMemberByEmail(user.email);
         return true;

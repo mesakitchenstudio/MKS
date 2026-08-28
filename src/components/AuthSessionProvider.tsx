@@ -4,20 +4,24 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { GuestTracker } from "@/components/GuestTracker";
-import { writeSession } from "@/lib/auth-client";
+import { signOut as clearLocalSession, writeSession } from "@/lib/auth-client";
 import { hydrateLikesFromProfile } from "@/lib/likes";
 
 const HEARTBEAT_MS = 45_000;
 
 function SessionSync() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const pathname = usePathname();
   const router = useRouter();
   const didRefreshProfile = useRef(false);
   const didEnrich = useRef(false);
 
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (status === "loading") return;
+    if (!session?.user?.email) {
+      clearLocalSession();
+      return;
+    }
     writeSession({
       name: session.user.name?.trim() || session.user.email,
       email: session.user.email,
@@ -53,7 +57,7 @@ function SessionSync() {
       window.removeEventListener("focus", beat);
       document.removeEventListener("visibilitychange", beat);
     };
-  }, [session]);
+  }, [session, status]);
 
   useEffect(() => {
     if (!session?.user?.email || session.staffRole) return;
