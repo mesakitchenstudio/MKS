@@ -22,6 +22,17 @@ test("stripSearchParams removes deleted status and keeps the categories hash", (
   );
 });
 
+test("stripSearchParams removes review removed flag and keeps pagination", () => {
+  assert.equal(
+    stripSearchParams("http://localhost/admin/reviews?removed=1&page=2", ["removed"]),
+    "/admin/reviews?page=2",
+  );
+  assert.equal(
+    stripSearchParams("http://localhost/admin/reviews?removed=1", ["removed"]),
+    "/admin/reviews",
+  );
+});
+
 test("stripSearchParams preserves unrelated query params", () => {
   assert.equal(
     stripSearchParams(

@@ -10,6 +10,7 @@ export const TYPE_DETAILS_SAVED_PARAMS = ["saved"] as const;
 export const CATEGORY_SAVED_PARAMS = ["saved", "categoryId"] as const;
 export const CATEGORY_DELETED_PARAMS = ["deleted"] as const;
 export const TYPE_FIELD_DELETED_PARAMS = ["deleted"] as const;
+export const REVIEW_REMOVED_PARAMS = ["removed"] as const;
 
 /** Strip transient query keys while preserving pathname and hash. */
 export function stripSearchParams(href: string, keys: readonly string[]): string {
@@ -71,5 +72,26 @@ export function AdminSavedStatus({ show }: { show: boolean }) {
     "span",
     { className: "text-sm text-olive", role: "status", "aria-live": "polite" },
     "Saved.",
+  );
+}
+
+/** One-time flash banner that clears its query params after mount. */
+export function AdminFlashStatus({
+  active,
+  clearParams,
+  children,
+  className = "mt-4 text-sm text-olive",
+}: {
+  active: boolean;
+  clearParams: readonly string[];
+  children: string;
+  className?: string;
+}) {
+  const show = useTransientSavedFlag(active, clearParams);
+  if (!show) return null;
+  return createElement(
+    "p",
+    { className, role: "status", "aria-live": "polite" },
+    children,
   );
 }

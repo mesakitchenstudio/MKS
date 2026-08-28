@@ -3,6 +3,10 @@ import { RemoveReviewButton } from "@/components/admin/RemoveReviewButton";
 import { ReviewRepliesSection } from "@/components/admin/ReviewRepliesSection";
 import { canAccess } from "@/lib/admin-access";
 import { adminFocusRing } from "@/lib/admin-ui";
+import {
+  AdminFlashStatus,
+  REVIEW_REMOVED_PARAMS,
+} from "@/lib/admin-transient-feedback";
 import { requireAccess } from "@/lib/auth";
 import { formatAdminDate } from "@/lib/datetime";
 import { formatReviewRating, listReviewsForAdmin } from "@/lib/recipe-reviews";
@@ -34,11 +38,9 @@ export default async function AdminReviewsPage({
         Moderate member notes on recipes. Removing a review also removes its replies.
       </p>
 
-      {removed ? (
-        <p className="mt-4 text-sm text-olive" role="status">
-          Review removed.
-        </p>
-      ) : null}
+      <AdminFlashStatus active={Boolean(removed)} clearParams={REVIEW_REMOVED_PARAMS}>
+        Review removed.
+      </AdminFlashStatus>
       {error ? (
         <p className="mt-4 text-sm text-terracotta" role="alert">
           Could not remove that item. It may already be gone.
