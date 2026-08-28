@@ -44,6 +44,12 @@ export const adminSidebarWidthClass = "w-[15rem]";
 /** Mobile nav drawer — ~82vw with a cap so labels fit without going full-screen. */
 export const adminMobileDrawerWidthClass = "w-[82vw] max-w-[22rem] shrink-0";
 
+/**
+ * Mobile nav drawer + backdrop. Must sit above page sticky UI (recipe editor header
+ * uses z-50; section nav uses z-40).
+ */
+export const adminMobileDrawerZClass = "z-[60]";
+
 export const adminSidebarLinkClass =
   "flex min-h-10 items-center rounded-sm px-3 text-sm font-semibold leading-snug transition-colors duration-150 motion-reduce:transition-none";
 

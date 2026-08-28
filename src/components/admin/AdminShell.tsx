@@ -10,6 +10,7 @@ import { adminPageTitleForPath, adminWorkspaceWidthForPath } from "@/lib/admin-n
 import {
   adminFocusRing,
   adminMobileDrawerWidthClass,
+  adminMobileDrawerZClass,
   adminSidebarWidthClass,
   adminWorkspacePaddingClass,
 } from "@/lib/admin-ui";
@@ -113,7 +114,7 @@ export function AdminShell({
 
       {/* Mobile drawer */}
       {mobileOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden" role="presentation">
+        <div className={`fixed inset-0 ${adminMobileDrawerZClass} lg:hidden`} role="presentation">
           <button
             type="button"
             className="absolute inset-0 bg-ink/40"
