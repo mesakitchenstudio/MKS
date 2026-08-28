@@ -417,10 +417,13 @@ export function RecipeEditor({
   const statusRef = useRef<HTMLInputElement>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const sectionNavRef = useRef<HTMLElement>(null);
+  const headerSentinelRef = useRef<HTMLDivElement>(null);
   const moveToDraftCancelRef = useRef<HTMLButtonElement>(null);
   const moveToDraftTitleId = useId();
   const [headerHeight, setHeaderHeight] = useState(84);
   const [scrollOffset, setScrollOffset] = useState(96);
+  const [mobileHeaderCompact, setMobileHeaderCompact] = useState(false);
+  const [activeSectionId, setActiveSectionId] = useState(SECTION_BASICS);
   const [moveToDraftOpen, setMoveToDraftOpen] = useState(false);
   const [title, setTitle] = useState(initial.title);
   const [slug, setSlug] = useState(initial.slug);
@@ -503,6 +506,8 @@ export function RecipeEditor({
 
   const publishButtonLabel = isPublished ? "Update published recipe" : "Publish";
 
+  const mobileCompactPublishLabel = isPublished ? "Update" : "Publish";
+
   const encoded = useMemo(() => {
     const out: Record<string, string> = {};
     for (const field of fields) {
@@ -539,6 +544,70 @@ export function RecipeEditor({
   }, [sectionLinks.length]);
 
   useEffect(() => {
+    const sentinel = headerSentinelRef.current;
+    if (!sentinel) return;
+
+    const mobileQuery = window.matchMedia("(max-width: 767px)");
+
+    function syncCompact(isIntersecting: boolean) {
+      if (!mobileQuery.matches) {
+        setMobileHeaderCompact(false);
+        return;
+      }
+      setMobileHeaderCompact(!isIntersecting);
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) syncCompact(entry.isIntersecting);
+      },
+      { threshold: 0 },
+    );
+
+    observer.observe(sentinel);
+
+    function onViewportChange() {
+      if (!mobileQuery.matches) {
+        setMobileHeaderCompact(false);
+      }
+    }
+
+    mobileQuery.addEventListener("change", onViewportChange);
+    return () => {
+      observer.disconnect();
+      mobileQuery.removeEventListener("change", onViewportChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    let raf = 0;
+
+    function updateActiveSection() {
+      const offset = scrollOffset + 8;
+      let current = sectionLinks[0]?.id ?? SECTION_BASICS;
+      for (const link of sectionLinks) {
+        const element = document.getElementById(link.id);
+        if (element && element.getBoundingClientRect().top <= offset) {
+          current = link.id;
+        }
+      }
+      setActiveSectionId(current);
+    }
+
+    function onScroll() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(updateActiveSection);
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    updateActiveSection();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [scrollOffset, sectionLinks]);
+
+  useEffect(() => {
     if (!moveToDraftOpen) return;
     moveToDraftCancelRef.current?.focus();
     function onKey(event: KeyboardEvent) {
@@ -554,6 +623,7 @@ export function RecipeEditor({
   );
 
   function scrollToSection(sectionId: string) {
+    setActiveSectionId(sectionId);
     const target = document.getElementById(sectionId);
     if (!target) return;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -733,49 +803,72 @@ export function RecipeEditor({
     <>
       <div
         ref={stickyHeaderRef}
-        className="sticky top-0 z-50 -mx-5 mb-8 border-b border-line bg-[var(--cream)] px-5 py-3 md:-mx-6 md:px-6"
+        className="sticky top-0 z-50 -mx-5 mb-8 border-b border-line bg-[var(--cream)] px-5 transition-[padding] duration-150 motion-reduce:transition-none md:-mx-6 md:px-6 md:py-3"
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <Link
-              href="/admin"
-              className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
-            >
-              ← Recipes
-            </Link>
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="font-serif text-2xl leading-tight text-ink md:text-[1.75rem]">{pageTitle}</h1>
-              <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive/90">
-                {typeName}
-              </span>
+        <div className={mobileHeaderCompact ? "hidden md:block" : "block"}>
+          <div className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between md:py-0">
+            <div className="min-w-0">
+              <Link
+                href="/admin"
+                className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
+              >
+                ← Recipes
+              </Link>
+              <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h1 className="font-serif text-2xl leading-tight text-ink md:text-[1.75rem]">{pageTitle}</h1>
+                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive/90">
+                  {typeName}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {saved ? <span className="text-sm text-olive">Saved.</span> : null}
+              {isDirty && !saved ? (
+                <span className="text-xs font-semibold text-muted">Unsaved changes</span>
+              ) : null}
+              <RecipeStatusBadge status={status} />
+              {recipeId ? (
+                <DeleteRecipeButton recipeId={recipeId} recipeTitle={pageTitle} />
+              ) : null}
+              <button
+                type="button"
+                onClick={attemptSaveDraft}
+                className={`${editorSecondaryBtn} ${adminFocusRing}`}
+              >
+                {draftActionLabel}
+              </button>
+              <button
+                type="button"
+                onClick={attemptPublish}
+                className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+              >
+                {publishButtonLabel}
+              </button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {saved ? <span className="text-sm text-olive">Saved.</span> : null}
-            {isDirty && !saved ? (
-              <span className="text-xs font-semibold text-muted">Unsaved changes</span>
-            ) : null}
-            <RecipeStatusBadge status={status} />
-            {recipeId ? (
-              <DeleteRecipeButton recipeId={recipeId} recipeTitle={pageTitle} />
-            ) : null}
-            <button
-              type="button"
-              onClick={attemptSaveDraft}
-              className={`${editorSecondaryBtn} ${adminFocusRing}`}
-            >
-              {draftActionLabel}
-            </button>
-            <button
-              type="button"
-              onClick={attemptPublish}
-              className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-            >
-              {publishButtonLabel}
-            </button>
-          </div>
+        </div>
+
+        <div
+          className={`${mobileHeaderCompact ? "flex" : "hidden"} items-center gap-2 py-2 md:hidden`}
+        >
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={pageTitle}>
+            {pageTitle}
+          </p>
+          {isDirty && !saved ? (
+            <span className="sr-only">Unsaved changes</span>
+          ) : null}
+          <button
+            type="button"
+            onClick={attemptPublish}
+            aria-label={publishButtonLabel}
+            className={`${adminPrimaryButtonClass} h-9 px-4 text-sm ${adminFocusRing}`}
+          >
+            {mobileCompactPublishLabel}
+          </button>
         </div>
       </div>
+
+      <div ref={headerSentinelRef} className="h-px md:hidden" aria-hidden />
 
       <form
         ref={formRef}
@@ -829,6 +922,8 @@ export function RecipeEditor({
           stickyTop={headerHeight}
           scrollMarginTop={scrollOffset}
           onNavigate={scrollToSection}
+          activeSectionId={activeSectionId}
+          compact={mobileHeaderCompact}
         />
 
         <EditorSection
@@ -1056,23 +1151,23 @@ export function RecipeEditor({
               onClick={() => setAdvancedOpen((open) => !open)}
               aria-expanded={advancedOpen}
               aria-controls="recipe-advanced-panel"
-              className={`flex w-full cursor-pointer items-center justify-between px-5 py-4 text-left md:px-6 ${adminFocusRing}`}
+              className={`block w-full cursor-pointer px-5 py-4 text-left md:px-6 ${adminFocusRing}`}
             >
-              <div>
+              <div className="flex items-center justify-between gap-4">
                 <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
                   Advanced
                 </h2>
-                <p className="mt-1 text-xs text-muted">
-                  Optional video metadata, nutrition, and type-specific fields.
-                </p>
-                <p className="mt-2 text-xs leading-relaxed text-muted">
-                  Rich YouTube metadata is currently edited as JSON in Advanced. A structured
-                  editor for hooks, timestamps, and related videos is planned for a later phase.
-                </p>
+                <span className="shrink-0 text-base font-semibold leading-none text-muted" aria-hidden>
+                  {advancedOpen ? "−" : "+"}
+                </span>
               </div>
-              <span className="text-sm text-muted" aria-hidden>
-                {advancedOpen ? "−" : "+"}
-              </span>
+              <p className="mt-1 text-xs text-muted">
+                Optional video metadata, nutrition, and type-specific fields.
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                Rich YouTube metadata is currently edited as JSON in Advanced. A structured
+                editor for hooks, timestamps, and related videos is planned for a later phase.
+              </p>
               <span className="sr-only">{advancedOpen ? "Collapse advanced fields" : "Expand advanced fields"}</span>
             </button>
             {advancedOpen ? (
@@ -1173,7 +1268,7 @@ function KindInput({
         value={String(value || "")}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={invalid}
-        className={`${adminInputClass}${invalid ? ` ${inputErrorClass}` : ""}`}
+        className={`${adminInputClass} h-auto min-h-[5.5rem] resize-y${invalid ? ` ${inputErrorClass}` : ""}`}
       />
     );
   }
@@ -1222,7 +1317,7 @@ function KindInput({
     return (
       <div className="grid gap-3">
         {urls.map((url, index) => (
-          <div key={`${url}-${index}`} className="flex gap-2">
+          <div key={`${url}-${index}`} className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               value={url}
               onChange={(event) => {
@@ -1230,11 +1325,11 @@ function KindInput({
                 next[index] = event.target.value;
                 onChange(next);
               }}
-              className={compactInputClass}
+              className={`min-w-0 flex-1 ${compactInputClass}`}
             />
             <button
               type="button"
-              className={removeActionClass}
+              className={`${removeActionClass} self-start sm:shrink-0`}
               onClick={() => onChange(urls.filter((_, i) => i !== index))}
             >
               Remove
@@ -1359,20 +1454,22 @@ function ListEditor({
   return (
     <div className="grid gap-2">
       {items.map((item, index) => (
-        <div key={index} className="flex gap-2">
+        <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             value={item}
             placeholder={placeholder}
+            aria-label={`${placeholder} ${index + 1}`}
             onChange={(event) => {
               const next = [...items];
               next[index] = event.target.value;
               onChange(next);
             }}
-            className={inputClass}
+            className={`min-w-0 flex-1 ${inputClass}`}
           />
           <button
             type="button"
-            className={removeActionClass}
+            aria-label={`Remove ${placeholder.toLowerCase()} ${index + 1}`}
+            className={`${removeActionClass} self-start sm:shrink-0`}
             onClick={() => onChange(items.filter((_, i) => i !== index))}
           >
             Remove
@@ -1409,6 +1506,7 @@ function NamedNotesEditor({
           <input
             value={item.name || ""}
             placeholder={placeholders.name}
+            aria-label={`${placeholders.name} ${index + 1}`}
             onChange={(event) => {
               const next = [...items];
               next[index] = { ...item, name: event.target.value };
@@ -1420,12 +1518,13 @@ function NamedNotesEditor({
             value={item.note || ""}
             placeholder={placeholders.note}
             rows={2}
+            aria-label={`${placeholders.note} ${index + 1}`}
             onChange={(event) => {
               const next = [...items];
               next[index] = { ...item, note: event.target.value };
               onChange(next);
             }}
-            className={adminInputClass}
+            className={`${adminInputClass} h-auto min-h-[4.5rem] resize-y`}
           />
         </div>
       ))}
@@ -1631,7 +1730,7 @@ function InstructionsEditor({
                     next[groupIndex] = { ...group, steps };
                     onChange(next);
                   }}
-                  className={`${adminInputClass} min-h-[2.75rem] flex-1`}
+                  className={`${adminInputClass} h-auto min-h-[4.5rem] flex-1 resize-y sm:min-h-[2.75rem]`}
                 />
                 <ReorderControls
                   itemLabel={`step ${stepNumber}${group.name ? ` in ${group.name}` : ""}`}
@@ -1797,7 +1896,7 @@ function ImageField({
           <img
             src={value}
             alt="Hero image preview"
-            className="max-h-72 w-full object-contain"
+            className="max-h-72 w-full max-w-full object-contain"
           />
         </figure>
       ) : null}
