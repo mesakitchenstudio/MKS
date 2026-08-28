@@ -9,6 +9,11 @@ import {
   adminPrimaryButtonClass,
   adminSelectClass,
 } from "@/lib/admin-ui";
+import {
+  AdminSavedStatus,
+  TYPE_FIELD_SAVED_PARAMS,
+  useTransientSavedId,
+} from "@/lib/admin-transient-feedback";
 import { type AdminTypeField, fieldKindLabel, fieldKindUsesOptions, isCoreFieldKey, isStructuralFieldDraftChange } from "@/lib/field-admin";
 import { FIELD_KINDS, keyFromLabel } from "@/lib/fields";
 
@@ -190,6 +195,7 @@ function FieldEditor({
   recipesWithData,
   recipesMissingValue,
   fieldError,
+  saved = false,
   onCancel,
   onDirtyChange,
 }: {
@@ -201,6 +207,7 @@ function FieldEditor({
   recipesWithData: number;
   recipesMissingValue: number;
   fieldError?: "field-type-locked" | "require-confirm" | "shared-schema-locked";
+  saved?: boolean;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -294,6 +301,7 @@ function FieldEditor({
         <div className="min-w-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-4">
             <p className="text-sm font-semibold text-ink">{field.label}</p>
+            <AdminSavedStatus show={saved} />
             <ScopeLabel field={field} typeName={typeName} />
           </div>
           {field.isShared ? (
@@ -533,7 +541,7 @@ function CollapsedFieldRow({
         <p className="mt-0.5 font-mono text-xs text-muted/80">{field.key}</p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-3 sm:gap-4">
-        {saved ? <span className="text-sm text-olive">Saved.</span> : null}
+        <AdminSavedStatus show={saved} />
         <ScopeLabel field={field} typeName={typeName} />
         <button
           type="button"
@@ -808,6 +816,7 @@ export function TypeFieldsManager({
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
+  const visibleSavedFieldId = useTransientSavedId(savedFieldId, TYPE_FIELD_SAVED_PARAMS);
 
   const total = fields.length;
   const orderedFields = [...fields].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -928,7 +937,7 @@ export function TypeFieldsManager({
         ) : null}
         {visibleFields.map((field) => {
           const expanded = expandedId === field.id;
-          const saved = savedFieldId === field.id;
+          const saved = visibleSavedFieldId === field.id;
           const showFieldError = expanded && fieldError && initialExpandedFieldId === field.id;
           return (
             <li key={field.id} id={`field-${field.id}`}>
@@ -942,6 +951,7 @@ export function TypeFieldsManager({
                   recipesWithData={fieldUsageByKey[field.key] ?? 0}
                   recipesMissingValue={fieldMissingByKey[field.key] ?? 0}
                   fieldError={showFieldError ? fieldError : undefined}
+                  saved={saved}
                   onCancel={() => {
                     setDirty(false);
                     setExpandedId(null);

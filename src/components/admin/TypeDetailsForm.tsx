@@ -7,6 +7,11 @@ import {
   adminInputClass,
   adminPrimaryButtonClass,
 } from "@/lib/admin-ui";
+import {
+  AdminSavedStatus,
+  TYPE_DETAILS_SAVED_PARAMS,
+  useTransientSavedFlag,
+} from "@/lib/admin-transient-feedback";
 
 export function TypeDetailsForm({
   id,
@@ -24,6 +29,7 @@ export function TypeDetailsForm({
   error?: string;
 }) {
   const [values, setValues] = useState({ name, slug, description });
+  const showSaved = useTransientSavedFlag(saved, TYPE_DETAILS_SAVED_PARAMS);
 
   useEffect(() => {
     setValues({ name, slug, description });
@@ -40,7 +46,7 @@ export function TypeDetailsForm({
         <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
           Type details
         </h2>
-        {saved ? <span className="text-sm text-olive">Saved.</span> : null}
+        <AdminSavedStatus show={showSaved} />
       </div>
       {error === "duplicate-slug" ? (
         <p className="mt-2 text-sm text-terracotta" role="alert">

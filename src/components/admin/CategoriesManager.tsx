@@ -10,6 +10,11 @@ import {
   adminSelectClass,
 } from "@/lib/admin-ui";
 import {
+  AdminSavedStatus,
+  CATEGORY_SAVED_PARAMS,
+  useTransientSavedId,
+} from "@/lib/admin-transient-feedback";
+import {
   type AdminCategory,
   CATEGORY_GROUP_OPTIONS,
   categoryGroupLabel,
@@ -127,7 +132,7 @@ function CategoryEditor({
     <div className="border-l-2 border-olive/35 bg-cream/25 px-4 py-3.5">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <p className="text-sm font-semibold text-ink">{category.name}</p>
-        {saved ? <span className="text-sm text-olive">Saved.</span> : null}
+        <AdminSavedStatus show={saved} />
       </div>
 
       <form action={saveCategoryAction} className="mt-4 grid gap-4">
@@ -248,7 +253,7 @@ function CollapsedCategoryRow({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        {saved ? <span className="text-sm text-olive">Saved.</span> : null}
+        <AdminSavedStatus show={saved} />
         <button
           type="button"
           onClick={onEdit}
@@ -421,6 +426,7 @@ export function CategoriesManager({
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
+  const visibleSavedCategoryId = useTransientSavedId(savedCategoryId, CATEGORY_SAVED_PARAMS);
 
   const sections = partitionCategoriesByGroup(categories);
 
@@ -497,7 +503,7 @@ export function CategoriesManager({
               <ul className="mt-2 divide-y divide-line border border-line bg-paper">
                 {section.categories.map((category) => {
                   const expanded = expandedId === category.id;
-                  const saved = savedCategoryId === category.id;
+                  const saved = visibleSavedCategoryId === category.id;
                   return (
                     <li key={category.id} id={`category-${category.id}`}>
                       {expanded ? (
