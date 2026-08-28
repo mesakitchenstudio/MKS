@@ -1,4 +1,8 @@
 import { MembersTable } from "@/components/admin/MembersTable";
+import {
+  AdminFlashStatus,
+  MEMBER_REMOVED_PARAMS,
+} from "@/lib/admin-transient-feedback";
 import { requireAccess } from "@/lib/auth";
 import { listUsersForAdmin } from "@/lib/accounts";
 
@@ -21,11 +25,9 @@ export default async function AdminMembersPage({
       <p className="mt-2 max-w-2xl text-sm text-muted">
         Registered members and their recent activity.
       </p>
-      {removed ? (
-        <p className="mt-4 text-sm text-olive" role="status">
-          Member removed. You can add them on Admins.
-        </p>
-      ) : null}
+      <AdminFlashStatus active={Boolean(removed)} clearParams={MEMBER_REMOVED_PARAMS}>
+        Member removed. You can add them again from Team access.
+      </AdminFlashStatus>
 
       <MembersTable users={users} />
     </div>
