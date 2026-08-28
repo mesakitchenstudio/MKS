@@ -5,6 +5,7 @@ export type PublicUser = {
 };
 
 const SESSION_KEY = "mesa-session";
+const PRESENCE_SESSION_KEY = "mesa-presence-session";
 
 export function readSession(): PublicUser | null {
   if (typeof window === "undefined") return null;
@@ -27,6 +28,38 @@ export function writeSession(user: PublicUser) {
 export function signOut() {
   localStorage.removeItem(SESSION_KEY);
   emitSessionChanged();
+}
+
+/** Stable per-browser presence id so logout can clear only this device's Online row. */
+export function getPresenceSessionKey() {
+  if (typeof window === "undefined") return "";
+  try {
+    let key = localStorage.getItem(PRESENCE_SESSION_KEY)?.trim() || "";
+    if (!key || key.length > 80 || !/^[A-Za-z0-9_-]+$/.test(key)) {
+      key = crypto.randomUUID().replace(/-/g, "");
+      localStorage.setItem(PRESENCE_SESSION_KEY, key);
+    }
+    return key;
+  } catch {
+    return "";
+  }
+}
+
+/** Clear this browser's presence row while the auth cookie is still valid. */
+export async function clearMemberPresenceSession() {
+  if (typeof window === "undefined") return;
+  const sessionKey = getPresenceSessionKey();
+  if (!sessionKey) return;
+  try {
+    await fetch("/api/account/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clear: true, sessionKey }),
+      keepalive: true,
+    });
+  } catch {
+    // Best-effort; TTL still expires the row if this fails.
+  }
 }
 
 const BRAND_NAME_BLOCKLIST = new Set(["mesa kitchen studio", "mesa"]);

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { enrichMemberConnection, touchMemberPresence } from "@/lib/accounts";
+import {
+  clearMemberPresenceSession,
+  enrichMemberConnection,
+  touchMemberPresence,
+} from "@/lib/accounts";
+import { normalizePresenceSessionKey } from "@/lib/member-presence";
 import { headers } from "next/headers";
 
 export async function POST(request: Request) {
@@ -11,12 +16,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json().catch(() => ({}))) as { enrich?: boolean };
+    const body = (await request.json().catch(() => ({}))) as {
+      enrich?: boolean;
+      clear?: boolean;
+      sessionKey?: string;
+    };
+    const sessionKey = normalizePresenceSessionKey(body.sessionKey);
+
+    if (body.clear) {
+      await clearMemberPresenceSession(email, sessionKey);
+      return NextResponse.json({ ok: true });
+    }
+
     if (body.enrich) {
       await enrichMemberConnection(email, session.user?.name ?? "", await headers());
-    } else {
-      await touchMemberPresence(email, session.user?.name ?? "");
     }
+    await touchMemberPresence(email, session.user?.name ?? "", sessionKey);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Could not record member presence", error);

@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import {
   formatPresenceLabel,
   isMemberOnline,
+  isMemberOnlineFromPresence,
   MEMBER_ONLINE_WITHIN_MS,
+  normalizePresenceSessionKey,
 } from "./member-presence.ts";
 
 describe("member-presence (shared Online rule for Visitors + Members)", () => {
@@ -23,5 +25,18 @@ describe("member-presence (shared Online rule for Visitors + Members)", () => {
     const afterHeartbeat = new Date(now - 10_000);
     assert.equal(isMemberOnline(afterHeartbeat, now), true);
     assert.equal(MEMBER_ONLINE_WITHIN_MS, 3 * 60 * 1000);
+  });
+
+  it("prefers explicit online flag over stale lastSeenAt", () => {
+    const now = Date.parse("2026-08-28T12:00:00.000Z");
+    const stale = new Date(now - MEMBER_ONLINE_WITHIN_MS - 1);
+    assert.equal(isMemberOnlineFromPresence({ online: true, lastSeenAt: stale }, now), true);
+    assert.equal(isMemberOnlineFromPresence({ online: false, lastSeenAt: new Date(now) }, now), false);
+  });
+
+  it("normalizes presence session keys", () => {
+    assert.equal(normalizePresenceSessionKey("abc_123-XYZ"), "abc_123-XYZ");
+    assert.equal(normalizePresenceSessionKey("bad key"), "");
+    assert.equal(normalizePresenceSessionKey(""), "");
   });
 });

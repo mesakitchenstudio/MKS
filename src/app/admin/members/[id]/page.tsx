@@ -10,7 +10,7 @@ import { requireAccess } from "@/lib/auth";
 import { formatAdminDate, formatAdminShortDateTime } from "@/lib/datetime";
 import { guestDeviceClientLabel } from "@/lib/guest-client";
 import { uniqueIps } from "@/lib/ip-utils";
-import { formatPresenceLabel, formatSignInMethod, isMemberOnline } from "@/lib/member-presence";
+import { formatSignInMethod, isMemberOnlineFromPresence } from "@/lib/member-presence";
 import { formatApproxLocation, formatReferrerDisplay, pickLatestLocationConnection } from "@/lib/request-meta";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +41,11 @@ export default async function AdminMemberDetailPage({
     user.connections.find((item) => item.ip && item.ip !== "unknown") || user.connections[0];
   const first = user.connections[user.connections.length - 1] || latest;
   const lastSeen = user.lastSeenAt || latest?.createdAt;
-  const online = isMemberOnline(user.lastSeenAt);
-  const status = formatPresenceLabel(user.lastSeenAt);
+  const online = isMemberOnlineFromPresence({
+    online: user.online,
+    lastSeenAt: user.lastSeenAt,
+  });
+  const status = online ? "Online" : "Offline";
   const signIn = formatSignInMethod(latest?.method);
   // Same connection selection as Members list LOCATION (newest with usable place).
   const locationConnection = pickLatestLocationConnection(user.connections) || latest;

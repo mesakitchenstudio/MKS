@@ -4,7 +4,11 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { GuestTracker } from "@/components/GuestTracker";
-import { signOut as clearLocalSession, writeSession } from "@/lib/auth-client";
+import {
+  getPresenceSessionKey,
+  signOut as clearLocalSession,
+  writeSession,
+} from "@/lib/auth-client";
 import { hydrateLikesFromProfile } from "@/lib/likes";
 
 const HEARTBEAT_MS = 45_000;
@@ -29,12 +33,14 @@ function SessionSync() {
 
     if (session.staffRole) return;
 
+    const sessionKey = getPresenceSessionKey();
+
     if (!didEnrich.current) {
       didEnrich.current = true;
       void fetch("/api/account/presence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enrich: true }),
+        body: JSON.stringify({ enrich: true, sessionKey }),
       });
     }
 
@@ -43,7 +49,7 @@ function SessionSync() {
       void fetch("/api/account/presence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enrich: false }),
+        body: JSON.stringify({ enrich: false, sessionKey }),
         keepalive: true,
       });
     }

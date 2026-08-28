@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut as signOutGoogle, useSession } from "next-auth/react";
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  clearMemberPresenceSession,
   firstName,
   memberIdentityLines,
   readSession,
@@ -167,9 +168,12 @@ export function AccountMenu() {
             role="menuitem"
             className={signOutClass}
             onClick={() => {
-              signOut();
-              void signOutGoogle({ redirect: false });
-              setOpen(false);
+              void (async () => {
+                await clearMemberPresenceSession();
+                signOut();
+                await signOutGoogle({ redirect: false });
+                setOpen(false);
+              })();
             }}
           >
             Sign out

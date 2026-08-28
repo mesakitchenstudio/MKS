@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signOut as signOutGoogle } from "next-auth/react";
-import { readSession, signOut } from "@/lib/auth-client";
+import { clearMemberPresenceSession, readSession, signOut } from "@/lib/auth-client";
 import { trackEvent } from "@/lib/analytics";
 import { isLiked, readLikes, toggleLike, hydrateLikesFromProfile, type LikedRecipe } from "@/lib/likes";
 import { AuthModal } from "./AuthModal";
@@ -199,11 +199,14 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
                     type="button"
                     className="text-xs font-semibold text-muted hover:text-terracotta"
                     onClick={() => {
-                      signOut();
-                      void signOutGoogle({ redirect: false });
-                      setLiked(false);
-                      setLikes([]);
-                      setPanel(null);
+                      void (async () => {
+                        await clearMemberPresenceSession();
+                        signOut();
+                        await signOutGoogle({ redirect: false });
+                        setLiked(false);
+                        setLikes([]);
+                        setPanel(null);
+                      })();
                     }}
                   >
                     Sign out

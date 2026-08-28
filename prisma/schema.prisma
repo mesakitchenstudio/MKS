@@ -79,6 +79,21 @@ model User {
   saves        RecipeSave[]
   connections  UserConnection[]
   reviews      RecipeReview[]
+  presenceSessions MemberPresenceSession[]
+}
+
+/** Per-browser/device heartbeat rows for session-aware Online status. */
+model MemberPresenceSession {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionKey String
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, sessionKey])
+  @@index([lastSeenAt])
+  @@index([userId, lastSeenAt])
 }
 
 model RecipeSave {

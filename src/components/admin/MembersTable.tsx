@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { MemberAvatar, PresenceDot } from "@/components/admin/MemberPresence";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { formatAdminDate, formatAdminRelativeDateTime } from "@/lib/datetime";
-import { formatPresenceLabel, formatSignInMethod, isMemberOnline } from "@/lib/member-presence";
+import { formatSignInMethod, isMemberOnlineFromPresence } from "@/lib/member-presence";
 import {
   formatLatestCountryCityLocation,
 } from "@/lib/request-meta";
@@ -18,6 +18,7 @@ type MemberRow = {
   photoUrl?: string | null;
   createdAt: Date | string;
   lastSeenAt: Date | string;
+  online?: boolean;
   connections: {
     ip: string;
     event: string;
@@ -49,7 +50,9 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
     );
   }, [users]);
 
-  const onlineCount = sortedUsers.filter((user) => isMemberOnline(user.lastSeenAt, now)).length;
+  const onlineCount = sortedUsers.filter((user) =>
+    isMemberOnlineFromPresence({ online: user.online, lastSeenAt: user.lastSeenAt }, now),
+  ).length;
   const nowDate = useMemo(() => new Date(now), [now]);
 
   return (
@@ -94,8 +97,11 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                 user.connections.find((item) => item.ip && item.ip !== "unknown") ||
                 user.connections[0];
               const lastSeen = user.lastSeenAt || latest?.createdAt;
-              const online = isMemberOnline(user.lastSeenAt, now);
-              const status = formatPresenceLabel(user.lastSeenAt, now);
+              const online = isMemberOnlineFromPresence(
+                { online: user.online, lastSeenAt: user.lastSeenAt },
+                now,
+              );
+              const status = online ? "Online" : "Offline";
               const signIn = formatSignInMethod(latest?.method);
               const location = formatLatestCountryCityLocation(user.connections);
 
@@ -173,8 +179,11 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
             user.connections.find((item) => item.ip && item.ip !== "unknown") ||
             user.connections[0];
           const lastSeen = user.lastSeenAt || latest?.createdAt;
-          const online = isMemberOnline(user.lastSeenAt, now);
-          const status = formatPresenceLabel(user.lastSeenAt, now);
+          const online = isMemberOnlineFromPresence(
+            { online: user.online, lastSeenAt: user.lastSeenAt },
+            now,
+          );
+          const status = online ? "Online" : "Offline";
           const signIn = formatSignInMethod(latest?.method);
           const location = formatLatestCountryCityLocation(user.connections);
 

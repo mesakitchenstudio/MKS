@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
+import { MEMBER_ONLINE_WITHIN_MS, normalizePresenceSessionKey } from "@/lib/member-presence";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { connectionMeta, type ConnectionMeta } from "@/lib/request-meta";
 import type { Prisma } from "@prisma/client";
@@ -368,22 +369,78 @@ export async function enrichMemberConnection(email: string, name = "", headers?:
 }
 
 /** Lightweight heartbeat for “currently online” on the admin members page. */
-export async function touchMemberPresence(email: string, name = "") {
+export async function touchMemberPresence(
+  email: string,
+  name = "",
+  sessionKey = "",
+) {
   const db = getDb();
   const key = emailKey(email);
   if (!key || (await getStaffByEmail(key))) return null;
 
+  const now = new Date();
+  let user;
   try {
-    return await db.user.update({
+    user = await db.user.update({
       where: { email: key },
       data: {
-        lastSeenAt: new Date(),
+        lastSeenAt: now,
         ...(name.trim() ? { name: name.trim() } : {}),
       },
     });
   } catch {
-    return ensureMember(email, name);
+    user = await ensureMember(email, name);
   }
+  if (!user) return null;
+
+  const presenceKey = normalizePresenceSessionKey(sessionKey);
+  if (presenceKey) {
+    try {
+      await db.memberPresenceSession.upsert({
+        where: { userId_sessionKey: { userId: user.id, sessionKey: presenceKey } },
+        create: { userId: user.id, sessionKey: presenceKey, lastSeenAt: now },
+        update: { lastSeenAt: now },
+      });
+      // Drop abandoned device rows so Online stays accurate without a migration job.
+      await db.memberPresenceSession.deleteMany({
+        where: {
+          userId: user.id,
+          lastSeenAt: { lt: new Date(now.getTime() - MEMBER_ONLINE_WITHIN_MS * 4) },
+        },
+      });
+    } catch (error) {
+      console.error("Could not upsert member presence session", error);
+    }
+  }
+
+  return user;
+}
+
+/** Remove only this browser/device presence session after explicit logout. */
+export async function clearMemberPresenceSession(email: string, sessionKey: string) {
+  const db = getDb();
+  const key = emailKey(email);
+  const presenceKey = normalizePresenceSessionKey(sessionKey);
+  if (!key || !presenceKey) return false;
+
+  const user = await db.user.findUnique({ where: { email: key }, select: { id: true } });
+  if (!user) return false;
+
+  await db.memberPresenceSession.deleteMany({
+    where: { userId: user.id, sessionKey: presenceKey },
+  });
+  return true;
+}
+
+export async function listOnlineMemberUserIds(now = Date.now()) {
+  const db = getDb();
+  const since = new Date(now - MEMBER_ONLINE_WITHIN_MS);
+  const rows = await db.memberPresenceSession.findMany({
+    where: { lastSeenAt: { gte: since } },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+  return new Set(rows.map((row) => row.userId));
 }
 
 export async function getUserByEmail(email: string) {
@@ -405,23 +462,31 @@ export async function listUsersForAdmin(limit = 200) {
   const db = getDb();
   const staff = await db.admin.findMany({ select: { email: true } });
   const staffEmails = staff.map((item) => item.email);
-  return db.user.findMany({
-    where: staffEmails.length ? { email: { notIn: staffEmails } } : undefined,
-    orderBy: { lastSeenAt: "desc" },
-    take: limit,
-    include: {
-      _count: { select: { saves: true, connections: true } },
-      // Recent connections (newest first) for sign-in method and list LOCATION.
-      connections: { orderBy: { createdAt: "desc" }, take: 5 },
-    },
-  }) as Promise<
-    Prisma.UserGetPayload<{
+  const [users, onlineIds] = await Promise.all([
+    db.user.findMany({
+      where: staffEmails.length ? { email: { notIn: staffEmails } } : undefined,
+      orderBy: { lastSeenAt: "desc" },
+      take: limit,
       include: {
-        _count: { select: { saves: true; connections: true } };
-        connections: true;
-      };
-    }>[]
-  >;
+        _count: { select: { saves: true, connections: true } },
+        // Recent connections (newest first) for sign-in method and list LOCATION.
+        connections: { orderBy: { createdAt: "desc" }, take: 5 },
+      },
+    }) as Promise<
+      Prisma.UserGetPayload<{
+        include: {
+          _count: { select: { saves: true; connections: true } };
+          connections: true;
+        };
+      }>[]
+    >,
+    listOnlineMemberUserIds(),
+  ]);
+
+  return users.map((user) => ({
+    ...user,
+    online: onlineIds.has(user.id),
+  }));
 }
 
 export async function getUserForAdmin(id: string) {
@@ -438,7 +503,8 @@ export async function getUserForAdmin(id: string) {
     },
   });
   if (!user || staffEmails.has(user.email)) return null;
-  return user;
+  const onlineIds = await listOnlineMemberUserIds();
+  return { ...user, online: onlineIds.has(user.id) };
 }
 
 export async function listSaves(email: string): Promise<SavedRecipe[]> {
