@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logoutAction } from "@/app/admin/actions";
 import type { AdminNavSection } from "@/lib/admin-nav";
 import { linkIsActive } from "@/lib/admin-nav";
 import type { AdminDeployInfo } from "@/lib/admin-deploy";
@@ -127,7 +126,7 @@ export function AdminSidebarNav({
             />
           </li>
           <li>
-            <form action={logoutAction}>
+            <form action="/admin/logout" method="post">
               <button
                 type="submit"
                 className={`${adminSidebarLinkClass} ${adminFocusRing} w-full border-l-2 border-transparent text-left text-muted hover:bg-cream/80 hover:text-terracotta`}

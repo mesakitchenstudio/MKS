@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import { homeForRole, isAccessLevel } from "@/lib/admin-access";
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
-import { ADMIN_COOKIE, authenticateAdmin, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
+import { ADMIN_COOKIE, authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import {
@@ -53,9 +53,15 @@ export async function loginAction(formData: FormData) {
 
 export async function logoutAction() {
   const jar = await cookies();
-  jar.delete(ADMIN_COOKIE);
-  // Also end the public NextAuth session so the site header returns to Sign in.
-  await signOut({ redirectTo: "/admin/login" });
+  const present = jar.getAll().map((cookie) => cookie.name);
+  clearAllAuthCookies(jar, present);
+  // Best-effort Auth.js cleanup; cookie expiry above is the durable guarantee.
+  try {
+    await signOut({ redirect: false });
+  } catch {
+    // Ignore — redirect below always completes logout UX.
+  }
+  redirect("/admin/login");
 }
 
 export async function saveCategoryAction(formData: FormData) {

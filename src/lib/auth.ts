@@ -2,10 +2,12 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { canAccess, homeForRole, isAccessLevel, type AccessLevel, type AdminArea } from "@/lib/admin-access";
+import { clearAllAuthCookies as clearAllAuthCookiesBase } from "@/lib/auth-cookies";
 import { getDb } from "@/lib/db";
 import { verifyPassword as verifyStoredPassword } from "@/lib/passwords";
 
 export const ADMIN_COOKIE = "mesa_admin_session";
+export { isPublicAuthCookieName, expireAuthCookie } from "@/lib/auth-cookies";
 
 export type AdminSession = {
   id: string;
@@ -81,6 +83,19 @@ export function adminCookieOptions() {
     path: "/",
     maxAge: 60 * 60 * 24 * 2,
   };
+}
+
+export function clearAllAuthCookies(
+  writer: Parameters<typeof clearAllAuthCookiesBase>[0],
+  presentCookieNames: string[],
+) {
+  const options = adminCookieOptions();
+  clearAllAuthCookiesBase(writer, presentCookieNames, ADMIN_COOKIE, {
+    httpOnly: options.httpOnly,
+    sameSite: options.sameSite,
+    secure: options.secure,
+    path: options.path,
+  });
 }
 
 export async function persistAdminLastSeen(admin: Omit<AdminSession, "exp">) {
