@@ -311,7 +311,9 @@ export async function listGuestsForAdmin(limit = 200): Promise<GuestVisitorListR
   }));
 }
 
-export async function getGuestForAdmin(id: string): Promise<(GuestVisitorRow & { online: boolean }) | null> {
+export async function getGuestForAdmin(
+  id: string,
+): Promise<(GuestVisitorRow & { online: boolean; activeConnections: number }) | null> {
   if (!id) return null;
   const guest = await getDb().guestVisitor.findUnique({
     where: { id },
@@ -324,8 +326,20 @@ export async function getGuestForAdmin(id: string): Promise<(GuestVisitorRow & {
     },
   });
   if (!guest) return null;
-  const onlineIds = await listOnlineGuestVisitorIds();
-  return { ...guest, online: onlineIds.has(guest.id) };
+  const [onlineIds, activeConnections] = await Promise.all([
+    listOnlineGuestVisitorIds(),
+    getDb().guestPresenceSession.count({
+      where: {
+        visitorId: guest.id,
+        lastSeenAt: { gte: new Date(Date.now() - GUEST_PRESENCE_STALE_MS) },
+      },
+    }),
+  ]);
+  return {
+    ...guest,
+    online: onlineIds.has(guest.id),
+    activeConnections,
+  };
 }
 
 /**

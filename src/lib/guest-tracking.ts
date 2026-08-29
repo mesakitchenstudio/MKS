@@ -25,7 +25,83 @@ export const GUEST_PRESENCE_WRITE_THROTTLE_MS = 10_000;
 /** Admin → Visitors lightweight presence poll interval. */
 export const GUEST_ADMIN_PRESENCE_POLL_MS = 3_000;
 
+/** Shared across tabs in the same browser/incognito session (not tab-scoped). */
+export const GUEST_VISITOR_STORAGE_KEY = "mesa-guest-visitor";
 const GUEST_CONNECTION_STORAGE_KEY = "mesa-guest-connection";
+const GUEST_VISITOR_LOCK_NAME = "mesa-guest-visitor-key";
+
+export function normalizeGuestVisitorKey(value: unknown) {
+  const key = typeof value === "string" ? value.trim() : "";
+  if (!key || key.length > 80) return "";
+  if (!/^[A-Za-z0-9_-]+$/.test(key)) return "";
+  return key;
+}
+
+/**
+ * Cookie wins when present. Otherwise a shared client bootstrap key (localStorage)
+ * is accepted so simultaneous tabs upsert the same unique visitorKey.
+ */
+export function resolveGuestVisitorKey(input: {
+  cookieKey?: string | null;
+  clientVisitorKey?: string | null;
+  generate?: () => string;
+}) {
+  const fromCookie = normalizeGuestVisitorKey(input.cookieKey);
+  if (fromCookie) return { visitorKey: fromCookie, source: "cookie" as const };
+
+  const fromClient = normalizeGuestVisitorKey(input.clientVisitorKey);
+  if (fromClient) return { visitorKey: fromClient, source: "client" as const };
+
+  const generate = input.generate ?? (() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `v_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+  return { visitorKey: generate(), source: "generated" as const };
+}
+
+function readOrCreateSharedGuestVisitorKeySync() {
+  if (typeof window === "undefined") return "";
+  try {
+    const existing = normalizeGuestVisitorKey(localStorage.getItem(GUEST_VISITOR_STORAGE_KEY));
+    if (existing) return existing;
+
+    const created =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `v_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(GUEST_VISITOR_STORAGE_KEY, created);
+    // Another tab may have written first — always re-read the shared value.
+    return normalizeGuestVisitorKey(localStorage.getItem(GUEST_VISITOR_STORAGE_KEY)) || created;
+  } catch {
+    return "";
+  }
+}
+
+/** One anonymous visitor id for all tabs in this browser/private session. */
+export async function getSharedGuestVisitorKey() {
+  if (typeof window === "undefined") return "";
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (locks && typeof locks.request === "function") {
+    try {
+      return await locks.request(GUEST_VISITOR_LOCK_NAME, () =>
+        readOrCreateSharedGuestVisitorKeySync(),
+      );
+    } catch {
+      // Fall through if locks are unavailable/denied.
+    }
+  }
+  return readOrCreateSharedGuestVisitorKeySync();
+}
+
+export function rememberSharedGuestVisitorKey(visitorKey: string) {
+  const key = normalizeGuestVisitorKey(visitorKey);
+  if (!key || typeof window === "undefined") return;
+  try {
+    localStorage.setItem(GUEST_VISITOR_STORAGE_KEY, key);
+  } catch {
+    // Private mode quota / blocked storage — cookie still carries identity.
+  }
+}
 
 /** Stable per-tab anonymous connection id (not the httpOnly visitor cookie). */
 export function getGuestConnectionKey() {

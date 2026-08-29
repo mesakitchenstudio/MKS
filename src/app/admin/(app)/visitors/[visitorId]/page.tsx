@@ -115,6 +115,7 @@ export default async function AdminVisitorDetailPage({
           <DetailRow label="Last seen">
             {formatAdminShortDateTime(guest.lastSeenAt, new Date(), { includeYear: true })}
           </DetailRow>
+          <DetailRow label="Active tabs">{guest.activeConnections}</DetailRow>
           <DetailRow label="Page views">{pageViewCount}</DetailRow>
         </dl>
       </section>

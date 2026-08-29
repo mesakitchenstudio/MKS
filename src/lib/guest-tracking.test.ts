@@ -58,6 +58,8 @@ test("guest presence timings are near-real-time", async () => {
     guestPresenceLastSeenForGraceDisconnect,
     isGuestOnlineFromPresence,
     normalizeGuestConnectionKey,
+    normalizeGuestVisitorKey,
+    resolveGuestVisitorKey,
   } = await import("./guest-tracking.ts");
 
   assert.equal(GUEST_HEARTBEAT_MS, 12_000);
@@ -66,6 +68,7 @@ test("guest presence timings are near-real-time", async () => {
   assert.equal(GUEST_ADMIN_PRESENCE_POLL_MS, 3_000);
   assert.equal(normalizeGuestConnectionKey("abc_123"), "abc_123");
   assert.equal(normalizeGuestConnectionKey("bad key"), "");
+  assert.equal(normalizeGuestVisitorKey("550e8400-e29b-41d4-a716-446655440000"), "550e8400-e29b-41d4-a716-446655440000");
 
   const now = Date.parse("2026-08-28T12:00:00.000Z");
   assert.equal(isGuestOnlineFromPresence({ online: true, lastSeenAt: new Date(0) }, now), true);
@@ -87,6 +90,28 @@ test("guest presence timings are near-real-time", async () => {
     ),
     false,
   );
+
+  const cookieWins = resolveGuestVisitorKey({
+    cookieKey: "cookie-visitor-id",
+    clientVisitorKey: "client-visitor-id",
+  });
+  assert.equal(cookieWins.visitorKey, "cookie-visitor-id");
+  assert.equal(cookieWins.source, "cookie");
+
+  const clientBootstrap = resolveGuestVisitorKey({
+    cookieKey: "",
+    clientVisitorKey: "shared-tab-visitor",
+  });
+  assert.equal(clientBootstrap.visitorKey, "shared-tab-visitor");
+  assert.equal(clientBootstrap.source, "client");
+
+  const generated = resolveGuestVisitorKey({
+    cookieKey: "",
+    clientVisitorKey: "",
+    generate: () => "generated-once",
+  });
+  assert.equal(generated.visitorKey, "generated-once");
+  assert.equal(generated.source, "generated");
 });
 
 test("members are excluded from guest analytics; staff are not", () => {

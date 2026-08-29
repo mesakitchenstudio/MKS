@@ -7,9 +7,11 @@ import {
   claimGuestPageview,
   clearActiveGuestNavigation,
   getGuestConnectionKey,
+  getSharedGuestVisitorKey,
   GUEST_EARLY_HEARTBEAT_MS,
   GUEST_HEARTBEAT_MS,
   guestNavigationFor,
+  rememberSharedGuestVisitorKey,
   shouldSendGuestPresence,
   shouldSkipGuestAnalytics,
   shouldTrackGuestPath,
@@ -42,6 +44,22 @@ export function GuestTracker() {
     const { path, navId } = guestNavigationFor(pathname);
     const connectionKey = getGuestConnectionKey();
     let stopped = false;
+    let clientVisitorKey = "";
+    let timer = 0;
+    let early = 0;
+
+    function rememberFromResponse(response: Response) {
+      void response
+        .clone()
+        .json()
+        .then((data: { visitorKey?: string }) => {
+          if (data?.visitorKey) {
+            rememberSharedGuestVisitorKey(data.visitorKey);
+            clientVisitorKey = data.visitorKey;
+          }
+        })
+        .catch(() => undefined);
+    }
 
     function send(
       pageview: boolean,
@@ -64,6 +82,7 @@ export function GuestTracker() {
         referer: typeof document !== "undefined" ? document.referrer : "",
         pageview,
         connectionKey,
+        clientVisitorKey,
         ...(pageview ? { navId } : {}),
         ...(opts?.disconnect ? { disconnect: true } : {}),
       });
@@ -81,22 +100,13 @@ export function GuestTracker() {
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: payload,
-        // keepalive only for unload — routine heartbeats share Chrome's 64KiB
-        // keepalive budget with third-party analytics and can fail silently.
         keepalive: Boolean(opts?.keepalive || opts?.disconnect),
-      }).catch(() => undefined);
+      })
+        .then((response) => {
+          rememberFromResponse(response);
+        })
+        .catch(() => undefined);
     }
-
-    // Coming Soon beacon already recorded a document pageview before hydration.
-    const documentAlreadyTracked = Boolean(window.__mesaGuestDocumentPv);
-    if (claimGuestPageview(navId) && !documentAlreadyTracked) {
-      send(true);
-    } else {
-      send(false);
-    }
-
-    const early = window.setTimeout(() => send(false), GUEST_EARLY_HEARTBEAT_MS);
-    const timer = window.setInterval(() => send(false), GUEST_HEARTBEAT_MS);
 
     function onVisible() {
       if (document.visibilityState === "visible") send(false);
@@ -105,14 +115,28 @@ export function GuestTracker() {
       send(false);
     }
     function onPageHide() {
-      // Soft-disconnect this tab only — other tabs keep the visitor Online.
       send(false, { force: true, keepalive: true, disconnect: true });
     }
 
-    window.addEventListener("focus", onVisible);
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("pageshow", onPageShow);
-    window.addEventListener("pagehide", onPageHide);
+    void (async () => {
+      // Serialize first-key creation across tabs, then both send the same visitorKey.
+      clientVisitorKey = await getSharedGuestVisitorKey();
+      if (stopped) return;
+
+      const documentAlreadyTracked = Boolean(window.__mesaGuestDocumentPv);
+      if (claimGuestPageview(navId) && !documentAlreadyTracked) {
+        send(true);
+      } else {
+        send(false);
+      }
+
+      early = window.setTimeout(() => send(false), GUEST_EARLY_HEARTBEAT_MS);
+      timer = window.setInterval(() => send(false), GUEST_HEARTBEAT_MS);
+      window.addEventListener("focus", onVisible);
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("pageshow", onPageShow);
+      window.addEventListener("pagehide", onPageHide);
+    })();
 
     return () => {
       stopped = true;
