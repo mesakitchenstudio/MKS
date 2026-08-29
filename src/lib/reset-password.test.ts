@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildPasswordResetEmailHtml,
   buildPasswordResetUrl,
   evaluatePasswordResetRow,
   FORGOT_PASSWORD_GENERIC_MESSAGE,
   hashResetToken,
+  PASSWORD_RESET_EMAIL_TERRACOTTA,
   requestPasswordReset,
   resetPasswordWithToken,
 } from "./reset-password.ts";
@@ -15,6 +17,22 @@ describe("password reset email delivery", () => {
     const url = buildPasswordResetUrl("admin", "abc123token", "https://www.mesakitchenstudio.com");
     assert.equal(url, "https://www.mesakitchenstudio.com/admin/reset-password?token=abc123token");
     assert.doesNotMatch(url, /password=/i);
+  });
+
+  it("renders a terracotta Reset password button as the primary CTA", () => {
+    const url = "https://www.mesakitchenstudio.com/admin/reset-password?token=abc123token";
+    const html = buildPasswordResetEmailHtml(url, "admin");
+    assert.match(html, /Reset your password/);
+    assert.match(html, /admin account/);
+    assert.match(html, /expires in 1 hour/i);
+    assert.match(html, new RegExp(`href="${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+    assert.match(html, />Reset password</);
+    assert.match(html, new RegExp(`background-color:${PASSWORD_RESET_EMAIL_TERRACOTTA}`));
+    assert.match(html, /border-radius:999px/);
+    assert.match(html, /If the button doesn't work/);
+    assert.match(html, new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    // Button label must not include the token.
+    assert.doesNotMatch(html, />Reset password[^<]*abc123token/i);
   });
 
   it("hashes reset tokens so raw tokens are not stored", () => {
@@ -64,6 +82,9 @@ describe("password reset email delivery", () => {
     assert.equal(sent.length, 1);
     assert.equal(sent[0]?.to, "chef@studio.com");
     assert.match(sent[0]?.html || "", /\/admin\/reset-password\?token=/);
+    assert.match(sent[0]?.html || "", />Reset password</);
+    assert.match(sent[0]?.html || "", new RegExp(`background-color:${PASSWORD_RESET_EMAIL_TERRACOTTA}`));
+    assert.doesNotMatch(sent[0]?.html || "", />[^<]*token=/i);
     assert.doesNotMatch(sent[0]?.html || "", /password=/i);
     assert.equal(created.length, 1);
     assert.equal(created[0]?.email, "chef@studio.com");
