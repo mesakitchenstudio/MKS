@@ -11,40 +11,73 @@ export function siteUrl() {
   return "https://www.mesakitchenstudio.com";
 }
 
+export function isTransactionalEmailConfigured() {
+  return Boolean(process.env.RESEND_API_KEY?.trim());
+}
+
+export function transactionalEmailFromAddress() {
+  return (
+    process.env.EMAIL_FROM?.trim() || "Mesa Kitchen Studio <hello@mesakitchenstudio.com>"
+  );
+}
+
+export type SendTransactionalEmailResult =
+  | { ok: true }
+  | { ok: false; reason: "not_configured" | "provider_error" };
+
 export async function sendTransactionalEmail(input: {
   to: string | string[];
   subject: string;
   html: string;
   replyTo?: string;
-}) {
+}): Promise<boolean> {
+  const result = await sendTransactionalEmailDetailed(input);
+  return result.ok;
+}
+
+/** Prefer this when callers need to log why delivery failed without guessing. */
+export async function sendTransactionalEmailDetailed(input: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  replyTo?: string;
+}): Promise<SendTransactionalEmailResult> {
   const key = process.env.RESEND_API_KEY?.trim();
-  const from =
-    process.env.EMAIL_FROM?.trim() || "Mesa Kitchen Studio <hello@mesakitchenstudio.com>";
+  const from = transactionalEmailFromAddress();
   if (!key) {
-    console.info("Email not configured:", input.subject, input.to);
-    return false;
+    console.error(
+      "Transactional email not configured: set RESEND_API_KEY (and optionally EMAIL_FROM). Subject:",
+      input.subject,
+    );
+    return { ok: false, reason: "not_configured" };
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: input.to,
-      subject: input.subject,
-      html: input.html,
-      ...(input.replyTo ? { reply_to: input.replyTo } : {}),
-    }),
-  });
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+      }),
+    });
 
-  if (!response.ok) {
-    console.error("Could not send email", await response.text());
-    return false;
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Could not send email via Resend", response.status, detail.slice(0, 500));
+      return { ok: false, reason: "provider_error" };
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error("Could not send email via Resend", error);
+    return { ok: false, reason: "provider_error" };
   }
-  return true;
 }
 
 export function studioInboxEmail() {
