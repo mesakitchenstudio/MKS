@@ -59,6 +59,56 @@ export function resolveGuestVisitorKey(input: {
   return { visitorKey: generate(), source: "generated" as const };
 }
 
+/**
+ * Cookie pointing at a deleted GuestVisitor must rotate — not recreate that history.
+ * Client-only bootstrap keys (first visit) are allowed to create normally.
+ */
+export function shouldRotateMissingGuestVisitor(input: {
+  source: "cookie" | "client" | "generated";
+  visitorExists: boolean;
+}) {
+  return input.source === "cookie" && !input.visitorExists;
+}
+
+/** Mint a replacement visitor key when the server reports the current one was deleted. */
+export async function rotateSharedGuestVisitorKey(staleKey: string) {
+  if (typeof window === "undefined") return "";
+  const stale = normalizeGuestVisitorKey(staleKey);
+
+  const rotateSync = () => {
+    try {
+      const current = normalizeGuestVisitorKey(localStorage.getItem(GUEST_VISITOR_STORAGE_KEY));
+      // Another tab already rotated away from the deleted identity.
+      if (current && current !== stale) return current;
+
+      const created =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `v_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(GUEST_VISITOR_STORAGE_KEY, created);
+      return (
+        normalizeGuestVisitorKey(localStorage.getItem(GUEST_VISITOR_STORAGE_KEY)) || created
+      );
+    } catch {
+      return (
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `v_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      );
+    }
+  };
+
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (locks && typeof locks.request === "function") {
+    try {
+      return await locks.request(GUEST_VISITOR_LOCK_NAME, rotateSync);
+    } catch {
+      // Fall through.
+    }
+  }
+  return rotateSync();
+}
+
 function readOrCreateSharedGuestVisitorKeySync() {
   if (typeof window === "undefined") return "";
   try {
@@ -105,6 +155,67 @@ export function rememberSharedGuestVisitorKey(visitorKey: string) {
 
 const GUEST_AUTH_CHANNEL = "mesa-guest-auth";
 const GUEST_CONVERTED_STORAGE_KEY = "mesa-guest-converted-at";
+const GUEST_ROTATED_STORAGE_KEY = "mesa-guest-rotated-at";
+
+/** Tell sibling tabs a deleted visitor identity was replaced with a fresh key. */
+export function broadcastGuestVisitorRotated(visitorKey: string) {
+  const key = normalizeGuestVisitorKey(visitorKey);
+  if (!key || typeof window === "undefined") return;
+  rememberSharedGuestVisitorKey(key);
+  try {
+    localStorage.setItem(GUEST_ROTATED_STORAGE_KEY, `${Date.now()}:${key}`);
+  } catch {
+    // ignore
+  }
+  try {
+    const channel = new BroadcastChannel(GUEST_AUTH_CHANNEL);
+    channel.postMessage({ type: "rotated", visitorKey: key });
+    channel.close();
+  } catch {
+    // storage event still covers same-origin tabs
+  }
+}
+
+/** Subscribe when another tab minted a fresh anonymous visitor after admin delete. */
+export function subscribeGuestVisitorRotated(onRotated: (visitorKey: string) => void) {
+  if (typeof window === "undefined") return () => undefined;
+
+  function apply(raw: unknown) {
+    const key = normalizeGuestVisitorKey(raw);
+    if (key) onRotated(key);
+  }
+
+  function onStorage(event: StorageEvent) {
+    if (event.key === GUEST_VISITOR_STORAGE_KEY && event.newValue) {
+      apply(event.newValue);
+      return;
+    }
+    if (event.key === GUEST_ROTATED_STORAGE_KEY && event.newValue) {
+      const parts = event.newValue.split(":");
+      apply(parts.slice(1).join(":") || parts[0]);
+    }
+  }
+
+  let channel: BroadcastChannel | null = null;
+  try {
+    channel = new BroadcastChannel(GUEST_AUTH_CHANNEL);
+    channel.onmessage = (event) => {
+      if (event?.data?.type === "rotated") apply(event.data.visitorKey);
+    };
+  } catch {
+    channel = null;
+  }
+
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    try {
+      channel?.close();
+    } catch {
+      // ignore
+    }
+  };
+}
 
 /** Tell sibling tabs to stop anonymous heartbeats after Member sign-in. */
 export function broadcastGuestConvertedToMember() {

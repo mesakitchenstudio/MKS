@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
+  broadcastGuestVisitorRotated,
   claimGuestPageview,
   clearActiveGuestNavigation,
   endAnonymousGuestPresenceOnAuth,
@@ -13,10 +14,12 @@ import {
   GUEST_HEARTBEAT_MS,
   guestNavigationFor,
   rememberSharedGuestVisitorKey,
+  rotateSharedGuestVisitorKey,
   shouldSendGuestPresence,
   shouldSkipGuestAnalytics,
   shouldTrackGuestPath,
   subscribeGuestConvertedToMember,
+  subscribeGuestVisitorRotated,
 } from "@/lib/guest-tracking";
 
 declare global {
@@ -56,6 +59,7 @@ export function GuestTracker() {
     let clientVisitorKey = "";
     let timer = 0;
     let early = 0;
+    let rotating = false;
 
     function stopAnonymousTracking() {
       stopped = true;
@@ -81,9 +85,28 @@ export function GuestTracker() {
         .catch(() => undefined);
     }
 
+    async function recoverStaleVisitorIdentity() {
+      if (rotating || stopped) return false;
+      rotating = true;
+      try {
+        const fresh = await rotateSharedGuestVisitorKey(clientVisitorKey);
+        if (!fresh) return false;
+        clientVisitorKey = fresh;
+        broadcastGuestVisitorRotated(fresh);
+        return true;
+      } finally {
+        rotating = false;
+      }
+    }
+
     function send(
       pageview: boolean,
-      opts?: { force?: boolean; keepalive?: boolean; disconnect?: boolean },
+      opts?: {
+        force?: boolean;
+        keepalive?: boolean;
+        disconnect?: boolean;
+        isRetry?: boolean;
+      },
     ) {
       if (stopped && !opts?.disconnect) return;
       if (
@@ -122,7 +145,20 @@ export function GuestTracker() {
         body: payload,
         keepalive: Boolean(opts?.keepalive || opts?.disconnect),
       })
-        .then((response) => {
+        .then(async (response) => {
+          if (response.status === 409 && !opts?.isRetry && !opts?.disconnect) {
+            let data: { rotate?: boolean; code?: string } = {};
+            try {
+              data = (await response.json()) as { rotate?: boolean; code?: string };
+            } catch {
+              data = {};
+            }
+            if (data.rotate || data.code === "stale_visitor") {
+              const recovered = await recoverStaleVisitorIdentity();
+              if (recovered) send(pageview, { ...opts, force: true, isRetry: true });
+            }
+            return;
+          }
           rememberFromResponse(response);
         })
         .catch(() => undefined);
@@ -141,6 +177,10 @@ export function GuestTracker() {
     const unsubscribeConverted = subscribeGuestConvertedToMember(() => {
       // Sibling tab completed Member sign-in — stop anonymous heartbeats immediately.
       stopAnonymousTracking();
+    });
+
+    const unsubscribeRotated = subscribeGuestVisitorRotated((visitorKey) => {
+      clientVisitorKey = visitorKey;
     });
 
     void (async () => {
@@ -164,6 +204,7 @@ export function GuestTracker() {
 
     return () => {
       unsubscribeConverted();
+      unsubscribeRotated();
       stopAnonymousTracking();
     };
   }, [pathname, session?.user?.email, session?.staffRole, status]);

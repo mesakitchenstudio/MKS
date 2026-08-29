@@ -10,9 +10,12 @@ import {
   newGuestVisitorKey,
   upsertGuestActivity,
 } from "@/lib/guest-analytics";
+import { getDb } from "@/lib/db";
 import {
   normalizeGuestConnectionKey,
+  normalizeGuestVisitorKey,
   resolveGuestVisitorKey,
+  shouldRotateMissingGuestVisitor,
   shouldSkipGuestAnalytics,
 } from "@/lib/guest-tracking";
 
@@ -54,6 +57,16 @@ function setGuestCookie(response: NextResponse, visitorKey: string) {
   });
 }
 
+async function visitorKeyExists(visitorKey: string) {
+  const key = normalizeGuestVisitorKey(visitorKey);
+  if (!key) return false;
+  const row = await getDb().guestVisitor.findUnique({
+    where: { visitorKey: key },
+    select: { id: true },
+  });
+  return Boolean(row);
+}
+
 export async function POST(request: Request) {
   const session = await auth();
   const body = await readGuestBody(request);
@@ -63,7 +76,7 @@ export async function POST(request: Request) {
     clientVisitorKey: body.clientVisitorKey,
     generate: newGuestVisitorKey,
   });
-  const visitorKey = resolved.visitorKey;
+  let visitorKey = resolved.visitorKey;
   const connectionKey = normalizeGuestConnectionKey(body.connectionKey);
   const signedInMember = shouldSkipGuestAnalytics({
     email: session?.user?.email,
@@ -91,14 +104,40 @@ export async function POST(request: Request) {
   }
 
   try {
+    const exists = await visitorKeyExists(visitorKey);
+
     if (body.disconnect) {
-      if (connectionKey) {
+      // Deleted visitors need no disconnect work; avoid forcing rotation on unload.
+      if (connectionKey && exists) {
         await clearGuestPresenceConnection(visitorKey, connectionKey, {
           immediate: Boolean(body.immediate),
         });
       }
       const response = NextResponse.json({ ok: true, visitorKey });
-      setGuestCookie(response, visitorKey);
+      if (exists) setGuestCookie(response, visitorKey);
+      return response;
+    }
+
+    if (
+      shouldRotateMissingGuestVisitor({
+        source: resolved.source,
+        visitorExists: exists,
+      })
+    ) {
+      // Admin deleted this visitor while the browser kept the cookie.
+      // Client must mint a fresh identity under lock (multi-tab safe) and retry.
+      const response = NextResponse.json(
+        { ok: false, code: "stale_visitor", rotate: true },
+        { status: 409 },
+      );
+      // Expire the stale cookie so the next request does not keep winning with it.
+      response.cookies.set(GUEST_COOKIE, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+        secure: process.env.NODE_ENV === "production",
+      });
       return response;
     }
 
@@ -109,8 +148,7 @@ export async function POST(request: Request) {
 
     // Heartbeats update presence only. Page views require an explicit pageview flag
     // (never inferred from a missing cookie). Identity: cookie → shared client key → new.
-    // Upsert on unique visitorKey makes simultaneous tabs with the same key atomic.
-    await upsertGuestActivity({
+    const visitor = await upsertGuestActivity({
       visitorKey,
       path,
       referer: body.referer,
@@ -120,6 +158,23 @@ export async function POST(request: Request) {
       connectionKey,
     });
 
+    if (!visitor) {
+      // Row disappeared mid-request (admin delete) — same recovery as stale cookie.
+      const response = NextResponse.json(
+        { ok: false, code: "stale_visitor", rotate: true },
+        { status: 409 },
+      );
+      response.cookies.set(GUEST_COOKIE, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+        secure: process.env.NODE_ENV === "production",
+      });
+      return response;
+    }
+
+    visitorKey = visitor.visitorKey;
     const response = NextResponse.json({ ok: true, visitorKey });
     setGuestCookie(response, visitorKey);
     return response;

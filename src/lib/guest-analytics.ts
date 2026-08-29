@@ -87,36 +87,51 @@ export async function upsertGuestActivity(input: {
 
   let visitor;
   if (!existing) {
-    visitor = await db.guestVisitor.create({
-      data: {
-        visitorKey: input.visitorKey,
-        firstSeenAt: now,
-        lastSeenAt: now,
-        lastPath: path,
-        ip: meta.ip,
-        country: meta.country,
-        city: meta.city,
-        region: meta.region,
-        userAgent: (meta.userAgent || "").slice(0, 500),
-      },
-    });
+    try {
+      visitor = await db.guestVisitor.create({
+        data: {
+          visitorKey: input.visitorKey,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          lastPath: path,
+          ip: meta.ip,
+          country: meta.country,
+          city: meta.city,
+          region: meta.region,
+          userAgent: (meta.userAgent || "").slice(0, 500),
+        },
+      });
+    } catch (error) {
+      // Concurrent first-create from another tab with the same bootstrap key.
+      if (!isUniqueConstraintError(error)) throw error;
+      visitor = await db.guestVisitor.findUnique({
+        where: { visitorKey: input.visitorKey },
+      });
+      if (!visitor) return null;
+    }
   } else if (shouldTouchVisitor) {
-    visitor = await db.guestVisitor.update({
-      where: { id: existing.id },
-      data: {
-        lastSeenAt: now,
-        lastPath: path,
-        ip: meta.ip && meta.ip !== "unknown" ? meta.ip : undefined,
-        country: meta.country || undefined,
-        city: meta.city || undefined,
-        region: meta.region || undefined,
-        userAgent: meta.userAgent ? meta.userAgent.slice(0, 500) : undefined,
-      },
-    });
+    try {
+      visitor = await db.guestVisitor.update({
+        where: { id: existing.id },
+        data: {
+          lastSeenAt: now,
+          lastPath: path,
+          ip: meta.ip && meta.ip !== "unknown" ? meta.ip : undefined,
+          country: meta.country || undefined,
+          city: meta.city || undefined,
+          region: meta.region || undefined,
+          userAgent: meta.userAgent ? meta.userAgent.slice(0, 500) : undefined,
+        },
+      });
+    } catch {
+      // Row vanished mid-request (admin delete) — signal caller to rotate identity.
+      return null;
+    }
   } else {
-    visitor = await db.guestVisitor.findUniqueOrThrow({
+    visitor = await db.guestVisitor.findUnique({
       where: { id: existing.id },
     });
+    if (!visitor) return null;
   }
 
   if (connectionKey) {
@@ -368,14 +383,19 @@ export async function getGuestForAdmin(
 }
 
 /**
- * Permanently remove anonymous visitors and all related page-view rows.
- * GuestPageView uses onDelete: Cascade — no orphaned analytics remain.
+ * Permanently remove anonymous visitors and all related page-view / presence rows.
+ * Presence is deleted explicitly first so active Online connections cannot linger
+ * as orphans if cascade behavior changes; page views still cascade with the visitor.
  */
 export async function deleteGuestVisitorsForAdmin(ids: string[]): Promise<number> {
   const unique = normalizeGuestVisitorIds(ids);
   if (!unique.length) return 0;
 
-  const result = await getDb().guestVisitor.deleteMany({
+  const db = getDb();
+  await db.guestPresenceSession.deleteMany({
+    where: { visitorId: { in: unique } },
+  });
+  const result = await db.guestVisitor.deleteMany({
     where: { id: { in: unique } },
   });
   return result.count;

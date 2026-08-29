@@ -112,6 +112,25 @@ test("guest presence timings are near-real-time", async () => {
   });
   assert.equal(generated.visitorKey, "generated-once");
   assert.equal(generated.source, "generated");
+
+  const { shouldRotateMissingGuestVisitor } = await import("./guest-tracking.ts");
+  assert.equal(
+    shouldRotateMissingGuestVisitor({ source: "cookie", visitorExists: false }),
+    true,
+  );
+  assert.equal(
+    shouldRotateMissingGuestVisitor({ source: "cookie", visitorExists: true }),
+    false,
+  );
+  // First-visit bootstrap uses client key with no row yet — must create, not rotate.
+  assert.equal(
+    shouldRotateMissingGuestVisitor({ source: "client", visitorExists: false }),
+    false,
+  );
+  assert.equal(
+    shouldRotateMissingGuestVisitor({ source: "generated", visitorExists: false }),
+    false,
+  );
 });
 
 test("auth conversion must end anonymous presence without waiting for stale TTL", () => {
