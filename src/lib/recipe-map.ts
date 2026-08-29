@@ -1,4 +1,5 @@
 import type { Category, Faq, IngredientGroup, InstructionGroup, Nutrition, Recipe } from "@/data/types";
+import { fieldValueHasContent } from "@/lib/field-content";
 import { CORE_VALUE_KEYS } from "@/lib/fields";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 
@@ -97,12 +98,7 @@ export function toPublicRecipe(record: DbRecipeRecord): Recipe & { extras: Extra
       kind: field.kind,
       value: values[field.key],
     }))
-    .filter((field) => {
-      const value = field.value;
-      if (value == null || value === "") return false;
-      if (Array.isArray(value) && value.length === 0) return false;
-      return true;
-    });
+    .filter((field) => fieldValueHasContent(field.value, field.kind));
 
   return {
     slug: record.slug,

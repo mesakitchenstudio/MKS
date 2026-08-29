@@ -83,6 +83,8 @@ test("fieldValueHasContent detects stored recipe values by kind", () => {
   assert.equal(fieldValueHasContent([""], "tags"), false);
   assert.equal(fieldValueHasContent(0, "minutes"), false);
   assert.equal(fieldValueHasContent(15, "minutes"), true);
+  assert.equal(fieldValueHasContent({ calories: 0, carbs: 0, protein: 0, fat: 0 }, "nutrition"), false);
+  assert.equal(fieldValueHasContent({ calories: 100, carbs: 0, protein: 0, fat: 0 }, "nutrition"), true);
 });
 
 test("countRecipesWithFieldContent counts recipes by key", () => {

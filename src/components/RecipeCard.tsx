@@ -7,6 +7,7 @@ import { RecipeOverview } from "@/components/RecipeOverview";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
 import { trackEvent } from "@/lib/analytics";
 import { scaleAmount } from "@/lib/culinary-format";
+import { nutritionHasPublicContent } from "@/lib/field-content";
 import { timestampForStep } from "@/lib/recipe-youtube";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 
@@ -21,6 +22,7 @@ export function RecipeCard({
   const factor = servings / recipe.servings;
 
   const total = totalMinutes(recipe);
+  const showNutrition = nutritionHasPublicContent(recipe.nutrition);
   const nutritionNote = useMemo(
     () =>
       `About ${recipe.nutrition.calories} calories per ${recipe.servingsUnit.replace(/s$/, "")}. Values are estimates.`,
@@ -196,16 +198,18 @@ export function RecipeCard({
         </div>
       ) : null}
 
-      <div className="mt-6 border-t border-line pt-5 text-sm text-muted">
-        <p className="font-semibold text-ink">Nutrition</p>
-        <p className="mt-1">
-          {recipe.nutrition.calories} kcal · {recipe.nutrition.carbs}g carbs ·{" "}
-          {recipe.nutrition.protein}g protein · {recipe.nutrition.fat}g fat
-          {recipe.nutrition.fiber ? ` · ${recipe.nutrition.fiber}g fiber` : ""}
-          {recipe.nutrition.sugar ? ` · ${recipe.nutrition.sugar}g sugar` : ""}
-        </p>
-        <p className="mt-1 text-xs">{nutritionNote}</p>
-      </div>
+      {showNutrition ? (
+        <div className="mt-6 border-t border-line pt-5 text-sm text-muted">
+          <p className="font-semibold text-ink">Nutrition</p>
+          <p className="mt-1">
+            {recipe.nutrition.calories} kcal · {recipe.nutrition.carbs}g carbs ·{" "}
+            {recipe.nutrition.protein}g protein · {recipe.nutrition.fat}g fat
+            {recipe.nutrition.fiber ? ` · ${recipe.nutrition.fiber}g fiber` : ""}
+            {recipe.nutrition.sugar ? ` · ${recipe.nutrition.sugar}g sugar` : ""}
+          </p>
+          <p className="mt-1 text-xs">{nutritionNote}</p>
+        </div>
+      ) : null}
     </section>
   );
 }

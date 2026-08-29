@@ -22,6 +22,7 @@ import { getAdminSession } from "@/lib/auth";
 import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
 import { resolveRecipeYoutube } from "@/lib/recipe-youtube";
 import { recipeTocItems } from "@/lib/recipe-sections";
+import { fieldValueHasContent } from "@/lib/field-content";
 import { recipeJsonLd } from "@/lib/schema";
 import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
@@ -84,6 +85,9 @@ export default async function RecipePage({ params }: Props) {
     userId: session?.user?.id ?? null,
   });
   const toc = recipeTocItems(recipe);
+  const visibleExtras = (recipe.extras ?? []).filter((field) =>
+    fieldValueHasContent(field.value, field.kind),
+  );
   const updated = formatGmtDisplay(recipe.updatedAt);
   const youtube = resolveRecipeYoutube(recipe);
 
@@ -188,9 +192,9 @@ export default async function RecipePage({ params }: Props) {
           </section>
         ) : null}
 
-        {recipe.extras?.length ? (
+        {visibleExtras.length ? (
           <section className="mt-12">
-            {recipe.extras.map((field) => (
+            {visibleExtras.map((field) => (
               <div
                 key={field.key}
                 id={`extra-${field.key}`}

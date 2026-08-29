@@ -1,5 +1,6 @@
 import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
+import { nutritionHasPublicContent } from "@/lib/field-content";
 import { bakeMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
 import type { RecipeReviewStats } from "@/lib/recipe-reviews";
 import { isSchemaVideoId } from "@/lib/recipe-youtube";
@@ -106,14 +107,17 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
         text: step,
       })),
     ),
-    nutrition: {
+  };
+
+  if (nutritionHasPublicContent(recipe.nutrition)) {
+    data.nutrition = {
       "@type": "NutritionInformation",
       calories: `${recipe.nutrition.calories} calories`,
       carbohydrateContent: `${recipe.nutrition.carbs} grams`,
       proteinContent: `${recipe.nutrition.protein} grams`,
       fatContent: `${recipe.nutrition.fat} grams`,
-    },
-  };
+    };
+  }
 
   if (reviewStats?.count) {
     data.aggregateRating = {

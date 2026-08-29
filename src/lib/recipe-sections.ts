@@ -1,4 +1,5 @@
 import type { Recipe } from "@/data/types";
+import { fieldValueHasContent } from "@/lib/field-content";
 import type { ExtraField } from "@/lib/recipe-map";
 import { youtubeVideoId } from "@/lib/youtube";
 
@@ -38,6 +39,7 @@ export function recipeTocItems(
     items.push({ id: "faqs", label: "Frequently asked" });
   }
   for (const extra of recipe.extras ?? []) {
+    if (!fieldValueHasContent(extra.value, extra.kind)) continue;
     const id = `extra-${extra.key || slugifyHeading(extra.label)}`;
     items.push({ id, label: extra.label });
   }
