@@ -10,7 +10,11 @@ import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin
 import { formatAdminShortDateTime } from "@/lib/datetime";
 import { classifyGuestClient, guestDeviceClientLabel, isBotUserAgent } from "@/lib/guest-client";
 import { guestPathTitle } from "@/lib/guest-path-labels";
-import { formatPresenceLabel, isMemberOnline } from "@/lib/member-presence";
+import {
+  formatGuestPresenceLabel,
+  GUEST_ADMIN_PRESENCE_POLL_MS,
+  isGuestOnlineFromPresence,
+} from "@/lib/guest-tracking";
 import { formatCountryCityLocation } from "@/lib/request-meta";
 
 type GuestRow = {
@@ -22,6 +26,7 @@ type GuestRow = {
   userAgent: string;
   country?: string | null;
   city?: string | null;
+  online?: boolean;
 };
 
 type PopularPath = {
@@ -88,30 +93,98 @@ export function VisitorsTable({
   const [bulkError, setBulkError] = useState("");
   const [bulkPending, startBulkDelete] = useTransition();
   const titles = useMemo(() => new Map(Object.entries(recipeTitles)), [recipeTitles]);
+  const [presenceById, setPresenceById] = useState<
+    Record<string, { online: boolean; lastSeenAt: string }>
+  >(() => {
+    const initial: Record<string, { online: boolean; lastSeenAt: string }> = {};
+    for (const guest of visitors) {
+      initial[guest.id] = {
+        online: Boolean(guest.online),
+        lastSeenAt:
+          typeof guest.lastSeenAt === "string"
+            ? guest.lastSeenAt
+            : new Date(guest.lastSeenAt).toISOString(),
+      };
+    }
+    return initial;
+  });
 
   useEffect(() => {
-    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
-    const refresh = window.setInterval(() => router.refresh(), 45_000);
+    const next: Record<string, { online: boolean; lastSeenAt: string }> = {};
+    for (const guest of visitors) {
+      next[guest.id] = {
+        online: Boolean(guest.online),
+        lastSeenAt:
+          typeof guest.lastSeenAt === "string"
+            ? guest.lastSeenAt
+            : new Date(guest.lastSeenAt).toISOString(),
+      };
+    }
+    setPresenceById(next);
+  }, [visitors]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const response = await fetch("/api/admin/visitors/presence", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        if (!response.ok || cancelled) return;
+        const data = (await response.json()) as {
+          visitors?: { id: string; online: boolean; lastSeenAt: string }[];
+        };
+        if (!data.visitors || cancelled) return;
+        setPresenceById((current) => {
+          const merged = { ...current };
+          for (const row of data.visitors!) {
+            merged[row.id] = { online: row.online, lastSeenAt: row.lastSeenAt };
+          }
+          return merged;
+        });
+        setNow(Date.now());
+      } catch {
+        // Keep last known presence if the poll fails.
+      }
+    }
+
+    void poll();
+    const pollTimer = window.setInterval(() => void poll(), GUEST_ADMIN_PRESENCE_POLL_MS);
+    const tick = window.setInterval(() => setNow(Date.now()), 15_000);
     return () => {
+      cancelled = true;
+      window.clearInterval(pollTimer);
       window.clearInterval(tick);
-      window.clearInterval(refresh);
     };
-  }, [router]);
+  }, []);
 
   const sorted = useMemo(
     () =>
-      [...visitors].sort(
-        (left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime(),
-      ),
-    [visitors],
+      [...visitors].sort((left, right) => {
+        const leftSeen = presenceById[left.id]?.lastSeenAt || left.lastSeenAt;
+        const rightSeen = presenceById[right.id]?.lastSeenAt || right.lastSeenAt;
+        return new Date(rightSeen).getTime() - new Date(leftSeen).getTime();
+      }),
+    [visitors, presenceById],
   );
 
   const liveOnlineCount = useMemo(
     () =>
-      sorted.filter(
-        (guest) => isMemberOnline(guest.lastSeenAt, now) && !isBotUserAgent(guest.userAgent),
-      ).length,
-    [sorted, now],
+      sorted.filter((guest) => {
+        if (isBotUserAgent(guest.userAgent)) return false;
+        const patch = presenceById[guest.id];
+        return isGuestOnlineFromPresence(
+          {
+            online: patch?.online ?? guest.online,
+            lastSeenAt: patch?.lastSeenAt ?? guest.lastSeenAt,
+          },
+          now,
+        );
+      }).length,
+    [sorted, now, presenceById],
   );
 
   const [showAllPopular, setShowAllPopular] = useState(false);
@@ -242,7 +315,7 @@ export function VisitorsTable({
               {onlineLabel(liveOnlineCount)}
             </span>
             <span className="mt-0.5 block text-xs sm:mt-0 sm:ml-2 sm:inline">
-              Active within the last 3 minutes · Updates automatically
+              Live presence · Updates automatically
             </span>
           </p>
         </div>
@@ -334,6 +407,7 @@ export function VisitorsTable({
                       key={guest.id}
                       guest={guest}
                       now={now}
+                      presence={presenceById[guest.id]}
                       recipeTitles={titles}
                       selected={selectedIds.has(guest.id)}
                       selectionDisabled={bulkPending}
@@ -350,6 +424,7 @@ export function VisitorsTable({
                   key={guest.id}
                   guest={guest}
                   now={now}
+                  presence={presenceById[guest.id]}
                   recipeTitles={titles}
                   selected={selectedIds.has(guest.id)}
                   selectionDisabled={bulkPending}
@@ -410,6 +485,7 @@ function LocationCell({ country, city }: { country?: string | null; city?: strin
 function VisitorTableRow({
   guest,
   now,
+  presence,
   recipeTitles,
   selected,
   selectionDisabled,
@@ -417,13 +493,27 @@ function VisitorTableRow({
 }: {
   guest: GuestRow;
   now: number;
+  presence?: { online: boolean; lastSeenAt: string };
   recipeTitles: Map<string, string>;
   selected: boolean;
   selectionDisabled: boolean;
   onSelectedChange: (checked: boolean) => void;
 }) {
-  const online = isMemberOnline(guest.lastSeenAt, now);
-  const status = formatPresenceLabel(guest.lastSeenAt, now);
+  const lastSeen = presence?.lastSeenAt ?? guest.lastSeenAt;
+  const online = isGuestOnlineFromPresence(
+    {
+      online: presence?.online ?? guest.online,
+      lastSeenAt: lastSeen,
+    },
+    now,
+  );
+  const status = formatGuestPresenceLabel(
+    {
+      online: presence?.online ?? guest.online,
+      lastSeenAt: lastSeen,
+    },
+    now,
+  );
   const shortKey = guest.visitorKey.slice(0, 8);
   const client = classifyGuestClient(guest.userAgent);
   const deviceClient = guestDeviceClientLabel(guest.userAgent);
@@ -461,7 +551,7 @@ function VisitorTableRow({
         {formatAdminShortDateTime(guest.firstSeenAt)}
       </td>
       <td className="px-3 py-3 text-xs leading-snug text-muted">
-        {formatAdminShortDateTime(guest.lastSeenAt)}
+        {formatAdminShortDateTime(lastSeen)}
       </td>
       <td className="px-3 py-3">
         <LocationCell country={guest.country} city={guest.city} />
@@ -491,6 +581,7 @@ function VisitorTableRow({
 function VisitorMobileCard({
   guest,
   now,
+  presence,
   recipeTitles,
   selected,
   selectionDisabled,
@@ -498,13 +589,27 @@ function VisitorMobileCard({
 }: {
   guest: GuestRow;
   now: number;
+  presence?: { online: boolean; lastSeenAt: string };
   recipeTitles: Map<string, string>;
   selected: boolean;
   selectionDisabled: boolean;
   onSelectedChange: (checked: boolean) => void;
 }) {
-  const online = isMemberOnline(guest.lastSeenAt, now);
-  const status = formatPresenceLabel(guest.lastSeenAt, now);
+  const lastSeen = presence?.lastSeenAt ?? guest.lastSeenAt;
+  const online = isGuestOnlineFromPresence(
+    {
+      online: presence?.online ?? guest.online,
+      lastSeenAt: lastSeen,
+    },
+    now,
+  );
+  const status = formatGuestPresenceLabel(
+    {
+      online: presence?.online ?? guest.online,
+      lastSeenAt: lastSeen,
+    },
+    now,
+  );
   const shortKey = guest.visitorKey.slice(0, 8);
   const client = classifyGuestClient(guest.userAgent);
   const deviceClient = guestDeviceClientLabel(guest.userAgent);
@@ -524,17 +629,17 @@ function VisitorMobileCard({
             onChange={onSelectedChange}
           />
           <div className="min-w-0">
-          <Link
-            href={`/admin/visitors/${guest.id}`}
-            className={`inline-flex flex-wrap items-center gap-2 font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-          >
-            Guest {shortKey}
-            {client.kind === "bot" ? <span className={botBadgeClass}>Bot</span> : null}
-          </Link>
-          <p className="mt-1 inline-flex items-center gap-2 text-sm text-ink">
-            <PresenceDot online={online} />
-            {status}
-          </p>
+            <Link
+              href={`/admin/visitors/${guest.id}`}
+              className={`inline-flex flex-wrap items-center gap-2 font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
+            >
+              Guest {shortKey}
+              {client.kind === "bot" ? <span className={botBadgeClass}>Bot</span> : null}
+            </Link>
+            <p className="mt-1 inline-flex items-center gap-2 text-sm text-ink">
+              <PresenceDot online={online} />
+              {status}
+            </p>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
@@ -558,7 +663,7 @@ function VisitorMobileCard({
       </p>
       <p className="mt-1 text-xs text-muted">
         First {formatAdminShortDateTime(guest.firstSeenAt)} · Last{" "}
-        {formatAdminShortDateTime(guest.lastSeenAt)}
+        {formatAdminShortDateTime(lastSeen)}
       </p>
     </li>
   );

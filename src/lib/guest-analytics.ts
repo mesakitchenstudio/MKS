@@ -6,12 +6,15 @@ import { isHumanGuestUserAgent } from "@/lib/guest-client";
 import { guestPathTitle, isPopularGuestPath } from "@/lib/guest-path-labels";
 import {
   guestAnalyticsPath,
+  guestPresenceLastSeenForGraceDisconnect,
+  GUEST_PRESENCE_STALE_MS,
+  GUEST_PRESENCE_WRITE_THROTTLE_MS,
+  normalizeGuestConnectionKey,
   normalizeGuestNavId,
   normalizeGuestVisitorIds,
   shouldInsertGuestPageView,
 } from "@/lib/guest-tracking";
 import { isSitePrivate } from "@/lib/flags";
-import { MEMBER_ONLINE_WITHIN_MS } from "@/lib/member-presence";
 import { connectionMeta } from "@/lib/request-meta";
 import { getAllRecipes } from "@/lib/recipes";
 
@@ -53,6 +56,7 @@ export async function upsertGuestActivity(input: {
   headers?: unknown;
   recordPageView?: boolean;
   navId?: string;
+  connectionKey?: string;
 }) {
   const path = normalizePath(input.path);
   if (!isTrackablePublicPath(path)) return null;
@@ -62,42 +66,100 @@ export async function upsertGuestActivity(input: {
   const now = new Date();
   const referer = normalizeReferer(input.referer || meta.referer || "");
   const navId = normalizeGuestNavId(input.navId);
+  const connectionKey = normalizeGuestConnectionKey(input.connectionKey);
   const recordPageView = Boolean(input.recordPageView);
 
-  const visitor = await db.guestVisitor.upsert({
+  const existing = await db.guestVisitor.findUnique({
     where: { visitorKey: input.visitorKey },
-    create: {
-      visitorKey: input.visitorKey,
-      firstSeenAt: now,
-      lastSeenAt: now,
-      lastPath: path,
-      ip: meta.ip,
-      country: meta.country,
-      city: meta.city,
-      region: meta.region,
-      userAgent: (meta.userAgent || "").slice(0, 500),
-    },
-    update: {
-      lastSeenAt: now,
-      // Keep current page in sync for presence; page-view rows only on navigation.
-      lastPath: path,
-      ip: meta.ip && meta.ip !== "unknown" ? meta.ip : undefined,
-      country: meta.country || undefined,
-      city: meta.city || undefined,
-      region: meta.region || undefined,
-      userAgent: meta.userAgent ? meta.userAgent.slice(0, 500) : undefined,
-    },
+    select: { id: true, lastSeenAt: true, lastPath: true },
   });
+
+  const lastSeenAge = existing
+    ? now.getTime() - new Date(existing.lastSeenAt).getTime()
+    : Number.POSITIVE_INFINITY;
+  const pathChanged = Boolean(existing && existing.lastPath !== path);
+  const shouldTouchVisitor =
+    !existing ||
+    recordPageView ||
+    pathChanged ||
+    lastSeenAge >= GUEST_PRESENCE_WRITE_THROTTLE_MS;
+
+  let visitor;
+  if (!existing) {
+    visitor = await db.guestVisitor.create({
+      data: {
+        visitorKey: input.visitorKey,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        lastPath: path,
+        ip: meta.ip,
+        country: meta.country,
+        city: meta.city,
+        region: meta.region,
+        userAgent: (meta.userAgent || "").slice(0, 500),
+      },
+    });
+  } else if (shouldTouchVisitor) {
+    visitor = await db.guestVisitor.update({
+      where: { id: existing.id },
+      data: {
+        lastSeenAt: now,
+        lastPath: path,
+        ip: meta.ip && meta.ip !== "unknown" ? meta.ip : undefined,
+        country: meta.country || undefined,
+        city: meta.city || undefined,
+        region: meta.region || undefined,
+        userAgent: meta.userAgent ? meta.userAgent.slice(0, 500) : undefined,
+      },
+    });
+  } else {
+    visitor = await db.guestVisitor.findUniqueOrThrow({
+      where: { id: existing.id },
+    });
+  }
+
+  if (connectionKey) {
+    try {
+      const session = await db.guestPresenceSession.findUnique({
+        where: {
+          visitorId_connectionKey: { visitorId: visitor.id, connectionKey },
+        },
+        select: { lastSeenAt: true },
+      });
+      const sessionAge = session
+        ? now.getTime() - new Date(session.lastSeenAt).getTime()
+        : Number.POSITIVE_INFINITY;
+
+      if (!session || sessionAge >= GUEST_PRESENCE_WRITE_THROTTLE_MS || recordPageView) {
+        await db.guestPresenceSession.upsert({
+          where: {
+            visitorId_connectionKey: { visitorId: visitor.id, connectionKey },
+          },
+          create: { visitorId: visitor.id, connectionKey, lastSeenAt: now },
+          update: { lastSeenAt: now },
+        });
+      }
+
+      await db.guestPresenceSession.deleteMany({
+        where: {
+          visitorId: visitor.id,
+          lastSeenAt: { lt: new Date(now.getTime() - GUEST_PRESENCE_STALE_MS * 3) },
+        },
+      });
+    } catch (error) {
+      console.error("Could not upsert guest presence session", error);
+    }
+  }
 
   if (!recordPageView) return visitor;
 
   let alreadyStoredForNavId = false;
   if (navId) {
-    const existing = await db.guestPageView.findUnique({
+    const existingView = await db.guestPageView.findUnique({
       where: { navId },
       select: { id: true },
     });
-    alreadyStoredForNavId = Boolean(existing);
+    alreadyStoredForNavId = Boolean(existingView);
   }
 
   const latest = navId
@@ -147,6 +209,82 @@ export async function upsertGuestActivity(input: {
   return visitor;
 }
 
+/** Soft/hard disconnect for one anonymous tab connection only. */
+export async function clearGuestPresenceConnection(
+  visitorKey: string,
+  connectionKey: string,
+  options: { immediate?: boolean } = {},
+) {
+  const key = visitorKey.trim();
+  const connection = normalizeGuestConnectionKey(connectionKey);
+  if (!key || !connection) return false;
+
+  const db = getDb();
+  const visitor = await db.guestVisitor.findUnique({
+    where: { visitorKey: key },
+    select: { id: true },
+  });
+  if (!visitor) return false;
+
+  const now = Date.now();
+  if (options.immediate) {
+    await db.guestPresenceSession.deleteMany({
+      where: { visitorId: visitor.id, connectionKey: connection },
+    });
+  } else {
+    await db.guestPresenceSession.updateMany({
+      where: { visitorId: visitor.id, connectionKey: connection },
+      data: { lastSeenAt: guestPresenceLastSeenForGraceDisconnect(now) },
+    });
+  }
+
+  const otherLive = await db.guestPresenceSession.count({
+    where: {
+      visitorId: visitor.id,
+      connectionKey: { not: connection },
+      lastSeenAt: { gte: new Date(now - GUEST_PRESENCE_STALE_MS) },
+    },
+  });
+
+  if (otherLive === 0) {
+    await db.guestVisitor.update({
+      where: { id: visitor.id },
+      data: { lastSeenAt: new Date(now) },
+    });
+  }
+
+  return true;
+}
+
+export async function listOnlineGuestVisitorIds(now = Date.now()) {
+  const db = getDb();
+  const since = new Date(now - GUEST_PRESENCE_STALE_MS);
+  const rows = await db.guestPresenceSession.findMany({
+    where: { lastSeenAt: { gte: since } },
+    select: { visitorId: true },
+    distinct: ["visitorId"],
+  });
+  return new Set(rows.map((row) => row.visitorId));
+}
+
+export async function listGuestsPresenceSnapshot(limit = 200) {
+  const db = getDb();
+  const [guests, onlineIds] = await Promise.all([
+    db.guestVisitor.findMany({
+      orderBy: { lastSeenAt: "desc" },
+      take: limit,
+      select: { id: true, lastSeenAt: true, userAgent: true },
+    }),
+    listOnlineGuestVisitorIds(),
+  ]);
+
+  return guests.map((guest) => ({
+    id: guest.id,
+    online: onlineIds.has(guest.id) && isHumanGuestUserAgent(guest.userAgent),
+    lastSeenAt: guest.lastSeenAt.toISOString(),
+  }));
+}
+
 export type GuestVisitorRow = Prisma.GuestVisitorGetPayload<{
   include: {
     pageViews: true;
@@ -154,18 +292,28 @@ export type GuestVisitorRow = Prisma.GuestVisitorGetPayload<{
   };
 }>;
 
-export type GuestVisitorListRow = Prisma.GuestVisitorGetPayload<object>;
+export type GuestVisitorListRow = Prisma.GuestVisitorGetPayload<object> & {
+  online: boolean;
+};
 
 export async function listGuestsForAdmin(limit = 200): Promise<GuestVisitorListRow[]> {
-  return getDb().guestVisitor.findMany({
-    orderBy: { lastSeenAt: "desc" },
-    take: limit,
-  });
+  const [guests, onlineIds] = await Promise.all([
+    getDb().guestVisitor.findMany({
+      orderBy: { lastSeenAt: "desc" },
+      take: limit,
+    }),
+    listOnlineGuestVisitorIds(),
+  ]);
+
+  return guests.map((guest) => ({
+    ...guest,
+    online: onlineIds.has(guest.id),
+  }));
 }
 
-export async function getGuestForAdmin(id: string): Promise<GuestVisitorRow | null> {
+export async function getGuestForAdmin(id: string): Promise<(GuestVisitorRow & { online: boolean }) | null> {
   if (!id) return null;
-  return getDb().guestVisitor.findUnique({
+  const guest = await getDb().guestVisitor.findUnique({
     where: { id },
     include: {
       pageViews: {
@@ -175,6 +323,9 @@ export async function getGuestForAdmin(id: string): Promise<GuestVisitorRow | nu
       _count: { select: { pageViews: true } },
     },
   });
+  if (!guest) return null;
+  const onlineIds = await listOnlineGuestVisitorIds();
+  return { ...guest, online: onlineIds.has(guest.id) };
 }
 
 /**
@@ -228,9 +379,10 @@ export async function listPopularGuestPaths(days = 7, limit = 20) {
 }
 
 export async function countOnlineGuests(now = Date.now()) {
-  const since = new Date(now - MEMBER_ONLINE_WITHIN_MS);
+  const onlineIds = await listOnlineGuestVisitorIds(now);
+  if (!onlineIds.size) return 0;
   const rows = await getDb().guestVisitor.findMany({
-    where: { lastSeenAt: { gte: since } },
+    where: { id: { in: [...onlineIds] } },
     select: { userAgent: true },
   });
   return rows.filter((row) => isHumanGuestUserAgent(row.userAgent)).length;
@@ -250,14 +402,13 @@ export type VisitorAudienceSummary = {
 export async function getVisitorAudienceSummary(
   now = Date.now(),
 ): Promise<VisitorAudienceSummary> {
-  const onlineSince = new Date(now - MEMBER_ONLINE_WITHIN_MS);
   const weekSince = new Date(now - 7 * 24 * 60 * 60 * 1000);
   const db = getDb();
 
-  const [weekGuests, weekViews] = await Promise.all([
+  const [weekGuests, weekViews, onlineIds] = await Promise.all([
     db.guestVisitor.findMany({
       where: { lastSeenAt: { gte: weekSince } },
-      select: { userAgent: true, lastSeenAt: true },
+      select: { id: true, userAgent: true, lastSeenAt: true },
     }),
     db.guestPageView.findMany({
       where: { createdAt: { gte: weekSince } },
@@ -267,11 +418,11 @@ export async function getVisitorAudienceSummary(
         visitor: { select: { userAgent: true } },
       },
     }),
+    listOnlineGuestVisitorIds(now),
   ]);
 
   const humans = weekGuests.filter((guest) => isHumanGuestUserAgent(guest.userAgent));
-  const onlineNow = humans.filter((guest) => guest.lastSeenAt.getTime() >= onlineSince.getTime())
-    .length;
+  const onlineNow = humans.filter((guest) => onlineIds.has(guest.id)).length;
   const visitorsLast7Days = humans.length;
   const pageViewsLast7Days = weekViews.filter((view) => {
     const ua = trafficUserAgent(view.userAgent, view.visitor.userAgent);

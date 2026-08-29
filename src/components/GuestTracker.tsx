@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import {
   claimGuestPageview,
   clearActiveGuestNavigation,
+  getGuestConnectionKey,
   GUEST_EARLY_HEARTBEAT_MS,
   GUEST_HEARTBEAT_MS,
   guestNavigationFor,
@@ -39,11 +40,16 @@ export function GuestTracker() {
     if (!shouldTrackGuestPath(pathname)) return;
 
     const { path, navId } = guestNavigationFor(pathname);
+    const connectionKey = getGuestConnectionKey();
     let stopped = false;
 
-    function send(pageview: boolean, opts?: { force?: boolean; keepalive?: boolean }) {
-      if (stopped) return;
+    function send(
+      pageview: boolean,
+      opts?: { force?: boolean; keepalive?: boolean; disconnect?: boolean },
+    ) {
+      if (stopped && !opts?.disconnect) return;
       if (
+        !opts?.disconnect &&
         !shouldSendGuestPresence({
           pageview,
           visibilityState: document.visibilityState,
@@ -52,19 +58,32 @@ export function GuestTracker() {
       ) {
         return;
       }
+
+      const payload = JSON.stringify({
+        path,
+        referer: typeof document !== "undefined" ? document.referrer : "",
+        pageview,
+        connectionKey,
+        ...(pageview ? { navId } : {}),
+        ...(opts?.disconnect ? { disconnect: true } : {}),
+      });
+
+      if (opts?.disconnect && typeof navigator !== "undefined" && navigator.sendBeacon) {
+        const ok = navigator.sendBeacon(
+          "/api/analytics/guest",
+          new Blob([payload], { type: "application/json" }),
+        );
+        if (ok) return;
+      }
+
       void fetch("/api/analytics/guest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({
-          path,
-          referer: typeof document !== "undefined" ? document.referrer : "",
-          pageview,
-          ...(pageview ? { navId } : {}),
-        }),
+        body: payload,
         // keepalive only for unload — routine heartbeats share Chrome's 64KiB
         // keepalive budget with third-party analytics and can fail silently.
-        keepalive: Boolean(opts?.keepalive),
+        keepalive: Boolean(opts?.keepalive || opts?.disconnect),
       }).catch(() => undefined);
     }
 
@@ -86,7 +105,8 @@ export function GuestTracker() {
       send(false);
     }
     function onPageHide() {
-      send(false, { force: true, keepalive: true });
+      // Soft-disconnect this tab only — other tabs keep the visitor Online.
+      send(false, { force: true, keepalive: true, disconnect: true });
     }
 
     window.addEventListener("focus", onVisible);

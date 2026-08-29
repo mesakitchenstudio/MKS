@@ -189,6 +189,21 @@ model GuestVisitor {
   region      String         @default("")
   userAgent   String         @default("")
   pageViews   GuestPageView[]
+  presenceSessions GuestPresenceSession[]
+}
+
+/** Per-tab anonymous heartbeat rows for session-aware Online status. */
+model GuestPresenceSession {
+  id            String       @id @default(cuid())
+  visitorId     String
+  visitor       GuestVisitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  connectionKey String
+  lastSeenAt    DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+
+  @@unique([visitorId, connectionKey])
+  @@index([lastSeenAt])
+  @@index([visitorId, lastSeenAt])
 }
 
 model GuestPageView {

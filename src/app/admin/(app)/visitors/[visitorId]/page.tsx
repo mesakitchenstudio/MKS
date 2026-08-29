@@ -13,7 +13,7 @@ import {
 } from "@/lib/guest-client";
 import { guestPathTitle } from "@/lib/guest-path-labels";
 import { uniqueIps } from "@/lib/ip-utils";
-import { formatPresenceLabel, isMemberOnline } from "@/lib/member-presence";
+import { formatGuestPresenceLabel, isGuestOnlineFromPresence } from "@/lib/guest-tracking";
 import { formatApproxLocation, formatReferrerDisplay } from "@/lib/request-meta";
 import { getAllRecipes } from "@/lib/recipes";
 
@@ -45,8 +45,14 @@ export default async function AdminVisitorDetailPage({
   if (!guest) notFound();
 
   const recipeTitles = new Map(recipes.map((recipe) => [recipe.slug, recipe.title]));
-  const online = isMemberOnline(guest.lastSeenAt);
-  const status = formatPresenceLabel(guest.lastSeenAt);
+  const online = isGuestOnlineFromPresence({
+    online: guest.online,
+    lastSeenAt: guest.lastSeenAt,
+  });
+  const status = formatGuestPresenceLabel({
+    online: guest.online,
+    lastSeenAt: guest.lastSeenAt,
+  });
   const shortKey = guest.visitorKey.slice(0, 8);
   const client = classifyGuestClient(guest.userAgent || "");
   const isBot = client.kind === "bot";

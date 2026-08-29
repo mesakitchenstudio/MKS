@@ -2,13 +2,41 @@ import { NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
 import { auth } from "@/auth";
 import {
+  clearGuestPresenceConnection,
   GUEST_COOKIE,
   GUEST_COOKIE_MAX_AGE,
   isTrackablePublicPath,
   newGuestVisitorKey,
   upsertGuestActivity,
 } from "@/lib/guest-analytics";
-import { shouldSkipGuestAnalytics } from "@/lib/guest-tracking";
+import {
+  normalizeGuestConnectionKey,
+  shouldSkipGuestAnalytics,
+} from "@/lib/guest-tracking";
+
+type GuestBody = {
+  path?: string;
+  referer?: string;
+  pageview?: boolean;
+  navId?: string;
+  connectionKey?: string;
+  disconnect?: boolean;
+  immediate?: boolean;
+};
+
+async function readGuestBody(request: Request): Promise<GuestBody> {
+  const contentType = request.headers.get("content-type") || "";
+  try {
+    if (contentType.includes("application/json")) {
+      return (await request.json()) as GuestBody;
+    }
+    const text = await request.text();
+    if (!text.trim()) return {};
+    return JSON.parse(text) as GuestBody;
+  } catch {
+    return {};
+  }
+}
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -22,23 +50,37 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json().catch(() => ({}))) as {
-      path?: string;
-      referer?: string;
-      pageview?: boolean;
-      navId?: string;
-    };
+    const body = await readGuestBody(request);
+    const jar = await cookies();
+    let visitorKey = jar.get(GUEST_COOKIE)?.value?.trim() || "";
+    if (!visitorKey) visitorKey = newGuestVisitorKey();
+
+    const connectionKey = normalizeGuestConnectionKey(body.connectionKey);
+
+    if (body.disconnect) {
+      if (connectionKey) {
+        await clearGuestPresenceConnection(visitorKey, connectionKey, {
+          immediate: Boolean(body.immediate),
+        });
+      }
+      const response = NextResponse.json({ ok: true });
+      response.cookies.set(GUEST_COOKIE, visitorKey, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: GUEST_COOKIE_MAX_AGE,
+        secure: process.env.NODE_ENV === "production",
+      });
+      return response;
+    }
+
     const path = String(body.path || "").trim();
     if (!isTrackablePublicPath(path)) {
       return NextResponse.json({ ok: true, skipped: "path" });
     }
 
-    const jar = await cookies();
-    let visitorKey = jar.get(GUEST_COOKIE)?.value?.trim() || "";
-    if (!visitorKey) visitorKey = newGuestVisitorKey();
-
     // Heartbeats update presence only. Page views require an explicit pageview flag
-    // (never inferred from a missing cookie).
+    // (never inferred from a missing cookie). Visitor identity comes from the cookie.
     await upsertGuestActivity({
       visitorKey,
       path,
@@ -46,6 +88,7 @@ export async function POST(request: Request) {
       headers: await headers(),
       recordPageView: Boolean(body.pageview),
       navId: body.navId,
+      connectionKey,
     });
 
     const response = NextResponse.json({ ok: true });

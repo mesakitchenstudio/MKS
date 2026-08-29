@@ -49,6 +49,46 @@ test("routine heartbeats skip hidden tabs; pageview and unload still send", () =
   );
 });
 
+test("guest presence timings are near-real-time", async () => {
+  const {
+    GUEST_HEARTBEAT_MS,
+    GUEST_PRESENCE_STALE_MS,
+    GUEST_PRESENCE_DISCONNECT_GRACE_MS,
+    GUEST_ADMIN_PRESENCE_POLL_MS,
+    guestPresenceLastSeenForGraceDisconnect,
+    isGuestOnlineFromPresence,
+    normalizeGuestConnectionKey,
+  } = await import("./guest-tracking.ts");
+
+  assert.equal(GUEST_HEARTBEAT_MS, 12_000);
+  assert.equal(GUEST_PRESENCE_STALE_MS, 40_000);
+  assert.equal(GUEST_PRESENCE_DISCONNECT_GRACE_MS, 5_000);
+  assert.equal(GUEST_ADMIN_PRESENCE_POLL_MS, 3_000);
+  assert.equal(normalizeGuestConnectionKey("abc_123"), "abc_123");
+  assert.equal(normalizeGuestConnectionKey("bad key"), "");
+
+  const now = Date.parse("2026-08-28T12:00:00.000Z");
+  assert.equal(isGuestOnlineFromPresence({ online: true, lastSeenAt: new Date(0) }, now), true);
+  assert.equal(
+    isGuestOnlineFromPresence({ lastSeenAt: new Date(now - 30_000) }, now),
+    true,
+  );
+  assert.equal(
+    isGuestOnlineFromPresence({ lastSeenAt: new Date(now - GUEST_PRESENCE_STALE_MS - 1) }, now),
+    false,
+  );
+
+  const graceSeen = guestPresenceLastSeenForGraceDisconnect(now);
+  assert.equal(isGuestOnlineFromPresence({ lastSeenAt: graceSeen }, now), true);
+  assert.equal(
+    isGuestOnlineFromPresence(
+      { lastSeenAt: graceSeen },
+      now + GUEST_PRESENCE_DISCONNECT_GRACE_MS + 1,
+    ),
+    false,
+  );
+});
+
 test("members are excluded from guest analytics; staff are not", () => {
   assert.equal(shouldSkipGuestAnalytics(null), false);
   assert.equal(shouldSkipGuestAnalytics({ email: "" }), false);

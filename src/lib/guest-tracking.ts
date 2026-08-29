@@ -6,9 +6,83 @@ export function normalizeGuestVisitorIds(ids: string[]) {
 }
 
 /** Heartbeat interval while a public page is open (also refreshed on focus/visibility). */
-export const GUEST_HEARTBEAT_MS = 45_000;
+export const GUEST_HEARTBEAT_MS = 12_000;
 /** Early follow-up so mobile timer throttling cannot leave lastSeen stuck after the first pageview. */
-export const GUEST_EARLY_HEARTBEAT_MS = 15_000;
+export const GUEST_EARLY_HEARTBEAT_MS = 8_000;
+
+/** Presence connection is Online while lastSeenAt is within this window. */
+export const GUEST_PRESENCE_STALE_MS = 40_000;
+
+/**
+ * After pagehide/sendBeacon disconnect, keep the connection Online briefly so
+ * refresh / navigation does not flicker offline.
+ */
+export const GUEST_PRESENCE_DISCONNECT_GRACE_MS = 5_000;
+
+/** Skip guest presence DB writes when the same connection was touched this recently. */
+export const GUEST_PRESENCE_WRITE_THROTTLE_MS = 10_000;
+
+/** Admin → Visitors lightweight presence poll interval. */
+export const GUEST_ADMIN_PRESENCE_POLL_MS = 3_000;
+
+const GUEST_CONNECTION_STORAGE_KEY = "mesa-guest-connection";
+
+/** Stable per-tab anonymous connection id (not the httpOnly visitor cookie). */
+export function getGuestConnectionKey() {
+  if (typeof window === "undefined") return "";
+  try {
+    let key = sessionStorage.getItem(GUEST_CONNECTION_STORAGE_KEY)?.trim() || "";
+    if (!key || key.length > 80 || !/^[A-Za-z0-9_-]+$/.test(key)) {
+      key =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID().replace(/-/g, "")
+          : `c_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(GUEST_CONNECTION_STORAGE_KEY, key);
+    }
+    return key;
+  } catch {
+    return "";
+  }
+}
+
+export function normalizeGuestConnectionKey(value: unknown) {
+  const key = typeof value === "string" ? value.trim() : "";
+  if (!key || key.length > 80) return "";
+  if (!/^[A-Za-z0-9_-]+$/.test(key)) return "";
+  return key;
+}
+
+/** lastSeenAt value that expires a guest connection after the disconnect grace window. */
+export function guestPresenceLastSeenForGraceDisconnect(
+  now = Date.now(),
+  staleMs = GUEST_PRESENCE_STALE_MS,
+  graceMs = GUEST_PRESENCE_DISCONNECT_GRACE_MS,
+) {
+  return new Date(now - staleMs + graceMs);
+}
+
+/** Session-aware Online check for Admin → Visitors. */
+export function isGuestOnlineFromPresence(
+  input: {
+    online?: boolean;
+    lastSeenAt?: Date | string | null;
+  },
+  now = Date.now(),
+) {
+  if (typeof input.online === "boolean") return input.online;
+  if (!input.lastSeenAt) return false;
+  const date =
+    input.lastSeenAt instanceof Date ? input.lastSeenAt : new Date(input.lastSeenAt);
+  if (Number.isNaN(date.getTime())) return false;
+  return now - date.getTime() <= GUEST_PRESENCE_STALE_MS;
+}
+
+export function formatGuestPresenceLabel(
+  input: { online?: boolean; lastSeenAt?: Date | string | null },
+  now = Date.now(),
+) {
+  return isGuestOnlineFromPresence(input, now) ? "Online" : "Offline";
+}
 
 /**
  * Signed-in members are recorded on Members, not Visitors.
