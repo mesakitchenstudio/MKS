@@ -14,6 +14,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Admin: [http://localhost:3000/admin](http://localhost:3000/admin). Set `ADMIN_PASSWORD` and `ADMIN_SECRET` in `.env` — never commit those values.
 
+### AI recipe assistant (Admin)
+
+Editors/Owners can paste a YouTube cooking URL on **New Recipe** to draft fields via Gemini. Drafts are never auto-published.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Yes (for AI) | Google AI Studio / Gemini API key |
+| `GEMINI_MODEL` | No | Defaults to `gemini-2.5-flash` |
+
+Never expose these keys to the browser. Generation runs only on `POST /api/admin/recipes/ai-generate` for content roles.
+
 ## Add recipes (admin)
 
 Do not edit `src/data/recipes.ts` for new dishes. Use `/admin`:

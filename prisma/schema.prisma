@@ -54,7 +54,23 @@ model Recipe {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   values      String           @default("{}")
+  /// Non-public AI generation / editorial verification metadata (JSON).
+  aiMeta      String           @default("{}")
   categories  RecipeCategory[]
+}
+
+model AiRecipeGenerationCache {
+  id            String   @id @default(cuid())
+  videoId       String
+  typeId        String
+  schemaVersion String
+  model         String
+  responseJson  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([videoId, typeId, schemaVersion])
+  @@index([videoId])
 }
 
 model RecipeCategory {

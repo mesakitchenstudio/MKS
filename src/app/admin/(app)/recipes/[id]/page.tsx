@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { RecipeEditor } from "@/components/admin/RecipeEditor";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { parseRecipeAiMeta } from "@/lib/ai-recipe/types";
 import { parseValues } from "@/lib/recipe-map";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
 
@@ -53,6 +54,7 @@ export default async function EditRecipePage({
         seasonal: recipe.seasonal,
         categoryIds: recipe.categories.map((item) => item.categoryId),
         values: parseValues(recipe.values),
+        aiMeta: parseRecipeAiMeta(recipe.aiMeta),
       }}
     />
   );

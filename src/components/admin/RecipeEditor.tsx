@@ -3,11 +3,27 @@
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { saveRecipeAction } from "@/app/admin/actions";
+import { AiConfidenceBadge } from "@/components/admin/AiConfidenceBadge";
+import { AiDraftReviewSummary } from "@/components/admin/AiDraftReviewSummary";
+import {
+  AiRecipeAssistant,
+  type AiGenerateApplyPayload,
+} from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import {
   RecipeEditorSectionNav,
   type RecipeEditorSectionLink,
 } from "@/components/admin/RecipeEditorSectionNav";
+import {
+  emptyAiSummary,
+  serializeRecipeAiMeta,
+  tallyConfidence,
+  type RecipeAiMeta,
+} from "@/lib/ai-recipe/types";
+import {
+  editorHasContent,
+  mergeAiDraftIntoEditor,
+} from "@/lib/ai-recipe/normalize";
 import {
   adminFocusRing,
   adminInputClass,
@@ -217,10 +233,12 @@ function editorFormSnapshot(payload: {
   seasonal: boolean;
   categoryIds: string[];
   values: Record<string, unknown>;
+  aiMeta?: RecipeAiMeta | null;
 }) {
   return JSON.stringify({
     ...payload,
     categoryIds: [...payload.categoryIds].sort(),
+    aiMeta: payload.aiMeta ?? null,
   });
 }
 
@@ -353,18 +371,25 @@ function FieldLabel({
   required,
   helpText,
   compact = false,
+  confidence,
+  sourceNote,
 }: {
   label: string;
   required?: boolean;
   helpText?: string;
   compact?: boolean;
+  confidence?: import("@/lib/ai-recipe/types").AiConfidence;
+  sourceNote?: string;
 }) {
   return (
     <div className={compact ? "mb-1.5" : "mb-2"}>
-      <p className={`font-semibold text-ink ${compact ? "text-sm" : ""}`}>
-        {label}
-        {required ? <span className="text-terracotta"> *</span> : null}
-      </p>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className={`font-semibold text-ink ${compact ? "text-sm" : ""}`}>
+          {label}
+          {required ? <span className="text-terracotta"> *</span> : null}
+        </p>
+        <AiConfidenceBadge confidence={confidence} sourceNote={sourceNote} />
+      </div>
       {helpText ? <p className="mt-0.5 text-xs text-muted">{helpText}</p> : null}
     </div>
   );
@@ -408,6 +433,7 @@ export function RecipeEditor({
     seasonal: boolean;
     categoryIds: string[];
     values: Record<string, unknown>;
+    aiMeta?: RecipeAiMeta | null;
   };
   fields: Field[];
   categories: CategoryOption[];
@@ -425,6 +451,7 @@ export function RecipeEditor({
   const [mobileHeaderCompact, setMobileHeaderCompact] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState(SECTION_BASICS);
   const [moveToDraftOpen, setMoveToDraftOpen] = useState(false);
+  const [publishAiWarningOpen, setPublishAiWarningOpen] = useState(false);
   const [title, setTitle] = useState(initial.title);
   const [slug, setSlug] = useState(initial.slug);
   const [slugTouched, setSlugTouched] = useState(Boolean(initial.slug));
@@ -436,6 +463,8 @@ export function RecipeEditor({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [publishAlert, setPublishAlert] = useState("");
+  const [aiMeta, setAiMeta] = useState<RecipeAiMeta | null>(initial.aiMeta ?? null);
+  const [reviewCursor, setReviewCursor] = useState(0);
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     hydrateEditorValues(fields, initial.values),
   );
@@ -450,6 +479,7 @@ export function RecipeEditor({
         seasonal: initial.seasonal,
         categoryIds: initial.categoryIds,
         values: hydrateEditorValues(fields, initial.values),
+        aiMeta: initial.aiMeta ?? null,
       }),
     [fields, initial],
   );
@@ -498,8 +528,9 @@ export function RecipeEditor({
         seasonal,
         categoryIds,
         values,
+        aiMeta,
       }) !== baselineSnapshot,
-    [baselineSnapshot, categoryIds, excerpt, featured, seasonal, title, slug, values],
+    [aiMeta, baselineSnapshot, categoryIds, excerpt, featured, seasonal, title, slug, values],
   );
 
   const draftActionLabel = isPublished ? "Move to draft" : "Save draft";
@@ -652,6 +683,138 @@ export function RecipeEditor({
     setValues((current) => ({ ...current, [key]: value }));
   }
 
+  const formHasContent = useMemo(
+    () =>
+      editorHasContent({
+        title,
+        excerpt,
+        categoryIds,
+        values,
+        fields,
+      }),
+    [title, excerpt, categoryIds, values, fields],
+  );
+
+  const reviewPaths = useMemo(() => {
+    if (!aiMeta?.confidenceByPath) return [] as string[];
+    return Object.entries(aiMeta.confidenceByPath)
+      .filter(
+        ([, annotation]) =>
+          annotation.confidence === "ESTIMATED" || annotation.confidence === "UNKNOWN",
+      )
+      .map(([path]) => path);
+  }, [aiMeta]);
+
+  function pathToFieldKey(path: string) {
+    if (path === "title" || path === "slug" || path === "excerpt" || path === "categoryIds") {
+      return path;
+    }
+    if (path.startsWith("values.")) {
+      return path.slice("values.".length).split(".")[0] || "";
+    }
+    return "";
+  }
+
+  function applyAiDraft(payload: AiGenerateApplyPayload) {
+    const merged = mergeAiDraftIntoEditor(
+      {
+        title,
+        slug,
+        excerpt,
+        featured,
+        seasonal,
+        categoryIds,
+        values,
+      },
+      {
+        ...payload.draft,
+        confidenceByPath: payload.meta.confidenceByPath,
+        summary: payload.meta.summary,
+        insufficientRecipeInformation: false,
+        insufficientReason: "",
+      },
+      fields,
+      payload.mergeMode,
+    );
+
+    const summary = emptyAiSummary();
+    for (const annotation of Object.values(merged.confidenceByPath)) {
+      tallyConfidence(annotation.confidence, summary);
+    }
+
+    setTitle(merged.title);
+    setSlug(merged.slug);
+    setSlugTouched(Boolean(merged.slug));
+    setExcerpt(merged.excerpt);
+    setCategoryIds(merged.categoryIds);
+    setValues(hydrateEditorValues(fields, merged.values));
+    setAiMeta({
+      ...payload.meta,
+      confidenceByPath: merged.confidenceByPath,
+      summary,
+      verificationStatus: "unverified",
+      verifiedAt: undefined,
+      verifiedBy: undefined,
+    });
+    setReviewCursor(0);
+    setAdvancedOpen(true);
+  }
+
+  function markAiVerified() {
+    setAiMeta((current) =>
+      current
+        ? {
+            ...current,
+            verificationStatus: "verified",
+            verifiedAt: new Date().toISOString(),
+          }
+        : current,
+    );
+  }
+
+  function reviewEstimatedFields() {
+    if (!reviewPaths.length) return;
+    const path = reviewPaths[reviewCursor % reviewPaths.length];
+    const key = pathToFieldKey(path);
+    setReviewCursor((current) => current + 1);
+    if (!key) return;
+    const advancedKeys = new Set([
+      ...ADVANCED_KEYS,
+      ...specialistFields.map((field) => field.key),
+    ]);
+    if (advancedKeys.has(key)) setAdvancedOpen(true);
+    scrollToField(key);
+  }
+
+  function downloadAiJson() {
+    if (!aiMeta) return;
+    const blob = new Blob(
+      [
+        JSON.stringify(
+          {
+            meta: aiMeta,
+            recipe: {
+              title,
+              slug,
+              excerpt,
+              categoryIds,
+              values,
+            },
+          },
+          null,
+          2,
+        ),
+      ],
+      { type: "application/json" },
+    );
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${slugify(slug || title || "ai-recipe")}-ai-draft.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   function toggleCategory(id: string) {
     setCategoryIds((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
@@ -712,6 +875,15 @@ export function RecipeEditor({
     }
     setFieldErrors({});
     setPublishAlert("");
+    if (aiMeta?.generatedByAI && aiMeta.verificationStatus !== "verified") {
+      setPublishAiWarningOpen(true);
+      return;
+    }
+    submitWithStatus("published");
+  }
+
+  function proceedPublishAnyway() {
+    setPublishAiWarningOpen(false);
     submitWithStatus("published");
   }
 
@@ -753,6 +925,8 @@ export function RecipeEditor({
           required={field.required}
           helpText={displayHelp}
           compact={compact}
+          confidence={aiMeta?.confidenceByPath[`values.${field.key}`]?.confidence}
+          sourceNote={aiMeta?.confidenceByPath[`values.${field.key}`]?.sourceNote}
         />
         {field.key === "youtubeUrl" ? (
           <YoutubeUrlField
@@ -827,6 +1001,16 @@ export function RecipeEditor({
                 <span className="text-xs font-semibold text-muted">Unsaved changes</span>
               ) : null}
               <RecipeStatusBadge status={status} />
+              {aiMeta?.generatedByAI && aiMeta.verificationStatus !== "verified" ? (
+                <span className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-terracotta">
+                  AI draft — not verified
+                </span>
+              ) : null}
+              {aiMeta?.generatedByAI && aiMeta.verificationStatus === "verified" ? (
+                <span className="rounded-sm border border-olive/30 bg-olive/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-olive">
+                  Verified
+                </span>
+              ) : null}
               {recipeId ? (
                 <DeleteRecipeButton recipeId={recipeId} recipeTitle={pageTitle} />
               ) : null}
@@ -884,12 +1068,28 @@ export function RecipeEditor({
         <input type="hidden" name="id" value={recipeId || ""} />
         <input type="hidden" name="typeId" value={typeId} />
         <input ref={statusRef} type="hidden" name="status" value={status} />
+        <input type="hidden" name="aiMeta" value={serializeRecipeAiMeta(aiMeta)} />
         {fields.map((field) => (
           <input key={field.key} type="hidden" name={`field:${field.key}`} value={encoded[field.key]} />
         ))}
         {categoryIds.map((id) => (
           <input key={id} type="hidden" name="categoryIds" value={id} />
         ))}
+
+        <AiRecipeAssistant
+          typeId={typeId}
+          editorHasContent={formHasContent}
+          onApply={applyAiDraft}
+        />
+
+        {aiMeta?.generatedByAI ? (
+          <AiDraftReviewSummary
+            meta={aiMeta}
+            onReviewEstimated={reviewEstimatedFields}
+            onMarkVerified={markAiVerified}
+            onDownloadJson={downloadAiJson}
+          />
+        ) : null}
 
         {publishAlert ? (
           <div
@@ -934,8 +1134,14 @@ export function RecipeEditor({
         >
           <div className="grid gap-4 md:grid-cols-2">
             <label id="recipe-field-title" className="grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
-              <span className="text-sm font-semibold text-ink">
-                Title<span className="text-terracotta"> *</span>
+              <span className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-sm font-semibold text-ink">
+                  Title<span className="text-terracotta"> *</span>
+                </span>
+                <AiConfidenceBadge
+                  confidence={aiMeta?.confidenceByPath.title?.confidence}
+                  sourceNote={aiMeta?.confidenceByPath.title?.sourceNote}
+                />
               </span>
               <input
                 name="title"
@@ -960,8 +1166,14 @@ export function RecipeEditor({
                 </span>
               ) : null}
             </label>
-            <label className="grid gap-1.5">
-              <span className="text-sm font-semibold text-ink">Slug</span>
+            <label id="recipe-field-slug" className="grid gap-1.5" style={scrollTargetStyle}>
+              <span className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-sm font-semibold text-ink">Slug</span>
+                <AiConfidenceBadge
+                  confidence={aiMeta?.confidenceByPath.slug?.confidence}
+                  sourceNote={aiMeta?.confidenceByPath.slug?.sourceNote}
+                />
+              </span>
               <input
                 name="slug"
                 value={slug}
@@ -972,8 +1184,14 @@ export function RecipeEditor({
                 className={compactInputClass}
               />
             </label>
-            <label className="grid gap-1.5 md:col-span-2">
-              <span className="text-sm font-semibold text-ink">Excerpt</span>
+            <label id="recipe-field-excerpt" className="grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
+              <span className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-sm font-semibold text-ink">Excerpt</span>
+                <AiConfidenceBadge
+                  confidence={aiMeta?.confidenceByPath.excerpt?.confidence}
+                  sourceNote={aiMeta?.confidenceByPath.excerpt?.sourceNote}
+                />
+              </span>
               <textarea
                 name="excerpt"
                 value={excerpt}
@@ -1230,6 +1448,45 @@ export function RecipeEditor({
                 className={`rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark ${adminFocusRing}`}
               >
                 Move to draft
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {publishAiWarningOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 px-4"
+          role="presentation"
+          onClick={() => setPublishAiWarningOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-publish-warning-title"
+            className="w-full max-w-md border border-line bg-paper p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="ai-publish-warning-title" className="font-serif text-2xl text-ink">
+              Publish without verification?
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              This recipe contains AI-generated information that has not been marked verified.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPublishAiWarningOpen(false)}
+                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={proceedPublishAnyway}
+                className={`rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark ${adminFocusRing}`}
+              >
+                Publish anyway
               </button>
             </div>
           </div>

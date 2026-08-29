@@ -399,6 +399,17 @@ export async function saveRecipeAction(formData: FormData) {
   }
 
   const existing = id ? await db.recipe.findUnique({ where: { id } }) : null;
+  const aiMetaRaw = String(formData.get("aiMeta") || "{}");
+  let aiMeta = "{}";
+  try {
+    const parsed = JSON.parse(aiMetaRaw || "{}") as unknown;
+    if (parsed && typeof parsed === "object") {
+      aiMeta = JSON.stringify(parsed);
+    }
+  } catch {
+    aiMeta = existing?.aiMeta || "{}";
+  }
+
   const data = {
     title,
     slug,
@@ -410,6 +421,7 @@ export async function saveRecipeAction(formData: FormData) {
     publishedAt:
       status === "published" ? (existing?.publishedAt ?? new Date()) : null,
     values: JSON.stringify(values),
+    aiMeta,
   };
 
   const recipe = id
