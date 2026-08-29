@@ -54,7 +54,7 @@ export function computeRecipeSchemaVersion(input: {
 }
 
 export function defaultGeminiModel() {
-  return process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  return process.env.GEMINI_MODEL?.trim() || "gemini-3.7-flash";
 }
 
 export function geminiApiKey() {

@@ -8,8 +8,9 @@ import {
   type SchemaRecipeType,
 } from "@/lib/ai-recipe/schema-version";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
+import type { AiGeminiErrorCode } from "@/lib/ai-recipe/errors";
+import { normalizeYouTubeForGemini } from "@/lib/ai-recipe/youtube-url";
 import { getDb } from "@/lib/db";
-import { youtubeVideoId, youtubeWatchUrl } from "@/lib/youtube";
 
 function mapType(row: {
   id: string;
@@ -56,8 +57,9 @@ export type AiGenerateSuccess = {
 
 export type AiGenerateFailure = {
   ok: false;
-  code: string;
+  code: AiGeminiErrorCode | "invalid_url" | "invalid_type" | "insufficient" | "rate_limit";
   message: string;
+  videoAnalysisSucceeded?: boolean;
 };
 
 export async function runAiRecipeGeneration(input: {
@@ -65,11 +67,11 @@ export async function runAiRecipeGeneration(input: {
   typeId: string;
   forceRefresh?: boolean;
 }): Promise<AiGenerateSuccess | AiGenerateFailure> {
-  const videoId = youtubeVideoId(input.youtubeUrl);
-  if (!videoId) {
-    return { ok: false, code: "invalid_url", message: "Enter a valid YouTube watch or youtu.be URL." };
+  const normalized = normalizeYouTubeForGemini(input.youtubeUrl);
+  if (!normalized) {
+    return { ok: false, code: "INVALID_YOUTUBE_URL", message: "Enter a valid YouTube watch, youtu.be, or Shorts URL." };
   }
-  const youtubeUrl = youtubeWatchUrl(videoId) || input.youtubeUrl.trim();
+  const { videoId, canonicalUrl: youtubeUrl } = normalized;
 
   const db = getDb();
   const [types, categories, recipeType] = await Promise.all([
@@ -154,14 +156,19 @@ export async function runAiRecipeGeneration(input: {
   }
 
   const generated = await generateRecipeDraftWithGemini({
-    youtubeUrl,
+    youtubeUrl: normalized.originalUrl,
     recipeType: selectedType,
     allTypes,
     categories: schemaCategories,
   });
 
   if (!generated.ok) {
-    return { ok: false, code: generated.code, message: generated.message };
+    return {
+      ok: false,
+      code: generated.error.code,
+      message: generated.error.message,
+      videoAnalysisSucceeded: generated.videoAnalysisSucceeded,
+    };
   }
 
   const draft = normalizeAiRecipeResponse({

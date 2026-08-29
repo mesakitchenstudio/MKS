@@ -21,7 +21,7 @@ Editors/Owners can paste a YouTube cooking URL on **New Recipe** to draft fields
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Yes (for AI) | Google AI Studio / Gemini API key |
-| `GEMINI_MODEL` | No | Defaults to `gemini-2.5-flash` |
+| `GEMINI_MODEL` | No | Defaults to `gemini-3.7-flash` |
 
 Never expose these keys to the browser. Generation runs only on `POST /api/admin/recipes/ai-generate` for content roles.
 

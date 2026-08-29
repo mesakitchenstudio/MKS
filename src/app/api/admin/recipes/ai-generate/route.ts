@@ -52,15 +52,19 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       const status =
-        result.code === "invalid_url" || result.code === "invalid_type"
+        result.code === "INVALID_YOUTUBE_URL" || result.code === "invalid_type"
           ? 400
-          : result.code === "config"
+          : result.code === "GEMINI_CONFIGURATION_ERROR" || result.code === "GEMINI_AUTH_FAILED"
             ? 503
-            : result.code === "rate_limit"
+            : result.code === "rate_limit" || result.code === "GEMINI_RATE_LIMIT"
               ? 429
               : 422;
       return NextResponse.json(
-        { error: result.message, code: result.code },
+        {
+          error: result.message,
+          code: result.code,
+          videoAnalysisSucceeded: result.videoAnalysisSucceeded ?? false,
+        },
         { status },
       );
     }
