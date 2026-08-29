@@ -3,7 +3,6 @@ import { buildAiRecipeResponseSchema } from "@/lib/ai-recipe/json-schema";
 import { buildAiRecipeSystemInstruction, buildAiRecipeUserPrompt } from "@/lib/ai-recipe/prompt";
 import {
   buildAiGeminiError,
-  extractGeminiErrorMessage,
   isGeminiModelError,
   logGeminiFailure,
   mapGeminiException,
