@@ -10,6 +10,7 @@ import {
   signOut as clearLocalSession,
   writeSession,
 } from "@/lib/auth-client";
+import { endAnonymousGuestPresenceOnAuth } from "@/lib/guest-tracking";
 import { hydrateLikesFromProfile } from "@/lib/likes";
 import { MEMBER_PRESENCE_HEARTBEAT_MS } from "@/lib/member-presence";
 
@@ -20,6 +21,7 @@ function SessionSync() {
   const didRefreshProfile = useRef(false);
   const didEnrich = useRef(false);
   const didForceSignOut = useRef(false);
+  const didEndGuestPresence = useRef(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -37,6 +39,7 @@ function SessionSync() {
 
     if (!session?.user?.email) {
       clearLocalSession();
+      didEndGuestPresence.current = false;
       return;
     }
     writeSession({
@@ -45,6 +48,12 @@ function SessionSync() {
     });
 
     if (session.staffRole) return;
+
+    // Visitor → Member: drop anonymous Online presence immediately (history kept).
+    if (!didEndGuestPresence.current) {
+      didEndGuestPresence.current = true;
+      void endAnonymousGuestPresenceOnAuth();
+    }
 
     const sessionKey = getPresenceSessionKey();
 

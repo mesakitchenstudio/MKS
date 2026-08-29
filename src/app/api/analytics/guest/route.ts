@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { auth } from "@/auth";
 import {
   clearGuestPresenceConnection,
+  endGuestPresenceForVisitor,
   GUEST_COOKIE,
   GUEST_COOKIE_MAX_AGE,
   isTrackablePublicPath,
@@ -25,6 +26,8 @@ type GuestBody = {
   clientVisitorKey?: string;
   disconnect?: boolean;
   immediate?: boolean;
+  /** End all anonymous presence for this browser's visitor after Member auth. */
+  endAllPresence?: boolean;
 };
 
 async function readGuestBody(request: Request): Promise<GuestBody> {
@@ -41,29 +44,53 @@ async function readGuestBody(request: Request): Promise<GuestBody> {
   }
 }
 
+function setGuestCookie(response: NextResponse, visitorKey: string) {
+  response.cookies.set(GUEST_COOKIE, visitorKey, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: GUEST_COOKIE_MAX_AGE,
+    secure: process.env.NODE_ENV === "production",
+  });
+}
+
 export async function POST(request: Request) {
   const session = await auth();
-  if (
-    shouldSkipGuestAnalytics({
-      email: session?.user?.email,
-      staffRole: session?.staffRole,
-    })
-  ) {
-    return NextResponse.json({ ok: true, skipped: "signed-in" });
+  const body = await readGuestBody(request);
+  const jar = await cookies();
+  const resolved = resolveGuestVisitorKey({
+    cookieKey: jar.get(GUEST_COOKIE)?.value,
+    clientVisitorKey: body.clientVisitorKey,
+    generate: newGuestVisitorKey,
+  });
+  const visitorKey = resolved.visitorKey;
+  const connectionKey = normalizeGuestConnectionKey(body.connectionKey);
+  const signedInMember = shouldSkipGuestAnalytics({
+    email: session?.user?.email,
+    staffRole: session?.staffRole,
+  });
+
+  // Known auth transition: clear anonymous Online presence immediately (keep history).
+  if (body.endAllPresence) {
+    if (!signedInMember) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    try {
+      await endGuestPresenceForVisitor(visitorKey);
+      const response = NextResponse.json({ ok: true, ended: true, visitorKey });
+      setGuestCookie(response, visitorKey);
+      return response;
+    } catch (error) {
+      console.error("Could not end guest presence after auth", error);
+      return NextResponse.json({ ok: false }, { status: 500 });
+    }
+  }
+
+  if (signedInMember) {
+    return NextResponse.json({ ok: true, skipped: "signed-in", visitorKey });
   }
 
   try {
-    const body = await readGuestBody(request);
-    const jar = await cookies();
-    const resolved = resolveGuestVisitorKey({
-      cookieKey: jar.get(GUEST_COOKIE)?.value,
-      clientVisitorKey: body.clientVisitorKey,
-      generate: newGuestVisitorKey,
-    });
-    const visitorKey = resolved.visitorKey;
-
-    const connectionKey = normalizeGuestConnectionKey(body.connectionKey);
-
     if (body.disconnect) {
       if (connectionKey) {
         await clearGuestPresenceConnection(visitorKey, connectionKey, {
@@ -71,13 +98,7 @@ export async function POST(request: Request) {
         });
       }
       const response = NextResponse.json({ ok: true, visitorKey });
-      response.cookies.set(GUEST_COOKIE, visitorKey, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: GUEST_COOKIE_MAX_AGE,
-        secure: process.env.NODE_ENV === "production",
-      });
+      setGuestCookie(response, visitorKey);
       return response;
     }
 
@@ -100,13 +121,7 @@ export async function POST(request: Request) {
     });
 
     const response = NextResponse.json({ ok: true, visitorKey });
-    response.cookies.set(GUEST_COOKIE, visitorKey, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: GUEST_COOKIE_MAX_AGE,
-      secure: process.env.NODE_ENV === "production",
-    });
+    setGuestCookie(response, visitorKey);
     return response;
   } catch (error) {
     console.error("Could not record guest analytics", error);

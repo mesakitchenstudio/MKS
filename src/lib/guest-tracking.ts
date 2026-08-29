@@ -103,6 +103,91 @@ export function rememberSharedGuestVisitorKey(visitorKey: string) {
   }
 }
 
+const GUEST_AUTH_CHANNEL = "mesa-guest-auth";
+const GUEST_CONVERTED_STORAGE_KEY = "mesa-guest-converted-at";
+
+/** Tell sibling tabs to stop anonymous heartbeats after Member sign-in. */
+export function broadcastGuestConvertedToMember() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(GUEST_CONVERTED_STORAGE_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+  try {
+    const channel = new BroadcastChannel(GUEST_AUTH_CHANNEL);
+    channel.postMessage({ type: "converted" });
+    channel.close();
+  } catch {
+    // BroadcastChannel unsupported — storage event still covers same-origin tabs.
+  }
+}
+
+/** Subscribe to Visitor→Member conversion in other tabs of this browser session. */
+export function subscribeGuestConvertedToMember(onConverted: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+
+  function onStorage(event: StorageEvent) {
+    if (event.key === GUEST_CONVERTED_STORAGE_KEY && event.newValue) onConverted();
+  }
+
+  let channel: BroadcastChannel | null = null;
+  try {
+    channel = new BroadcastChannel(GUEST_AUTH_CHANNEL);
+    channel.onmessage = (event) => {
+      if (event?.data?.type === "converted") onConverted();
+    };
+  } catch {
+    channel = null;
+  }
+
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    try {
+      channel?.close();
+    } catch {
+      // ignore
+    }
+  };
+}
+
+/**
+ * End anonymous Online presence for this browser session after authentication.
+ * Idempotent — safe to call from SessionSync and GuestTracker.
+ */
+export async function endAnonymousGuestPresenceOnAuth() {
+  if (typeof window === "undefined") return;
+  let clientVisitorKey = "";
+  try {
+    clientVisitorKey =
+      normalizeGuestVisitorKey(localStorage.getItem(GUEST_VISITOR_STORAGE_KEY)) ||
+      (await getSharedGuestVisitorKey());
+  } catch {
+    clientVisitorKey = await getSharedGuestVisitorKey();
+  }
+
+  const payload = JSON.stringify({
+    endAllPresence: true,
+    clientVisitorKey,
+    connectionKey: getGuestConnectionKey(),
+  });
+
+  try {
+    await fetch("/api/analytics/guest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: payload,
+      keepalive: true,
+    });
+  } catch {
+    // Best-effort; Admin poll will catch up if this fails once.
+  }
+
+  broadcastGuestConvertedToMember();
+}
+
 /** Stable per-tab anonymous connection id (not the httpOnly visitor cookie). */
 export function getGuestConnectionKey() {
   if (typeof window === "undefined") return "";

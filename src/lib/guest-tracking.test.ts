@@ -114,6 +114,13 @@ test("guest presence timings are near-real-time", async () => {
   assert.equal(generated.source, "generated");
 });
 
+test("auth conversion must end anonymous presence without waiting for stale TTL", () => {
+  // Documented contract: successful Member auth clears GuestPresenceSession rows
+  // immediately via endAllPresence (see /api/analytics/guest), not via heartbeat expiry.
+  assert.equal(shouldSkipGuestAnalytics({ email: "member@example.com" }), true);
+  assert.equal(shouldSkipGuestAnalytics({ email: null }), false);
+});
+
 test("members are excluded from guest analytics; staff are not", () => {
   assert.equal(shouldSkipGuestAnalytics(null), false);
   assert.equal(shouldSkipGuestAnalytics({ email: "" }), false);

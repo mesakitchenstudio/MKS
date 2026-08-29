@@ -12,6 +12,7 @@ import {
   normalizeGuestConnectionKey,
   normalizeGuestNavId,
   normalizeGuestVisitorIds,
+  normalizeGuestVisitorKey,
   shouldInsertGuestPageView,
 } from "@/lib/guest-tracking";
 import { isSitePrivate } from "@/lib/flags";
@@ -253,6 +254,30 @@ export async function clearGuestPresenceConnection(
     });
   }
 
+  return true;
+}
+
+/**
+ * End all anonymous presence for a visitor identity after Member conversion.
+ * Preserves the GuestVisitor row and page-view history; only clears live sessions.
+ */
+export async function endGuestPresenceForVisitor(visitorKey: string) {
+  const key = normalizeGuestVisitorKey(visitorKey) || visitorKey.trim();
+  if (!key) return false;
+
+  const db = getDb();
+  const visitor = await db.guestVisitor.findUnique({
+    where: { visitorKey: key },
+    select: { id: true },
+  });
+  if (!visitor) return false;
+
+  const now = new Date();
+  await db.guestPresenceSession.deleteMany({ where: { visitorId: visitor.id } });
+  await db.guestVisitor.update({
+    where: { id: visitor.id },
+    data: { lastSeenAt: now },
+  });
   return true;
 }
 

@@ -2,10 +2,11 @@
 
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   claimGuestPageview,
   clearActiveGuestNavigation,
+  endAnonymousGuestPresenceOnAuth,
   getGuestConnectionKey,
   getSharedGuestVisitorKey,
   GUEST_EARLY_HEARTBEAT_MS,
@@ -15,6 +16,7 @@ import {
   shouldSendGuestPresence,
   shouldSkipGuestAnalytics,
   shouldTrackGuestPath,
+  subscribeGuestConvertedToMember,
 } from "@/lib/guest-tracking";
 
 declare global {
@@ -27,6 +29,7 @@ declare global {
 export function GuestTracker() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const endedPresenceForAuth = useRef(false);
 
   useEffect(() => {
     // Members → Members page. Staff may still be tracked as Visitors for public QA.
@@ -37,8 +40,14 @@ export function GuestTracker() {
       })
     ) {
       clearActiveGuestNavigation();
+      if (!endedPresenceForAuth.current) {
+        endedPresenceForAuth.current = true;
+        void endAnonymousGuestPresenceOnAuth();
+      }
       return;
     }
+
+    endedPresenceForAuth.current = false;
     if (!shouldTrackGuestPath(pathname)) return;
 
     const { path, navId } = guestNavigationFor(pathname);
@@ -47,6 +56,17 @@ export function GuestTracker() {
     let clientVisitorKey = "";
     let timer = 0;
     let early = 0;
+
+    function stopAnonymousTracking() {
+      stopped = true;
+      window.clearTimeout(early);
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pagehide", onPageHide);
+      clearActiveGuestNavigation();
+    }
 
     function rememberFromResponse(response: Response) {
       void response
@@ -118,8 +138,12 @@ export function GuestTracker() {
       send(false, { force: true, keepalive: true, disconnect: true });
     }
 
+    const unsubscribeConverted = subscribeGuestConvertedToMember(() => {
+      // Sibling tab completed Member sign-in — stop anonymous heartbeats immediately.
+      stopAnonymousTracking();
+    });
+
     void (async () => {
-      // Serialize first-key creation across tabs, then both send the same visitorKey.
       clientVisitorKey = await getSharedGuestVisitorKey();
       if (stopped) return;
 
@@ -139,13 +163,8 @@ export function GuestTracker() {
     })();
 
     return () => {
-      stopped = true;
-      window.clearTimeout(early);
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onVisible);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("pageshow", onPageShow);
-      window.removeEventListener("pagehide", onPageHide);
+      unsubscribeConverted();
+      stopAnonymousTracking();
     };
   }, [pathname, session?.user?.email, session?.staffRole, status]);
 
