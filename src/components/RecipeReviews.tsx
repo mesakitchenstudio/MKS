@@ -68,39 +68,63 @@ function AuthorAvatar({
   );
 }
 
+/** Reader-facing staff label: "Owner (Mesa Kitchen Studio)" */
+function staffIdentityLabel(authorName: string, authorTitle: string) {
+  const title = authorTitle.trim();
+  if (!title) return authorName;
+  const publication = "Mesa Kitchen Studio";
+  if (/mesa kitchen studio\s*team/i.test(title)) {
+    return `${authorName} (${publication})`;
+  }
+  if (title.toLowerCase() === publication.toLowerCase()) {
+    return `${authorName} (${publication})`;
+  }
+  return `${authorName} (${title})`;
+}
+
 function ThreadMessage({ reply }: { reply: RecipeReviewReplyRow }) {
-  const roleLabel = reply.authorTitle?.trim();
-  const nameLine = roleLabel ? (
-    <>
-      <span className="font-semibold text-ink">{reply.authorName}</span>
-      <span className="text-muted"> · {roleLabel}</span>
-    </>
-  ) : (
-    <span className="font-semibold text-ink">{reply.authorName}</span>
-  );
+  if (reply.isStaff) {
+    const label = staffIdentityLabel(reply.authorName, reply.authorTitle);
+    return (
+      <article className="rounded-sm bg-sand/45 px-4 py-4 sm:px-5 sm:py-5">
+        <div className="flex gap-3 sm:gap-4">
+          <AuthorAvatar
+            name={reply.authorName}
+            staff
+            photoUrl={reply.authorPhotoUrl}
+            size="md"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-sm leading-snug">
+              <p className="min-w-0 font-semibold text-ink">{label}</p>
+              <time className="shrink-0 text-muted" dateTime={reply.createdAt}>
+                {formatAdminDate(reply.createdAt)}
+              </time>
+            </div>
+            <p className="mt-3 whitespace-pre-wrap break-words text-base leading-7 text-ink/90">
+              {reply.body}
+            </p>
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   return (
-    <article
-      className={
-        reply.isStaff
-          ? "flex gap-3 rounded-sm border border-line/70 bg-cream px-3 py-3 sm:gap-4 sm:px-4 sm:py-3.5"
-          : "flex gap-3 px-1 py-2.5 sm:gap-4 sm:px-1.5 sm:py-3"
-      }
-    >
+    <article className="flex gap-3 py-1 sm:gap-3.5">
       <AuthorAvatar
         name={reply.authorName}
-        staff={reply.isStaff}
         photoUrl={reply.authorPhotoUrl}
         size="sm"
       />
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm leading-snug">
-          <p className="min-w-0">{nameLine}</p>
+        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-sm leading-snug">
+          <span className="font-semibold text-ink">{reply.authorName}</span>
           <time className="shrink-0 text-muted" dateTime={reply.createdAt}>
             {formatAdminDate(reply.createdAt)}
           </time>
         </div>
-        <p className="mt-2 whitespace-pre-wrap break-words text-[0.95rem] leading-7 text-ink/90">
+        <p className="mt-2 whitespace-pre-wrap break-words text-base leading-7 text-ink/90">
           {reply.body}
         </p>
       </div>
@@ -158,7 +182,7 @@ function ThreadReplyForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 space-y-3 border-t border-line/80 pt-4"
+      className="mt-5 space-y-3"
       aria-label="Reply to this conversation"
     >
       {signedInAs ? (
@@ -176,7 +200,7 @@ function ThreadReplyForm({
           value={comment}
           onChange={(event) => setComment(event.target.value)}
           placeholder="Add to this conversation…"
-          className="w-full max-w-full resize-y rounded-sm border border-line bg-cream px-3 py-2.5 font-normal leading-6 outline-none focus:border-terracotta"
+          className="w-full max-w-full resize-y rounded-sm border border-line bg-paper px-3 py-2.5 font-normal leading-6 outline-none focus:border-terracotta"
         />
       </label>
       {error ? (
@@ -224,11 +248,14 @@ function ReviewItem({
   onDataChange: (data: RecipeReviewData) => void;
 }) {
   return (
-    <li className="border-b border-line py-7 first:pt-2 last:border-b-0 md:py-8">
+    <li className="border-b border-line/80 py-9 last:border-b-0 md:py-11">
+      {/* Flat editorial metadata — no card chrome */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
-            <span className="break-words text-sm font-semibold text-ink">{review.authorName}</span>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3.5 sm:gap-y-1">
+            <span className="break-words text-[0.95rem] font-semibold text-ink">
+              {review.authorName}
+            </span>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
               <time dateTime={review.createdAt}>{formatAdminDate(review.createdAt)}</time>
               <StarRating
@@ -243,19 +270,23 @@ function ReviewItem({
           <button
             type="button"
             onClick={onToggleReply}
-            className="shrink-0 pt-0.5 text-sm font-semibold text-olive underline-offset-2 hover:text-olive-dark hover:underline"
+            className="shrink-0 pt-0.5 text-sm font-semibold text-olive underline underline-offset-[3px] hover:text-olive-dark"
           >
             {replyOpen ? "Cancel" : "Reply"}
           </button>
         ) : null}
       </div>
 
-      <p className="mt-3 max-w-2xl whitespace-pre-wrap break-words text-[1.02rem] leading-7 text-ink/90">
+      <p className="mt-4 max-w-3xl whitespace-pre-wrap break-words text-[1.05rem] leading-8 text-ink/90">
         {review.body}
       </p>
 
+      {/* One shared inset column — flat conversation, not nested trees */}
       {review.replies.length ? (
-        <div className="mt-5 space-y-1.5 pl-2 sm:space-y-2 sm:pl-5" aria-label="Conversation">
+        <div
+          className="mt-7 space-y-5 pl-4 sm:mt-8 sm:space-y-6 sm:pl-10 md:pl-12"
+          aria-label="Replies"
+        >
           {review.replies.map((reply) => (
             <ThreadMessage key={reply.id} reply={reply} />
           ))}
@@ -263,7 +294,7 @@ function ReviewItem({
       ) : null}
 
       {replyOpen && canReply ? (
-        <div className="pl-0 sm:pl-5">
+        <div className="pl-4 sm:pl-10 md:pl-12">
           <ThreadReplyForm
             slug={slug}
             reviewId={review.id}
@@ -318,7 +349,6 @@ export function RecipeReviews({
     ? data.reviews
     : data.reviews.slice(0, VISIBLE_COMMENTS);
   const hasMoreComments = data.reviews.length > VISIBLE_COMMENTS;
-  const commentCount = data.stats.count || data.reviews.length;
 
   useEffect(() => {
     if (session?.user?.name) setName(session.user.name);
@@ -437,20 +467,9 @@ export function RecipeReviews({
   }
 
   return (
-    <section id="recipe-comments" className="mt-14 scroll-mt-24 border-t border-line pt-10">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="font-serif text-4xl text-ink">Comments</h2>
-        {commentCount > 0 ? (
-          <span className="text-sm text-muted">· {commentCount}</span>
-        ) : null}
-      </div>
-
-      <form
-        onSubmit={onSubmit}
-        id="leave-comment"
-        className="mt-8 space-y-4 border-b border-line pb-10"
-      >
-        <h3 className="font-serif text-2xl text-ink">Leave a comment</h3>
+    <section id="recipe-comments" className="mt-16 scroll-mt-24 border-t border-line pt-12 md:mt-20 md:pt-14">
+      <form onSubmit={onSubmit} id="leave-comment" className="space-y-5 pb-12 md:pb-14">
+        <h3 className="font-serif text-3xl text-ink md:text-[2rem]">Leave a comment</h3>
         {knownIdentity ? (
           <p className="text-sm text-muted">
             Commenting as{" "}
@@ -469,7 +488,7 @@ export function RecipeReviews({
                 required
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                className="rounded-sm border border-line bg-cream px-3 py-2 outline-none focus:border-terracotta"
+                className="rounded-sm border border-line bg-paper px-3 py-2 outline-none focus:border-terracotta"
               />
             </label>
             <label className="grid gap-1 text-sm">
@@ -479,7 +498,7 @@ export function RecipeReviews({
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="rounded-sm border border-line bg-cream px-3 py-2 outline-none focus:border-terracotta"
+                className="rounded-sm border border-line bg-paper px-3 py-2 outline-none focus:border-terracotta"
               />
             </label>
           </div>
@@ -498,7 +517,7 @@ export function RecipeReviews({
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder="Tell us how this recipe turned out in your kitchen."
-            className="w-full max-w-full rounded-sm border border-line bg-cream px-3 py-2 outline-none focus:border-terracotta"
+            className="w-full max-w-full rounded-sm border border-line bg-paper px-3 py-2.5 outline-none focus:border-terracotta"
           />
         </label>
 
@@ -522,43 +541,51 @@ export function RecipeReviews({
         </button>
       </form>
 
-      <div aria-live="polite" aria-atomic="false">
-        {data.reviews.length ? (
-          <>
-            <ul className="mt-2">
-              {visibleReviews.map((review) => (
-                <ReviewItem
-                  key={review.id}
-                  review={review}
-                  slug={slug}
-                  canReply={replyable.has(review.id)}
-                  replyOpen={activeReplyId === review.id}
-                  signedInAs={signedInAs}
-                  onToggleReply={() =>
-                    setActiveReplyId((current) => (current === review.id ? null : review.id))
-                  }
-                  onCancelReply={() => setActiveReplyId(null)}
-                  onDataChange={applyReviewData}
-                />
-              ))}
-            </ul>
-            {hasMoreComments && !showAllComments ? (
-              <div className="mt-8 flex justify-center border-t border-line pt-8">
-                <button
-                  type="button"
-                  onClick={() => setShowAllComments(true)}
-                  className="text-sm font-semibold text-olive underline-offset-2 hover:text-olive-dark hover:underline"
-                >
-                  Show more comments
-                </button>
-              </div>
-            ) : null}
-          </>
-        ) : loaded ? (
-          <p className="mt-8 text-sm text-muted">Be the first to rate and review {title}.</p>
-        ) : (
-          <p className="mt-8 text-sm text-muted">Loading comments…</p>
-        )}
+      <div className="border-t border-line pt-12 md:pt-14">
+        <h2 className="font-serif text-4xl tracking-tight text-ink md:text-[2.75rem]">
+          Comments
+        </h2>
+
+        <div className="mt-8 md:mt-10" aria-live="polite" aria-atomic="false">
+          {data.reviews.length ? (
+            <>
+              <ul>
+                {visibleReviews.map((review) => (
+                  <ReviewItem
+                    key={review.id}
+                    review={review}
+                    slug={slug}
+                    canReply={replyable.has(review.id)}
+                    replyOpen={activeReplyId === review.id}
+                    signedInAs={signedInAs}
+                    onToggleReply={() =>
+                      setActiveReplyId((current) =>
+                        current === review.id ? null : review.id,
+                      )
+                    }
+                    onCancelReply={() => setActiveReplyId(null)}
+                    onDataChange={applyReviewData}
+                  />
+                ))}
+              </ul>
+              {hasMoreComments && !showAllComments ? (
+                <div className="flex justify-center border-t border-line/80 pt-10">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllComments(true)}
+                    className="rounded-sm border border-line bg-transparent px-6 py-2.5 text-sm font-semibold text-olive hover:border-olive hover:bg-paper"
+                  >
+                    Show more comments
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : loaded ? (
+            <p className="text-sm text-muted">Be the first to rate and review {title}.</p>
+          ) : (
+            <p className="text-sm text-muted">Loading comments…</p>
+          )}
+        </div>
       </div>
     </section>
   );
