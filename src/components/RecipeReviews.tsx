@@ -45,12 +45,14 @@ function AuthorAvatar({
   size?: "sm" | "md";
 }) {
   const dim = size === "sm" ? "h-9 w-9 text-xs" : "h-12 w-12 text-sm";
-  if (photoUrl) {
+  const src = typeof photoUrl === "string" ? photoUrl.trim() : "";
+  if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={photoUrl}
+        src={src}
         alt=""
+        referrerPolicy="no-referrer"
         className={`${dim} shrink-0 rounded-full object-cover`}
       />
     );
@@ -86,7 +88,7 @@ function ThreadMessage({ reply }: { reply: RecipeReviewReplyRow }) {
   if (reply.isStaff) {
     const label = staffIdentityLabel(reply.authorName, reply.authorTitle);
     return (
-      <article className="rounded-sm bg-sand/20 px-4 py-3.5 sm:px-5 sm:py-4">
+      <article className="rounded-sm bg-sand/20 px-4 py-2.5 sm:px-5 sm:py-3">
         <div className="flex gap-3 sm:gap-3.5">
           <AuthorAvatar
             name={reply.authorName}
@@ -101,7 +103,7 @@ function ThreadMessage({ reply }: { reply: RecipeReviewReplyRow }) {
                 {formatAdminDate(reply.createdAt)}
               </time>
             </div>
-            <p className="mt-3.5 whitespace-pre-wrap break-words text-base leading-7 text-ink/90 sm:mt-4">
+            <p className="mt-3 whitespace-pre-wrap break-words text-base leading-7 text-ink/90">
               {reply.body}
             </p>
           </div>
@@ -546,7 +548,7 @@ export function RecipeReviews({
           Comments
         </h2>
 
-        <div className="mt-5 md:mt-6" aria-live="polite" aria-atomic="false">
+        <div className="mt-4 md:mt-[1.125rem]" aria-live="polite" aria-atomic="false">
           {data.reviews.length ? (
             <>
               <ul>
