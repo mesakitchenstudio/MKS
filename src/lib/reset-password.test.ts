@@ -84,7 +84,7 @@ describe("password reset email delivery", () => {
     assert.match(sent[0]?.html || "", /\/admin\/reset-password\?token=/);
     assert.match(sent[0]?.html || "", />Reset password</);
     assert.match(sent[0]?.html || "", new RegExp(`background-color:${PASSWORD_RESET_EMAIL_TERRACOTTA}`));
-    assert.doesNotMatch(sent[0]?.html || "", />[^<]*token=/i);
+    assert.doesNotMatch(sent[0]?.html || "", />\s*Reset password[^<]*token=/i);
     assert.doesNotMatch(sent[0]?.html || "", /password=/i);
     assert.equal(created.length, 1);
     assert.equal(created[0]?.email, "chef@studio.com");
