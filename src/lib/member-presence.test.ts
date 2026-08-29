@@ -28,9 +28,9 @@ describe("member-presence (shared Online rule for Visitors + Members)", () => {
 
   it("uses a near-real-time stale window for member presence sessions", () => {
     const now = Date.parse("2026-08-28T12:00:00.000Z");
-    assert.equal(MEMBER_PRESENCE_HEARTBEAT_MS, 25_000);
-    assert.equal(MEMBER_PRESENCE_STALE_MS, 55_000);
-    assert.equal(MEMBER_PRESENCE_DISCONNECT_GRACE_MS, 8_000);
+    assert.equal(MEMBER_PRESENCE_HEARTBEAT_MS, 12_000);
+    assert.equal(MEMBER_PRESENCE_STALE_MS, 40_000);
+    assert.equal(MEMBER_PRESENCE_DISCONNECT_GRACE_MS, 5_000);
 
     assert.equal(isMemberPresenceSessionLive(new Date(now - 30_000), now), true);
     assert.equal(isMemberPresenceSessionLive(new Date(now - MEMBER_PRESENCE_STALE_MS - 1), now), false);

@@ -2,22 +2,22 @@
 export const MEMBER_ONLINE_WITHIN_MS = 3 * 60 * 1000;
 
 /** How often signed-in members ping while Mesa is open. */
-export const MEMBER_PRESENCE_HEARTBEAT_MS = 25_000;
+export const MEMBER_PRESENCE_HEARTBEAT_MS = 12_000;
 
 /** Presence session is Online while lastSeenAt is within this window. */
-export const MEMBER_PRESENCE_STALE_MS = 55_000;
+export const MEMBER_PRESENCE_STALE_MS = 40_000;
 
 /**
  * After pagehide/sendBeacon disconnect, keep the session Online briefly so
  * refresh / SPA restore does not flicker Offline.
  */
-export const MEMBER_PRESENCE_DISCONNECT_GRACE_MS = 8_000;
+export const MEMBER_PRESENCE_DISCONNECT_GRACE_MS = 5_000;
 
 /** Skip presence DB writes when the same session was touched this recently. */
-export const MEMBER_PRESENCE_WRITE_THROTTLE_MS = 12_000;
+export const MEMBER_PRESENCE_WRITE_THROTTLE_MS = 10_000;
 
 /** Admin → Members lightweight presence poll interval. */
-export const MEMBER_ADMIN_PRESENCE_POLL_MS = 5_000;
+export const MEMBER_ADMIN_PRESENCE_POLL_MS = 3_000;
 
 export function isMemberOnline(lastSeenAt: Date | string | null | undefined, now = Date.now()) {
   if (!lastSeenAt) return false;
