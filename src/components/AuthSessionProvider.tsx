@@ -6,8 +6,10 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { GuestTracker } from "@/components/GuestTracker";
 import {
   getPresenceSessionKey,
+  registerMemberPresenceKey,
   signalMemberPresenceDisconnect,
   signOut as clearLocalSession,
+  subscribeMemberLogout,
   writeSession,
 } from "@/lib/auth-client";
 import { endAnonymousGuestPresenceOnAuth } from "@/lib/guest-tracking";
@@ -22,6 +24,7 @@ function SessionSync() {
   const didEnrich = useRef(false);
   const didForceSignOut = useRef(false);
   const didEndGuestPresence = useRef(false);
+  const stopMemberPresenceRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -40,6 +43,9 @@ function SessionSync() {
     if (!session?.user?.email) {
       clearLocalSession();
       didEndGuestPresence.current = false;
+      didEnrich.current = false;
+      stopMemberPresenceRef.current?.();
+      stopMemberPresenceRef.current = null;
       return;
     }
     writeSession({
@@ -56,6 +62,7 @@ function SessionSync() {
     }
 
     const sessionKey = getPresenceSessionKey();
+    registerMemberPresenceKey(sessionKey);
 
     if (!didEnrich.current) {
       didEnrich.current = true;
@@ -71,7 +78,21 @@ function SessionSync() {
       });
     }
 
+    let stopped = false;
+    let timer = 0;
+
+    function stopMemberPresence() {
+      if (stopped) return;
+      stopped = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", beat);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pagehide", onPageHide);
+    }
+
     function beat() {
+      if (stopped) return;
       // Do not treat tab blur / screen lock as Offline — heartbeat TTL covers suspend.
       if (document.visibilityState === "hidden") return;
       void fetch("/api/account/presence", {
@@ -99,17 +120,22 @@ function SessionSync() {
     }
 
     beat();
-    const timer = window.setInterval(beat, MEMBER_PRESENCE_HEARTBEAT_MS);
+    timer = window.setInterval(beat, MEMBER_PRESENCE_HEARTBEAT_MS);
     window.addEventListener("focus", beat);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onPageShow);
     window.addEventListener("pagehide", onPageHide);
+    stopMemberPresenceRef.current = stopMemberPresence;
+
+    const unsubscribeLogout = subscribeMemberLogout(() => {
+      // Sibling tab is logging out this browser session — stop heartbeats immediately.
+      stopMemberPresence();
+    });
+
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", beat);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("pageshow", onPageShow);
-      window.removeEventListener("pagehide", onPageHide);
+      unsubscribeLogout();
+      stopMemberPresence();
+      stopMemberPresenceRef.current = null;
     };
   }, [session, status]);
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signOut as signOutGoogle } from "next-auth/react";
-import { clearMemberPresenceSession, readSession, signOut } from "@/lib/auth-client";
+import { clearMemberPresenceOnLogout, readSession, signOut } from "@/lib/auth-client";
 import { trackEvent } from "@/lib/analytics";
 import { isLiked, readLikes, toggleLike, hydrateLikesFromProfile, type LikedRecipe } from "@/lib/likes";
 import { MemberSessionExpiredError } from "@/lib/auth-client";
@@ -210,7 +210,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
                     className="text-xs font-semibold text-muted hover:text-terracotta"
                     onClick={() => {
                       void (async () => {
-                        await clearMemberPresenceSession();
+                        await clearMemberPresenceOnLogout();
                         signOut();
                         await signOutGoogle({ redirect: false });
                         setLiked(false);

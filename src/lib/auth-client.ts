@@ -6,6 +6,10 @@ export type PublicUser = {
 
 const SESSION_KEY = "mesa-session";
 const PRESENCE_SESSION_KEY = "mesa-presence-session";
+/** Browser-local registry of tab presence keys (not shared with other devices). */
+const MEMBER_PRESENCE_KEYS_STORAGE = "mesa-member-presence-keys";
+const MEMBER_LOGOUT_CHANNEL = "mesa-member-logout";
+const MEMBER_LOGOUT_STORAGE_KEY = "mesa-member-logout-at";
 
 export function readSession(): PublicUser | null {
   if (typeof window === "undefined") return null;
@@ -34,7 +38,7 @@ export function signOut() {
 export async function forcePublicSignOut() {
   if (typeof window === "undefined") return;
   try {
-    await clearMemberPresenceSession();
+    await clearMemberPresenceOnLogout();
   } catch {
     // Presence clear is best-effort once the member row is already gone.
   }
@@ -54,6 +58,47 @@ export class MemberSessionExpiredError extends Error {
   }
 }
 
+function normalizePresenceKey(value: string) {
+  const key = value.trim();
+  if (!key || key.length > 80 || !/^[A-Za-z0-9_-]+$/.test(key)) return "";
+  return key;
+}
+
+function readRegisteredMemberPresenceKeys() {
+  if (typeof window === "undefined") return [] as string[];
+  try {
+    const raw = localStorage.getItem(MEMBER_PRESENCE_KEYS_STORAGE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => normalizePresenceKey(String(item))).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** Remember this tab's presence key so logout can clear every tab in this browser. */
+export function registerMemberPresenceKey(sessionKey: string) {
+  const key = normalizePresenceKey(sessionKey);
+  if (!key || typeof window === "undefined") return;
+  try {
+    const keys = new Set(readRegisteredMemberPresenceKeys());
+    keys.add(key);
+    localStorage.setItem(MEMBER_PRESENCE_KEYS_STORAGE, JSON.stringify([...keys]));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function clearRegisteredMemberPresenceKeys() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(MEMBER_PRESENCE_KEYS_STORAGE);
+  } catch {
+    // ignore
+  }
+}
+
 /** Stable per-tab presence id so one closed tab cannot clear another tab's Online row. */
 export function getPresenceSessionKey() {
   if (typeof window === "undefined") return "";
@@ -63,32 +108,37 @@ export function getPresenceSessionKey() {
       key = crypto.randomUUID().replace(/-/g, "");
       sessionStorage.setItem(PRESENCE_SESSION_KEY, key);
     }
+    registerMemberPresenceKey(key);
     return key;
   } catch {
     return "";
   }
 }
 
-/** Clear this tab's presence row while the auth cookie is still valid (logout = immediate). */
+async function postMemberPresenceClear(sessionKey: string, immediate: boolean) {
+  const key = normalizePresenceKey(sessionKey);
+  if (!key) return false;
+  const payload = JSON.stringify({ clear: true, immediate, sessionKey: key });
+  const response = await fetch("/api/account/presence", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: payload,
+    keepalive: true,
+  });
+  return response.ok;
+}
+
+/**
+ * Clear this tab's presence row while the auth cookie is still valid.
+ * Prefer awaited fetch — sendBeacon races with signOut and often arrives unauthenticated.
+ */
 export async function clearMemberPresenceSession() {
   if (typeof window === "undefined") return;
   const sessionKey = getPresenceSessionKey();
   if (!sessionKey) return;
-  const payload = JSON.stringify({ clear: true, immediate: true, sessionKey });
   try {
-    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-      const ok = navigator.sendBeacon(
-        "/api/account/presence",
-        new Blob([payload], { type: "application/json" }),
-      );
-      if (ok) return;
-    }
-    await fetch("/api/account/presence", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: payload,
-      keepalive: true,
-    });
+    await postMemberPresenceClear(sessionKey, true);
   } catch {
     // Best-effort; TTL still expires the row if this fails.
   }
@@ -117,6 +167,78 @@ export function signalMemberPresenceDisconnect() {
   } catch {
     // Best-effort; stale TTL covers hard crashes.
   }
+}
+
+function broadcastMemberLogout() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(MEMBER_LOGOUT_STORAGE_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+  try {
+    const channel = new BroadcastChannel(MEMBER_LOGOUT_CHANNEL);
+    channel.postMessage({ type: "logout" });
+    channel.close();
+  } catch {
+    // storage event still covers same-origin tabs
+  }
+}
+
+/** Sibling tabs stop member heartbeats when this browser session logs out. */
+export function subscribeMemberLogout(onLogout: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+
+  function onStorage(event: StorageEvent) {
+    if (event.key === MEMBER_LOGOUT_STORAGE_KEY && event.newValue) onLogout();
+  }
+
+  let channel: BroadcastChannel | null = null;
+  try {
+    channel = new BroadcastChannel(MEMBER_LOGOUT_CHANNEL);
+    channel.onmessage = (event) => {
+      if (event?.data?.type === "logout") onLogout();
+    };
+  } catch {
+    channel = null;
+  }
+
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    try {
+      channel?.close();
+    } catch {
+      // ignore
+    }
+  };
+}
+
+/**
+ * Explicit logout presence cleanup for this browser only.
+ * Clears every tab connection registered in localStorage (not other devices),
+ * then signals sibling tabs to stop member heartbeats — all while auth is still valid.
+ */
+export async function clearMemberPresenceOnLogout() {
+  if (typeof window === "undefined") return;
+
+  broadcastMemberLogout();
+
+  const keys = new Set(readRegisteredMemberPresenceKeys());
+  const current = normalizePresenceKey(getPresenceSessionKey());
+  if (current) keys.add(current);
+
+  await Promise.all(
+    [...keys].map(async (sessionKey) => {
+      try {
+        await postMemberPresenceClear(sessionKey, true);
+      } catch {
+        // continue clearing remaining keys
+      }
+    }),
+  );
+
+  clearRegisteredMemberPresenceKeys();
 }
 
 const BRAND_NAME_BLOCKLIST = new Set(["mesa kitchen studio", "mesa"]);
