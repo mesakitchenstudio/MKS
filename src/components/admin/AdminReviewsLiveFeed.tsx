@@ -40,14 +40,19 @@ export function AdminReviewsLiveFeed({
   canOpenMembers: boolean;
 }) {
   const [reviews, setReviews] = useState(initialReviews);
-  const [meta, setMeta] = useState({ page, totalPages, total });
+  const [listMeta, setListMeta] = useState({ page, totalPages, total });
+  const pageRef = useRef(page);
   const sigRef = useRef(adminReviewsListSignature(initialReviews));
 
+  // Only re-seed from the server when the admin changes page — never overwrite
+  // live poll state with a stale RSC snapshot while staying on the same page.
   useEffect(() => {
+    pageRef.current = page;
     setReviews(initialReviews);
-    setMeta({ page, totalPages, total });
+    setListMeta({ page, totalPages, total });
     sigRef.current = adminReviewsListSignature(initialReviews);
-  }, [initialReviews, page, totalPages, total]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: page-only reseeding
+  }, [page]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,9 +66,10 @@ export function AdminReviewsLiveFeed({
       }
       inFlight = true;
       try {
-        const response = await fetch(`/api/admin/reviews?page=${meta.page}`, {
+        const response = await fetch(`/api/admin/reviews?page=${pageRef.current}`, {
           cache: "no-store",
           credentials: "same-origin",
+          headers: { Accept: "application/json" },
         });
         if (!response.ok) return;
         const payload = (await response.json()) as {
@@ -73,11 +79,11 @@ export function AdminReviewsLiveFeed({
           total: number;
         };
         if (cancelled) return;
-        const signature = adminReviewsListSignature(payload.reviews);
+        const signature = adminReviewsListSignature(payload.reviews || []);
         if (signature === sigRef.current) return;
         sigRef.current = signature;
-        setReviews(payload.reviews);
-        setMeta({
+        setReviews(payload.reviews || []);
+        setListMeta({
           page: payload.page,
           totalPages: payload.totalPages,
           total: payload.total,
@@ -104,7 +110,7 @@ export function AdminReviewsLiveFeed({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [meta.page]);
+  }, [page]);
 
   if (!reviews.length) {
     return <p className="mt-8 text-sm text-muted">No reviews to moderate.</p>;
@@ -166,7 +172,7 @@ export function AdminReviewsLiveFeed({
                   }))}
                 />
 
-                <AdminReviewReplyControls reviewId={review.id} page={meta.page}>
+                <AdminReviewReplyControls reviewId={review.id} page={listMeta.page}>
                   <RemoveReviewButton
                     id={review.id}
                     authorName={review.authorName}
@@ -179,20 +185,22 @@ export function AdminReviewsLiveFeed({
         })}
       </ul>
 
-      {meta.totalPages > 1 ? (
+      {listMeta.totalPages > 1 ? (
         <nav
           className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-muted"
           aria-label="Reviews pagination"
         >
           <p>
-            Page {meta.page} of {meta.totalPages}
-            <span className="text-muted"> · {meta.total} total</span>
+            Page {listMeta.page} of {listMeta.totalPages}
+            <span className="text-muted"> · {listMeta.total} total</span>
           </p>
           <div className="flex items-center gap-4">
-            {meta.page > 1 ? (
+            {listMeta.page > 1 ? (
               <Link
                 href={
-                  meta.page === 2 ? "/admin/reviews" : `/admin/reviews?page=${meta.page - 1}`
+                  listMeta.page === 2
+                    ? "/admin/reviews"
+                    : `/admin/reviews?page=${listMeta.page - 1}`
                 }
                 className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
               >
@@ -201,9 +209,9 @@ export function AdminReviewsLiveFeed({
             ) : (
               <span className="font-semibold text-muted/50">Previous</span>
             )}
-            {meta.page < meta.totalPages ? (
+            {listMeta.page < listMeta.totalPages ? (
               <Link
-                href={`/admin/reviews?page=${meta.page + 1}`}
+                href={`/admin/reviews?page=${listMeta.page + 1}`}
                 className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
               >
                 Next

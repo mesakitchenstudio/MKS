@@ -98,4 +98,21 @@ describe("recipe review live thread", () => {
     assert.equal(recipeReviewThreadSignature(base), recipeReviewThreadSignature(base));
     assert.notEqual(recipeReviewThreadSignature(base), recipeReviewThreadSignature(withReply));
   });
+
+  it("admin list signatures change when a new top-level review arrives", async () => {
+    const { adminReviewsListSignature } = await import("./recipe-reviews-client.ts");
+    const empty = adminReviewsListSignature([]);
+    const one = adminReviewsListSignature([
+      {
+        id: "rev_new",
+        recipeSlug: "salsa",
+        authorName: "Ada",
+        body: "Loved it",
+        rating: 5,
+        replyCount: 0,
+        replies: [],
+      },
+    ]);
+    assert.notEqual(empty, one);
+  });
 });

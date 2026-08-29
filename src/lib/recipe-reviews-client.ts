@@ -38,6 +38,8 @@ export function adminReviewsListSignature(
     body: string;
     rating: number;
     replyCount: number;
+    authorName?: string;
+    recipeSlug?: string;
     replies: Array<{
       id: string;
       body: string;
@@ -50,6 +52,8 @@ export function adminReviewsListSignature(
   return JSON.stringify(
     reviews.map((review) => ({
       id: review.id,
+      recipeSlug: review.recipeSlug || "",
+      authorName: review.authorName || "",
       body: review.body,
       rating: review.rating,
       replyCount: review.replyCount,
