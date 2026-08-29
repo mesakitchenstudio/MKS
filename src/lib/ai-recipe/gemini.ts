@@ -27,18 +27,6 @@ export type GeminiGenerateResult =
 const VIDEO_PROBE_PROMPT =
   "Return only the title or topic of this cooking video and one sentence describing what food is being prepared. Be concise.";
 
-function interactionText(interaction: { output_text?: string; steps?: { content?: { text?: string; type?: string }[] }[] }) {
-  if (interaction.output_text?.trim()) return interaction.output_text.trim();
-  for (const step of interaction.steps ?? []) {
-    for (const block of step.content ?? []) {
-      if (block.type === "text" && block.text?.trim()) {
-        return block.text.trim();
-      }
-    }
-  }
-  return "";
-}
-
 async function createVideoInteraction(
   ai: GoogleGenAI,
   input: {
@@ -62,6 +50,21 @@ async function createVideoInteraction(
     system_instruction: input.systemInstruction,
     response_format: input.responseFormat,
   });
+}
+
+type GeminiInteraction = Awaited<ReturnType<typeof createVideoInteraction>>;
+
+function interactionText(interaction: GeminiInteraction) {
+  if (interaction.output_text?.trim()) return interaction.output_text.trim();
+  for (const step of interaction.steps ?? []) {
+    if (!("content" in step)) continue;
+    for (const block of step.content ?? []) {
+      if (block.type === "text" && "text" in block && block.text?.trim()) {
+        return block.text.trim();
+      }
+    }
+  }
+  return "";
 }
 
 /** Stage A — verify Gemini can read the public YouTube video. */
