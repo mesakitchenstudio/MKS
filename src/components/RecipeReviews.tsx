@@ -1,11 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { notifyRecipeReviewsUpdated } from "@/components/RecipeRatingSummary";
 import { StarPicker, StarRating } from "@/components/StarRating";
 import { trackEvent } from "@/lib/analytics";
 import { formatGmtDisplay } from "@/lib/datetime";
-import { fetchRecipeReviewData } from "@/lib/recipe-reviews-client";
+import {
+  fetchRecipeReviewData,
+  RECIPE_REVIEW_POLL_MS,
+  recipeReviewThreadSignature,
+} from "@/lib/recipe-reviews-client";
 import type { RecipeReviewData, RecipeReviewReplyRow, RecipeReviewRow } from "@/lib/recipe-reviews";
 
 type RecipeReviewsProps = {
@@ -269,6 +273,7 @@ export function RecipeReviews({
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
+  const threadSigRef = useRef(recipeReviewThreadSignature(initial));
 
   const visibleReviews = showAllComments
     ? data.reviews
@@ -276,23 +281,68 @@ export function RecipeReviews({
   const hasMoreComments = data.reviews.length > VISIBLE_COMMENTS;
 
   useEffect(() => {
-    let active = true;
-    void fetchRecipeReviewData(slug)
-      .then((next) => {
-        if (active) setData(next);
-      })
-      .catch(() => {
-        /* keep server fallback */
-      })
-      .finally(() => {
-        if (active) setLoaded(true);
-      });
+    threadSigRef.current = recipeReviewThreadSignature(initial);
+    setData(initial);
+    setLoaded(false);
+    setActiveReplyId(null);
+    setShowAllComments(false);
+    // Reset only when navigating to another recipe (slug change).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `initial` is the SSR snapshot for this slug
+  }, [slug]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer = 0;
+    let inFlight = false;
+
+    async function poll() {
+      if (cancelled || inFlight) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      inFlight = true;
+      try {
+        const next = await fetchRecipeReviewData(slug);
+        if (cancelled) return;
+        const signature = recipeReviewThreadSignature(next);
+        if (signature === threadSigRef.current) {
+          setLoaded(true);
+          return;
+        }
+        threadSigRef.current = signature;
+        setData(next);
+        notifyRecipeReviewsUpdated(next.stats);
+        setActiveReplyId((current) =>
+          current && !next.reviews.some((review) => review.id === current) ? null : current,
+        );
+      } catch {
+        // Keep the visible thread; retry on the next interval.
+      } finally {
+        inFlight = false;
+        if (!cancelled) setLoaded(true);
+      }
+    }
+
+    void poll();
+    timer = window.setInterval(() => void poll(), RECIPE_REVIEW_POLL_MS);
+
+    function onVisible() {
+      if (document.visibilityState === "visible") void poll();
+    }
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
     return () => {
-      active = false;
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
     };
   }, [slug]);
 
   function applyReviewData(next: RecipeReviewData) {
+    threadSigRef.current = recipeReviewThreadSignature(next);
     setData(next);
     notifyRecipeReviewsUpdated(next.stats);
   }
