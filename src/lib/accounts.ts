@@ -32,6 +32,7 @@ export async function getStaffByEmail(email: string) {
         name: admin.name,
         role,
         photoUrl: admin.photoUrl || "",
+        sessionVersion: admin.sessionVersion ?? 0,
       };
     }
   } catch {
@@ -40,7 +41,14 @@ export async function getStaffByEmail(email: string) {
 
   const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   if (ownerEmail && key === ownerEmail) {
-    return { id: "env", email: ownerEmail, name: "Owner", role: "owner" as AccessLevel, photoUrl: "" };
+    return {
+      id: "env",
+      email: ownerEmail,
+      name: "Owner",
+      role: "owner" as AccessLevel,
+      photoUrl: "",
+      sessionVersion: 0,
+    };
   }
 
   return null;

@@ -32,6 +32,7 @@ export async function resolvePublicStaffForAdmin(): Promise<PublicStaffResolutio
       email: staff.email,
       name: staff.name,
       role: staff.role,
+      sv: staff.sessionVersion ?? 0,
     },
     email,
     image: session?.user?.image,

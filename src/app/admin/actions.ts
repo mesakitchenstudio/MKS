@@ -493,6 +493,7 @@ export async function saveAdminAction(formData: FormData) {
       staffRedirect(`error=${roleCheck.error}&admin=${encodeURIComponent(id)}`);
     }
 
+    const passwordChanging = Boolean(password && shouldUpdateAdminPassword(password));
     await db.admin.update({
       where: { id },
       data: {
@@ -500,8 +501,11 @@ export async function saveAdminAction(formData: FormData) {
         email,
         role: roleCheck.ok ? roleCheck.role : existing!.role,
         photoUrl,
-        ...(password && shouldUpdateAdminPassword(password)
-          ? { passwordHash: hashPassword(password) }
+        ...(passwordChanging
+          ? {
+              passwordHash: hashPassword(password),
+              sessionVersion: { increment: 1 },
+            }
           : {}),
       },
     });

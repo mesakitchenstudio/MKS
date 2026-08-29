@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { canAccess, homeForRole, isAccessLevel, type AccessLevel, type AdminArea } from "@/lib/admin-access";
-import { applyPersistedStaffRole } from "@/lib/admin-staff";
+import { applyPersistedStaffRole, isAdminSessionVersionCurrent } from "@/lib/admin-staff";
 import { clearAllAuthCookies as clearAllAuthCookiesBase } from "@/lib/auth-cookies";
 import { getDb } from "@/lib/db";
 import { verifyPassword as verifyStoredPassword } from "@/lib/passwords";
@@ -16,6 +16,8 @@ export type AdminSession = {
   email: string;
   name: string;
   role: AccessLevel;
+  /** Matches Admin.sessionVersion; stale cookies are rejected after password change. */
+  sv: number;
   exp: number;
 };
 
@@ -50,7 +52,14 @@ export function verifyEnvAdminPassword(password: string) {
 
 export function createSessionToken(admin: Omit<AdminSession, "exp">) {
   const payload = Buffer.from(
-    JSON.stringify({ ...admin, exp: Date.now() + 2 * 24 * 60 * 60 * 1000 }),
+    JSON.stringify({
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      role: admin.role,
+      sv: admin.sv ?? 0,
+      exp: Date.now() + 2 * 24 * 60 * 60 * 1000,
+    }),
   ).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
@@ -62,6 +71,7 @@ export function verifySessionToken(token: string | undefined): AdminSession | nu
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as Partial<AdminSession> & {
       exp?: number;
+      sv?: number;
     };
     if (!data.exp || Date.now() >= data.exp) return null;
     const role: AccessLevel = data.role && isAccessLevel(data.role) ? data.role : "owner";
@@ -70,6 +80,7 @@ export function verifySessionToken(token: string | undefined): AdminSession | nu
       email: data.email || "owner",
       name: data.name || "Owner",
       role,
+      sv: typeof data.sv === "number" && Number.isFinite(data.sv) ? data.sv : 0,
       exp: data.exp,
     };
   } catch {
@@ -82,7 +93,7 @@ async function loadPersistedStaff(session: AdminSession) {
   if (session.id !== "env") {
     const byId = await db.admin.findUnique({
       where: { id: session.id },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, name: true, role: true, sessionVersion: true },
     });
     if (byId) return byId;
   }
@@ -90,14 +101,26 @@ async function loadPersistedStaff(session: AdminSession) {
   if (!email) return null;
   return db.admin.findUnique({
     where: { email },
-    select: { id: true, email: true, name: true, role: true },
+    select: { id: true, email: true, name: true, role: true, sessionVersion: true },
   });
 }
 
 export async function resolveLiveAdminSession(session: AdminSession): Promise<AdminSession | null> {
   try {
     const persisted = await loadPersistedStaff(session);
-    return applyPersistedStaffRole(session, persisted);
+    const live = applyPersistedStaffRole(session, persisted);
+    if (!live) return null;
+
+    if (!persisted) {
+      // Pure system owner — no named row / session version to revoke.
+      return { ...live, sv: 0 };
+    }
+
+    if (!isAdminSessionVersionCurrent(session.sv, persisted.sessionVersion)) {
+      return null;
+    }
+
+    return { ...live, sv: persisted.sessionVersion };
   } catch (error) {
     console.error("Could not refresh admin access level", error);
     return null;
@@ -138,7 +161,11 @@ export async function persistAdminLastSeen(admin: Omit<AdminSession, "exp">) {
 
 export async function writeAdminSession(admin: Omit<AdminSession, "exp">) {
   const jar = await cookies();
-  jar.set(ADMIN_COOKIE, createSessionToken(admin), adminCookieOptions());
+  jar.set(
+    ADMIN_COOKIE,
+    createSessionToken({ ...admin, sv: admin.sv ?? 0 }),
+    adminCookieOptions(),
+  );
   await persistAdminLastSeen(admin);
 }
 
@@ -160,13 +187,32 @@ export async function requireAccess(area: AdminArea) {
   return admin;
 }
 
-export async function authenticateAdmin(email: string, password: string): Promise<Omit<AdminSession, "exp"> | null> {
+export async function authenticateAdmin(
+  email: string,
+  password: string,
+): Promise<Omit<AdminSession, "exp"> | null> {
   const identifier = email.trim();
   if (!identifier || !password) return null;
 
   if (verifyEnvAdminPassword(password)) {
     const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() || identifier.toLowerCase();
-    return { id: "env", email: ownerEmail, name: "Owner", role: "owner" };
+    // Prefer the named Team Access row when present so sessionVersion stays consistent.
+    try {
+      const named = await getDb().admin.findUnique({ where: { email: ownerEmail } });
+      if (named) {
+        const role = isAccessLevel(named.role) ? named.role : "owner";
+        return {
+          id: named.id,
+          email: named.email,
+          name: named.name,
+          role,
+          sv: named.sessionVersion,
+        };
+      }
+    } catch {
+      // Fall through to env session.
+    }
+    return { id: "env", email: ownerEmail, name: "Owner", role: "owner", sv: 0 };
   }
 
   try {
@@ -179,7 +225,13 @@ export async function authenticateAdmin(email: string, password: string): Promis
     if (!admin || !verifyStoredPassword(password, admin.passwordHash)) return null;
     await db.admin.update({ where: { id: admin.id }, data: { lastSeenAt: new Date() } });
     const role = isAccessLevel(admin.role) ? admin.role : "editor";
-    return { id: admin.id, email: admin.email, name: admin.name, role };
+    return {
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      role,
+      sv: admin.sessionVersion,
+    };
   } catch (error) {
     console.error("Admin database login failed", error);
     return null;

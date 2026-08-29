@@ -5,6 +5,7 @@ import {
   applyPersistedStaffRole,
   emailsConflictCaseInsensitive,
   isAcceptableAdminPassword,
+  isAdminSessionVersionCurrent,
   isCurrentStaffAccount,
   isValidAdminEmail,
   normalizeAdminEmail,
@@ -261,6 +262,7 @@ test("named Team Access row overrides stale env-owner cookie", () => {
     email: "omid@studio.com",
     name: "Owner",
     role: "owner" as const,
+    sv: 0,
     exp: Date.now() + 60_000,
   };
   const live = applyPersistedStaffRole(session, {
@@ -273,6 +275,14 @@ test("named Team Access row overrides stale env-owner cookie", () => {
   assert.equal(live?.role, "editor");
   assert.equal(canAccess(live!.role, "staff"), false);
   assert.equal(canAccess(live!.role, "content"), true);
+});
+
+test("password change invalidates cookies with a stale session version", () => {
+  assert.equal(isAdminSessionVersionCurrent(0, 0), true);
+  assert.equal(isAdminSessionVersionCurrent(undefined, 0), true);
+  assert.equal(isAdminSessionVersionCurrent(0, 1), false);
+  assert.equal(isAdminSessionVersionCurrent(2, 3), false);
+  assert.equal(isAdminSessionVersionCurrent(4, 4), true);
 });
 
 test("last login uses shared admin datetime formatter", () => {

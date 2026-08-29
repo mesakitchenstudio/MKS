@@ -25,14 +25,16 @@ export async function GET() {
     (cookieSession.role !== live.role ||
       cookieSession.id !== live.id ||
       cookieSession.name !== live.name ||
-      cookieSession.email !== live.email)
+      cookieSession.email !== live.email ||
+      cookieSession.sv !== live.sv)
   ) {
-    // Keep the signed cookie aligned with the persisted role so SSR layout matches.
+    // Keep the signed cookie aligned with the persisted role/session version.
     await writeAdminSession({
       id: live.id,
       email: live.email,
       name: live.name,
       role: live.role,
+      sv: live.sv,
     });
   }
 

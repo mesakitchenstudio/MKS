@@ -101,7 +101,13 @@ export async function resetPasswordWithToken(token: string, password: string) {
   if (row.kind === "admin") {
     const admin = await db.admin.findUnique({ where: { email: row.email } });
     if (!admin) return { ok: false as const, error: "expired" };
-    await db.admin.update({ where: { id: admin.id }, data: { passwordHash } });
+    await db.admin.update({
+      where: { id: admin.id },
+      data: {
+        passwordHash,
+        sessionVersion: { increment: 1 },
+      },
+    });
   } else {
     const user = await db.user.findUnique({ where: { email: row.email } });
     if (!user) return { ok: false as const, error: "expired" };

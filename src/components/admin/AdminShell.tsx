@@ -65,7 +65,12 @@ export function AdminShell({
     async function syncIdentity() {
       try {
         const response = await fetch("/api/admin/me", { cache: "no-store" });
-        if (!response.ok || cancelled) return;
+        if (cancelled) return;
+        if (response.status === 401) {
+          window.location.href = "/admin/login";
+          return;
+        }
+        if (!response.ok) return;
         const data = (await response.json()) as ShellIdentity & { role?: string };
         if (cancelled) return;
         const next: ShellIdentity = {

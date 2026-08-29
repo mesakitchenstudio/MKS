@@ -155,15 +155,17 @@ model UserConnection {
 }
 
 model Admin {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  role         String
-  photoUrl     String   @default("")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  lastSeenAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  passwordHash   String
+  role           String
+  photoUrl       String   @default("")
+  /** Bumped on password change to revoke existing mesa_admin_session cookies. */
+  sessionVersion Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastSeenAt     DateTime @default(now())
 }
 
 model PasswordReset {

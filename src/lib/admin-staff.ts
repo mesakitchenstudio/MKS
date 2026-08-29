@@ -118,7 +118,9 @@ export function emailsConflictCaseInsensitive(left: string, right: string) {
  * Prefer the persisted Team Access role over the role baked into the admin cookie.
  * Cookie role alone must not remain authoritative after an Owner demotes/promotes staff.
  */
-export function applyPersistedStaffRole<T extends { id: string; email: string; name: string; role: AccessLevel; exp: number }>(
+export function applyPersistedStaffRole<
+  T extends { id: string; email: string; name: string; role: AccessLevel; exp: number; sv?: number },
+>(
   session: T,
   persisted: { id: string; email: string; name: string; role: string } | null,
 ): T | null {
@@ -135,4 +137,16 @@ export function applyPersistedStaffRole<T extends { id: string; email: string; n
     name: persisted.name || session.name,
     role,
   };
+}
+
+/** Cookie session version must match Admin.sessionVersion after password changes. */
+export function isAdminSessionVersionCurrent(
+  cookieSessionVersion: number | undefined,
+  persistedSessionVersion: number,
+) {
+  const cookieSv =
+    typeof cookieSessionVersion === "number" && Number.isFinite(cookieSessionVersion)
+      ? cookieSessionVersion
+      : 0;
+  return cookieSv === persistedSessionVersion;
 }
