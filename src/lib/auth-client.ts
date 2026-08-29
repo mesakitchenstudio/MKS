@@ -54,14 +54,14 @@ export class MemberSessionExpiredError extends Error {
   }
 }
 
-/** Stable per-browser presence id so logout can clear only this device's Online row. */
+/** Stable per-tab presence id so one closed tab cannot clear another tab's Online row. */
 export function getPresenceSessionKey() {
   if (typeof window === "undefined") return "";
   try {
-    let key = localStorage.getItem(PRESENCE_SESSION_KEY)?.trim() || "";
+    let key = sessionStorage.getItem(PRESENCE_SESSION_KEY)?.trim() || "";
     if (!key || key.length > 80 || !/^[A-Za-z0-9_-]+$/.test(key)) {
       key = crypto.randomUUID().replace(/-/g, "");
-      localStorage.setItem(PRESENCE_SESSION_KEY, key);
+      sessionStorage.setItem(PRESENCE_SESSION_KEY, key);
     }
     return key;
   } catch {
@@ -69,20 +69,53 @@ export function getPresenceSessionKey() {
   }
 }
 
-/** Clear this browser's presence row while the auth cookie is still valid. */
+/** Clear this tab's presence row while the auth cookie is still valid (logout = immediate). */
 export async function clearMemberPresenceSession() {
   if (typeof window === "undefined") return;
   const sessionKey = getPresenceSessionKey();
   if (!sessionKey) return;
+  const payload = JSON.stringify({ clear: true, immediate: true, sessionKey });
   try {
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const ok = navigator.sendBeacon(
+        "/api/account/presence",
+        new Blob([payload], { type: "application/json" }),
+      );
+      if (ok) return;
+    }
     await fetch("/api/account/presence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clear: true, sessionKey }),
+      body: payload,
       keepalive: true,
     });
   } catch {
     // Best-effort; TTL still expires the row if this fails.
+  }
+}
+
+/** Soft disconnect for pagehide — keeps Online briefly for refresh/restore. */
+export function signalMemberPresenceDisconnect() {
+  if (typeof window === "undefined") return;
+  const sessionKey = getPresenceSessionKey();
+  if (!sessionKey) return;
+  const payload = JSON.stringify({ clear: true, immediate: false, sessionKey });
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const ok = navigator.sendBeacon(
+        "/api/account/presence",
+        new Blob([payload], { type: "application/json" }),
+      );
+      if (ok) return;
+    }
+    void fetch("/api/account/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    });
+  } catch {
+    // Best-effort; stale TTL covers hard crashes.
   }
 }
 

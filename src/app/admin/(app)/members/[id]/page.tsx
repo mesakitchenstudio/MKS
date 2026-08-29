@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MemberAvatar, PresenceDot } from "@/components/admin/MemberPresence";
+import { MemberAvatar } from "@/components/admin/MemberPresence";
+import { MemberLiveActivity, MemberLiveStatusLine } from "@/components/admin/MemberLivePresence";
 import { MemberConnectionHistory } from "@/components/admin/MemberConnectionHistory";
 import { RemoveMemberButton } from "@/components/admin/RemoveMemberButton";
 import { VisitorNetworkSection } from "@/components/admin/VisitorNetworkSection";
 import { getUserForAdmin } from "@/lib/accounts";
 import { adminFocusRing } from "@/lib/admin-ui";
 import { requireAccess } from "@/lib/auth";
-import { formatAdminDate, formatAdminShortDateTime } from "@/lib/datetime";
+import { formatAdminDate } from "@/lib/datetime";
 import { guestDeviceClientLabel } from "@/lib/guest-client";
 import { uniqueIps } from "@/lib/ip-utils";
 import { formatSignInMethod, isMemberOnlineFromPresence } from "@/lib/member-presence";
@@ -45,7 +46,6 @@ export default async function AdminMemberDetailPage({
     online: user.online,
     lastSeenAt: user.lastSeenAt,
   });
-  const status = online ? "Online" : "Offline";
   const signIn = formatSignInMethod(latest?.method);
   // Same connection selection as Members list LOCATION (newest with usable place).
   const locationConnection = pickLatestLocationConnection(user.connections) || latest;
@@ -76,8 +76,11 @@ export default async function AdminMemberDetailPage({
           </h1>
           <p className="mt-1 break-all text-sm text-muted">{user.email}</p>
           <p className="mt-3 inline-flex flex-wrap items-center gap-2 text-sm text-ink">
-            <PresenceDot online={online} />
-            {status}
+            <MemberLiveStatusLine
+              memberId={user.id}
+              initialOnline={online}
+              initialLastSeen={user.lastSeenAt}
+            />
             <span className="text-muted">·</span>
             <span className="text-muted">Member</span>
           </p>
@@ -102,15 +105,11 @@ export default async function AdminMemberDetailPage({
       <section className="mt-6 border border-line bg-paper p-5 md:p-6">
         <h2 className={sectionLabel}>Activity</h2>
         <dl className="mt-2">
-          <DetailRow label="Status">
-            <span className="inline-flex items-center gap-2 text-ink">
-              <PresenceDot online={online} />
-              {status}
-            </span>
-          </DetailRow>
-          <DetailRow label="Last seen">
-            {formatAdminShortDateTime(lastSeen, new Date(), { includeYear: true })}
-          </DetailRow>
+          <MemberLiveActivity
+            memberId={user.id}
+            initialOnline={online}
+            initialLastSeen={lastSeen}
+          />
           <DetailRow label="Connections recorded">{user._count.connections}</DetailRow>
         </dl>
       </section>

@@ -4,12 +4,17 @@ import {
   formatPresenceLabel,
   isMemberOnline,
   isMemberOnlineFromPresence,
+  isMemberPresenceSessionLive,
   MEMBER_ONLINE_WITHIN_MS,
+  MEMBER_PRESENCE_DISCONNECT_GRACE_MS,
+  MEMBER_PRESENCE_HEARTBEAT_MS,
+  MEMBER_PRESENCE_STALE_MS,
   normalizePresenceSessionKey,
+  presenceLastSeenForGraceDisconnect,
 } from "./member-presence.ts";
 
 describe("member-presence (shared Online rule for Visitors + Members)", () => {
-  it("marks lastSeen within 3 minutes as Online for Windows and Android alike", () => {
+  it("keeps the longer Visitors online window at 3 minutes", () => {
     const now = Date.parse("2026-08-28T12:00:00.000Z");
     const fresh = new Date(now - 45_000);
     const stale = new Date(now - MEMBER_ONLINE_WITHIN_MS - 1);
@@ -18,13 +23,27 @@ describe("member-presence (shared Online rule for Visitors + Members)", () => {
     assert.equal(formatPresenceLabel(fresh, now), "Online");
     assert.equal(isMemberOnline(stale, now), false);
     assert.equal(formatPresenceLabel(stale, now), "Offline");
+    assert.equal(MEMBER_ONLINE_WITHIN_MS, 3 * 60 * 1000);
   });
 
-  it("treats a refreshed lastSeen (heartbeat) as Online again", () => {
+  it("uses a near-real-time stale window for member presence sessions", () => {
     const now = Date.parse("2026-08-28T12:00:00.000Z");
-    const afterHeartbeat = new Date(now - 10_000);
-    assert.equal(isMemberOnline(afterHeartbeat, now), true);
-    assert.equal(MEMBER_ONLINE_WITHIN_MS, 3 * 60 * 1000);
+    assert.equal(MEMBER_PRESENCE_HEARTBEAT_MS, 25_000);
+    assert.equal(MEMBER_PRESENCE_STALE_MS, 55_000);
+    assert.equal(MEMBER_PRESENCE_DISCONNECT_GRACE_MS, 8_000);
+
+    assert.equal(isMemberPresenceSessionLive(new Date(now - 30_000), now), true);
+    assert.equal(isMemberPresenceSessionLive(new Date(now - MEMBER_PRESENCE_STALE_MS - 1), now), false);
+  });
+
+  it("grace disconnect keeps a session Online briefly then expires", () => {
+    const now = Date.parse("2026-08-28T12:00:00.000Z");
+    const graceSeen = presenceLastSeenForGraceDisconnect(now);
+    assert.equal(isMemberPresenceSessionLive(graceSeen, now), true);
+    assert.equal(
+      isMemberPresenceSessionLive(graceSeen, now + MEMBER_PRESENCE_DISCONNECT_GRACE_MS + 1),
+      false,
+    );
   });
 
   it("prefers explicit online flag over stale lastSeenAt", () => {

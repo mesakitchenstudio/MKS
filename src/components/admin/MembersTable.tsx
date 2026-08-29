@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { MemberAvatar, PresenceDot } from "@/components/admin/MemberPresence";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { formatAdminDate, formatAdminRelativeDateTime } from "@/lib/datetime";
-import { formatSignInMethod, isMemberOnlineFromPresence } from "@/lib/member-presence";
+import {
+  formatSignInMethod,
+  isMemberOnlineFromPresence,
+  MEMBER_ADMIN_PRESENCE_POLL_MS,
+} from "@/lib/member-presence";
 import {
   formatLatestCountryCityLocation,
 } from "@/lib/request-meta";
@@ -31,28 +34,97 @@ type MemberRow = {
   }[];
 };
 
+type PresencePatch = {
+  online: boolean;
+  lastSeenAt: string;
+};
+
 export function MembersTable({ users }: { users: MemberRow[] }) {
-  const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
+  const [presenceById, setPresenceById] = useState<Record<string, PresencePatch>>(() => {
+    const initial: Record<string, PresencePatch> = {};
+    for (const user of users) {
+      initial[user.id] = {
+        online: Boolean(user.online),
+        lastSeenAt:
+          typeof user.lastSeenAt === "string"
+            ? user.lastSeenAt
+            : new Date(user.lastSeenAt).toISOString(),
+      };
+    }
+    return initial;
+  });
 
   useEffect(() => {
-    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
-    const refresh = window.setInterval(() => router.refresh(), 45_000);
-    return () => {
-      window.clearInterval(tick);
-      window.clearInterval(refresh);
-    };
-  }, [router]);
-
-  const sortedUsers = useMemo(() => {
-    return [...users].sort(
-      (left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime(),
-    );
+    const next: Record<string, PresencePatch> = {};
+    for (const user of users) {
+      next[user.id] = {
+        online: Boolean(user.online),
+        lastSeenAt:
+          typeof user.lastSeenAt === "string"
+            ? user.lastSeenAt
+            : new Date(user.lastSeenAt).toISOString(),
+      };
+    }
+    setPresenceById(next);
   }, [users]);
 
-  const onlineCount = sortedUsers.filter((user) =>
-    isMemberOnlineFromPresence({ online: user.online, lastSeenAt: user.lastSeenAt }, now),
-  ).length;
+  useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const response = await fetch("/api/admin/members/presence", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        if (!response.ok || cancelled) return;
+        const data = (await response.json()) as {
+          members?: { id: string; online: boolean; lastSeenAt: string }[];
+        };
+        if (!data.members || cancelled) return;
+        setPresenceById((current) => {
+          const merged = { ...current };
+          for (const row of data.members!) {
+            merged[row.id] = { online: row.online, lastSeenAt: row.lastSeenAt };
+          }
+          return merged;
+        });
+        setNow(Date.now());
+      } catch {
+        // Keep last known presence if the poll fails.
+      }
+    }
+
+    void poll();
+    const pollTimer = window.setInterval(() => void poll(), MEMBER_ADMIN_PRESENCE_POLL_MS);
+    const tick = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollTimer);
+      window.clearInterval(tick);
+    };
+  }, []);
+
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((left, right) => {
+      const leftSeen = presenceById[left.id]?.lastSeenAt || left.lastSeenAt;
+      const rightSeen = presenceById[right.id]?.lastSeenAt || right.lastSeenAt;
+      return new Date(rightSeen).getTime() - new Date(leftSeen).getTime();
+    });
+  }, [users, presenceById]);
+
+  const onlineCount = sortedUsers.filter((user) => {
+    const patch = presenceById[user.id];
+    return isMemberOnlineFromPresence(
+      {
+        online: patch?.online ?? user.online,
+        lastSeenAt: patch?.lastSeenAt ?? user.lastSeenAt,
+      },
+      now,
+    );
+  }).length;
   const nowDate = useMemo(() => new Date(now), [now]);
 
   return (
@@ -96,9 +168,13 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
               const latest =
                 user.connections.find((item) => item.ip && item.ip !== "unknown") ||
                 user.connections[0];
-              const lastSeen = user.lastSeenAt || latest?.createdAt;
+              const patch = presenceById[user.id];
+              const lastSeen = patch?.lastSeenAt || user.lastSeenAt || latest?.createdAt;
               const online = isMemberOnlineFromPresence(
-                { online: user.online, lastSeenAt: user.lastSeenAt },
+                {
+                  online: patch?.online ?? user.online,
+                  lastSeenAt: patch?.lastSeenAt ?? user.lastSeenAt,
+                },
                 now,
               );
               const status = online ? "Online" : "Offline";
@@ -178,9 +254,13 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
           const latest =
             user.connections.find((item) => item.ip && item.ip !== "unknown") ||
             user.connections[0];
-          const lastSeen = user.lastSeenAt || latest?.createdAt;
+          const patch = presenceById[user.id];
+          const lastSeen = patch?.lastSeenAt || user.lastSeenAt || latest?.createdAt;
           const online = isMemberOnlineFromPresence(
-            { online: user.online, lastSeenAt: user.lastSeenAt },
+            {
+              online: patch?.online ?? user.online,
+              lastSeenAt: patch?.lastSeenAt ?? user.lastSeenAt,
+            },
             now,
           );
           const status = online ? "Online" : "Offline";

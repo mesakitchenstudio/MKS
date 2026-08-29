@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
-import { MEMBER_ONLINE_WITHIN_MS, normalizePresenceSessionKey } from "@/lib/member-presence";
+import { MEMBER_PRESENCE_STALE_MS, MEMBER_PRESENCE_WRITE_THROTTLE_MS, normalizePresenceSessionKey, presenceLastSeenForGraceDisconnect } from "@/lib/member-presence";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
 import { connectionMeta, type ConnectionMeta } from "@/lib/request-meta";
 import type { Prisma } from "@prisma/client";
@@ -410,34 +410,64 @@ export async function touchMemberPresence(
   if (!key || (await getStaffByEmail(key))) return null;
 
   const now = new Date();
+  const presenceKey = normalizePresenceSessionKey(sessionKey);
+  const trimmedName = name.trim();
+
   let user;
   try {
-    user = await db.user.update({
+    user = await db.user.findUnique({
       where: { email: key },
-      data: {
-        lastSeenAt: now,
-        ...(name.trim() ? { name: name.trim() } : {}),
-      },
+      select: { id: true, lastSeenAt: true, name: true },
     });
   } catch {
-    // Member was deleted (or never existed) — do not recreate from the heartbeat.
     return null;
   }
   if (!user) return null;
 
-  const presenceKey = normalizePresenceSessionKey(sessionKey);
+  const lastSeenAge = now.getTime() - new Date(user.lastSeenAt).getTime();
+  const nameNeedsUpdate = Boolean(trimmedName && trimmedName !== user.name);
+  const shouldTouchUser =
+    nameNeedsUpdate || lastSeenAge >= MEMBER_PRESENCE_WRITE_THROTTLE_MS;
+
+  if (shouldTouchUser) {
+    try {
+      user = await db.user.update({
+        where: { id: user.id },
+        data: {
+          lastSeenAt: now,
+          ...(nameNeedsUpdate ? { name: trimmedName } : {}),
+        },
+        select: { id: true, lastSeenAt: true, name: true },
+      });
+    } catch {
+      // Member was deleted — do not recreate from the heartbeat.
+      return null;
+    }
+  }
+
   if (presenceKey) {
     try {
-      await db.memberPresenceSession.upsert({
+      const existing = await db.memberPresenceSession.findUnique({
         where: { userId_sessionKey: { userId: user.id, sessionKey: presenceKey } },
-        create: { userId: user.id, sessionKey: presenceKey, lastSeenAt: now },
-        update: { lastSeenAt: now },
+        select: { lastSeenAt: true },
       });
+      const sessionAge = existing
+        ? now.getTime() - new Date(existing.lastSeenAt).getTime()
+        : Number.POSITIVE_INFINITY;
+
+      if (!existing || sessionAge >= MEMBER_PRESENCE_WRITE_THROTTLE_MS) {
+        await db.memberPresenceSession.upsert({
+          where: { userId_sessionKey: { userId: user.id, sessionKey: presenceKey } },
+          create: { userId: user.id, sessionKey: presenceKey, lastSeenAt: now },
+          update: { lastSeenAt: now },
+        });
+      }
+
       // Drop abandoned device rows so Online stays accurate without a migration job.
       await db.memberPresenceSession.deleteMany({
         where: {
           userId: user.id,
-          lastSeenAt: { lt: new Date(now.getTime() - MEMBER_ONLINE_WITHIN_MS * 4) },
+          lastSeenAt: { lt: new Date(now.getTime() - MEMBER_PRESENCE_STALE_MS * 3) },
         },
       });
     } catch (error) {
@@ -448,8 +478,12 @@ export async function touchMemberPresence(
   return user;
 }
 
-/** Remove only this browser/device presence session after explicit logout. */
-export async function clearMemberPresenceSession(email: string, sessionKey: string) {
+/** Remove only this browser/tab presence session. */
+export async function clearMemberPresenceSession(
+  email: string,
+  sessionKey: string,
+  options: { immediate?: boolean } = {},
+) {
   const db = getDb();
   const key = emailKey(email);
   const presenceKey = normalizePresenceSessionKey(sessionKey);
@@ -458,21 +492,70 @@ export async function clearMemberPresenceSession(email: string, sessionKey: stri
   const user = await db.user.findUnique({ where: { email: key }, select: { id: true } });
   if (!user) return false;
 
-  await db.memberPresenceSession.deleteMany({
-    where: { userId: user.id, sessionKey: presenceKey },
+  const now = Date.now();
+  if (options.immediate) {
+    await db.memberPresenceSession.deleteMany({
+      where: { userId: user.id, sessionKey: presenceKey },
+    });
+  } else {
+    // Keep Online for a short grace window so refresh/navigation does not flicker.
+    await db.memberPresenceSession.updateMany({
+      where: { userId: user.id, sessionKey: presenceKey },
+      data: { lastSeenAt: presenceLastSeenForGraceDisconnect(now) },
+    });
+  }
+
+  // Other live connections (phone/desktop/tabs) keep the member Online.
+  const otherLive = await db.memberPresenceSession.count({
+    where: {
+      userId: user.id,
+      sessionKey: { not: presenceKey },
+      lastSeenAt: { gte: new Date(now - MEMBER_PRESENCE_STALE_MS) },
+    },
   });
+
+  if (otherLive === 0) {
+    // Final connection ended — stamp Last seen once.
+    await db.user.update({
+      where: { id: user.id },
+      data: { lastSeenAt: new Date(now) },
+    });
+  }
+
   return true;
 }
 
 export async function listOnlineMemberUserIds(now = Date.now()) {
   const db = getDb();
-  const since = new Date(now - MEMBER_ONLINE_WITHIN_MS);
+  const since = new Date(now - MEMBER_PRESENCE_STALE_MS);
   const rows = await db.memberPresenceSession.findMany({
     where: { lastSeenAt: { gte: since } },
     select: { userId: true },
     distinct: ["userId"],
   });
   return new Set(rows.map((row) => row.userId));
+}
+
+/** Lightweight Admin → Members presence snapshot (ids + online + lastSeen). */
+export async function listMembersPresenceSnapshot(limit = 200) {
+  const db = getDb();
+  const staff = await db.admin.findMany({ select: { email: true } });
+  const staffEmails = staff.map((item) => item.email);
+  const [users, onlineIds] = await Promise.all([
+    db.user.findMany({
+      where: staffEmails.length ? { email: { notIn: staffEmails } } : undefined,
+      orderBy: { lastSeenAt: "desc" },
+      take: limit,
+      select: { id: true, lastSeenAt: true },
+    }),
+    listOnlineMemberUserIds(),
+  ]);
+
+  return users.map((user) => ({
+    id: user.id,
+    online: onlineIds.has(user.id),
+    lastSeenAt: user.lastSeenAt.toISOString(),
+  }));
 }
 
 export async function getUserByEmail(email: string) {

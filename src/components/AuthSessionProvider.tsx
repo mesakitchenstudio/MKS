@@ -6,12 +6,12 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { GuestTracker } from "@/components/GuestTracker";
 import {
   getPresenceSessionKey,
+  signalMemberPresenceDisconnect,
   signOut as clearLocalSession,
   writeSession,
 } from "@/lib/auth-client";
 import { hydrateLikesFromProfile } from "@/lib/likes";
-
-const HEARTBEAT_MS = 45_000;
+import { MEMBER_PRESENCE_HEARTBEAT_MS } from "@/lib/member-presence";
 
 function SessionSync() {
   const { data: session, status } = useSession();
@@ -63,12 +63,12 @@ function SessionSync() {
     }
 
     function beat() {
+      // Do not treat tab blur / screen lock as Offline — heartbeat TTL covers suspend.
       if (document.visibilityState === "hidden") return;
       void fetch("/api/account/presence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enrich: false, sessionKey }),
-        keepalive: true,
       }).then((response) => {
         if (response.status === 401) {
           clearLocalSession();
@@ -77,14 +77,30 @@ function SessionSync() {
       });
     }
 
+    function onVisible() {
+      if (document.visibilityState === "visible") beat();
+    }
+
+    function onPageShow() {
+      beat();
+    }
+
+    function onPageHide() {
+      signalMemberPresenceDisconnect();
+    }
+
     beat();
-    const timer = window.setInterval(beat, HEARTBEAT_MS);
+    const timer = window.setInterval(beat, MEMBER_PRESENCE_HEARTBEAT_MS);
     window.addEventListener("focus", beat);
-    document.addEventListener("visibilitychange", beat);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("pagehide", onPageHide);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", beat);
-      document.removeEventListener("visibilitychange", beat);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, [session, status]);
 
