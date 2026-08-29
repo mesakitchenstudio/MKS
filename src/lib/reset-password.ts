@@ -4,7 +4,13 @@ import { sendTransactionalEmail, siteUrl } from "@/lib/email";
 import { hashPassword } from "@/lib/passwords";
 
 export type ResetKind = "admin" | "member";
-export type ResetRequestStatus = "ok" | "sent" | "owner" | "noemail";
+
+/** Public redirect status only — never encode account existence or mail setup. */
+export type ResetRequestPublicStatus = "ok";
+
+/** Same browser copy for every completed forgot-password submission. */
+export const FORGOT_PASSWORD_GENERIC_MESSAGE =
+  "If that account exists, a reset link is on its way. Check your inbox and spam folder.";
 
 function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -32,10 +38,14 @@ async function findMember(identifier: string) {
   return users.find((user) => user.name.toLowerCase() === trimmed.toLowerCase()) ?? null;
 }
 
+/**
+ * Start a password reset when possible. Always returns the same public status so
+ * the browser cannot tell whether the account exists or whether email is configured.
+ */
 export async function requestPasswordReset(
   identifier: string,
   preferred: ResetKind,
-): Promise<ResetRequestStatus> {
+): Promise<ResetRequestPublicStatus> {
   const token = randomBytes(32).toString("hex");
   let email = "";
   let kind: ResetKind = preferred;
@@ -43,7 +53,9 @@ export async function requestPasswordReset(
   const typed = identifier.trim().toLowerCase();
 
   if (preferred === "admin" && ownerEmail && typed === ownerEmail) {
-    return "owner" as const;
+    // Env owner cannot be reset by email — do not reveal that to the client.
+    console.info("Password reset skipped for system owner account");
+    return "ok";
   }
 
   if (preferred === "admin") {
@@ -66,7 +78,10 @@ export async function requestPasswordReset(
     }
   }
 
-  if (!email) return "ok" as const;
+  if (!email) {
+    // Nonexistent email/username — same public response as a real account.
+    return "ok";
+  }
 
   const db = getDb();
   await db.passwordReset.deleteMany({ where: { email } });
@@ -82,7 +97,15 @@ export async function requestPasswordReset(
   const path = kind === "admin" ? "/admin/reset-password" : "/reset-password";
   const url = `${siteUrl()}${path}?token=${token}`;
   const sent = await sendResetEmail(email, url);
-  return sent ? ("sent" as const) : ("noemail" as const);
+  if (!sent) {
+    console.error("Password reset email was not delivered (provider missing or send failed)", {
+      kind,
+      // Log domain only — avoid dumping full addresses into shared logs when possible.
+      emailDomain: email.includes("@") ? email.split("@")[1] : "unknown",
+    });
+  }
+
+  return "ok";
 }
 
 export async function resetPasswordWithToken(token: string, password: string) {

@@ -1,15 +1,7 @@
 import Link from "next/link";
 import { requestPasswordResetAction } from "@/app/account/reset-actions";
 import { AdminGoogleSignIn } from "@/components/admin/AdminGoogleSignIn";
-
-const messages: Record<string, string> = {
-  sent: "If that account exists, a reset link is on its way. Check your inbox and spam folder.",
-  ok: "If that account exists, a reset link is on its way. Check your inbox and spam folder.",
-  owner:
-    "The owner account cannot be reset by email. Sign in with Google, or use the owner password from your hosting settings.",
-  noemail:
-    "We found that account, but password emails are not set up yet. Sign in with Google, or ask the owner to set a new password.",
-};
+import { FORGOT_PASSWORD_GENERIC_MESSAGE } from "@/lib/reset-password";
 
 export function ForgotPasswordForm({
   kind,
@@ -19,7 +11,8 @@ export function ForgotPasswordForm({
   status?: string;
 }) {
   const signInHref = kind === "admin" ? "/admin/login" : undefined;
-  const message = status ? messages[status] : "";
+  // Any legacy status (ok, sent, owner, noemail) maps to the same non-enumerating message.
+  const showResult = Boolean(status);
   const help =
     kind === "admin"
       ? "Enter the email or username on the account. The owner account uses Google or the owner password."
@@ -28,9 +21,9 @@ export function ForgotPasswordForm({
     <div className="mx-auto max-w-md border border-line bg-paper p-8">
       <h1 className="font-serif text-3xl">Forgot password</h1>
       <p className="mt-2 text-sm text-muted">{help}</p>
-      {message ? (
-        <p className={`mt-4 text-sm ${status === "owner" || status === "noemail" ? "text-terracotta" : "text-olive"}`}>
-          {message}
+      {showResult ? (
+        <p className="mt-4 text-sm text-olive" role="status" aria-live="polite">
+          {FORGOT_PASSWORD_GENERIC_MESSAGE}
         </p>
       ) : null}
       <form action={requestPasswordResetAction} className="mt-6 grid gap-4">
