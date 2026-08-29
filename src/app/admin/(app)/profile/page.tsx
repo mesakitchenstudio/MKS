@@ -4,6 +4,7 @@ import { accessLabel } from "@/lib/admin-access";
 import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
 import { getAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { AdminFlashStatus, PROFILE_SAVED_PARAMS } from "@/lib/admin-transient-feedback";
 import { redirect } from "next/navigation";
 
 export default async function AdminProfilePage({
@@ -51,12 +52,13 @@ export default async function AdminProfilePage({
       </header>
 
       {saved ? (
-        <p
-          role="status"
+        <AdminFlashStatus
+          active
+          clearParams={PROFILE_SAVED_PARAMS}
           className="mt-4 border border-olive/30 bg-olive/10 px-4 py-2.5 text-sm text-olive-dark"
         >
           Photo saved.
-        </p>
+        </AdminFlashStatus>
       ) : null}
       {error === "named" ? (
         <p

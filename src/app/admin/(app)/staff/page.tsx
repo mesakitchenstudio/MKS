@@ -5,6 +5,8 @@ import { requireAccess } from "@/lib/auth";
 import { formatAdminDateTime } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
 import {
+  getConfiguredSystemOwnerEmail,
+  isReservedSystemOwnerEmail,
   shouldLockOwnerAccessSelect,
   isCurrentStaffAccount,
   MIN_ADMIN_PASSWORD_LENGTH,
@@ -27,6 +29,8 @@ function staffErrorMessage(error?: string) {
       return `Password must be at least ${MIN_ADMIN_PASSWORD_LENGTH} characters.`;
     case "exists":
       return "That email already has an admin account.";
+    case "owner-email":
+      return "This email belongs to the System Owner and cannot be assigned to another team member.";
     case "last-owner":
       return "Keep at least one owner.";
     case "self":
@@ -64,11 +68,9 @@ export default async function AdminStaffPage({
     },
   });
 
-  const envOwnerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() || "";
-  const envOwnerHasNamedRow = envOwnerEmail
-    ? admins.some((admin) => admin.email.toLowerCase() === envOwnerEmail)
-    : false;
-  const showSystemOwner = Boolean(envOwnerEmail) && !envOwnerHasNamedRow;
+  const envOwnerEmail = getConfiguredSystemOwnerEmail();
+  // System Owner is always shown independently — even if a conflicting Team row exists.
+  const showSystemOwner = Boolean(envOwnerEmail);
   const namedOwnerCount = admins.filter((admin) => admin.role === "owner").length;
   const teamCount = admins.length;
   const signedInAsSystemOwner = showSystemOwner && actor.id === "env";
@@ -79,6 +81,7 @@ export default async function AdminStaffPage({
   const teamMembers = admins.map((admin) => {
     const isYou = isCurrentStaffAccount(actor, admin);
     const canRemove = !isYou && !(admin.role === "owner" && namedOwnerCount <= 1);
+    const reservedEmailConflict = isReservedSystemOwnerEmail(admin.email, envOwnerEmail);
     return {
       id: admin.id,
       name: admin.name,
@@ -89,6 +92,7 @@ export default async function AdminStaffPage({
       isYou,
       lockOwnerRole: shouldLockOwnerAccessSelect(actor, admin),
       canRemove,
+      reservedEmailConflict,
       noticeOk: focusAdminId === admin.id && saved ? "Changes saved." : "",
       noticeErr: focusAdminId === admin.id && errorMessage ? errorMessage : "",
       initiallyOpen: focusAdminId === admin.id && Boolean(saved || error),

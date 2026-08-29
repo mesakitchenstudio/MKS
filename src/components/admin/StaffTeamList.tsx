@@ -42,6 +42,8 @@ export type StaffTeamMember = {
   isYou: boolean;
   lockOwnerRole: boolean;
   canRemove: boolean;
+  /** Legacy row that reused ADMIN_EMAIL — Owner should change this email. */
+  reservedEmailConflict?: boolean;
   noticeOk?: string;
   noticeErr?: string;
   initiallyOpen?: boolean;
@@ -118,6 +120,12 @@ function StaffTeamMemberCard({
             </span>
           </div>
           <p className="mt-1 truncate text-sm text-muted">{member.email}</p>
+          {member.reservedEmailConflict ? (
+            <p className="mt-2 text-sm leading-5 text-terracotta-dark">
+              This email belongs to the System Owner. Change it to a unique address for this team
+              member.
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs text-muted">Last login {member.lastLoginLabel}</p>

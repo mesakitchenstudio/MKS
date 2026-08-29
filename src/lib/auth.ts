@@ -89,14 +89,16 @@ export function verifySessionToken(token: string | undefined): AdminSession | nu
 }
 
 async function loadPersistedStaff(session: AdminSession) {
+  // System Owner stays independent of any Team Access row that might share ADMIN_EMAIL.
+  if (session.id === "env") return null;
+
   const db = getDb();
-  if (session.id !== "env") {
-    const byId = await db.admin.findUnique({
-      where: { id: session.id },
-      select: { id: true, email: true, name: true, role: true, sessionVersion: true },
-    });
-    if (byId) return byId;
-  }
+  const byId = await db.admin.findUnique({
+    where: { id: session.id },
+    select: { id: true, email: true, name: true, role: true, sessionVersion: true },
+  });
+  if (byId) return byId;
+
   const email = session.email.trim().toLowerCase();
   if (!email) return null;
   return db.admin.findUnique({
@@ -196,22 +198,7 @@ export async function authenticateAdmin(
 
   if (verifyEnvAdminPassword(password)) {
     const ownerEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() || identifier.toLowerCase();
-    // Prefer the named Team Access row when present so sessionVersion stays consistent.
-    try {
-      const named = await getDb().admin.findUnique({ where: { email: ownerEmail } });
-      if (named) {
-        const role = isAccessLevel(named.role) ? named.role : "owner";
-        return {
-          id: named.id,
-          email: named.email,
-          name: named.name,
-          role,
-          sv: named.sessionVersion,
-        };
-      }
-    } catch {
-      // Fall through to env session.
-    }
+    // System Owner is always the env session — never a Team Access row with the same email.
     return { id: "env", email: ownerEmail, name: "Owner", role: "owner", sv: 0 };
   }
 

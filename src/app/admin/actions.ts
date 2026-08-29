@@ -18,6 +18,7 @@ import {
 } from "@/lib/field-admin";
 import {
   isAcceptableAdminPassword,
+  isReservedSystemOwnerEmail,
   isValidAdminEmail,
   normalizeAdminEmail,
   shouldUpdateAdminPassword,
@@ -456,6 +457,9 @@ export async function saveAdminAction(formData: FormData) {
   }
   if (!isValidAdminEmail(email)) {
     staffRedirect(id ? `error=email&admin=${encodeURIComponent(id)}` : "error=email");
+  }
+  if (isReservedSystemOwnerEmail(email)) {
+    staffRedirect(id ? `error=owner-email&admin=${encodeURIComponent(id)}` : "error=owner-email");
   }
   if (!isAcceptableAdminPassword(password, { required: !id })) {
     staffRedirect(id ? `error=password&admin=${encodeURIComponent(id)}` : "error=password");

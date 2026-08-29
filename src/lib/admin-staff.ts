@@ -14,7 +14,25 @@ export function normalizeAdminEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-export type StaffMutationError = "self-role" | "last-owner" | "self" | "missing";
+/** Configured System Owner email (ADMIN_EMAIL), normalized for comparison. */
+export function getConfiguredSystemOwnerEmail(envOwnerEmail = process.env.ADMIN_EMAIL || "") {
+  return normalizeAdminEmail(envOwnerEmail);
+}
+
+/**
+ * ADMIN_EMAIL is reserved for the configuration-backed System Owner.
+ * Named Team Access accounts must never use that address.
+ */
+export function isReservedSystemOwnerEmail(
+  email: string,
+  envOwnerEmail = process.env.ADMIN_EMAIL || "",
+) {
+  const reserved = getConfiguredSystemOwnerEmail(envOwnerEmail);
+  if (!reserved) return false;
+  return normalizeAdminEmail(email) === reserved;
+}
+
+export type StaffMutationError = "self-role" | "last-owner" | "self" | "missing" | "owner-email";
 
 /** True when the actor is editing their own staff row (named id, email, or env owner). */
 export function isCurrentStaffAccount(
@@ -124,9 +142,11 @@ export function applyPersistedStaffRole<
   session: T,
   persisted: { id: string; email: string; name: string; role: string } | null,
 ): T | null {
+  // System Owner is configuration-backed — never merge into a Team Access row by email.
+  if (session.id === "env") {
+    return { ...session, role: "owner" };
+  }
   if (!persisted) {
-    // Pure system owner cookie with no named Team Access row.
-    if (session.id === "env") return { ...session, role: "owner" };
     return null;
   }
   const role: AccessLevel = isAccessLevel(persisted.role) ? persisted.role : "editor";

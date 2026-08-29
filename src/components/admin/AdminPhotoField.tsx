@@ -390,8 +390,8 @@ export function AdminProfilePhotoForm({
 
         {namedAccountHint ? (
           <p className="mt-4 text-sm leading-6 text-muted">
-            You are signed in with the owner password. Add yourself as an Owner on the Admins page
-            (same email as ADMIN_EMAIL) so your photo can be saved.
+            You are signed in as the System Owner. Profile photos are stored on named Team Access
+            accounts — use a named Owner login (with its own email) to upload a photo.
           </p>
         ) : null}
 

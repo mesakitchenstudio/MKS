@@ -7,6 +7,7 @@ import {
   isAcceptableAdminPassword,
   isAdminSessionVersionCurrent,
   isCurrentStaffAccount,
+  isReservedSystemOwnerEmail,
   isValidAdminEmail,
   normalizeAdminEmail,
   shouldLockOwnerAccessSelect,
@@ -29,6 +30,15 @@ test("normalizes and validates admin emails", () => {
 test("duplicate admin emails are detected case-insensitively", () => {
   assert.equal(emailsConflictCaseInsensitive("Owner@Studio.com", "owner@studio.com"), true);
   assert.equal(emailsConflictCaseInsensitive("a@b.com", "c@d.com"), false);
+});
+
+test("System Owner email is reserved for Team Access accounts", () => {
+  const reserved = "mesakitchenstudio@gmail.com";
+  assert.equal(isReservedSystemOwnerEmail("mesakitchenstudio@gmail.com", reserved), true);
+  assert.equal(isReservedSystemOwnerEmail("MesaKitchenStudio@gmail.com", reserved), true);
+  assert.equal(isReservedSystemOwnerEmail(" mesakitchenstudio@gmail.com ", reserved), true);
+  assert.equal(isReservedSystemOwnerEmail("editor@studio.com", reserved), false);
+  assert.equal(isReservedSystemOwnerEmail("editor@studio.com", ""), false);
 });
 
 test("admin passwords require 10+ characters when set", () => {
@@ -256,25 +266,44 @@ test("system owner session stays owner without a named admin row", () => {
   assert.equal(applyPersistedStaffRole(session, null)?.role, "owner");
 });
 
-test("named Team Access row overrides stale env-owner cookie", () => {
+test("system owner session is never merged into a Team Access row by email", () => {
   const session = {
     id: "env",
-    email: "omid@studio.com",
+    email: "mesakitchenstudio@gmail.com",
     name: "Owner",
     role: "owner" as const,
     sv: 0,
     exp: Date.now() + 60_000,
   };
   const live = applyPersistedStaffRole(session, {
-    id: "admin-omid",
-    email: "omid@studio.com",
-    name: "Omid",
+    id: "admin-collision",
+    email: "mesakitchenstudio@gmail.com",
+    name: "Colliding Editor",
     role: "editor",
   });
-  assert.equal(live?.id, "admin-omid");
-  assert.equal(live?.role, "editor");
-  assert.equal(canAccess(live!.role, "staff"), false);
-  assert.equal(canAccess(live!.role, "content"), true);
+  assert.equal(live?.id, "env");
+  assert.equal(live?.role, "owner");
+  assert.equal(live?.name, "Owner");
+  assert.equal(canAccess(live!.role, "staff"), true);
+});
+
+test("named staff sessions still refresh from their Team Access row", () => {
+  const session = {
+    id: "admin-1",
+    email: "editor@studio.com",
+    name: "Editor",
+    role: "editor" as const,
+    exp: Date.now() + 60_000,
+  };
+  const live = applyPersistedStaffRole(session, {
+    id: "admin-1",
+    email: "editor@studio.com",
+    name: "Editor Updated",
+    role: "members",
+  });
+  assert.equal(live?.id, "admin-1");
+  assert.equal(live?.role, "members");
+  assert.equal(live?.name, "Editor Updated");
 });
 
 test("password change invalidates cookies with a stale session version", () => {

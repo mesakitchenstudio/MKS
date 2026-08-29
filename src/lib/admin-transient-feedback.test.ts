@@ -56,3 +56,10 @@ test("stripSearchParams clears Team Access saved flash params", () => {
     "/admin/staff",
   );
 });
+
+test("stripSearchParams clears profile photo saved flash", () => {
+  assert.equal(
+    stripSearchParams("http://localhost/admin/profile?saved=1", ["saved"]),
+    "/admin/profile",
+  );
+});
