@@ -43,7 +43,11 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
   useEffect(() => {
     function onCurrent(event: Event) {
       const detail = (event as CustomEvent<LikedRecipe | null>).detail;
-      if (!detail) return;
+      if (!detail?.slug) {
+        setCurrent(null);
+        setLiked(false);
+        return;
+      }
       setCurrent(detail);
       setLiked(isLiked(detail.slug));
     }
@@ -129,6 +133,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
   }
 
   function onHeart() {
+    if (!current) return;
     if (!readSession()) {
       setPendingLike(true);
       setPanel("auth");
@@ -148,12 +153,19 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
     });
   }
 
+  // Only a recipe-detail page sets `current` (pathname + SetCurrentRecipe).
+  // Do not render a global Favorite control when there is nothing to save.
+  const showFavorite = Boolean(current?.slug);
+  const showFloatingTools = showFavorite || showFloatingSearch;
+
   return (
     <div className="no-print">
+      {showFloatingTools ? (
       <div className="fixed right-4 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3 md:right-6">
+        {showFavorite ? (
         <button
           type="button"
-          aria-label={liked ? "Unlike recipe" : "Like recipe"}
+          aria-label={liked ? "Remove from saved recipes" : "Save recipe"}
           aria-pressed={liked}
           onClick={onHeart}
           className={`flex h-12 w-12 items-center justify-center rounded-full border shadow-md transition-colors ${
@@ -164,6 +176,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
         >
           <HeartIcon filled={liked} />
         </button>
+        ) : null}
         {showFloatingSearch ? (
         <button
           type="button"
@@ -175,6 +188,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
         </button>
         ) : null}
       </div>
+      ) : null}
 
       {panel === "auth" ? (
         <AuthModal
