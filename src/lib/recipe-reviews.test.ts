@@ -19,6 +19,17 @@ describe("admin review helpers", () => {
   });
 });
 
+describe("recipe review reply authorization", () => {
+  it("allows only content-role staff to manage replies", async () => {
+    const { canManageRecipeReviewReplies } = await import("./recipe-reviews.ts");
+    assert.equal(canManageRecipeReviewReplies("owner"), true);
+    assert.equal(canManageRecipeReviewReplies("editor"), true);
+    assert.equal(canManageRecipeReviewReplies("members"), false);
+    assert.equal(canManageRecipeReviewReplies(null), false);
+    assert.equal(canManageRecipeReviewReplies(""), false);
+  });
+});
+
 describe("recipe review live thread", () => {
   it("polls on a near-real-time interval", () => {
     assert.equal(RECIPE_REVIEW_POLL_MS, 4_000);

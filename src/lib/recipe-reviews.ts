@@ -1,8 +1,15 @@
 import { getStaffByEmail } from "@/lib/accounts";
-import type { AccessLevel } from "@/lib/admin-access";
+import { canAccess, type AccessLevel } from "@/lib/admin-access";
 import { getDb } from "@/lib/db";
 import { site } from "@/data/site";
 import { sanitizePlainText, validateReviewInput } from "@/lib/user-content";
+
+/** Owner/Editor may create recipe review replies; Audience and members may not. */
+export function canManageRecipeReviewReplies(
+  role: AccessLevel | string | null | undefined,
+): role is AccessLevel {
+  return Boolean(role && canAccess(role, "content"));
+}
 
 export type RecipeReviewReplyRow = {
   id: string;
@@ -197,64 +204,14 @@ export async function submitRecipeReview(input: {
   }
 }
 
-export async function submitRecipeReviewReply(input: {
-  recipeSlug: string;
-  reviewId: string;
-  authorName: string;
-  authorEmail: string;
-  body: string;
-}) {
-  const db = getDb();
-  const { authorName, authorEmail, body } = validateReviewInput({
-    authorName: input.authorName,
-    authorEmail: input.authorEmail,
-    body: input.body,
-    minBodyLength: 3,
-  });
-
-  try {
-    const review = await db.recipeReview.findFirst({
-      where: { id: input.reviewId, recipeSlug: input.recipeSlug },
-      select: { id: true },
-    });
-    if (!review) throw new Error("Comment not found.");
-
-    const staff = await getStaffByEmail(authorEmail);
-    const isStaff = Boolean(staff);
-    const authorTitle = isStaff
-      ? staff?.role === "owner"
-        ? site.name
-        : `${site.name} team`
-      : "";
-
-    await db.recipeReviewReply.create({
-      data: {
-        reviewId: input.reviewId,
-        authorName: isStaff ? staff?.name || authorName : authorName,
-        authorTitle,
-        authorEmail,
-        authorPhotoUrl: isStaff ? staff?.photoUrl || "" : "",
-        body,
-        isStaff,
-      },
-    });
-
-    return getRecipeReviewData(input.recipeSlug);
-  } catch (error) {
-    console.error("Recipe reply submit failed", error);
-    if (error instanceof Error && !/prisma|datasource|invocation/i.test(error.message)) {
-      throw error;
-    }
-    throw new Error("Could not save your reply. Please try again.");
-  }
-}
-
 /**
- * Staff reply from Admin → Reviews. Identity comes from the authenticated
- * admin session (not form fields). Parent is resolved by review id only.
+ * Staff reply from Admin → Reviews (or an authorized staff API call).
+ * Identity comes from the authenticated admin session — never client fields.
+ * Parent is resolved by review id (optionally verified against recipeSlug).
  */
 export async function submitAdminRecipeReviewReply(input: {
   reviewId: string;
+  recipeSlug?: string;
   body: string;
   admin: {
     email: string;
@@ -273,6 +230,7 @@ export async function submitAdminRecipeReviewReply(input: {
     select: { id: true, recipeSlug: true },
   });
   if (!review) return null;
+  if (input.recipeSlug && review.recipeSlug !== input.recipeSlug) return null;
 
   const staff = await getStaffByEmail(input.admin.email);
   const authorName = sanitizePlainText(staff?.name || input.admin.name || "Staff", 80);
@@ -298,6 +256,21 @@ export async function submitAdminRecipeReviewReply(input: {
   });
 
   return review.recipeSlug;
+}
+
+/**
+ * @deprecated Public member replies are not allowed. Prefer
+ * `submitAdminRecipeReviewReply` after verifying a content-role admin session.
+ * Kept as a thin wrapper that always rejects non-staff callers.
+ */
+export async function submitRecipeReviewReply(_input: {
+  recipeSlug: string;
+  reviewId: string;
+  authorName: string;
+  authorEmail: string;
+  body: string;
+}): Promise<RecipeReviewData> {
+  throw new Error("Only Mesa staff can reply to recipe reviews.");
 }
 
 export type AdminReviewListItem = {
