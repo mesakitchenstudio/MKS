@@ -44,7 +44,7 @@ function AuthorAvatar({
   photoUrl?: string;
   size?: "sm" | "md";
 }) {
-  const dim = size === "sm" ? "h-9 w-9 text-xs" : "h-11 w-11 text-sm";
+  const dim = size === "sm" ? "h-9 w-9 text-xs" : "h-12 w-12 text-sm";
   if (photoUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -86,8 +86,8 @@ function ThreadMessage({ reply }: { reply: RecipeReviewReplyRow }) {
   if (reply.isStaff) {
     const label = staffIdentityLabel(reply.authorName, reply.authorTitle);
     return (
-      <article className="rounded-sm bg-sand/45 px-4 py-4 sm:px-5 sm:py-5">
-        <div className="flex gap-3 sm:gap-4">
+      <article className="rounded-sm bg-sand/20 px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className="flex gap-3 sm:gap-3.5">
           <AuthorAvatar
             name={reply.authorName}
             staff
@@ -97,11 +97,11 @@ function ThreadMessage({ reply }: { reply: RecipeReviewReplyRow }) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-sm leading-snug">
               <p className="min-w-0 font-semibold text-ink">{label}</p>
-              <time className="shrink-0 text-muted" dateTime={reply.createdAt}>
+              <time className="shrink-0 text-muted/85" dateTime={reply.createdAt}>
                 {formatAdminDate(reply.createdAt)}
               </time>
             </div>
-            <p className="mt-3 whitespace-pre-wrap break-words text-base leading-7 text-ink/90">
+            <p className="mt-3.5 whitespace-pre-wrap break-words text-base leading-7 text-ink/90 sm:mt-4">
               {reply.body}
             </p>
           </div>
@@ -120,7 +120,7 @@ function ThreadMessage({ reply }: { reply: RecipeReviewReplyRow }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-sm leading-snug">
           <span className="font-semibold text-ink">{reply.authorName}</span>
-          <time className="shrink-0 text-muted" dateTime={reply.createdAt}>
+          <time className="shrink-0 text-muted/85" dateTime={reply.createdAt}>
             {formatAdminDate(reply.createdAt)}
           </time>
         </div>
@@ -248,19 +248,19 @@ function ReviewItem({
   onDataChange: (data: RecipeReviewData) => void;
 }) {
   return (
-    <li className="border-b border-line/80 py-9 last:border-b-0 md:py-11">
+    <li className="border-b border-line/70 py-8 last:border-b-0 md:py-10">
       {/* Flat editorial metadata — no card chrome */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3.5 sm:gap-y-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1.5">
             <span className="break-words text-[0.95rem] font-semibold text-ink">
               {review.authorName}
             </span>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-sm text-muted/85">
               <time dateTime={review.createdAt}>{formatAdminDate(review.createdAt)}</time>
               <StarRating
                 value={review.rating}
-                size="sm"
+                size="md"
                 label={`${review.rating} out of 5 stars`}
               />
             </div>
@@ -277,14 +277,14 @@ function ReviewItem({
         ) : null}
       </div>
 
-      <p className="mt-4 max-w-3xl whitespace-pre-wrap break-words text-[1.05rem] leading-8 text-ink/90">
+      <p className="mt-5 max-w-3xl whitespace-pre-wrap break-words text-[1.08rem] leading-[1.85] text-ink/90">
         {review.body}
       </p>
 
       {/* One shared inset column — flat conversation, not nested trees */}
       {review.replies.length ? (
         <div
-          className="mt-7 space-y-5 pl-4 sm:mt-8 sm:space-y-6 sm:pl-10 md:pl-12"
+          className="mt-7 w-full max-w-none space-y-5 pl-3 sm:mt-8 sm:space-y-6 sm:pl-8 md:pl-10"
           aria-label="Replies"
         >
           {review.replies.map((reply) => (
@@ -294,7 +294,7 @@ function ReviewItem({
       ) : null}
 
       {replyOpen && canReply ? (
-        <div className="pl-4 sm:pl-10 md:pl-12">
+        <div className="pl-3 sm:pl-8 md:pl-10">
           <ThreadReplyForm
             slug={slug}
             reviewId={review.id}
@@ -546,7 +546,7 @@ export function RecipeReviews({
           Comments
         </h2>
 
-        <div className="mt-8 md:mt-10" aria-live="polite" aria-atomic="false">
+        <div className="mt-5 md:mt-6" aria-live="polite" aria-atomic="false">
           {data.reviews.length ? (
             <>
               <ul>
