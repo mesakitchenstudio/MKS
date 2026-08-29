@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { loginAction } from "../actions";
+import { loginAction } from "@/app/admin/actions";
 import { AdminGoogleSignIn } from "@/components/admin/AdminGoogleSignIn";
 import { AuthOrDivider } from "@/components/auth/GoogleAuthButton";
 import { homeForRole } from "@/lib/admin-access";
