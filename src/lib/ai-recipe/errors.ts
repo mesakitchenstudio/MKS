@@ -68,12 +68,35 @@ export function buildAiGeminiError(
   };
 }
 
+export function extractGeminiErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error || "Unknown error");
+}
+
+export function isGeminiModelError(error: unknown): boolean {
+  const message = extractGeminiErrorMessage(error).toLowerCase();
+  const status = error instanceof ApiError ? error.status : undefined;
+  return (
+    status === 404 ||
+    (message.includes("model") &&
+      (message.includes("not found") ||
+        message.includes("invalid") ||
+        message.includes("does not exist") ||
+        message.includes("not supported")))
+  );
+}
+
 export function mapGeminiException(
   error: unknown,
   stage: AiGeminiError["stage"],
 ): AiGeminiError {
   const httpStatus = error instanceof ApiError ? error.status : undefined;
-  const message = error instanceof Error ? error.message : String(error || "Unknown error");
+  const message = extractGeminiErrorMessage(error);
   const lower = message.toLowerCase();
 
   if (httpStatus === 401 || httpStatus === 403 || lower.includes("api key") || lower.includes("permission denied")) {
@@ -94,7 +117,7 @@ export function mapGeminiException(
   if (lower.includes("unsupported") || lower.includes("invalid video")) {
     return buildAiGeminiError("VIDEO_UNSUPPORTED", stage, { httpStatus, detail: message });
   }
-  if (lower.includes("model") && (lower.includes("not found") || lower.includes("invalid"))) {
+  if (lower.includes("model") && (lower.includes("not found") || lower.includes("invalid") || lower.includes("does not exist"))) {
     return buildAiGeminiError("GEMINI_MODEL_ERROR", stage, { httpStatus, detail: message });
   }
   if (stage === "recipe_schema" && (lower.includes("schema") || lower.includes("json"))) {

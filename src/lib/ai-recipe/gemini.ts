@@ -3,13 +3,15 @@ import { buildAiRecipeResponseSchema } from "@/lib/ai-recipe/json-schema";
 import { buildAiRecipeSystemInstruction, buildAiRecipeUserPrompt } from "@/lib/ai-recipe/prompt";
 import {
   buildAiGeminiError,
+  extractGeminiErrorMessage,
+  isGeminiModelError,
   logGeminiFailure,
   mapGeminiException,
   type AiGeminiError,
 } from "@/lib/ai-recipe/errors";
 import { getGeminiClient } from "@/lib/ai-recipe/gemini-client";
 import {
-  defaultGeminiModel,
+  geminiModelCandidates,
   type SchemaCategory,
   type SchemaRecipeType,
 } from "@/lib/ai-recipe/schema-version";
@@ -84,57 +86,65 @@ export async function testYouTubeVideoUnderstanding(youtubeUrl: string): Promise
   }
 
   const ai = getGeminiClient()!;
-  const model = defaultGeminiModel();
+  const models = geminiModelCandidates();
+  let lastError: AiGeminiError | null = null;
 
-  try {
-    const interaction = await createVideoInteraction(ai, {
-      model,
-      videoUri: normalized.canonicalUrl,
-      text: VIDEO_PROBE_PROMPT,
-    });
-    const summary = interactionText(interaction);
-    if (!summary) {
-      const error = buildAiGeminiError("VIDEO_INPUT_FAILED", "video_probe", {
-        detail: "Gemini returned no text for the video probe.",
+  for (const model of models) {
+    try {
+      const interaction = await createVideoInteraction(ai, {
+        model,
+        videoUri: normalized.canonicalUrl,
+        text: VIDEO_PROBE_PROMPT,
       });
+      const summary = interactionText(interaction);
+      if (!summary) {
+        lastError = buildAiGeminiError("VIDEO_INPUT_FAILED", "video_probe", {
+          detail: "Gemini returned no text for the video probe.",
+        });
+        logGeminiFailure({
+          stage: "video_probe",
+          code: lastError.code,
+          model,
+          videoId: normalized.videoId,
+          detail: lastError.detail,
+        });
+        continue;
+      }
+      return {
+        ok: true,
+        model,
+        summary,
+        videoId: normalized.videoId,
+        canonicalUrl: normalized.canonicalUrl,
+      };
+    } catch (error) {
+      lastError = mapGeminiException(error, "video_probe");
       logGeminiFailure({
         stage: "video_probe",
-        code: error.code,
+        code: lastError.code,
         model,
         videoId: normalized.videoId,
-        detail: error.detail,
+        httpStatus: lastError.httpStatus,
+        detail: lastError.detail,
       });
+      if (isGeminiModelError(error) && model !== models.at(-1)) {
+        continue;
+      }
       return {
         ok: false,
         videoId: normalized.videoId,
         canonicalUrl: normalized.canonicalUrl,
-        error,
+        error: lastError,
       };
     }
-    return {
-      ok: true,
-      model,
-      summary,
-      videoId: normalized.videoId,
-      canonicalUrl: normalized.canonicalUrl,
-    };
-  } catch (error) {
-    const mapped = mapGeminiException(error, "video_probe");
-    logGeminiFailure({
-      stage: "video_probe",
-      code: mapped.code,
-      model,
-      videoId: normalized.videoId,
-      httpStatus: mapped.httpStatus,
-      detail: mapped.detail,
-    });
-    return {
-      ok: false,
-      videoId: normalized.videoId,
-      canonicalUrl: normalized.canonicalUrl,
-      error: mapped,
-    };
   }
+
+  return {
+    ok: false,
+    videoId: normalized.videoId,
+    canonicalUrl: normalized.canonicalUrl,
+    error: lastError ?? buildAiGeminiError("VIDEO_INPUT_FAILED", "video_probe"),
+  };
 }
 
 export async function generateRecipeDraftWithGemini(input: {
