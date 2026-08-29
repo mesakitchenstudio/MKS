@@ -81,9 +81,11 @@ function ThreadMessage({ reply }: { reply: RecipeReviewReplyRow }) {
 
   return (
     <article
-      className={`flex gap-3 rounded-sm px-3 py-3 sm:gap-4 sm:px-4 sm:py-3.5 ${
-        reply.isStaff ? "bg-cream/90" : "bg-sand/35"
-      }`}
+      className={
+        reply.isStaff
+          ? "flex gap-3 rounded-sm border border-line/70 bg-cream px-3 py-3 sm:gap-4 sm:px-4 sm:py-3.5"
+          : "flex gap-3 px-1 py-2.5 sm:gap-4 sm:px-1.5 sm:py-3"
+      }
     >
       <AuthorAvatar
         name={reply.authorName}
@@ -253,7 +255,7 @@ function ReviewItem({
       </p>
 
       {review.replies.length ? (
-        <div className="mt-5 space-y-2.5 pl-3 sm:pl-5" aria-label="Conversation">
+        <div className="mt-5 space-y-1.5 pl-2 sm:space-y-2 sm:pl-5" aria-label="Conversation">
           {review.replies.map((reply) => (
             <ThreadMessage key={reply.id} reply={reply} />
           ))}
