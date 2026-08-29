@@ -11,6 +11,7 @@ export function recipeReviewThreadSignature(data: RecipeReviewData): string {
   return JSON.stringify({
     average: data.stats.average,
     count: data.stats.count,
+    replyableReviewIds: [...(data.replyableReviewIds || [])].sort(),
     reviews: data.reviews.map((review) => ({
       id: review.id,
       authorName: review.authorName,
@@ -28,6 +29,42 @@ export function recipeReviewThreadSignature(data: RecipeReviewData): string {
       })),
     })),
   });
+}
+
+/** Fingerprint Admin → Reviews list for poll reconciliation without duplicate churn. */
+export function adminReviewsListSignature(
+  reviews: Array<{
+    id: string;
+    body: string;
+    rating: number;
+    replyCount: number;
+    replies: Array<{
+      id: string;
+      body: string;
+      authorName: string;
+      isStaff: boolean;
+      createdAt: string | Date;
+    }>;
+  }>,
+): string {
+  return JSON.stringify(
+    reviews.map((review) => ({
+      id: review.id,
+      body: review.body,
+      rating: review.rating,
+      replyCount: review.replyCount,
+      replies: review.replies.map((reply) => ({
+        id: reply.id,
+        body: reply.body,
+        authorName: reply.authorName,
+        isStaff: reply.isStaff,
+        createdAt:
+          typeof reply.createdAt === "string"
+            ? reply.createdAt
+            : reply.createdAt.toISOString(),
+      })),
+    })),
+  );
 }
 
 export async function fetchRecipeReviewData(slug: string): Promise<RecipeReviewData> {

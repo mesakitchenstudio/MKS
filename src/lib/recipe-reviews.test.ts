@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { formatReviewRating } from "./recipe-reviews.ts";
+import {
+  canManageRecipeReviewReplies,
+  canReplyToRecipeReview,
+  formatReviewRating,
+  isRecipeReviewAuthor,
+} from "./recipe-reviews.ts";
 import {
   RECIPE_REVIEW_POLL_MS,
   recipeReviewThreadSignature,
@@ -19,14 +24,34 @@ describe("admin review helpers", () => {
   });
 });
 
-describe("recipe review reply authorization", () => {
-  it("allows only content-role staff to manage replies", async () => {
-    const { canManageRecipeReviewReplies } = await import("./recipe-reviews.ts");
+describe("recipe review conversation authorization", () => {
+  it("allows content-role staff to manage any reply", () => {
     assert.equal(canManageRecipeReviewReplies("owner"), true);
     assert.equal(canManageRecipeReviewReplies("editor"), true);
     assert.equal(canManageRecipeReviewReplies("members"), false);
     assert.equal(canManageRecipeReviewReplies(null), false);
-    assert.equal(canManageRecipeReviewReplies(""), false);
+  });
+
+  it("recognizes the original review author by email or user id", () => {
+    const review = { userId: "u1", authorEmail: "ada@example.com" };
+    assert.equal(isRecipeReviewAuthor(review, { email: "ada@example.com" }), true);
+    assert.equal(isRecipeReviewAuthor(review, { userId: "u1" }), true);
+    assert.equal(isRecipeReviewAuthor(review, { email: "other@example.com" }), false);
+    assert.equal(isRecipeReviewAuthor(review, { userId: "u2" }), false);
+  });
+
+  it("allows staff or the original author to continue a conversation", () => {
+    const review = { userId: "u1", authorEmail: "ada@example.com" };
+    assert.equal(canReplyToRecipeReview(review, { canStaffReply: true }), true);
+    assert.equal(
+      canReplyToRecipeReview(review, { email: "ada@example.com", canStaffReply: false }),
+      true,
+    );
+    assert.equal(
+      canReplyToRecipeReview(review, { email: "bob@example.com", canStaffReply: false }),
+      false,
+    );
+    assert.equal(canReplyToRecipeReview(review, null), false);
   });
 });
 
@@ -38,6 +63,7 @@ describe("recipe review live thread", () => {
   it("signatures match for identical threads and change when a reply is added", () => {
     const base = {
       stats: { average: 5, count: 1 },
+      replyableReviewIds: ["rev_1"],
       reviews: [
         {
           id: "rev_1",

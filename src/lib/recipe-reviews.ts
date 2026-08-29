@@ -4,11 +4,39 @@ import { getDb } from "@/lib/db";
 import { site } from "@/data/site";
 import { sanitizePlainText, validateReviewInput } from "@/lib/user-content";
 
-/** Owner/Editor may create recipe review replies; Audience and members may not. */
+/** Owner/Editor may reply to any recipe review conversation. */
 export function canManageRecipeReviewReplies(
   role: AccessLevel | string | null | undefined,
 ): role is AccessLevel {
   return Boolean(role && canAccess(role, "content"));
+}
+
+/** True when the viewer is the original review author (session-derived ids/email only). */
+export function isRecipeReviewAuthor(
+  review: { userId?: string | null; authorEmail: string },
+  viewer: { userId?: string | null; email?: string | null },
+) {
+  const viewerEmail = viewer.email?.trim().toLowerCase() || "";
+  const authorEmail = review.authorEmail.trim().toLowerCase();
+  if (viewerEmail && authorEmail && viewerEmail === authorEmail) return true;
+  if (viewer.userId && review.userId && viewer.userId === review.userId) return true;
+  return false;
+}
+
+export type RecipeReviewViewer = {
+  email?: string | null;
+  userId?: string | null;
+  /** Content-role admin cookie or NextAuth staffRole. */
+  canStaffReply?: boolean;
+};
+
+export function canReplyToRecipeReview(
+  review: { userId?: string | null; authorEmail: string },
+  viewer: RecipeReviewViewer | null | undefined,
+) {
+  if (!viewer) return false;
+  if (viewer.canStaffReply) return true;
+  return isRecipeReviewAuthor(review, viewer);
 }
 
 export type RecipeReviewReplyRow = {
@@ -38,10 +66,12 @@ export type RecipeReviewStats = {
 export type RecipeReviewData = {
   reviews: RecipeReviewRow[];
   stats: RecipeReviewStats;
+  /** Review ids the current viewer may continue (author or staff). */
+  replyableReviewIds: string[];
 };
 
 function emptyReviewData(): RecipeReviewData {
-  return { reviews: [], stats: { average: 0, count: 0 } };
+  return { reviews: [], stats: { average: 0, count: 0 }, replyableReviewIds: [] };
 }
 
 function toReplyRow(reply: {
@@ -90,7 +120,10 @@ function toRow(review: {
   };
 }
 
-export async function getRecipeReviewData(recipeSlug: string): Promise<RecipeReviewData> {
+export async function getRecipeReviewData(
+  recipeSlug: string,
+  viewer?: RecipeReviewViewer | null,
+): Promise<RecipeReviewData> {
   try {
     const db = getDb();
     const reviews = await db.recipeReview.findMany({
@@ -98,12 +131,14 @@ export async function getRecipeReviewData(recipeSlug: string): Promise<RecipeRev
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
+        userId: true,
+        authorEmail: true,
         authorName: true,
         rating: true,
         body: true,
         createdAt: true,
         replies: {
-          orderBy: { createdAt: "asc" },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           select: {
             id: true,
             authorName: true,
@@ -120,12 +155,17 @@ export async function getRecipeReviewData(recipeSlug: string): Promise<RecipeRev
     if (!reviews.length) return emptyReviewData();
 
     const total = reviews.reduce((sum, review) => sum + review.rating, 0);
+    const replyableReviewIds = reviews
+      .filter((review) => canReplyToRecipeReview(review, viewer))
+      .map((review) => review.id);
+
     return {
       reviews: reviews.map(toRow),
       stats: {
         average: Math.round((total / reviews.length) * 10) / 10,
         count: reviews.length,
       },
+      replyableReviewIds,
     };
   } catch (error) {
     console.error("getRecipeReviewData failed", recipeSlug, error);
@@ -259,10 +299,66 @@ export async function submitAdminRecipeReviewReply(input: {
 }
 
 /**
- * @deprecated Public member replies are not allowed. Prefer
- * `submitAdminRecipeReviewReply` after verifying a content-role admin session.
- * Kept as a thin wrapper that always rejects non-staff callers.
+ * Original review author continuing their conversation.
+ * Identity comes from the authenticated member session — never client fields.
  */
+export async function submitMemberRecipeReviewReply(input: {
+  reviewId: string;
+  recipeSlug?: string;
+  body: string;
+  member: {
+    email: string;
+    name: string;
+    userId?: string | null;
+    image?: string | null;
+  };
+}) {
+  const body = sanitizePlainText(input.body, 5000);
+  if (body.length < 3) {
+    throw new Error("Reply must be at least 3 characters.");
+  }
+
+  const db = getDb();
+  const review = await db.recipeReview.findUnique({
+    where: { id: input.reviewId },
+    select: { id: true, recipeSlug: true, userId: true, authorEmail: true },
+  });
+  if (!review) return null;
+  if (input.recipeSlug && review.recipeSlug !== input.recipeSlug) return null;
+
+  if (
+    !isRecipeReviewAuthor(review, {
+      email: input.member.email,
+      userId: input.member.userId,
+    })
+  ) {
+    throw new Error("You can only reply to your own review.");
+  }
+
+  const authorName = sanitizePlainText(input.member.name || "Member", 80);
+  const authorEmail = input.member.email.trim().toLowerCase().slice(0, 254);
+  const authorPhotoUrl = (input.member.image || "").slice(0, 500);
+
+  if (!authorName || !authorEmail) {
+    throw new Error("Could not resolve member identity for this reply.");
+  }
+
+  await db.recipeReviewReply.create({
+    data: {
+      reviewId: review.id,
+      authorName,
+      authorTitle: "",
+      authorEmail,
+      authorPhotoUrl,
+      body,
+      isStaff: false,
+    },
+  });
+
+  return review.recipeSlug;
+}
+
+/** @deprecated Use staff/member authorized submit helpers instead. */
 export async function submitRecipeReviewReply(_input: {
   recipeSlug: string;
   reviewId: string;
@@ -270,7 +366,7 @@ export async function submitRecipeReviewReply(_input: {
   authorEmail: string;
   body: string;
 }): Promise<RecipeReviewData> {
-  throw new Error("Only Mesa staff can reply to recipe reviews.");
+  throw new Error("Unauthorized reply.");
 }
 
 export type AdminReviewListItem = {
@@ -348,7 +444,7 @@ export async function listReviewsForAdmin(options?: {
         createdAt: true,
         _count: { select: { replies: true } },
         replies: {
-          orderBy: { createdAt: "asc" },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           select: {
             id: true,
             authorName: true,

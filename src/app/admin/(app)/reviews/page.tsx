@@ -1,17 +1,12 @@
-import Link from "next/link";
-import { AdminReviewReplyControls } from "@/components/admin/AdminReviewReplyControls";
-import { RemoveReviewButton } from "@/components/admin/RemoveReviewButton";
-import { ReviewRepliesSection } from "@/components/admin/ReviewRepliesSection";
+import { AdminReviewsLiveFeed } from "@/components/admin/AdminReviewsLiveFeed";
 import { canAccess } from "@/lib/admin-access";
-import { adminFocusRing } from "@/lib/admin-ui";
 import {
   AdminFlashStatus,
   REVIEW_REMOVED_PARAMS,
   REVIEW_REPLIED_PARAMS,
 } from "@/lib/admin-transient-feedback";
 import { requireAccess } from "@/lib/auth";
-import { formatAdminDate } from "@/lib/datetime";
-import { formatReviewRating, listReviewsForAdmin } from "@/lib/recipe-reviews";
+import { listReviewsForAdmin } from "@/lib/recipe-reviews";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +37,8 @@ export default async function AdminReviewsPage({
         Reviews
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Moderate member notes on recipes. Reply from here without opening the public recipe page.
-        Removing a review also removes its replies.
+        Moderate member conversations on recipes. Reply from here without opening the public
+        recipe page. Removing a review also removes its replies.
       </p>
 
       <AdminFlashStatus active={Boolean(replied)} clearParams={REVIEW_REPLIED_PARAMS}>
@@ -62,114 +57,13 @@ export default async function AdminReviewsPage({
         </p>
       ) : null}
 
-      {reviews.length === 0 ? (
-        <p className="mt-8 text-sm text-muted">No reviews to moderate.</p>
-      ) : (
-        <>
-          <ul className="mt-8 divide-y divide-line border border-line bg-paper">
-            {reviews.map((review) => {
-              const ratingLabel = formatReviewRating(review.rating);
-              const publicRecipeHref = `/recipes/${encodeURIComponent(review.recipeSlug)}`;
-              const memberHref =
-                canOpenMembers && review.userId ? `/admin/members/${review.userId}` : null;
-
-              return (
-                <li key={review.id} className="p-5 md:p-6">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <Link
-                        href={publicRecipeHref}
-                        className={`min-w-0 break-words font-serif text-xl text-ink hover:text-terracotta ${adminFocusRing}`}
-                      >
-                        {review.recipeTitle}
-                      </Link>
-                      <span className="shrink-0 text-sm text-muted">{ratingLabel}</span>
-                    </div>
-
-                    <div className="mt-3 min-w-0">
-                      {memberHref ? (
-                        <Link
-                          href={memberHref}
-                          className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-                        >
-                          {review.authorName}
-                        </Link>
-                      ) : (
-                        <p className="font-semibold text-ink">{review.authorName}</p>
-                      )}
-                      {review.authorEmail ? (
-                        <p className="mt-0.5 break-all text-xs text-muted">{review.authorEmail}</p>
-                      ) : null}
-                      <p className="mt-1 text-xs text-muted">
-                        {formatAdminDate(review.createdAt)}
-                      </p>
-                    </div>
-
-                    <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-ink/90">
-                      {review.body}
-                    </p>
-
-                    <ReviewRepliesSection
-                      count={review.replyCount}
-                      replies={review.replies.map((reply) => ({
-                        id: reply.id,
-                        authorName: reply.authorName,
-                        authorTitle: reply.authorTitle,
-                        authorPhotoUrl: reply.authorPhotoUrl,
-                        body: reply.body,
-                        isStaff: reply.isStaff,
-                        createdAt: reply.createdAt,
-                      }))}
-                    />
-
-                    <AdminReviewReplyControls reviewId={review.id} page={page}>
-                      <RemoveReviewButton
-                        id={review.id}
-                        authorName={review.authorName}
-                        recipeTitle={review.recipeTitle}
-                      />
-                    </AdminReviewReplyControls>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          {totalPages > 1 ? (
-            <nav
-              className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-muted"
-              aria-label="Reviews pagination"
-            >
-              <p>
-                Page {page} of {totalPages}
-                <span className="text-muted"> · {total} total</span>
-              </p>
-              <div className="flex items-center gap-4">
-                {page > 1 ? (
-                  <Link
-                    href={page === 2 ? "/admin/reviews" : `/admin/reviews?page=${page - 1}`}
-                    className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-                  >
-                    Previous
-                  </Link>
-                ) : (
-                  <span className="font-semibold text-muted/50">Previous</span>
-                )}
-                {page < totalPages ? (
-                  <Link
-                    href={`/admin/reviews?page=${page + 1}`}
-                    className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-                  >
-                    Next
-                  </Link>
-                ) : (
-                  <span className="font-semibold text-muted/50">Next</span>
-                )}
-              </div>
-            </nav>
-          ) : null}
-        </>
-      )}
+      <AdminReviewsLiveFeed
+        initialReviews={reviews}
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        canOpenMembers={canOpenMembers}
+      />
     </div>
   );
 }

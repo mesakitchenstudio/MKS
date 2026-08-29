@@ -59,10 +59,10 @@ export function ReviewRepliesSection({ replies, count }: { replies: Reply[]; cou
 
   return (
     <div className="mt-4 border-t border-line pt-3">
-      <p className="text-sm font-semibold text-ink">
-        Replies
-        <span className="ml-2 font-normal text-muted">· {total}</span>
-      </p>
+        <p className="text-sm font-semibold text-ink">
+          Conversation
+          <span className="ml-2 font-normal text-muted">· {total}</span>
+        </p>
       <ul className="mt-3 divide-y divide-line border border-line">
         {replies.map((reply) => {
           const title = reply.authorTitle?.trim();

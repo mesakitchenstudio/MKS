@@ -74,27 +74,141 @@ function ReviewReply({ reply }: { reply: RecipeReviewReplyRow }) {
           <span className="font-semibold text-ink">{label}</span>
           <span className="text-muted">{formatGmtDisplay(reply.createdAt, { includeTime: true })}</span>
         </div>
-        <p className="mt-3 leading-7 text-ink/90">{reply.body}</p>
+        <p className="mt-3 break-words leading-7 text-ink/90">{reply.body}</p>
       </div>
     </article>
   );
 }
 
-function ReviewItem({ review }: { review: RecipeReviewRow }) {
+function ThreadReplyForm({
+  slug,
+  reviewId,
+  onCancel,
+  onSuccess,
+}: {
+  slug: string;
+  reviewId: string;
+  onCancel: () => void;
+  onSuccess: (data: RecipeReviewData) => void;
+}) {
+  const [comment, setComment] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setSubmitting(true);
+
+    try {
+      const response = await fetch(
+        `/api/recipes/${encodeURIComponent(slug)}/reviews/${encodeURIComponent(reviewId)}/replies`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ comment }),
+        },
+      );
+      const payload = (await response.json()) as RecipeReviewData & { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not save your reply.");
+      onSuccess(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save your reply.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mt-4 grid gap-3 border border-line bg-paper p-4">
+      <label className="grid gap-1 text-sm font-semibold text-ink">
+        Continue conversation
+        <textarea
+          required
+          minLength={3}
+          rows={4}
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+          placeholder="Add to this conversation…"
+          className="rounded-sm border border-line bg-cream px-3 py-2 font-normal outline-none focus:border-terracotta"
+        />
+      </label>
+      {error ? <p className="text-sm text-terracotta">{error}</p> : null}
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:opacity-60"
+        >
+          {submitting ? "Posting…" : "Post reply"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm font-semibold text-muted hover:text-ink"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ReviewItem({
+  review,
+  slug,
+  canReply,
+  replyOpen,
+  onToggleReply,
+  onCancelReply,
+  onDataChange,
+}: {
+  review: RecipeReviewRow;
+  slug: string;
+  canReply: boolean;
+  replyOpen: boolean;
+  onToggleReply: () => void;
+  onCancelReply: () => void;
+  onDataChange: (data: RecipeReviewData) => void;
+}) {
   return (
     <li className="border-b border-line py-8 first:pt-0 last:border-b-0">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-none">
-        <span className="max-w-[min(100%,16rem)] break-words font-semibold text-ink">
-          {review.authorName}
-        </span>
-        <span className="text-muted">{formatGmtDisplay(review.createdAt, { includeTime: true })}</span>
-        <StarRating value={review.rating} size="sm" label={`${review.rating} out of 5 stars`} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-none">
+          <span className="max-w-[min(100%,16rem)] break-words font-semibold text-ink">
+            {review.authorName}
+          </span>
+          <span className="text-muted">{formatGmtDisplay(review.createdAt, { includeTime: true })}</span>
+          <StarRating value={review.rating} size="sm" label={`${review.rating} out of 5 stars`} />
+        </div>
+        {canReply ? (
+          <button
+            type="button"
+            onClick={onToggleReply}
+            className="shrink-0 text-sm font-semibold text-olive underline underline-offset-2 hover:text-olive-dark"
+          >
+            {replyOpen ? "Cancel" : review.replies.length ? "Continue conversation" : "Reply"}
+          </button>
+        ) : null}
       </div>
       <p className="mt-4 break-words leading-7 text-ink/90">{review.body}</p>
 
       {review.replies.map((reply) => (
         <ReviewReply key={reply.id} reply={reply} />
       ))}
+
+      {replyOpen && canReply ? (
+        <ThreadReplyForm
+          slug={slug}
+          reviewId={review.id}
+          onCancel={onCancelReply}
+          onSuccess={(data) => {
+            onDataChange(data);
+            onCancelReply();
+          }}
+        />
+      ) : null}
     </li>
   );
 }
@@ -106,7 +220,10 @@ export function RecipeReviews({
   defaultName = "",
   defaultEmail = "",
 }: RecipeReviewsProps) {
-  const [data, setData] = useState(initial);
+  const [data, setData] = useState<RecipeReviewData>({
+    ...initial,
+    replyableReviewIds: initial.replyableReviewIds || [],
+  });
   const [rating, setRating] = useState(0);
   const [name, setName] = useState(defaultName);
   const [email, setEmail] = useState(defaultEmail);
@@ -116,20 +233,23 @@ export function RecipeReviews({
   const [submitted, setSubmitted] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
-  const threadSigRef = useRef(recipeReviewThreadSignature(initial));
+  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const threadSigRef = useRef(recipeReviewThreadSignature(data));
 
+  const replyable = new Set(data.replyableReviewIds || []);
   const visibleReviews = showAllComments
     ? data.reviews
     : data.reviews.slice(0, VISIBLE_COMMENTS);
   const hasMoreComments = data.reviews.length > VISIBLE_COMMENTS;
 
   useEffect(() => {
-    threadSigRef.current = recipeReviewThreadSignature(initial);
-    setData(initial);
+    const next = { ...initial, replyableReviewIds: initial.replyableReviewIds || [] };
+    threadSigRef.current = recipeReviewThreadSignature(next);
+    setData(next);
     setLoaded(false);
     setShowAllComments(false);
-    // Reset only when navigating to another recipe (slug change).
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `initial` is the SSR snapshot for this slug
+    setActiveReplyId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- SSR snapshot for this slug
   }, [slug]);
 
   useEffect(() => {
@@ -146,14 +266,23 @@ export function RecipeReviews({
       try {
         const next = await fetchRecipeReviewData(slug);
         if (cancelled) return;
-        const signature = recipeReviewThreadSignature(next);
+        const normalized = {
+          ...next,
+          replyableReviewIds: next.replyableReviewIds || [],
+        };
+        const signature = recipeReviewThreadSignature(normalized);
         if (signature === threadSigRef.current) {
           setLoaded(true);
           return;
         }
         threadSigRef.current = signature;
-        setData(next);
-        notifyRecipeReviewsUpdated(next.stats);
+        setData(normalized);
+        notifyRecipeReviewsUpdated(normalized.stats);
+        setActiveReplyId((current) =>
+          current && !normalized.reviews.some((review) => review.id === current)
+            ? null
+            : current,
+        );
       } catch {
         // Keep the visible thread; retry on the next interval.
       } finally {
@@ -181,9 +310,13 @@ export function RecipeReviews({
   }, [slug]);
 
   function applyReviewData(next: RecipeReviewData) {
-    threadSigRef.current = recipeReviewThreadSignature(next);
-    setData(next);
-    notifyRecipeReviewsUpdated(next.stats);
+    const normalized = {
+      ...next,
+      replyableReviewIds: next.replyableReviewIds || [],
+    };
+    threadSigRef.current = recipeReviewThreadSignature(normalized);
+    setData(normalized);
+    notifyRecipeReviewsUpdated(normalized.stats);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -195,6 +328,7 @@ export function RecipeReviews({
       const response = await fetch(`/api/recipes/${encodeURIComponent(slug)}/reviews`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           authorName: name,
           authorEmail: email,
@@ -283,7 +417,18 @@ export function RecipeReviews({
         <>
           <ul className="mt-10">
             {visibleReviews.map((review) => (
-              <ReviewItem key={review.id} review={review} />
+              <ReviewItem
+                key={review.id}
+                review={review}
+                slug={slug}
+                canReply={replyable.has(review.id)}
+                replyOpen={activeReplyId === review.id}
+                onToggleReply={() =>
+                  setActiveReplyId((current) => (current === review.id ? null : review.id))
+                }
+                onCancelReply={() => setActiveReplyId(null)}
+                onDataChange={applyReviewData}
+              />
             ))}
           </ul>
           {hasMoreComments && !showAllComments ? (

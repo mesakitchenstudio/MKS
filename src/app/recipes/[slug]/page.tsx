@@ -18,7 +18,8 @@ import { RecipeVideoExperience } from "@/components/youtube/RecipeVideoExperienc
 import { RelatedYouTubeVideos } from "@/components/youtube/RelatedYouTubeVideos";
 import { YouTubeSubscribeCTA } from "@/components/youtube/YouTubeSubscribeCTA";
 import { site } from "@/data/site";
-import { getRecipeReviewData } from "@/lib/recipe-reviews";
+import { getAdminSession } from "@/lib/auth";
+import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
 import { resolveRecipeYoutube } from "@/lib/recipe-youtube";
 import { recipeTocItems } from "@/lib/recipe-sections";
 import { recipeJsonLd } from "@/lib/schema";
@@ -69,11 +70,19 @@ export default async function RecipePage({ params }: Props) {
   const recipe = await getRecipeBySlug(slug);
   if (!recipe) notFound();
 
-  const [related, reviewData, session] = await Promise.all([
+  const [related, session, admin] = await Promise.all([
     getRelatedRecipes(recipe),
-    getRecipeReviewData(slug),
     auth(),
+    getAdminSession(),
   ]);
+  const canStaffReply =
+    Boolean(admin && canManageRecipeReviewReplies(admin.role)) ||
+    Boolean(session?.staffRole && canManageRecipeReviewReplies(session.staffRole));
+  const reviewData = await getRecipeReviewData(slug, {
+    canStaffReply,
+    email: session?.user?.email ?? null,
+    userId: session?.user?.id ?? null,
+  });
   const toc = recipeTocItems(recipe);
   const updated = formatGmtDisplay(recipe.updatedAt);
   const youtube = resolveRecipeYoutube(recipe);
