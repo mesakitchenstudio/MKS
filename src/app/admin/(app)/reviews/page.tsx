@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminReviewReplyControls } from "@/components/admin/AdminReviewReplyControls";
 import { RemoveReviewButton } from "@/components/admin/RemoveReviewButton";
 import { ReviewRepliesSection } from "@/components/admin/ReviewRepliesSection";
 import { canAccess } from "@/lib/admin-access";
@@ -6,6 +7,7 @@ import { adminFocusRing } from "@/lib/admin-ui";
 import {
   AdminFlashStatus,
   REVIEW_REMOVED_PARAMS,
+  REVIEW_REPLIED_PARAMS,
 } from "@/lib/admin-transient-feedback";
 import { requireAccess } from "@/lib/auth";
 import { formatAdminDate } from "@/lib/datetime";
@@ -16,11 +18,16 @@ export const dynamic = "force-dynamic";
 export default async function AdminReviewsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ removed?: string; error?: string; page?: string }>;
+  searchParams: Promise<{
+    removed?: string;
+    replied?: string;
+    error?: string;
+    page?: string;
+  }>;
 }) {
   const admin = await requireAccess("content");
   const canOpenMembers = canAccess(admin.role, "members");
-  const { removed, error, page: pageParam } = await searchParams;
+  const { removed, replied, error, page: pageParam } = await searchParams;
   const requestedPage = Number.parseInt(pageParam || "1", 10);
   const { reviews, page, totalPages, total } = await listReviewsForAdmin({
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
@@ -35,13 +42,21 @@ export default async function AdminReviewsPage({
         Reviews
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Moderate member notes on recipes. Removing a review also removes its replies.
+        Moderate member notes on recipes. Reply from here without opening the public recipe page.
+        Removing a review also removes its replies.
       </p>
 
+      <AdminFlashStatus active={Boolean(replied)} clearParams={REVIEW_REPLIED_PARAMS}>
+        Reply posted.
+      </AdminFlashStatus>
       <AdminFlashStatus active={Boolean(removed)} clearParams={REVIEW_REMOVED_PARAMS}>
         Review removed.
       </AdminFlashStatus>
-      {error ? (
+      {error === "reply" ? (
+        <p className="mt-4 text-sm text-terracotta" role="alert">
+          Could not post that reply. Check the text and try again.
+        </p>
+      ) : error ? (
         <p className="mt-4 text-sm text-terracotta" role="alert">
           Could not remove that item. It may already be gone.
         </p>
@@ -54,68 +69,66 @@ export default async function AdminReviewsPage({
           <ul className="mt-8 divide-y divide-line border border-line bg-paper">
             {reviews.map((review) => {
               const ratingLabel = formatReviewRating(review.rating);
-              const recipeHref = review.recipeId
-                ? `/admin/recipes/${review.recipeId}`
-                : `/recipes/${review.recipeSlug}`;
+              const publicRecipeHref = `/recipes/${encodeURIComponent(review.recipeSlug)}`;
               const memberHref =
                 canOpenMembers && review.userId ? `/admin/members/${review.userId}` : null;
 
               return (
                 <li key={review.id} className="p-5 md:p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <Link
-                          href={recipeHref}
-                          className={`min-w-0 break-words font-serif text-xl text-ink hover:text-terracotta ${adminFocusRing}`}
-                        >
-                          {review.recipeTitle}
-                        </Link>
-                        <span className="shrink-0 text-sm text-muted">{ratingLabel}</span>
-                      </div>
-
-                      <div className="mt-3 min-w-0">
-                        {memberHref ? (
-                          <Link
-                            href={memberHref}
-                            className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-                          >
-                            {review.authorName}
-                          </Link>
-                        ) : (
-                          <p className="font-semibold text-ink">{review.authorName}</p>
-                        )}
-                        {review.authorEmail ? (
-                          <p className="mt-0.5 break-all text-xs text-muted">{review.authorEmail}</p>
-                        ) : null}
-                        <p className="mt-1 text-xs text-muted">
-                          {formatAdminDate(review.createdAt)}
-                        </p>
-                      </div>
-
-                      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-ink/90">
-                        {review.body}
-                      </p>
-
-                      <ReviewRepliesSection
-                        count={review.replyCount}
-                        replies={review.replies.map((reply) => ({
-                          id: reply.id,
-                          authorName: reply.authorName,
-                          body: reply.body,
-                          isStaff: reply.isStaff,
-                          createdAt: reply.createdAt,
-                        }))}
-                      />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <Link
+                        href={publicRecipeHref}
+                        className={`min-w-0 break-words font-serif text-xl text-ink hover:text-terracotta ${adminFocusRing}`}
+                      >
+                        {review.recipeTitle}
+                      </Link>
+                      <span className="shrink-0 text-sm text-muted">{ratingLabel}</span>
                     </div>
 
-                    <div className="shrink-0">
+                    <div className="mt-3 min-w-0">
+                      {memberHref ? (
+                        <Link
+                          href={memberHref}
+                          className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
+                        >
+                          {review.authorName}
+                        </Link>
+                      ) : (
+                        <p className="font-semibold text-ink">{review.authorName}</p>
+                      )}
+                      {review.authorEmail ? (
+                        <p className="mt-0.5 break-all text-xs text-muted">{review.authorEmail}</p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-muted">
+                        {formatAdminDate(review.createdAt)}
+                      </p>
+                    </div>
+
+                    <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-ink/90">
+                      {review.body}
+                    </p>
+
+                    <ReviewRepliesSection
+                      count={review.replyCount}
+                      replies={review.replies.map((reply) => ({
+                        id: reply.id,
+                        authorName: reply.authorName,
+                        authorTitle: reply.authorTitle,
+                        authorPhotoUrl: reply.authorPhotoUrl,
+                        body: reply.body,
+                        isStaff: reply.isStaff,
+                        createdAt: reply.createdAt,
+                      }))}
+                    />
+
+                    <AdminReviewReplyControls reviewId={review.id} page={page}>
                       <RemoveReviewButton
                         id={review.id}
                         authorName={review.authorName}
                         recipeTitle={review.recipeTitle}
                       />
-                    </div>
+                    </AdminReviewReplyControls>
                   </div>
                 </li>
               );

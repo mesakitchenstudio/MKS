@@ -744,3 +744,46 @@ export async function deleteReviewReplyAction(formData: FormData) {
   revalidatePath("/admin/reviews");
   redirect("/admin/reviews?removed=1");
 }
+
+export async function replyToReviewAction(formData: FormData) {
+  const admin = await requireAccess("content");
+  const reviewId = String(formData.get("reviewId") || "").trim();
+  const body = String(formData.get("body") || "");
+  const pageRaw = String(formData.get("page") || "1").trim();
+  const page = Number.parseInt(pageRaw, 10);
+
+  if (!reviewId) redirect("/admin/reviews?error=missing");
+
+  try {
+    const { submitAdminRecipeReviewReply } = await import("@/lib/recipe-reviews");
+    const slug = await submitAdminRecipeReviewReply({
+      reviewId,
+      body,
+      admin: {
+        email: admin.email,
+        name: admin.name,
+        role: admin.role,
+      },
+    });
+    if (!slug) redirect("/admin/reviews?error=missing");
+    revalidatePath(`/recipes/${slug}`);
+    revalidatePath("/admin/reviews");
+    const params = new URLSearchParams({ replied: "1" });
+    if (Number.isFinite(page) && page > 1) params.set("page", String(page));
+    redirect(`/admin/reviews?${params.toString()}`);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string" &&
+      String((error as { digest: string }).digest).startsWith("NEXT_REDIRECT")
+    ) {
+      throw error;
+    }
+    console.error("Could not post admin review reply", error);
+    const params = new URLSearchParams({ error: "reply" });
+    if (Number.isFinite(page) && page > 1) params.set("page", String(page));
+    redirect(`/admin/reviews?${params.toString()}`);
+  }
+}

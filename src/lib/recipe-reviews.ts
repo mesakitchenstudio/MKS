@@ -1,7 +1,8 @@
 import { getStaffByEmail } from "@/lib/accounts";
+import type { AccessLevel } from "@/lib/admin-access";
 import { getDb } from "@/lib/db";
 import { site } from "@/data/site";
-import { validateReviewInput } from "@/lib/user-content";
+import { sanitizePlainText, validateReviewInput } from "@/lib/user-content";
 
 export type RecipeReviewReplyRow = {
   id: string;
@@ -248,6 +249,57 @@ export async function submitRecipeReviewReply(input: {
   }
 }
 
+/**
+ * Staff reply from Admin → Reviews. Identity comes from the authenticated
+ * admin session (not form fields). Parent is resolved by review id only.
+ */
+export async function submitAdminRecipeReviewReply(input: {
+  reviewId: string;
+  body: string;
+  admin: {
+    email: string;
+    name: string;
+    role: AccessLevel;
+  };
+}) {
+  const body = sanitizePlainText(input.body, 5000);
+  if (body.length < 3) {
+    throw new Error("Reply must be at least 3 characters.");
+  }
+
+  const db = getDb();
+  const review = await db.recipeReview.findUnique({
+    where: { id: input.reviewId },
+    select: { id: true, recipeSlug: true },
+  });
+  if (!review) return null;
+
+  const staff = await getStaffByEmail(input.admin.email);
+  const authorName = sanitizePlainText(staff?.name || input.admin.name || "Staff", 80);
+  const authorEmail = (staff?.email || input.admin.email).trim().toLowerCase().slice(0, 254);
+  const role = staff?.role || input.admin.role;
+  const authorTitle = role === "owner" ? site.name : `${site.name} team`;
+  const authorPhotoUrl = (staff?.photoUrl || "").slice(0, 500);
+
+  if (!authorName || !authorEmail) {
+    throw new Error("Could not resolve staff identity for this reply.");
+  }
+
+  await db.recipeReviewReply.create({
+    data: {
+      reviewId: review.id,
+      authorName,
+      authorTitle,
+      authorEmail,
+      authorPhotoUrl,
+      body,
+      isStaff: true,
+    },
+  });
+
+  return review.recipeSlug;
+}
+
 export type AdminReviewListItem = {
   id: string;
   recipeSlug: string;
@@ -263,6 +315,8 @@ export type AdminReviewListItem = {
   replies: {
     id: string;
     authorName: string;
+    authorTitle: string;
+    authorPhotoUrl: string;
     body: string;
     isStaff: boolean;
     createdAt: Date;
@@ -325,6 +379,8 @@ export async function listReviewsForAdmin(options?: {
           select: {
             id: true,
             authorName: true,
+            authorTitle: true,
+            authorPhotoUrl: true,
             body: true,
             isStaff: true,
             createdAt: true,
