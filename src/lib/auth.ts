@@ -78,13 +78,14 @@ export function verifySessionToken(token: string | undefined): AdminSession | nu
 }
 
 async function loadPersistedStaff(session: AdminSession) {
-  if (session.id === "env") return null;
   const db = getDb();
-  const byId = await db.admin.findUnique({
-    where: { id: session.id },
-    select: { id: true, email: true, name: true, role: true },
-  });
-  if (byId) return byId;
+  if (session.id !== "env") {
+    const byId = await db.admin.findUnique({
+      where: { id: session.id },
+      select: { id: true, email: true, name: true, role: true },
+    });
+    if (byId) return byId;
+  }
   const email = session.email.trim().toLowerCase();
   if (!email) return null;
   return db.admin.findUnique({
@@ -94,9 +95,6 @@ async function loadPersistedStaff(session: AdminSession) {
 }
 
 export async function resolveLiveAdminSession(session: AdminSession): Promise<AdminSession | null> {
-  if (session.id === "env") {
-    return applyPersistedStaffRole(session, null);
-  }
   try {
     const persisted = await loadPersistedStaff(session);
     return applyPersistedStaffRole(session, persisted);

@@ -197,6 +197,22 @@ test("Owner has full admin access including staff", () => {
   assert.equal(canAccess("owner", "members"), true);
 });
 
+test("buildAdminNavSections hides unauthorized areas", async () => {
+  const { buildAdminNavSections } = await import("./admin-nav.ts");
+  const editor = buildAdminNavSections("editor");
+  assert.deepEqual(
+    editor.flatMap((section) => section.items.map((item) => item.href)),
+    ["/admin", "/admin/types", "/admin/categories", "/admin/reviews"],
+  );
+  const audience = buildAdminNavSections("members");
+  assert.deepEqual(
+    audience.flatMap((section) => section.items.map((item) => item.href)),
+    ["/admin/members", "/admin/visitors"],
+  );
+  const owner = buildAdminNavSections("owner");
+  assert.ok(owner.some((section) => section.items.some((item) => item.href === "/admin/staff")));
+});
+
 test("persisted Team Access role overrides stale session cookie role", () => {
   const session = {
     id: "admin-1",
@@ -237,6 +253,26 @@ test("system owner session stays owner without a named admin row", () => {
     exp: Date.now() + 60_000,
   };
   assert.equal(applyPersistedStaffRole(session, null)?.role, "owner");
+});
+
+test("named Team Access row overrides stale env-owner cookie", () => {
+  const session = {
+    id: "env",
+    email: "omid@studio.com",
+    name: "Owner",
+    role: "owner" as const,
+    exp: Date.now() + 60_000,
+  };
+  const live = applyPersistedStaffRole(session, {
+    id: "admin-omid",
+    email: "omid@studio.com",
+    name: "Omid",
+    role: "editor",
+  });
+  assert.equal(live?.id, "admin-omid");
+  assert.equal(live?.role, "editor");
+  assert.equal(canAccess(live!.role, "staff"), false);
+  assert.equal(canAccess(live!.role, "content"), true);
 });
 
 test("last login uses shared admin datetime formatter", () => {

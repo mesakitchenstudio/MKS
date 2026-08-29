@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { AdminSidebarNav, adminMobileNavTriggerClass } from "@/components/admin/AdminSidebarNav";
 import { Logo } from "@/components/Logo";
@@ -17,11 +17,14 @@ import {
   adminWorkspacePaddingClass,
 } from "@/lib/admin-ui";
 
-type AdminShellProps = {
+type ShellIdentity = {
   homeHref: string;
   displayName: string;
   roleLabel: string;
   sections: AdminNavSection[];
+};
+
+type AdminShellProps = ShellIdentity & {
   deployInfo: AdminDeployInfo;
   children: React.ReactNode;
 };
@@ -35,13 +38,72 @@ export function AdminShell({
   children,
 }: AdminShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [identity, setIdentity] = useState<ShellIdentity>({
+    homeHref,
+    displayName,
+    roleLabel,
+    sections,
+  });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pathSnapshot, setPathSnapshot] = useState(pathname);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerId = useId();
-  const pageTitle = adminPageTitleForPath(pathname, sections);
+  const pageTitle = adminPageTitleForPath(pathname, identity.sections);
   const workspaceWidth = adminWorkspaceWidthForPath(pathname);
+
+  // Prefer fresh SSR props when the layout actually re-renders.
+  useEffect(() => {
+    setIdentity({ homeHref, displayName, roleLabel, sections });
+  }, [homeHref, displayName, roleLabel, sections]);
+
+  // Soft navigations can keep a cached layout payload; re-sync identity from the DB.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncIdentity() {
+      try {
+        const response = await fetch("/api/admin/me", { cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const data = (await response.json()) as ShellIdentity & { role?: string };
+        if (cancelled) return;
+        const next: ShellIdentity = {
+          homeHref: data.homeHref,
+          displayName: data.displayName,
+          roleLabel: data.roleLabel,
+          sections: data.sections,
+        };
+        setIdentity((current) => {
+          const changed =
+            current.roleLabel !== next.roleLabel ||
+            current.homeHref !== next.homeHref ||
+            current.displayName !== next.displayName ||
+            JSON.stringify(current.sections) !== JSON.stringify(next.sections);
+          if (changed) {
+            // Refresh RSC tree so page redirects/nav match the new role.
+            router.refresh();
+          }
+          return next;
+        });
+      } catch {
+        // Keep SSR identity if the sync request fails.
+      }
+    }
+
+    void syncIdentity();
+
+    function onVisible() {
+      if (document.visibilityState === "visible") void syncIdentity();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [pathname, router]);
 
   if (pathname !== pathSnapshot) {
     setPathSnapshot(pathname);
@@ -80,12 +142,12 @@ export function AdminShell({
         className={`no-print hidden ${adminSidebarWidthClass} shrink-0 flex-col border-r border-line/80 bg-paper/70 lg:sticky lg:top-0 lg:flex lg:h-dvh`}
       >
         <div className="border-b border-line/80 px-4 py-4">
-          <Logo href={homeHref} aside="Admin" className="scale-[0.92] origin-left" />
+          <Logo href={identity.homeHref} aside="Admin" className="scale-[0.92] origin-left" />
         </div>
         <AdminSidebarNav
-          sections={sections}
-          displayName={displayName}
-          roleLabel={roleLabel}
+          sections={identity.sections}
+          displayName={identity.displayName}
+          roleLabel={identity.roleLabel}
           deployInfo={deployInfo}
         />
       </aside>
@@ -116,7 +178,7 @@ export function AdminShell({
           </p>
         </div>
         <Link
-          href={homeHref}
+          href={identity.homeHref}
           className={`shrink-0 font-serif text-lg text-ink ${adminFocusRing}`}
           aria-label="Admin home"
         >
@@ -141,7 +203,7 @@ export function AdminShell({
             className={`relative flex h-full ${adminMobileDrawerWidthClass} flex-col border-r border-line bg-paper shadow-none`}
           >
             <div className="flex items-center justify-between gap-3 border-b border-line/80 px-4 py-3">
-              <Logo href={homeHref} aside="Admin" className="scale-[0.92] origin-left" />
+              <Logo href={identity.homeHref} aside="Admin" className="scale-[0.92] origin-left" />
               <button
                 ref={closeButtonRef}
                 type="button"
@@ -152,9 +214,9 @@ export function AdminShell({
               </button>
             </div>
             <AdminSidebarNav
-              sections={sections}
-              displayName={displayName}
-              roleLabel={roleLabel}
+              sections={identity.sections}
+              displayName={identity.displayName}
+              roleLabel={identity.roleLabel}
               deployInfo={deployInfo}
               onNavigate={closeMobileNav}
             />

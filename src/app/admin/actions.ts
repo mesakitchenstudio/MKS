@@ -514,6 +514,7 @@ export async function saveAdminAction(formData: FormData) {
     await removeMemberByEmail(email);
     revalidatePath("/admin/members");
     revalidatePath("/admin/staff");
+    revalidatePath("/admin", "layout");
     staffRedirect(`saved=1&admin=${encodeURIComponent(id)}`);
   }
 
@@ -530,6 +531,7 @@ export async function saveAdminAction(formData: FormData) {
   await removeMemberByEmail(email);
   revalidatePath("/admin/members");
   revalidatePath("/admin/staff");
+  revalidatePath("/admin", "layout");
   staffRedirect("created=1");
 }
 
@@ -605,6 +607,7 @@ export async function deleteAdminAction(formData: FormData) {
 
   await db.admin.delete({ where: { id } });
   revalidatePath("/admin/staff");
+  revalidatePath("/admin", "layout");
   redirect("/admin/staff?removed=1");
 }
 

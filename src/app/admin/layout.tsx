@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+export const dynamic = "force-dynamic";
+
 /** Presentation-only label for the signed-in admin in the shell. */
 function adminNavDisplayName(admin: { id: string; name: string }) {
   if (admin.id === "env") return "System owner";

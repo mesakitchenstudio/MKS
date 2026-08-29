@@ -122,10 +122,11 @@ export function applyPersistedStaffRole<T extends { id: string; email: string; n
   session: T,
   persisted: { id: string; email: string; name: string; role: string } | null,
 ): T | null {
-  if (session.id === "env") {
-    return { ...session, role: "owner" };
+  if (!persisted) {
+    // Pure system owner cookie with no named Team Access row.
+    if (session.id === "env") return { ...session, role: "owner" };
+    return null;
   }
-  if (!persisted) return null;
   const role: AccessLevel = isAccessLevel(persisted.role) ? persisted.role : "editor";
   return {
     ...session,
