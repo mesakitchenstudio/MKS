@@ -5,6 +5,10 @@ import { AdminPhotoField } from "@/components/admin/AdminPhotoField";
 import { PendingSubmitButton } from "@/components/admin/PendingSubmitButton";
 import { ACCESS_LEVELS } from "@/lib/admin-access";
 import { MIN_ADMIN_PASSWORD_LENGTH } from "@/lib/admin-staff";
+import {
+  STAFF_CREATED_PARAMS,
+  useTransientSavedFlag,
+} from "@/lib/admin-transient-feedback";
 import { saveAdminAction } from "@/app/admin/actions";
 
 const fieldClass =
@@ -25,6 +29,7 @@ export function StaffTeamSection({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(Boolean(created || errorMessage));
+  const showCreated = useTransientSavedFlag(Boolean(created), STAFF_CREATED_PARAMS);
 
   useEffect(() => {
     if (created || errorMessage) setOpen(true);
@@ -56,7 +61,7 @@ export function StaffTeamSection({
               Create a Mesa admin account and choose what they can access.
             </p>
           </div>
-          {created ? <p className={`mx-5 ${noticeOk}`}>Admin account created.</p> : null}
+          {showCreated ? <p className={`mx-5 ${noticeOk}`}>Admin account created.</p> : null}
           {errorMessage ? <p className={`mx-5 ${noticeErr}`}>{errorMessage}</p> : null}
           <form action={saveAdminAction} className="grid gap-4 p-5 md:grid-cols-2">
             <div className="md:col-span-2">

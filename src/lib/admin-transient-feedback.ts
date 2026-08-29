@@ -12,6 +12,9 @@ export const CATEGORY_DELETED_PARAMS = ["deleted"] as const;
 export const TYPE_FIELD_DELETED_PARAMS = ["deleted"] as const;
 export const REVIEW_REMOVED_PARAMS = ["removed"] as const;
 export const MEMBER_REMOVED_PARAMS = ["removed"] as const;
+export const STAFF_SAVED_PARAMS = ["saved", "admin"] as const;
+export const STAFF_CREATED_PARAMS = ["created"] as const;
+export const STAFF_REMOVED_PARAMS = ["removed"] as const;
 
 /** Strip transient query keys while preserving pathname and hash. */
 export function stripSearchParams(href: string, keys: readonly string[]): string {

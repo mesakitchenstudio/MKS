@@ -9,14 +9,13 @@ import {
   isCurrentStaffAccount,
   MIN_ADMIN_PASSWORD_LENGTH,
 } from "@/lib/admin-staff";
+import { AdminFlashStatus, STAFF_REMOVED_PARAMS } from "@/lib/admin-transient-feedback";
 
 function roleTone(role: string) {
   if (role === "owner") return "bg-terracotta/15 text-terracotta-dark";
   if (role === "editor") return "bg-olive/15 text-olive-dark";
   return "bg-sand text-ink";
 }
-
-const noticeOk = "mt-4 border border-olive/30 bg-olive/10 px-4 py-3 text-sm text-olive-dark";
 
 function staffErrorMessage(error?: string) {
   switch (error) {
@@ -76,7 +75,6 @@ export default async function AdminStaffPage({
 
   const errorMessage = staffErrorMessage(error);
   const createError = errorMessage && !focusAdminId ? errorMessage : "";
-  const pageRemoved = removed ? "Admin removed." : "";
 
   const teamMembers = admins.map((admin) => {
     const isYou = isCurrentStaffAccount(actor, admin);
@@ -115,7 +113,11 @@ export default async function AdminStaffPage({
         </p>
       </div>
 
-      {pageRemoved ? <p className={noticeOk}>{pageRemoved}</p> : null}
+      {removed ? (
+        <AdminFlashStatus active clearParams={STAFF_REMOVED_PARAMS}>
+          Admin removed.
+        </AdminFlashStatus>
+      ) : null}
 
       {showSystemOwner ? (
         <section className="mt-8">

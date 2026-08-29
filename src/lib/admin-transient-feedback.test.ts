@@ -42,3 +42,17 @@ test("stripSearchParams preserves unrelated query params", () => {
     "/admin/types/abc?focus=x",
   );
 });
+
+test("stripSearchParams clears Team Access saved flash params", () => {
+  assert.equal(
+    stripSearchParams(
+      "http://localhost/admin/staff?saved=1&admin=abc123",
+      ["saved", "admin"],
+    ),
+    "/admin/staff",
+  );
+  assert.equal(
+    stripSearchParams("http://localhost/admin/staff?created=1", ["created"]),
+    "/admin/staff",
+  );
+});

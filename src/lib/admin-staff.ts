@@ -1,3 +1,4 @@
+import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
 import { isAdminPasswordLongEnough, MIN_ADMIN_PASSWORD_LENGTH } from "@/lib/passwords";
 
 export { MIN_ADMIN_PASSWORD_LENGTH };
@@ -111,4 +112,26 @@ export function shouldUpdateAdminPassword(password: string) {
 
 export function emailsConflictCaseInsensitive(left: string, right: string) {
   return normalizeAdminEmail(left) === normalizeAdminEmail(right);
+}
+
+/**
+ * Prefer the persisted Team Access role over the role baked into the admin cookie.
+ * Cookie role alone must not remain authoritative after an Owner demotes/promotes staff.
+ */
+export function applyPersistedStaffRole<T extends { id: string; email: string; name: string; role: AccessLevel; exp: number }>(
+  session: T,
+  persisted: { id: string; email: string; name: string; role: string } | null,
+): T | null {
+  if (session.id === "env") {
+    return { ...session, role: "owner" };
+  }
+  if (!persisted) return null;
+  const role: AccessLevel = isAccessLevel(persisted.role) ? persisted.role : "editor";
+  return {
+    ...session,
+    id: persisted.id,
+    email: persisted.email,
+    name: persisted.name || session.name,
+    role,
+  };
 }

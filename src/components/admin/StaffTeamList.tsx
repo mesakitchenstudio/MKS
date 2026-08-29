@@ -5,6 +5,10 @@ import { AdminPhotoField } from "@/components/admin/AdminPhotoField";
 import { PendingSubmitButton } from "@/components/admin/PendingSubmitButton";
 import { ACCESS_LEVELS, accessLabel } from "@/lib/admin-access";
 import { MIN_ADMIN_PASSWORD_LENGTH } from "@/lib/admin-staff";
+import {
+  STAFF_SAVED_PARAMS,
+  useTransientSavedFlag,
+} from "@/lib/admin-transient-feedback";
 import { deleteAdminAction, saveAdminAction } from "@/app/admin/actions";
 
 const fieldClass =
@@ -77,6 +81,7 @@ function StaffTeamMemberCard({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const titleId = useId();
   const panelId = `staff-editor-${member.id}`;
+  const showSaved = useTransientSavedFlag(Boolean(member.noticeOk), STAFF_SAVED_PARAMS);
 
   useEffect(() => {
     if (!confirmRemove) return;
@@ -130,7 +135,9 @@ function StaffTeamMemberCard({
 
       {open ? (
         <div id={panelId} className="border-t border-line">
-          {member.noticeOk ? <p className={`mx-5 ${noticeOk}`}>{member.noticeOk}</p> : null}
+          {showSaved && member.noticeOk ? (
+            <p className={`mx-5 ${noticeOk}`}>{member.noticeOk}</p>
+          ) : null}
           {member.noticeErr ? <p className={`mx-5 ${noticeErr}`}>{member.noticeErr}</p> : null}
 
           <form action={saveAdminAction} className="grid gap-4 p-5 md:grid-cols-2">

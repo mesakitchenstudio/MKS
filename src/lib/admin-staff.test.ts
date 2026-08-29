@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { canAccess, homeForRole } from "./admin-access";
 import {
+  applyPersistedStaffRole,
   emailsConflictCaseInsensitive,
   isAcceptableAdminPassword,
   isCurrentStaffAccount,
@@ -194,6 +195,48 @@ test("Owner has full admin access including staff", () => {
   assert.equal(canAccess("owner", "staff"), true);
   assert.equal(canAccess("owner", "content"), true);
   assert.equal(canAccess("owner", "members"), true);
+});
+
+test("persisted Team Access role overrides stale session cookie role", () => {
+  const session = {
+    id: "admin-1",
+    email: "masmascard@gmail.com",
+    name: "Editor Name",
+    role: "editor" as const,
+    exp: Date.now() + 60_000,
+  };
+  const live = applyPersistedStaffRole(session, {
+    id: "admin-1",
+    email: "masmascard@gmail.com",
+    name: "Editor Name",
+    role: "members",
+  });
+  assert.equal(live?.role, "members");
+  assert.equal(canAccess(live!.role, "content"), false);
+  assert.equal(canAccess(live!.role, "members"), true);
+  assert.equal(canAccess(live!.role, "staff"), false);
+});
+
+test("removed staff cannot keep an admin session from cookie alone", () => {
+  const session = {
+    id: "admin-gone",
+    email: "gone@studio.com",
+    name: "Gone",
+    role: "editor" as const,
+    exp: Date.now() + 60_000,
+  };
+  assert.equal(applyPersistedStaffRole(session, null), null);
+});
+
+test("system owner session stays owner without a named admin row", () => {
+  const session = {
+    id: "env",
+    email: "owner@studio.com",
+    name: "Owner",
+    role: "owner" as const,
+    exp: Date.now() + 60_000,
+  };
+  assert.equal(applyPersistedStaffRole(session, null)?.role, "owner");
 });
 
 test("last login uses shared admin datetime formatter", () => {

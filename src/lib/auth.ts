@@ -2,12 +2,14 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { canAccess, homeForRole, isAccessLevel, type AccessLevel, type AdminArea } from "@/lib/admin-access";
+import { applyPersistedStaffRole } from "@/lib/admin-staff";
 import { clearAllAuthCookies as clearAllAuthCookiesBase } from "@/lib/auth-cookies";
 import { getDb } from "@/lib/db";
 import { verifyPassword as verifyStoredPassword } from "@/lib/passwords";
 
 export const ADMIN_COOKIE = "mesa_admin_session";
 export { isPublicAuthCookieName, expireAuthCookie } from "@/lib/auth-cookies";
+export { applyPersistedStaffRole };
 
 export type AdminSession = {
   id: string;
@@ -75,6 +77,35 @@ export function verifySessionToken(token: string | undefined): AdminSession | nu
   }
 }
 
+async function loadPersistedStaff(session: AdminSession) {
+  if (session.id === "env") return null;
+  const db = getDb();
+  const byId = await db.admin.findUnique({
+    where: { id: session.id },
+    select: { id: true, email: true, name: true, role: true },
+  });
+  if (byId) return byId;
+  const email = session.email.trim().toLowerCase();
+  if (!email) return null;
+  return db.admin.findUnique({
+    where: { email },
+    select: { id: true, email: true, name: true, role: true },
+  });
+}
+
+export async function resolveLiveAdminSession(session: AdminSession): Promise<AdminSession | null> {
+  if (session.id === "env") {
+    return applyPersistedStaffRole(session, null);
+  }
+  try {
+    const persisted = await loadPersistedStaff(session);
+    return applyPersistedStaffRole(session, persisted);
+  } catch (error) {
+    console.error("Could not refresh admin access level", error);
+    return null;
+  }
+}
+
 export function adminCookieOptions() {
   return {
     httpOnly: true,
@@ -115,7 +146,9 @@ export async function writeAdminSession(admin: Omit<AdminSession, "exp">) {
 
 export async function getAdminSession() {
   const jar = await cookies();
-  return verifySessionToken(jar.get(ADMIN_COOKIE)?.value);
+  const session = verifySessionToken(jar.get(ADMIN_COOKIE)?.value);
+  if (!session) return null;
+  return resolveLiveAdminSession(session);
 }
 
 export async function isAdmin() {
