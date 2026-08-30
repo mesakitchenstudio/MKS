@@ -14,7 +14,8 @@ type SortKey =
   | "watchCtr"
   | "subscribeCtr"
   | "videoPlays"
-  | "chapterClicks";
+  | "chapterClicks"
+  | "watchNextClicks";
 
 function StatCard({
   label,
@@ -74,11 +75,13 @@ export function YoutubeFunnelPanel({
               ? a.videoPlays
               : sortKey === "chapterClicks"
                 ? a.chapterClicks
-                : sortKey === "playRate"
-                  ? a.playRate ?? -1
-                  : sortKey === "watchCtr"
-                    ? a.watchCtr ?? -1
-                    : a.subscribeCtr ?? -1;
+                : sortKey === "watchNextClicks"
+                  ? a.watchNextClicks
+                  : sortKey === "playRate"
+                    ? a.playRate ?? -1
+                    : sortKey === "watchCtr"
+                      ? a.watchCtr ?? -1
+                      : a.subscribeCtr ?? -1;
       const bv =
         sortKey === "pageviews"
           ? b.pageviews
@@ -88,11 +91,13 @@ export function YoutubeFunnelPanel({
               ? b.videoPlays
               : sortKey === "chapterClicks"
                 ? b.chapterClicks
-                : sortKey === "playRate"
-                  ? b.playRate ?? -1
-                  : sortKey === "watchCtr"
-                    ? b.watchCtr ?? -1
-                    : b.subscribeCtr ?? -1;
+                : sortKey === "watchNextClicks"
+                  ? b.watchNextClicks
+                  : sortKey === "playRate"
+                    ? b.playRate ?? -1
+                    : sortKey === "watchCtr"
+                      ? b.watchCtr ?? -1
+                      : b.subscribeCtr ?? -1;
       return bv - av || a.recipeTitle.localeCompare(b.recipeTitle);
     });
     return rows;
@@ -214,9 +219,11 @@ export function YoutubeFunnelPanel({
         </ol>
         <p className="mt-2 text-xs text-muted">
           Visitor rates = unique visitors who did the action ÷ unique linked-recipe visitors (
-          {s.uniquePageviewVisitors}). Continued viewing uses visitors with ≥1 video interaction (
-          {s.videoInteractionSessions}) as the denominator. Raw pageviews ({s.linkedRecipePageviews})
-          are not used in rate math.
+          {s.uniquePageviewVisitors}). Continued viewing = unique visitors who interacted with ≥2
+          distinct Mesa videos (plays, Watch on YouTube, or Watch Next) ÷ visitors with ≥1 such
+          interaction ({s.videoInteractionSessions}). Raw pageviews ({s.linkedRecipePageviews}) are
+          not used in rate math. Subscribe CTA clicks open YouTube&apos;s subscribe flow — not
+          confirmed subscriptions.
         </p>
       </section>
 
@@ -249,10 +256,20 @@ export function YoutubeFunnelPanel({
         />
       </section>
 
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          label="Watch Next clicks"
+          value={s.watchNextClicks}
+          note={`${s.uniqueWatchNextVisitors} unique visitors · recommendation CTA`}
+        />
+      </section>
+
       {funnel.placements.length > 0 ? (
         <section>
           <h3 className="font-serif text-lg text-ink">CTA placement</h3>
-          <p className="mt-1 text-sm text-muted">Where Watch on YouTube and Subscribe CTA clicks occur.</p>
+          <p className="mt-1 text-sm text-muted">
+            Where Watch on YouTube and Subscribe CTA clicks occur (post-video vs end of recipe, etc.).
+          </p>
           <div className="mt-3 overflow-x-auto rounded-sm border border-line">
             <table className="min-w-full text-left text-sm">
               <thead>
@@ -299,6 +316,7 @@ export function YoutubeFunnelPanel({
               <option value="watchCtr">Visitor YT CTR</option>
               <option value="subscribeCtr">Visitor Sub CTR</option>
               <option value="chapterClicks">Chapter clicks</option>
+              <option value="watchNextClicks">Watch Next clicks</option>
             </select>
           </label>
         </div>
@@ -317,12 +335,13 @@ export function YoutubeFunnelPanel({
                 <th className="hidden px-4 py-3 font-medium md:table-cell">Visitor YT CTR</th>
                 <th className="hidden px-4 py-3 font-medium xl:table-cell">Sub CTA</th>
                 <th className="hidden px-4 py-3 font-medium xl:table-cell">Visitor Sub CTR</th>
+                <th className="hidden px-4 py-3 font-medium xl:table-cell">Watch Next</th>
               </tr>
             </thead>
             <tbody>
               {sortedRecipes.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-muted">
+                  <td colSpan={12} className="px-4 py-8 text-muted">
                     No linked recipes yet.
                   </td>
                 </tr>
@@ -357,6 +376,9 @@ export function YoutubeFunnelPanel({
                       {row.subscribeCtaClicks.toLocaleString("en-US")}
                     </td>
                     <td className="hidden px-4 py-3 xl:table-cell">{row.subscribeCtrLabel}</td>
+                    <td className="hidden px-4 py-3 xl:table-cell">
+                      {row.watchNextClicks.toLocaleString("en-US")}
+                    </td>
                   </tr>
                 ))
               )}

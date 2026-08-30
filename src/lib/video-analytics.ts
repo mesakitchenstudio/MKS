@@ -10,9 +10,12 @@ export type VideoAnalyticsSource =
   | "floating_player"
   | "related_videos"
   | "watch_next"
+  | "watch_next_section"
   | "videos_page"
   | "playlist"
-  | "subscribe";
+  | "subscribe"
+  | "end_of_recipe"
+  | "post_video_subscribe";
 
 export type VideoAnalyticsPayload = {
   recipeSlug?: string;
@@ -22,6 +25,7 @@ export type VideoAnalyticsPayload = {
   videoTitle?: string;
   relatedVideoId?: string;
   targetRecipeId?: string;
+  targetRecipeSlug?: string;
   source: VideoAnalyticsSource;
   timestamp?: number;
   chapterLabel?: string;
@@ -60,6 +64,7 @@ function toAnalyticsProps(payload: VideoAnalyticsPayload): AnalyticsProperties {
     video_title: payload.videoTitle,
     related_video_id: payload.relatedVideoId,
     target_recipe_id: payload.targetRecipeId,
+    target_recipe_slug: payload.targetRecipeSlug,
     source: payload.source,
     timestamp: payload.timestamp,
     chapter_label: payload.chapterLabel,

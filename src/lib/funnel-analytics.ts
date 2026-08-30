@@ -18,7 +18,10 @@ export type FunnelPlacement =
   | "recipe_card"
   | "chapter_section"
   | "watch_next"
+  | "watch_next_section"
   | "subscribe"
+  | "post_video_subscribe"
+  | "end_of_recipe"
   | "other";
 
 const FUNNEL_NAME_SET = new Set<string>(FUNNEL_EVENT_NAMES);
@@ -31,21 +34,27 @@ const CLIENT_EVENT_TO_FUNNEL: Record<string, FunnelEventName> = {
   recipe_video_watch_youtube_click: "recipe_watch_on_youtube_click",
   recipe_youtube_subscribe_click: "recipe_youtube_subscribe_click",
   recipe_related_video_click: "recipe_watch_next_click",
+  recipe_watch_next_click: "recipe_watch_next_click",
   recipe_video_complete: "recipe_video_ended",
 };
 
 const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   hero_cta: "hero",
   main_embed: "video_section",
+  main_video_section: "video_section",
   main_embed_chapter: "chapter_section",
   instruction_timestamp: "chapter_section",
   floating_card: "floating_player",
   floating_player: "floating_player",
+  floating_video: "floating_player",
   related_videos: "watch_next",
   watch_next: "watch_next",
+  watch_next_section: "watch_next_section",
   videos_page: "other",
   playlist: "other",
-  subscribe: "subscribe",
+  subscribe: "end_of_recipe",
+  end_of_recipe: "end_of_recipe",
+  post_video_subscribe: "post_video_subscribe",
 };
 
 const BLOCKED_META_KEYS = new Set([
@@ -143,6 +152,8 @@ export function funnelPayloadFromAnalyticsDetail(
       recipe_title: detail.recipe_title,
       client_event: clientEvent,
       source: detail.source,
+      target_recipe_slug: detail.target_recipe_slug,
+      destination_recipe_slug: detail.destination_recipe_slug,
     }),
   };
 }

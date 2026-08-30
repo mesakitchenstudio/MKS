@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
+import type { WatchNextRecommendation } from "@/lib/youtube-data/watch-next-select";
 import type { VideoAnalyticsSource } from "@/lib/video-analytics";
 import { resetVideoMilestones, trackVideoEvent } from "@/lib/video-analytics";
 
@@ -17,6 +18,7 @@ type RecipeVideoContextValue = {
   youtube: ResolvedRecipeYoutube;
   recipeSlug: string;
   recipeName: string;
+  watchNext: WatchNextRecommendation | null;
   active: boolean;
   playing: boolean;
   docked: boolean;
@@ -39,11 +41,13 @@ export function RecipeVideoProvider({
   youtube,
   recipeSlug,
   recipeName,
+  watchNext = null,
   children,
 }: {
   youtube: ResolvedRecipeYoutube;
   recipeSlug: string;
   recipeName: string;
+  watchNext?: WatchNextRecommendation | null;
   children: ReactNode;
 }) {
   const mainAnchorRef = useRef<HTMLDivElement>(null);
@@ -108,6 +112,7 @@ export function RecipeVideoProvider({
       youtube,
       recipeSlug,
       recipeName,
+      watchNext,
       active,
       playing,
       docked,
@@ -127,6 +132,7 @@ export function RecipeVideoProvider({
       youtube,
       recipeSlug,
       recipeName,
+      watchNext,
       active,
       playing,
       docked,

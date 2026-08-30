@@ -162,6 +162,8 @@ export async function loadYoutubeFunnelDashboard(input?: {
       subscribeCtaClicks: formatFunnelCount(summary.subscribeCtaClicks),
       uniqueSubscribeVisitors: formatFunnelCount(summary.uniqueSubscribeVisitors),
       subscribeCtr: formatFunnelRate(summary.subscribeCtr),
+      watchNextClicks: formatFunnelCount(summary.watchNextClicks),
+      uniqueWatchNextVisitors: formatFunnelCount(summary.uniqueWatchNextVisitors),
       continuedViewingSessions: formatFunnelCount(summary.continuedViewingSessions),
       videoInteractionSessions: formatFunnelCount(summary.videoInteractionSessions),
       continuedViewingRate: formatFunnelRate(summary.continuedViewingRate),

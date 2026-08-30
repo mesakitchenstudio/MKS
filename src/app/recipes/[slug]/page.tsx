@@ -28,6 +28,7 @@ import { readerExtraLabel, visibleExtras } from "@/lib/recipe-timing";
 import { recipeJsonLd } from "@/lib/schema";
 import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
+import { getWatchNextRecommendation } from "@/lib/youtube-data/watch-next";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -96,6 +97,14 @@ export default async function RecipePage({ params }: Props) {
     await connection();
   }
   const youtube = await resolveRecipeYoutubeForDisplay(recipe);
+  const watchNext = youtube
+    ? await getWatchNextRecommendation({
+        currentVideoId: youtube.videoId,
+        currentRecipeSlug: recipe.slug,
+        currentCategories: recipe.categories,
+        curatedRelated: youtube.relatedVideos,
+      })
+    : null;
 
   const article = (
     <>
@@ -234,6 +243,7 @@ export default async function RecipePage({ params }: Props) {
           recipeSlug={recipe.slug}
           recipeName={recipe.title}
           videoId={youtube?.videoId}
+          placement="end_of_recipe"
         />
 
         <p className="mt-10 text-sm text-muted">
@@ -263,6 +273,7 @@ export default async function RecipePage({ params }: Props) {
           youtube={youtube}
           recipeSlug={recipe.slug}
           recipeName={recipe.title}
+          watchNext={watchNext}
         >
           {article}
         </RecipeVideoExperience>

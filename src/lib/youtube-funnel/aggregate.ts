@@ -21,6 +21,8 @@ export type FunnelSummaryMetrics = {
   subscribeCtaClicks: number;
   uniqueSubscribeVisitors: number;
   subscribeCtr: number | null;
+  watchNextClicks: number;
+  uniqueWatchNextVisitors: number;
   continuedViewingSessions: number;
   videoInteractionSessions: number;
   continuedViewingRate: number | null;
@@ -44,6 +46,7 @@ export type FunnelRecipeRow = {
   uniqueSubscribeVisitors: number;
   subscribeCtr: number | null;
   continuedWatchActions: number;
+  watchNextClicks: number;
 };
 
 export type FunnelPlacementRow = {
@@ -81,7 +84,10 @@ const PLACEMENT_LABELS: Record<string, string> = {
   recipe_card: "Recipe card",
   chapter_section: "Chapter section",
   watch_next: "Watch next / related",
-  subscribe: "Subscribe CTA",
+  watch_next_section: "Watch next section",
+  subscribe: "End of recipe",
+  end_of_recipe: "End of recipe",
+  post_video_subscribe: "Post-video subscribe",
   other: "Other",
 };
 
@@ -169,6 +175,7 @@ export function buildFunnelSummary(input: {
   const uniquePlayVisitors = uniqueVisitorsForEvents(events, "recipe_video_play");
   const uniqueWatch = uniqueVisitorsForEvents(events, "recipe_watch_on_youtube_click");
   const uniqueSub = uniqueVisitorsForEvents(events, "recipe_youtube_subscribe_click");
+  const uniqueWatchNext = uniqueVisitorsForEvents(events, "recipe_watch_next_click");
   const continued = computeContinuedViewing(events);
   const denom = input.uniquePageviewVisitors;
 
@@ -185,6 +192,8 @@ export function buildFunnelSummary(input: {
     subscribeCtaClicks: countEvents(events, "recipe_youtube_subscribe_click"),
     uniqueSubscribeVisitors: uniqueSub,
     subscribeCtr: rate(uniqueSub, denom),
+    watchNextClicks: countEvents(events, "recipe_watch_next_click"),
+    uniqueWatchNextVisitors: uniqueWatchNext,
     continuedViewingSessions: continued.continued,
     videoInteractionSessions: continued.interacted,
     continuedViewingRate: continued.rate,
@@ -214,6 +223,7 @@ export function buildFunnelRecipeRows(input: {
     const uniquePlay = uniqueVisitorsForEvents(scoped, "recipe_video_play");
     const uniqueWatch = uniqueVisitorsForEvents(scoped, "recipe_watch_on_youtube_click");
     const uniqueSub = uniqueVisitorsForEvents(scoped, "recipe_youtube_subscribe_click");
+    const watchNextClicks = countEvents(scoped, "recipe_watch_next_click");
     const continuedActions = scoped.filter(
       (e) =>
         e.name === "recipe_watch_next_click" ||
@@ -237,7 +247,8 @@ export function buildFunnelRecipeRows(input: {
       subscribeCtaClicks: countEvents(scoped, "recipe_youtube_subscribe_click"),
       uniqueSubscribeVisitors: uniqueSub,
       subscribeCtr: rate(uniqueSub, pv.uniqueVisitors),
-      continuedWatchActions: continuedActions + countEvents(scoped, "recipe_watch_next_click"),
+      continuedWatchActions: continuedActions,
+      watchNextClicks,
     });
   }
   rows.sort((a, b) => b.pageviews - a.pageviews || a.recipeTitle.localeCompare(b.recipeTitle));

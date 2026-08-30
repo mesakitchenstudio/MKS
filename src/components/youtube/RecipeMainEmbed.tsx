@@ -5,13 +5,16 @@ import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideo } from "./RecipeVideoContext";
 import { RecipeVideoChapters } from "./RecipeVideoChapters";
 import { WatchNextPrompt } from "./WatchNextPrompt";
+import { WatchNextSection } from "./WatchNextSection";
 import { YouTubeEmbedFacade } from "./YouTubeEmbedFacade";
+import { YouTubeSubscribeCTA } from "./YouTubeSubscribeCTA";
 
 export function RecipeMainEmbed() {
   const {
     youtube,
     recipeSlug,
     recipeName,
+    watchNext,
     active,
     playing,
     docked,
@@ -22,7 +25,6 @@ export function RecipeMainEmbed() {
 
   const [showWatchNext, setShowWatchNext] = useState(false);
   const miniPlayer = playing && !docked;
-  const watchNext = youtube.relatedVideos?.[0];
 
   return (
     <div ref={mainAnchorRef} id="studio-video" className="mt-10 scroll-mt-24">
@@ -106,6 +108,22 @@ export function RecipeMainEmbed() {
           </a>
         ) : null}
       </div>
+
+      <YouTubeSubscribeCTA
+        recipeSlug={recipeSlug}
+        recipeName={recipeName}
+        videoId={youtube.videoId}
+        placement="post_video_subscribe"
+      />
+
+      {watchNext ? (
+        <WatchNextSection
+          next={watchNext}
+          recipeSlug={recipeSlug}
+          recipeName={recipeName}
+          sourceVideoId={youtube.videoId}
+        />
+      ) : null}
     </div>
   );
 }

@@ -33,6 +33,7 @@ export type AnalyticsProperties = {
   related_video_id?: string;
   target_video_id?: string;
   target_recipe_id?: string;
+  target_recipe_slug?: string;
   source?: string;
   timestamp?: number;
   chapter_label?: string;

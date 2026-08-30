@@ -20,6 +20,8 @@ export type YoutubeFunnelDashboard = {
     subscribeCtaClicks: string;
     uniqueSubscribeVisitors: string;
     subscribeCtr: string;
+    watchNextClicks: string;
+    uniqueWatchNextVisitors: string;
     continuedViewingSessions: string;
     videoInteractionSessions: string;
     continuedViewingRate: string;

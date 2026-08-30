@@ -29,6 +29,7 @@ describe("funnel-analytics", () => {
     );
     assert.equal(mapClientEventToFunnelName("recipe_video_cta_click"), null);
     assert.equal(mapClientEventToFunnelName("recipe_video_complete"), "recipe_video_ended");
+    assert.equal(mapClientEventToFunnelName("recipe_related_video_click"), "recipe_watch_next_click");
     assert.ok(isFunnelEventName("recipe_youtube_subscribe_click"));
   });
 
@@ -38,7 +39,11 @@ describe("funnel-analytics", () => {
     assert.equal(mapSourceToPlacement("floating_player"), "floating_player");
     assert.equal(mapSourceToPlacement("main_embed_chapter"), "chapter_section");
     assert.equal(mapSourceToPlacement("watch_next"), "watch_next");
-    assert.equal(mapSourceToPlacement("subscribe"), "subscribe");
+    assert.equal(mapSourceToPlacement("watch_next_section"), "watch_next_section");
+    assert.equal(mapSourceToPlacement("related_videos"), "watch_next");
+    assert.equal(mapSourceToPlacement("subscribe"), "end_of_recipe");
+    assert.equal(mapSourceToPlacement("end_of_recipe"), "end_of_recipe");
+    assert.equal(mapSourceToPlacement("post_video_subscribe"), "post_video_subscribe");
     assert.equal(mapSourceToPlacement("unknown"), "other");
   });
 
