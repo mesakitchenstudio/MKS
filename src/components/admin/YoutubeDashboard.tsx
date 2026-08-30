@@ -18,6 +18,7 @@ import {
 } from "@/lib/youtube-data/video-format";
 import type { AnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
 import { ANALYTICS_RANGE_DAYS } from "@/lib/youtube-analytics/ranges";
+import { formatAdminDateTime } from "@/lib/datetime";
 
 type ChannelSummary = {
   channelId: string;
@@ -531,6 +532,16 @@ export function YoutubeDashboard({
             <p className="mt-1 text-xs text-muted">
               Analytics uses OAuth and is separate from Refresh YouTube data (public metadata).
             </p>
+            {analytics.connection.connected ? (
+              <p className="mt-1 text-xs text-muted">
+                Analytics last refreshed:{" "}
+                <span className="font-medium text-ink">
+                  {analytics.connection.lastSyncAt
+                    ? formatAdminDateTime(analytics.connection.lastSyncAt)
+                    : "Never"}
+                </span>
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {canManageAnalytics && !analytics.connection.connected ? (
@@ -644,7 +655,11 @@ export function YoutubeDashboard({
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryCard label="Public channel views" value={channel.viewCount} trend={formatTrend(channel.trendViews7d, "views / 7 days")} />
             <SummaryCard label="Public videos" value={channel.videoCount} />
-            <SummaryCard label="Last synced" value={channel.lastSyncedAt} note={channel.lastSyncStatus === "error" ? channel.lastSyncError : undefined} />
+            <SummaryCard
+              label="YouTube data last refreshed"
+              value={channel.lastSyncedAt}
+              note={channel.lastSyncStatus === "error" ? channel.lastSyncError : undefined}
+            />
             <SummaryCard
               label="Public subscriber trend"
               value={channel.trendSubscribers7d || "—"}
