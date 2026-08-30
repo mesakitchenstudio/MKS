@@ -41,6 +41,8 @@ const PROGRESS_MESSAGES = [
   "Matching Mesa recipe fields…",
   "Preparing draft…",
 ];
+const CLIENT_REQUEST_TIMEOUT_MS = 285_000;
+const LONG_RUNNING_HINT_MS = 180_000;
 
 export function AiRecipeAssistant({
   typeId,
@@ -68,6 +70,7 @@ export function AiRecipeAssistant({
   const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);
   const [destructiveReplaceOpen, setDestructiveReplaceOpen] = useState(false);
   const [pendingReplaceMode, setPendingReplaceMode] = useState<AiMergeMode | null>(null);
+  const [showLongRunningHint, setShowLongRunningHint] = useState(false);
 
   const currentVideoId = useMemo(() => youtubeVideoId(youtubeUrl.trim()), [youtubeUrl]);
   const lastVideoId = useMemo(
@@ -95,12 +98,17 @@ export function AiRecipeAssistant({
   useEffect(() => {
     if (!busy) {
       setProgressIndex(0);
+      setShowLongRunningHint(false);
       return;
     }
-    const timer = window.setInterval(() => {
+    const progressTimer = window.setInterval(() => {
       setProgressIndex((current) => (current + 1) % PROGRESS_MESSAGES.length);
     }, 3200);
-    return () => window.clearInterval(timer);
+    const hintTimer = window.setTimeout(() => setShowLongRunningHint(true), LONG_RUNNING_HINT_MS);
+    return () => {
+      window.clearInterval(progressTimer);
+      window.clearTimeout(hintTimer);
+    };
   }, [busy]);
 
   function closeDialogs() {
@@ -112,7 +120,10 @@ export function AiRecipeAssistant({
 
   async function fetchDraft(forceRefresh: boolean): Promise<PendingDraft | null> {
     setBusy(true);
+    setShowLongRunningHint(false);
     setError("");
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), CLIENT_REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch("/api/admin/recipes/ai-generate", {
         method: "POST",
@@ -122,6 +133,7 @@ export function AiRecipeAssistant({
           typeId,
           forceRefresh,
         }),
+        signal: controller.signal,
       });
       const data = (await response.json()) as {
         ok?: boolean;
@@ -139,17 +151,20 @@ export function AiRecipeAssistant({
       }
       return { draft: data.draft, meta: data.meta };
     } catch (fetchError) {
+      const aborted = fetchError instanceof DOMException && fetchError.name === "AbortError";
       const timedOut =
+        aborted ||
         fetchError instanceof TypeError ||
         (fetchError instanceof Error &&
           /failed to fetch|network|timeout|aborted/i.test(fetchError.message));
       setError(
         timedOut
-          ? "The request timed out while analyzing the video. Try again in a moment."
+          ? "Video analysis timed out after about 5 minutes. Gemini may still be busy — wait a moment and try again, or save the recipe to import YouTube chapters without regenerating."
           : "Network error while contacting the AI assistant.",
       );
       return null;
     } finally {
+      window.clearTimeout(timeoutId);
       setBusy(false);
     }
   }
@@ -263,8 +278,8 @@ export function AiRecipeAssistant({
 
           {hasSuccessfulGeneration && isSameSourceVideo ? (
             <p className="mt-2 text-xs text-muted">
-              Regenerate re-analyzes this video and lets you apply a fresh draft without touching fields
-              you edited manually.
+              Regenerate re-analyzes the full video with Gemini (1–5 minutes). YouTube chapters and
+              duration import automatically when you save — no regenerate needed for those.
             </p>
           ) : null}
 
@@ -276,13 +291,21 @@ export function AiRecipeAssistant({
           ) : null}
 
           {busy ? (
-            <p className="mt-3 flex items-center gap-2 text-sm text-muted" role="status" aria-live="polite">
-              <span
-                className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-olive"
-                aria-hidden
-              />
-              {PROGRESS_MESSAGES[progressIndex]}
-            </p>
+            <div className="mt-3 space-y-1" role="status" aria-live="polite">
+              <p className="flex items-center gap-2 text-sm text-muted">
+                <span
+                  className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-olive"
+                  aria-hidden
+                />
+                {PROGRESS_MESSAGES[progressIndex]}
+              </p>
+              {showLongRunningHint ? (
+                <p className="text-xs text-muted">
+                  Still working — large videos can take up to 5 minutes. You can refresh this page
+                  to cancel; saving the recipe still imports YouTube chapters.
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
           {error ? (

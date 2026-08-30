@@ -22,6 +22,9 @@ import { normalizeYouTubeForGemini } from "@/lib/ai-recipe/youtube-url";
 
 /** Per-call SDK timeout — keep below the Vercel route maxDuration budget. */
 const GEMINI_REQUEST_TIMEOUT_MS = 270_000;
+/** Total wall-clock budget for one generate attempt (route maxDuration is 300s). */
+const GEMINI_GENERATION_BUDGET_MS = 260_000;
+const MIN_GEMINI_ATTEMPT_MS = 20_000;
 
 export type GeminiVideoProbeResult =
   | { ok: true; model: string; summary: string; videoId: string; canonicalUrl: string }
@@ -59,6 +62,7 @@ async function createVideoInteraction(
       schema: Record<string, unknown>;
     };
   },
+  timeoutMs: number = GEMINI_REQUEST_TIMEOUT_MS,
 ) {
   return ai.interactions.create(
     {
@@ -70,7 +74,7 @@ async function createVideoInteraction(
       system_instruction: input.systemInstruction,
       response_format: input.responseFormat,
     },
-    { timeout: GEMINI_REQUEST_TIMEOUT_MS },
+    { timeout: timeoutMs },
   );
 }
 
@@ -224,26 +228,43 @@ export async function generateRecipeDraftWithGemini(input: {
 
   let lastError: AiGeminiError | null = null;
   let videoAnalysisSucceeded = false;
+  const startedAt = Date.now();
+  const remainingBudgetMs = () => GEMINI_GENERATION_BUDGET_MS - (Date.now() - startedAt);
 
   for (const model of models) {
     let skipModel = false;
 
     for (const mode of modes) {
+      const budgetMs = remainingBudgetMs();
+      if (budgetMs < MIN_GEMINI_ATTEMPT_MS) {
+        lastError =
+          lastError ??
+          buildAiGeminiError("GEMINI_TIMEOUT", "recipe_schema", {
+            detail: "Video analysis exceeded the server time limit. Try again in a moment.",
+          });
+        skipModel = true;
+        break;
+      }
+
       try {
-        const interaction = await createVideoInteraction(ai, {
-          model,
-          videoUri: normalized.canonicalUrl,
-          text: mode === "structured" ? baseUserPrompt : `${baseUserPrompt}${PROMPT_JSON_SUFFIX}`,
-          systemInstruction,
-          responseFormat:
-            mode === "structured"
-              ? {
-                  type: "text",
-                  mime_type: "application/json",
-                  schema: responseSchema,
-                }
-              : undefined,
-        });
+        const interaction = await createVideoInteraction(
+          ai,
+          {
+            model,
+            videoUri: normalized.canonicalUrl,
+            text: mode === "structured" ? baseUserPrompt : `${baseUserPrompt}${PROMPT_JSON_SUFFIX}`,
+            systemInstruction,
+            responseFormat:
+              mode === "structured"
+                ? {
+                    type: "text",
+                    mime_type: "application/json",
+                    schema: responseSchema,
+                  }
+                : undefined,
+          },
+          Math.min(GEMINI_REQUEST_TIMEOUT_MS, budgetMs),
+        );
 
         const text = interactionText(interaction);
         if (!text) {
