@@ -27,6 +27,7 @@ import {
 } from "@/lib/admin-staff";
 import { hashPassword } from "@/lib/passwords";
 import { removeMemberByEmail } from "@/lib/accounts";
+import { enrichRecipeValuesYoutubeFromDescription } from "@/lib/youtube-description";
 import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
@@ -397,6 +398,12 @@ export async function saveRecipeAction(formData: FormData) {
   // Legacy rows may only have bakeMinutes; keep cookMinutes aligned when cook was never set.
   if (typeof values.bakeMinutes === "number" && values.cookMinutes == null) {
     values.cookMinutes = values.bakeMinutes;
+  }
+
+  try {
+    await enrichRecipeValuesYoutubeFromDescription(values);
+  } catch (error) {
+    console.error("Could not enrich YouTube chapters from video description", error);
   }
 
   const existing = id ? await db.recipe.findUnique({ where: { id } }) : null;

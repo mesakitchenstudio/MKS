@@ -1,4 +1,5 @@
 import { parseTimestampInput, formatTimestampInput } from "@/lib/youtube-metadata-editor";
+import { youtubeVideoId } from "@/lib/youtube";
 import {
   normalizeAiYoutubeChapters,
   type NormalizedAiYoutubeChapter,
@@ -169,6 +170,39 @@ export function enrichYoutubeBlobFromDescription(input: {
 
   if (!blob.duration && !blob.timestamps && !blob.hook) return input.blob ?? null;
   return blob;
+}
+
+export async function enrichRecipeValuesYoutubeFromDescription(
+  values: Record<string, unknown>,
+): Promise<void> {
+  const youtubeUrl = String(values.youtubeUrl ?? "").trim();
+  const videoId = youtubeVideoId(youtubeUrl);
+  if (!videoId) return;
+
+  const rawYoutube = values.youtube;
+  const currentBlob =
+    rawYoutube && typeof rawYoutube === "object" && !Array.isArray(rawYoutube)
+      ? (rawYoutube as Record<string, unknown>)
+      : null;
+
+  const hasTimestamps =
+    Array.isArray(currentBlob?.timestamps) && currentBlob.timestamps.length > 0;
+  if (hasTimestamps) return;
+
+  const meta = await fetchYoutubeVideoDescriptionMeta(videoId);
+  if (!meta?.description.trim()) return;
+
+  const enriched = enrichYoutubeBlobFromDescription({
+    blob: currentBlob,
+    description: meta.description,
+    durationSeconds: meta.durationSeconds,
+    confidenceByPath: {},
+    summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
+  });
+
+  if (enriched) {
+    values.youtube = enriched;
+  }
 }
 
 export async function enrichDraftYoutubeFromDescription(input: {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  enrichRecipeValuesYoutubeFromDescription,
   enrichYoutubeBlobFromDescription,
   parseYoutubeDescriptionChapters,
 } from "./youtube-description";
@@ -41,6 +42,17 @@ test("enrichYoutubeBlobFromDescription fills missing timestamps from description
   assert.equal(blob?.duration, "04:00");
   assert.equal(Array.isArray(blob?.timestamps) ? blob?.timestamps.length : 0, 4);
   assert.ok(confidenceByPath["values.youtube.timestamps"]);
+});
+
+test("enrichRecipeValuesYoutubeFromDescription fills values.youtube on save", async () => {
+  const values: Record<string, unknown> = {
+    youtubeUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
+    youtube: {},
+  };
+  await enrichRecipeValuesYoutubeFromDescription(values);
+  const blob = values.youtube as { timestamps?: { time: number; label: string }[]; duration?: string };
+  assert.ok(Array.isArray(blob.timestamps) && blob.timestamps.length >= 4);
+  assert.ok(blob.duration);
 });
 
 test("enrichYoutubeBlobFromDescription keeps existing timestamps", () => {
