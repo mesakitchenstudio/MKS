@@ -59,7 +59,7 @@ export function buildAiRecipeUserPrompt(input: {
     `Source YouTube URL (preserve exactly in fields.youtubeUrl): ${input.youtubeUrl}`,
     "",
     `Preferred Mesa Recipe Type for this editor session: ${input.recipeType.id} (${input.recipeType.name}).`,
-    "Set recipeTypeId to this preferred type unless the video clearly belongs to a different listed type.",
+    "Always set recipeTypeId to this exact preferred type. The schema below is built for this type — do not choose a different type.",
     "",
     "Allowed Recipe Types:",
     typeLines || "(none)",

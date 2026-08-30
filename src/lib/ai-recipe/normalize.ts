@@ -240,8 +240,16 @@ export function normalizeAiRecipeResponse(input: {
   if (seasonalC) annotate("seasonal", seasonalC.confidence, seasonalC.sourceNote, confidenceByPath, summary);
   if (categoriesC) annotate("categoryIds", categoriesC.confidence, categoriesC.sourceNote, confidenceByPath, summary);
 
-  let typeId = String(root.recipeTypeId || input.typeId);
-  if (!input.allowedTypeIds.has(typeId)) typeId = input.typeId;
+  let typeId = input.typeId;
+  if (root.recipeTypeId && String(root.recipeTypeId) !== input.typeId) {
+    annotate(
+      "recipeTypeId",
+      "HIGH_CONFIDENCE_INFERENCE",
+      `Model suggested ${String(root.recipeTypeId)}; kept editor type ${input.typeId}`,
+      confidenceByPath,
+      summary,
+    );
+  }
 
   const categoryIds = Array.isArray(categoriesC?.value)
     ? [...new Set(categoriesC.value.map(String).filter((id) => input.allowedCategoryIds.has(id)))]

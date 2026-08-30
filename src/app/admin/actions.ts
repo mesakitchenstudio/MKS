@@ -38,6 +38,8 @@ import {
   findRecipeIdLinkedToVideo,
   loadSyncedVideoForLink,
 } from "@/lib/youtube-data/video-selector";
+import { buildYoutubeDraftAiMeta } from "@/lib/ai-recipe/classify-recipe-type";
+import type { RecipeTypeConfidence } from "@/lib/ai-recipe/classify-recipe-type";
 
 async function requireEditor() {
   await requireAccess("content");
@@ -844,9 +846,16 @@ export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
   const db = getDb();
   const typeId = String(formData.get("typeId") || "").trim();
   const videoId = String(formData.get("videoId") || "").trim();
+  const typeSourceRaw = String(formData.get("typeSource") || "manual").trim();
+  const typeSource = typeSourceRaw === "ai" ? "ai" : "manual";
+  const typeConfidence = String(formData.get("typeConfidence") || "LOW").trim().toUpperCase();
+  const confidence: RecipeTypeConfidence =
+    typeConfidence === "HIGH" || typeConfidence === "MEDIUM" || typeConfidence === "LOW"
+      ? typeConfidence
+      : "LOW";
 
   if (!typeId || !videoId) {
-    redirect("/admin/youtube?error=missing-recipe-type");
+    redirect(`/admin/youtube/videos/${videoId || ""}?error=missing-recipe-type`);
   }
 
   const [video, existingLink, recipeType] = await Promise.all([
@@ -867,6 +876,12 @@ export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
   if (slugTaken) slug = `${slug}-${videoId.slice(0, 6).toLowerCase()}`;
 
   const values = applyYoutubeVideoLinkToValues({}, video);
+  const aiMeta = buildYoutubeDraftAiMeta({
+    videoId,
+    recipeTypeSource: typeSource,
+    recipeTypeConfidence: typeSource === "ai" ? confidence : undefined,
+    recipeTypeConfirmed: typeSource === "manual",
+  });
 
   const recipe = await db.recipe.create({
     data: {
@@ -879,7 +894,7 @@ export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
       seasonal: false,
       publishedAt: null,
       values: JSON.stringify(values),
-      aiMeta: "{}",
+      aiMeta: JSON.stringify(aiMeta),
     },
   });
 

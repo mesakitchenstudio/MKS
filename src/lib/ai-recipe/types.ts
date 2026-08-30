@@ -38,6 +38,11 @@ export type RecipeAiMeta = {
     estimated: number;
     unknown: number;
   };
+  /** How the Mesa recipe type was chosen when creating from YouTube. */
+  recipeTypeSource?: "ai" | "manual";
+  recipeTypeConfidence?: "HIGH" | "MEDIUM" | "LOW";
+  /** Editor manually confirmed or changed the recipe type. */
+  recipeTypeConfirmed?: boolean;
 };
 
 export type AiConfidentScalar<T> = {
@@ -65,21 +70,20 @@ export function parseRecipeAiMeta(raw: string | null | undefined): RecipeAiMeta 
   if (!raw || raw === "{}") return null;
   try {
     const parsed = JSON.parse(raw) as Partial<RecipeAiMeta>;
-    if (!parsed || typeof parsed !== "object" || !parsed.generatedByAI) return null;
-    return {
-      generatedByAI: true,
-      sourceType: "youtube",
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const base = {
+      sourceType: "youtube" as const,
       sourceUrl: String(parsed.sourceUrl || ""),
       sourceVideoId: parsed.sourceVideoId ? String(parsed.sourceVideoId) : undefined,
       generatedAt: String(parsed.generatedAt || ""),
       model: String(parsed.model || ""),
       schemaVersion: String(parsed.schemaVersion || ""),
-      verificationStatus:
-        parsed.verificationStatus === "verified"
-          ? "verified"
-          : parsed.verificationStatus === "unverified"
-            ? "unverified"
-            : "none",
+      verificationStatus: (parsed.verificationStatus === "verified"
+        ? "verified"
+        : parsed.verificationStatus === "unverified"
+          ? "unverified"
+          : "none") as AiVerificationStatus,
       verifiedAt: parsed.verifiedAt ? String(parsed.verifiedAt) : undefined,
       verifiedBy: parsed.verifiedBy ? String(parsed.verifiedBy) : undefined,
       confidenceByPath:
@@ -96,6 +100,24 @@ export function parseRecipeAiMeta(raw: string | null | undefined): RecipeAiMeta 
         estimated: Number(parsed.summary?.estimated || 0),
         unknown: Number(parsed.summary?.unknown || 0),
       },
+      recipeTypeSource: parsed.recipeTypeSource,
+      recipeTypeConfidence: parsed.recipeTypeConfidence,
+      recipeTypeConfirmed: parsed.recipeTypeConfirmed,
+    };
+
+    if (!parsed.generatedByAI) {
+      if (parsed.recipeTypeSource || parsed.sourceVideoId) {
+        return {
+          generatedByAI: false,
+          ...base,
+        };
+      }
+      return null;
+    }
+
+    return {
+      generatedByAI: true,
+      ...base,
     };
   } catch {
     return null;
