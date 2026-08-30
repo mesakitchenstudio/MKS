@@ -4,6 +4,9 @@ import {
   normalizeAiYoutubeChapters,
   type NormalizedAiYoutubeChapter,
   aiChaptersToTimestamps,
+  mergeRecipeYoutubeChapters,
+  applyMergedChapterConfidence,
+  chaptersFromBlobTimestamps,
 } from "@/lib/ai-recipe/youtube-chapters";
 import type { AiFieldAnnotation, RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { tallyConfidence } from "@/lib/ai-recipe/types";
@@ -174,14 +177,21 @@ export function enrichYoutubeBlobFromDescription(input: {
   blob: Record<string, unknown> | null | undefined;
   description: string;
   durationSeconds?: number | null;
+  aiChapters?: NormalizedAiYoutubeChapter[];
   confidenceByPath: Record<string, AiFieldAnnotation>;
   summary: RecipeAiMeta["summary"];
 }): Record<string, unknown> | null {
   const blob = { ...(input.blob ?? {}) };
   const existingTimestamps = Array.isArray(blob.timestamps) ? blob.timestamps : [];
-  const hasTimestamps = existingTimestamps.length > 0;
+  const durationSeconds =
+    input.durationSeconds ??
+    (blob.duration ? parseTimestampInput(String(blob.duration)) : null);
 
   const descriptionChapters = parseYoutubeDescriptionChapters(input.description);
+  const aiChapters =
+    input.aiChapters ??
+    chaptersFromBlobTimestamps(existingTimestamps, durationSeconds);
+
   const durationFromMeta =
     input.durationSeconds != null && input.durationSeconds > 0
       ? formatTimestampInput(input.durationSeconds)
@@ -196,23 +206,18 @@ export function enrichYoutubeBlobFromDescription(input: {
     tallyConfidence("VERIFIED", input.summary);
   }
 
-  if (!hasTimestamps && descriptionChapters.length) {
-    const capped = normalizeAiYoutubeChapters(
-      descriptionChapters,
-      input.durationSeconds ?? (blob.duration ? parseTimestampInput(String(blob.duration)) : null),
-    );
-    blob.timestamps = aiChaptersToTimestamps(capped);
-    input.confidenceByPath["values.youtube.timestamps"] = {
-      confidence: "VERIFIED",
-      sourceNote: `${capped.length} chapters from YouTube video description`,
-    };
-    tallyConfidence("VERIFIED", input.summary);
-    capped.forEach((chapter, index) => {
-      input.confidenceByPath[`values.youtube.timestamps.${index}`] = {
-        confidence: chapter.confidence,
-        sourceNote: chapter.sourceNote,
-      };
-      tallyConfidence(chapter.confidence, input.summary);
+  const merged = mergeRecipeYoutubeChapters({
+    descriptionChapters,
+    aiChapters,
+    durationSeconds,
+  });
+
+  if (merged.length) {
+    blob.timestamps = aiChaptersToTimestamps(merged);
+    applyMergedChapterConfidence({
+      chapters: merged,
+      confidenceByPath: input.confidenceByPath,
+      summary: input.summary,
     });
   }
 
@@ -258,23 +263,29 @@ export async function enrichDraftYoutubeFromDescription(input: {
   videoId: string;
   confidenceByPath: Record<string, AiFieldAnnotation>;
   summary: RecipeAiMeta["summary"];
+  aiChapters?: NormalizedAiYoutubeChapter[];
 }): Promise<void> {
   const currentBlob =
     input.values.youtube && typeof input.values.youtube === "object" && !Array.isArray(input.values.youtube)
       ? (input.values.youtube as Record<string, unknown>)
       : null;
 
-  const hasTimestamps = Array.isArray(currentBlob?.timestamps) && currentBlob.timestamps.length > 0;
   const hasDuration = Boolean(String(currentBlob?.duration ?? "").trim());
-  if (hasTimestamps && hasDuration) return;
-
   const meta = await fetchYoutubeVideoDescriptionMeta(input.videoId);
-  if (!meta?.description.trim()) return;
+  if (!meta?.description.trim()) {
+    if (hasDuration) return;
+    return;
+  }
+
+  const durationSeconds =
+    meta.durationSeconds ??
+    (currentBlob?.duration ? parseTimestampInput(String(currentBlob.duration)) : null);
 
   const enriched = enrichYoutubeBlobFromDescription({
     blob: currentBlob,
     description: meta.description,
-    durationSeconds: meta.durationSeconds,
+    durationSeconds,
+    aiChapters: input.aiChapters,
     confidenceByPath: input.confidenceByPath,
     summary: input.summary,
   });

@@ -55,15 +55,28 @@ test("enrichRecipeValuesYoutubeFromDescription fills values.youtube on save", as
   assert.ok(blob.duration);
 });
 
-test("enrichYoutubeBlobFromDescription keeps existing timestamps", () => {
+test("enrichYoutubeBlobFromDescription merges description chapters with existing AI timestamps", () => {
   const confidenceByPath: Record<string, { confidence: "VERIFIED"; sourceNote: string }> = {};
   const summary = emptyAiSummary();
   const blob = enrichYoutubeBlobFromDescription({
-    blob: { timestamps: [{ time: 13, label: "Existing chapter" }] },
+    blob: {
+      timestamps: [{ time: 95, label: "Proof the dough" }],
+    },
     description: SAMPLE_DESCRIPTION,
-    durationSeconds: 240,
+    durationSeconds: 338,
+    aiChapters: [
+      { time: 0, label: "Introduction", confidence: "HIGH_CONFIDENCE_INFERENCE", sourceNote: "video" },
+      { time: 42, label: "Knead the dough", confidence: "VERIFIED", sourceNote: "00:42" },
+      { time: 95, label: "Proof the dough", confidence: "VERIFIED", sourceNote: "01:35" },
+      { time: 137, label: "Divide and shape portions", confidence: "VERIFIED", sourceNote: "02:17" },
+      { time: 216, label: "Cook on the stovetop", confidence: "VERIFIED", sourceNote: "03:36" },
+    ],
     confidenceByPath,
     summary,
   });
-  assert.deepEqual(blob?.timestamps, [{ time: 13, label: "Existing chapter" }]);
+  assert.ok(blob);
+  const timestamps = blob?.timestamps as { time: number; label: string }[];
+  assert.ok(Array.isArray(timestamps) && timestamps.length >= 5);
+  assert.ok(timestamps.some((row) => row.time === 95 && /proof/i.test(row.label)));
+  assert.ok(!timestamps.some((row) => /secret to perfect/i.test(row.label)));
 });

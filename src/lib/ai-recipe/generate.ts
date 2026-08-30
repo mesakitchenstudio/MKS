@@ -12,6 +12,7 @@ import type { AiGeminiErrorCode } from "@/lib/ai-recipe/errors";
 import { normalizeYouTubeForGemini } from "@/lib/ai-recipe/youtube-url";
 import { youtubeVideoId } from "@/lib/youtube";
 import { enrichDraftYoutubeFromDescription } from "@/lib/youtube-description";
+import { aiChaptersFromGeminiRaw } from "@/lib/ai-recipe/youtube-chapters";
 import { getDb } from "@/lib/db";
 
 function mapType(row: {
@@ -143,6 +144,7 @@ export async function runAiRecipeGeneration(input: {
           videoId,
           confidenceByPath: draft.confidenceByPath,
           summary: draft.summary,
+          aiChapters: aiChaptersFromGeminiRaw(raw),
         });
         const meta = buildMeta({
           youtubeUrl,
@@ -205,6 +207,7 @@ export async function runAiRecipeGeneration(input: {
     videoId,
     confidenceByPath: draft.confidenceByPath,
     summary: draft.summary,
+    aiChapters: aiChaptersFromGeminiRaw(generated.raw),
   });
 
   await db.aiRecipeGenerationCache.upsert({
