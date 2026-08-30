@@ -80,64 +80,100 @@ async function fetchReports(input: {
   dimensions: string;
   filters?: string;
 }): Promise<{ headers: string[]; rows: unknown[][] }> {
-  const url = new URL("https://youtubeanalytics.googleapis.com/v2/reports");
-  url.searchParams.set("ids", `channel==${input.channelId}`);
-  url.searchParams.set("startDate", input.startDate);
-  url.searchParams.set("endDate", input.endDate);
-  url.searchParams.set("metrics", input.metrics);
-  url.searchParams.set("dimensions", input.dimensions);
-  if (input.filters) url.searchParams.set("filters", input.filters);
+  // Prefer channel==MINE with Brand Account OAuth tokens; fall back to explicit channel id.
+  const idsList = input.channelId
+    ? ["channel==MINE", `channel==${input.channelId}`]
+    : ["channel==MINE"];
 
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${input.accessToken}` },
-  });
-  const json = (await response.json()) as {
-    columnHeaders?: Array<{ name?: string }>;
-    rows?: unknown[][];
-    error?: { code?: number; message?: string; errors?: Array<{ reason?: string }> };
-  };
+  let lastError: YouTubeAnalyticsError | null = null;
 
-  const apiMessage = String(json.error?.message || "").trim();
-  if (response.status === 403 || response.status === 401) {
-    const reason = json.error?.errors?.[0]?.reason || "";
-    if (reason.includes("quota") || reason === "quotaExceeded" || reason === "dailyLimitExceeded") {
-      throw new YouTubeAnalyticsError("quota", "YouTube Analytics quota exceeded. Try again later.");
+  for (const ids of idsList) {
+    const url = new URL("https://youtubeanalytics.googleapis.com/v2/reports");
+    url.searchParams.set("ids", ids);
+    url.searchParams.set("startDate", input.startDate);
+    url.searchParams.set("endDate", input.endDate);
+    url.searchParams.set("metrics", input.metrics);
+    url.searchParams.set("dimensions", input.dimensions);
+    if (input.filters) url.searchParams.set("filters", input.filters);
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${input.accessToken}` },
+    });
+    const json = (await response.json()) as {
+      columnHeaders?: Array<{ name?: string }>;
+      rows?: unknown[][];
+      error?: { code?: number; message?: string; errors?: Array<{ reason?: string }> };
+    };
+
+    const apiMessage = String(json.error?.message || "").trim();
+    if (response.ok) {
+      const headers = (json.columnHeaders || []).map((header) => String(header.name || ""));
+      return { headers, rows: Array.isArray(json.rows) ? json.rows : [] };
     }
-    throw new YouTubeAnalyticsError(
-      "api_error",
-      apiMessage
-        ? `YouTube Analytics authorization failed: ${apiMessage}`
-        : "YouTube Analytics authorization failed. Disconnect and connect again if this continues.",
-      apiMessage || undefined,
-    );
-  }
 
-  if (!response.ok) {
-    throw new YouTubeAnalyticsError(
+    if (response.status === 403 || response.status === 401) {
+      const reason = json.error?.errors?.[0]?.reason || "";
+      if (reason.includes("quota") || reason === "quotaExceeded" || reason === "dailyLimitExceeded") {
+        throw new YouTubeAnalyticsError("quota", "YouTube Analytics quota exceeded. Try again later.");
+      }
+      throw new YouTubeAnalyticsError(
+        "api_error",
+        apiMessage
+          ? `YouTube Analytics authorization failed: ${apiMessage}`
+          : "YouTube Analytics authorization failed. Disconnect and connect again if this continues.",
+        apiMessage || undefined,
+      );
+    }
+
+    lastError = new YouTubeAnalyticsError(
       "api_error",
       apiMessage ? `YouTube Analytics request failed: ${apiMessage}` : "YouTube Analytics request failed.",
       apiMessage || undefined,
     );
+    // Retry with explicit channel id when MINE fails (unsupported query / ids issues).
+    if (ids === "channel==MINE" && idsList.length > 1) continue;
+    throw lastError;
   }
 
-  const headers = (json.columnHeaders || []).map((header) => String(header.name || ""));
-  return { headers, rows: Array.isArray(json.rows) ? json.rows : [] };
+  throw lastError || new YouTubeAnalyticsError("api_error", "YouTube Analytics request failed.");
 }
+
+/** Core channel metrics first; fall back if a fuller metric set is rejected. */
+const CHANNEL_METRICS_CORE = [
+  "views",
+  "estimatedMinutesWatched",
+  "averageViewDuration",
+  "subscribersGained",
+  "subscribersLost",
+].join(",");
 
 export async function fetchChannelDayMetrics(input: {
   startDate: string;
   endDate: string;
 }): Promise<AnalyticsMetricRow[]> {
   const { accessToken, channelId } = await getAnalyticsAccessToken();
-  const { headers, rows } = await fetchReports({
-    accessToken,
-    channelId,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    metrics: CHANNEL_METRICS,
-    dimensions: "day",
-  });
-  return rows.map((cells) => mapMetricRow(headers, cells));
+  try {
+    const { headers, rows } = await fetchReports({
+      accessToken,
+      channelId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      metrics: CHANNEL_METRICS,
+      dimensions: "day",
+    });
+    return rows.map((cells) => mapMetricRow(headers, cells));
+  } catch (error) {
+    if (!(error instanceof YouTubeAnalyticsError) || error.code === "quota") throw error;
+    const { headers, rows } = await fetchReports({
+      accessToken,
+      channelId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      metrics: CHANNEL_METRICS_CORE,
+      dimensions: "day",
+    });
+    return rows.map((cells) => mapMetricRow(headers, cells));
+  }
 }
 
 /** Max video IDs per Analytics filter (comma-separated). Keep conservative for URL length. */
