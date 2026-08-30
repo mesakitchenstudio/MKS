@@ -7,9 +7,11 @@ import {
 } from "@/lib/youtube-data/client";
 import { resolveYoutubeChannelId } from "@/lib/youtube-data/config";
 import { YouTubeDataError } from "@/lib/youtube-data/errors";
+import {
+  shouldCreateChannelSnapshot,
+  shouldCreateVideoSnapshot,
+} from "@/lib/youtube-data/snapshots";
 import type { YouTubeSyncResult } from "@/lib/youtube-data/types";
-
-const AUTO_SNAPSHOT_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 function counterDelta(current: string, previous: string | undefined): string | null {
   if (!previous) return null;
@@ -20,20 +22,6 @@ function counterDelta(current: string, previous: string | undefined): string | n
   } catch {
     return null;
   }
-}
-
-export async function shouldCreateChannelSnapshot(
-  channelId: string,
-  force: boolean,
-): Promise<boolean> {
-  if (force) return true;
-  const db = getDb();
-  const latest = await db.youTubeChannelSnapshot.findFirst({
-    where: { channelId },
-    orderBy: { recordedAt: "desc" },
-  });
-  if (!latest) return true;
-  return Date.now() - latest.recordedAt.getTime() >= AUTO_SNAPSHOT_MIN_INTERVAL_MS;
 }
 
 export async function syncYoutubeChannel(input?: {
@@ -140,7 +128,23 @@ export async function syncYoutubeChannel(input?: {
     }
 
     let snapshotCreated = false;
-    if (await shouldCreateChannelSnapshot(remote.channelId, forceSnapshot)) {
+
+    const latestChannelSnapshot = await db.youTubeChannelSnapshot.findFirst({
+      where: { channelId: remote.channelId },
+      orderBy: { recordedAt: "desc" },
+    });
+
+    if (
+      shouldCreateChannelSnapshot(
+        latestChannelSnapshot,
+        {
+          viewCount: remote.viewCount,
+          subscriberCount: remote.subscriberCount,
+          videoCount: remote.videoCount,
+        },
+        forceSnapshot,
+      )
+    ) {
       await db.youTubeChannelSnapshot.create({
         data: {
           channelId: remote.channelId,
@@ -149,8 +153,22 @@ export async function syncYoutubeChannel(input?: {
           videoCount: remote.videoCount,
         },
       });
+      snapshotCreated = true;
+    }
 
-      for (const video of remoteVideos) {
+    for (const video of remoteVideos) {
+      const latestVideoSnapshot = await db.youTubeVideoSnapshot.findFirst({
+        where: { videoId: video.videoId },
+        orderBy: { recordedAt: "desc" },
+      });
+
+      if (
+        shouldCreateVideoSnapshot(latestVideoSnapshot, {
+          viewCount: video.viewCount,
+          likeCount: video.likeCount,
+          commentCount: video.commentCount,
+        })
+      ) {
         await db.youTubeVideoSnapshot.create({
           data: {
             videoId: video.videoId,
@@ -159,8 +177,8 @@ export async function syncYoutubeChannel(input?: {
             commentCount: video.commentCount,
           },
         });
+        snapshotCreated = true;
       }
-      snapshotCreated = true;
     }
 
     return {

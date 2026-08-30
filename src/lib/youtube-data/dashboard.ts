@@ -3,7 +3,11 @@ import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
 import { buildRecipeVideoIndex, recipeHasSavedChapters } from "@/lib/youtube-data/matching";
 import { getChannelTrendDeltas, getVideoViewsDelta7d } from "@/lib/youtube-data/sync";
 import { videoRowStatus } from "@/lib/youtube-data/health";
-import { formatGmtDisplay } from "@/lib/datetime";
+import { formatGmtDisplay, formatYoutubeSnapshotDateTime } from "@/lib/datetime";
+import {
+  computeViewsGained,
+  formatViewsGainedDisplay,
+} from "@/lib/youtube-data/snapshots";
 
 function formatCount(value: string) {
   try {
@@ -107,17 +111,12 @@ export async function loadYoutubeVideoDetail(videoId: string) {
     .reverse()
     .map((snapshot, index, list) => {
       const prev = index > 0 ? list[index - 1] : null;
-      let viewsGained = "—";
-      if (prev) {
-        try {
-          const diff = BigInt(snapshot.viewCount) - BigInt(prev.viewCount);
-          viewsGained = diff > BigInt(0) ? `+${diff.toLocaleString("en-US")}` : diff.toLocaleString("en-US");
-        } catch {
-          viewsGained = "—";
-        }
-      }
+      const recordedAt = formatYoutubeSnapshotDateTime(snapshot.recordedAt);
+      const viewsGained = formatViewsGainedDisplay(
+        computeViewsGained(snapshot.viewCount, prev?.viewCount),
+      );
       return {
-        recordedAt: formatGmtDisplay(snapshot.recordedAt),
+        recordedAt,
         viewCount: formatCount(snapshot.viewCount),
         likeCount: formatCount(snapshot.likeCount),
         commentCount: formatCount(snapshot.commentCount),

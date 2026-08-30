@@ -112,8 +112,13 @@ export default async function AdminYoutubeVideoPage({
                 </tr>
               ) : (
                 detail.history.map((row) => (
-                  <tr key={row.recordedAt} className="border-t border-line/70">
-                    <td className="px-4 py-3">{row.recordedAt}</td>
+                  <tr key={`${row.recordedAt.date}-${row.recordedAt.time}`} className="border-t border-line/70">
+                    <td className="px-4 py-3">
+                      <div>{row.recordedAt.date}</div>
+                      {row.recordedAt.time ? (
+                        <div className="text-xs text-muted">{row.recordedAt.time}</div>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3">{row.viewCount}</td>
                     <td className="px-4 py-3">{row.likeCount}</td>
                     <td className="px-4 py-3">{row.commentCount}</td>

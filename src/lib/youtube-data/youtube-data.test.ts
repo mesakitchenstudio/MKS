@@ -6,6 +6,88 @@ import {
   titlesDifferSignificantly,
 } from "./matching.ts";
 import { videoRowStatus } from "./health.ts";
+import {
+  computeViewsGained,
+  formatViewsGainedDisplay,
+  shouldCreateChannelSnapshot,
+  shouldCreateVideoSnapshot,
+} from "./snapshots.ts";
+
+describe("youtube-data snapshots", () => {
+  it("skips redundant video snapshots when counters match and recent", () => {
+    const recent = new Date(Date.now() - 5 * 60 * 1000);
+    assert.equal(
+      shouldCreateVideoSnapshot(
+        {
+          recordedAt: recent,
+          viewCount: "100",
+          likeCount: "10",
+          commentCount: "2",
+        },
+        { viewCount: "100", likeCount: "10", commentCount: "2" },
+      ),
+      false,
+    );
+  });
+
+  it("creates a video snapshot when counters change", () => {
+    const recent = new Date(Date.now() - 5 * 60 * 1000);
+    assert.equal(
+      shouldCreateVideoSnapshot(
+        {
+          recordedAt: recent,
+          viewCount: "100",
+          likeCount: "10",
+          commentCount: "2",
+        },
+        { viewCount: "105", likeCount: "10", commentCount: "2" },
+      ),
+      true,
+    );
+  });
+
+  it("creates a video snapshot after the dedup window even when counters match", () => {
+    const older = new Date(Date.now() - 7 * 60 * 60 * 1000);
+    assert.equal(
+      shouldCreateVideoSnapshot(
+        {
+          recordedAt: older,
+          viewCount: "100",
+          likeCount: "10",
+          commentCount: "2",
+        },
+        { viewCount: "100", likeCount: "10", commentCount: "2" },
+      ),
+      true,
+    );
+  });
+
+  it("skips redundant channel snapshots on forced sync when counters match and recent", () => {
+    const recent = new Date(Date.now() - 5 * 60 * 1000);
+    assert.equal(
+      shouldCreateChannelSnapshot(
+        {
+          recordedAt: recent,
+          viewCount: "1000",
+          subscriberCount: "50",
+          videoCount: "10",
+        },
+        { viewCount: "1000", subscriberCount: "50", videoCount: "10" },
+        true,
+      ),
+      false,
+    );
+  });
+
+  it("computes views gained against the previous snapshot", () => {
+    assert.equal(computeViewsGained("150", undefined), null);
+    assert.equal(computeViewsGained("150", "150"), "0");
+    assert.equal(computeViewsGained("150", "100"), "+50");
+    assert.equal(computeViewsGained("90", "100"), null);
+    assert.equal(formatViewsGainedDisplay(null), "—");
+    assert.equal(formatViewsGainedDisplay("0"), "0");
+  });
+});
 
 describe("youtube-data duration", () => {
   it("parses ISO 8601 durations", () => {

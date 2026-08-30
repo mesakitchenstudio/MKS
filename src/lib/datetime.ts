@@ -112,6 +112,27 @@ export function formatAdminRelativeDateTime(value: Date | string | null | undefi
   return `${month} ${day}, ${date.getUTCFullYear()}, ${time}`;
 }
 
+/** Admin snapshot timestamps: date on first line, time on second (GMT). */
+export function formatYoutubeSnapshotDateTime(value: Date | string | null | undefined) {
+  const date = asDate(value);
+  if (!date) return { date: "—", time: "" };
+
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const day = date.getUTCDate();
+  const year = date.getUTCFullYear();
+  const time = date.toLocaleString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  });
+
+  return {
+    date: `${month} ${day}, ${year}`,
+    time: `${time} GMT`,
+  };
+}
+
 /** Readable dates with optional time: Aug 24, 2026, 19:35 GMT */
 export function formatGmtDisplay(
   value: Date | string | null | undefined,
