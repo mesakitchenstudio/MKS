@@ -459,13 +459,17 @@ export function YoutubeDashboard({
     }
   }
 
+  const periodSuffix = `${analytics.rangeDays}d`;
+  const analyticsConnected = analytics.connection.connected;
+
   return (
     <div className="space-y-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">YouTube</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            Channel performance and recipe video coverage.
+            Channel analytics for the selected period, current public YouTube counters, and Mesa
+            recipe coverage.
           </p>
         </div>
         {canSync ? (
@@ -479,8 +483,8 @@ export function YoutubeDashboard({
               {pending ? "Refreshing…" : "Refresh YouTube data"}
             </button>
             <p className="mt-2 text-xs leading-snug text-muted">
-              Refreshes channel, video metadata, thumbnails and public statistics. Recipe content is
-              not changed.
+              Refreshes public channel and video counters from the YouTube Data API. Does not change
+              Analytics period metrics or recipe content.
             </p>
           </div>
         ) : null}
@@ -512,11 +516,15 @@ export function YoutubeDashboard({
         </p>
       ) : null}
 
-      <section className="rounded-sm border border-line bg-paper px-4 py-4">
+      <section className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-serif text-lg text-ink">YouTube Analytics</h2>
-            {analytics.connection.connected ? (
+            <h2 className="font-serif text-xl text-ink">
+              YouTube Analytics
+              <SourceMark source="ANALYTICS" />
+            </h2>
+            <p className="mt-1 text-sm text-muted">Performance for the selected reporting period.</p>
+            {analyticsConnected ? (
               <p className="mt-1 text-sm text-muted">
                 Connected as{" "}
                 <span className="font-semibold text-ink">
@@ -530,9 +538,9 @@ export function YoutubeDashboard({
               <p className="mt-1 text-sm text-muted">YouTube Analytics is not connected.</p>
             )}
             <p className="mt-1 text-xs text-muted">
-              Analytics uses OAuth and is separate from Refresh YouTube data (public metadata).
+              OAuth Analytics metrics only. Separate from Refresh YouTube data (public Data API).
             </p>
-            {analytics.connection.connected ? (
+            {analyticsConnected ? (
               <p className="mt-1 text-xs text-muted">
                 Analytics last refreshed:{" "}
                 <span className="font-medium text-ink">
@@ -544,7 +552,7 @@ export function YoutubeDashboard({
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            {canManageAnalytics && !analytics.connection.connected ? (
+            {canManageAnalytics && !analyticsConnected ? (
               <a
                 href="/api/admin/youtube/analytics/oauth/start"
                 className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
@@ -552,7 +560,7 @@ export function YoutubeDashboard({
                 Connect YouTube Analytics
               </a>
             ) : null}
-            {canManageAnalytics && analytics.connection.connected ? (
+            {canManageAnalytics && analyticsConnected ? (
               <>
                 <button
                   type="button"
@@ -574,22 +582,73 @@ export function YoutubeDashboard({
             ) : null}
           </div>
         </div>
-        {analytics.connection.connected ? (
-          <div className="mt-4 flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1 text-xs">
-            {ANALYTICS_RANGE_DAYS.map((days) => (
-              <button
-                key={days}
-                type="button"
-                className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
-                  analytics.rangeDays === days ? "bg-sand text-ink" : "text-muted hover:text-ink"
-                } ${adminFocusRing}`}
-                onClick={() => updateRange(days)}
-              >
-                Last {days} days
-              </button>
-            ))}
+
+        {analyticsConnected ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1 text-xs">
+              {ANALYTICS_RANGE_DAYS.map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                    analytics.rangeDays === days ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                  } ${adminFocusRing}`}
+                  onClick={() => updateRange(days)}
+                >
+                  Last {days} days
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted">Applies only to Analytics figures below and period columns in the video table.</p>
           </div>
         ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard
+            label="Subscriber growth"
+            value={analyticsConnected ? analytics.channel.subscriberGrowth : "—"}
+            note={
+              analyticsConnected
+                ? `Last ${analytics.rangeDays} days`
+                : "Connect Analytics to see growth."
+            }
+          />
+          <SummaryCard
+            label="Views"
+            value={analyticsConnected ? analytics.channel.views : "—"}
+            note={
+              analyticsConnected
+                ? `Last ${analytics.rangeDays} days`
+                : "Connect Analytics to see period views."
+            }
+          />
+          <SummaryCard
+            label="Watch time"
+            value={analyticsConnected ? analytics.channel.watchTime : "—"}
+            note={analyticsConnected ? `Estimated hours · last ${analytics.rangeDays} days` : undefined}
+          />
+          <SummaryCard
+            label="Average view duration"
+            value={analyticsConnected ? analytics.channel.averageViewDuration : "—"}
+            note={analyticsConnected ? `mm:ss · last ${analytics.rangeDays} days` : undefined}
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MiniStat
+            label="Subscribers gained"
+            value={analyticsConnected ? analytics.channel.subscribersGained : "—"}
+          />
+          <MiniStat
+            label="Subscribers lost"
+            value={analyticsConnected ? analytics.channel.subscribersLost : "—"}
+          />
+          <MiniStat
+            label="Average percentage viewed"
+            value={analyticsConnected ? analytics.channel.averageViewPercentage : "—"}
+          />
+          <MiniStat label="Shares" value={analyticsConnected ? analytics.channel.shares : "—"} />
+        </div>
       </section>
 
       {!channel ? (
@@ -603,75 +662,69 @@ export function YoutubeDashboard({
         </div>
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <SummaryCard
-              label="Subscribers"
-              value={channel.subscriberCount}
-              note={
-                channel.hiddenSubscriberCount
-                  ? "Public count may be hidden or rounded by YouTube."
-                  : "Public subscriber count."
-              }
-            />
-            <SummaryCard
-              label="Subscriber growth"
-              value={analytics.connection.connected ? analytics.channel.subscriberGrowth : "—"}
-              note={
-                analytics.connection.connected
-                  ? `Analytics · last ${analytics.rangeDays} days`
-                  : "Connect Analytics to see growth."
-              }
-            />
-            <SummaryCard
-              label="Views"
-              value={analytics.connection.connected ? analytics.channel.views : "—"}
-              note={
-                analytics.connection.connected
-                  ? `Analytics · last ${analytics.rangeDays} days`
-                  : "Connect Analytics to see period views."
-              }
-            />
-            <SummaryCard
-              label="Watch time"
-              value={analytics.connection.connected ? analytics.channel.watchTime : "—"}
-              note={analytics.connection.connected ? "Estimated hours watched" : undefined}
-            />
-            <SummaryCard
-              label="Average view duration"
-              value={analytics.connection.connected ? analytics.channel.averageViewDuration : "—"}
-              note={analytics.connection.connected ? "mm:ss · Analytics" : undefined}
-            />
+          <section className="space-y-4">
+            <div>
+              <h2 className="font-serif text-xl text-ink">
+                YouTube public data
+                <SourceMark source="DATA API" />
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Current public counters from the latest YouTube Data API refresh.
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Not controlled by the Analytics Last 7 / 28 / 90 days selector.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <SummaryCard
+                label="Subscribers"
+                value={channel.subscriberCount}
+                note={
+                  channel.hiddenSubscriberCount
+                    ? "Public count may be hidden or rounded by YouTube."
+                    : "Current public subscriber count."
+                }
+              />
+              <SummaryCard
+                label="Public channel views"
+                value={channel.viewCount}
+                trend={formatTrend(channel.trendViews7d, "views / 7 days")}
+                note="Lifetime public channel views."
+              />
+              <SummaryCard label="Public videos" value={channel.videoCount} note="Current public video count." />
+              <SummaryCard
+                label="YouTube Data last refreshed"
+                value={channel.lastSyncedAt}
+                note={
+                  channel.lastSyncStatus === "error"
+                    ? channel.lastSyncError
+                    : "When public counters were last synced."
+                }
+              />
+              <SummaryCard
+                label="Public subscriber trend"
+                value={channel.trendSubscribers7d || "—"}
+                note="From public counter snapshots (7 days), not Analytics OAuth."
+              />
+            </div>
           </section>
 
-          {analytics.connection.connected ? (
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <MiniStat label="Subscribers gained" value={analytics.channel.subscribersGained} />
-              <MiniStat label="Subscribers lost" value={analytics.channel.subscribersLost} />
-              <MiniStat label="Average percentage viewed" value={analytics.channel.averageViewPercentage} />
-              <MiniStat label="Shares" value={analytics.channel.shares} />
-            </section>
-          ) : null}
-
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <SummaryCard label="Public channel views" value={channel.viewCount} trend={formatTrend(channel.trendViews7d, "views / 7 days")} />
-            <SummaryCard label="Public videos" value={channel.videoCount} />
-            <SummaryCard
-              label="YouTube data last refreshed"
-              value={channel.lastSyncedAt}
-              note={channel.lastSyncStatus === "error" ? channel.lastSyncError : undefined}
-            />
-            <SummaryCard
-              label="Public subscriber trend"
-              value={channel.trendSubscribers7d || "—"}
-              note="From public counter snapshots (7 days)"
-            />
-          </section>
-
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <MiniStat label="Videos linked to recipes" value={String(summary.linkedVideos)} />
-            <MiniStat label="Videos without recipes" value={String(summary.videosWithoutRecipes)} />
-            <MiniStat label="Recipes with YouTube videos" value={String(summary.recipesWithVideo)} />
-            <MiniStat label="Recipes without YouTube videos" value={String(summary.recipesWithoutVideo)} />
+          <section className="space-y-4">
+            <div>
+              <h2 className="font-serif text-xl text-ink">
+                Mesa content coverage
+                <SourceMark source="MESA" />
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                How Mesa recipes and YouTube videos are linked in this site.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MiniStat label="Videos linked to recipes" value={String(summary.linkedVideos)} />
+              <MiniStat label="Videos without recipes" value={String(summary.videosWithoutRecipes)} />
+              <MiniStat label="Recipes with YouTube videos" value={String(summary.recipesWithVideo)} />
+              <MiniStat label="Recipes without YouTube videos" value={String(summary.recipesWithoutVideo)} />
+            </div>
           </section>
         </>
       )}
@@ -681,6 +734,9 @@ export function YoutubeDashboard({
           <div>
             <h2 className="font-serif text-xl text-ink">Recent videos</h2>
             <p className="mt-1 text-xs text-muted">
+              Lifetime / current columns are Data API
+              {analyticsConnected ? `; period columns use Analytics · last ${analytics.rangeDays} days` : ""}.
+              <span className="mx-1.5 text-line">·</span>
               Long videos: {summary.longVideos ?? 0}
               <span className="mx-1.5 text-line">·</span>
               Shorts: {summary.shorts ?? 0}
@@ -714,15 +770,21 @@ export function YoutubeDashboard({
                 <th className="px-4 py-3 font-medium">Video</th>
                 <th className="hidden px-4 py-3 font-medium md:table-cell">Published</th>
                 <th className="px-4 py-3 font-medium">Format</th>
-                <th className="px-4 py-3 font-medium">Views</th>
-                <th className="hidden px-4 py-3 font-medium lg:table-cell">Likes</th>
-                <th className="hidden px-4 py-3 font-medium xl:table-cell">Comments</th>
-                {analytics.connection.connected ? (
+                <th className="px-4 py-3 font-medium">Lifetime views</th>
+                <th className="hidden px-4 py-3 font-medium lg:table-cell">Current likes</th>
+                <th className="hidden px-4 py-3 font-medium xl:table-cell">Current comments</th>
+                {analyticsConnected ? (
                   <>
-                    <th className="px-4 py-3 font-medium">Period views</th>
-                    <th className="hidden px-4 py-3 font-medium lg:table-cell">Watch time</th>
-                    <th className="hidden px-4 py-3 font-medium xl:table-cell">Avg viewed %</th>
-                    <th className="hidden px-4 py-3 font-medium md:table-cell">Subs gained</th>
+                    <th className="px-4 py-3 font-medium">Views · {periodSuffix}</th>
+                    <th className="hidden px-4 py-3 font-medium lg:table-cell">
+                      Watch time · {periodSuffix}
+                    </th>
+                    <th className="hidden px-4 py-3 font-medium xl:table-cell">
+                      Avg viewed · {periodSuffix}
+                    </th>
+                    <th className="hidden px-4 py-3 font-medium md:table-cell">
+                      Subs gained · {periodSuffix}
+                    </th>
                   </>
                 ) : (
                   <th className="hidden px-4 py-3 font-medium md:table-cell">7-day views</th>
@@ -734,7 +796,7 @@ export function YoutubeDashboard({
             <tbody>
               {filteredVideos.length === 0 ? (
                 <tr>
-                  <td colSpan={analytics.connection.connected ? 12 : 9} className="px-4 py-8 text-muted">
+                  <td colSpan={analyticsConnected ? 12 : 9} className="px-4 py-8 text-muted">
                     {videos.length === 0 ? "No synced videos yet." : "No videos match this filter."}
                   </td>
                 </tr>
@@ -769,7 +831,7 @@ export function YoutubeDashboard({
                       <td className="px-4 py-3">{video.viewCount}</td>
                       <td className="hidden px-4 py-3 lg:table-cell">{video.likeCount}</td>
                       <td className="hidden px-4 py-3 xl:table-cell">{video.commentCount}</td>
-                      {analytics.connection.connected ? (
+                      {analyticsConnected ? (
                         <>
                           <td className="px-4 py-3">{video.analytics?.periodViews ?? "—"}</td>
                           <td className="hidden px-4 py-3 lg:table-cell">{video.analytics?.watchTime ?? "—"}</td>
@@ -946,6 +1008,14 @@ export function YoutubeDashboard({
         )}
       </section>
     </div>
+  );
+}
+
+function SourceMark({ source }: { source: "ANALYTICS" | "DATA API" | "MESA" }) {
+  return (
+    <span className="ml-2 align-middle text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-muted">
+      {source}
+    </span>
   );
 }
 

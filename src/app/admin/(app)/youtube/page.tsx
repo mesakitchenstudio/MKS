@@ -51,7 +51,12 @@ export default async function AdminYoutubePage({
     canCreateRecipes
       ? db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
       : Promise.resolve([] as { id: string; name: string }[]),
-    view === "funnel" ? loadYoutubeFunnelDashboard({ analyticsRangeDays: rangeDays }) : null,
+    view === "funnel"
+      ? loadYoutubeFunnelDashboard({
+          analyticsRangeDays: rangeDays,
+          includeDiagnostics: admin.role === "owner",
+        })
+      : null,
   ]);
 
   const connectedFlash = params.analyticsConnected?.trim()

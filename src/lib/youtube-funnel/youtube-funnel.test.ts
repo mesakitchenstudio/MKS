@@ -10,8 +10,10 @@ import {
   buildFunnelSummary,
   computeContinuedViewing,
   formatFunnelRate,
+  funnelDateWindow,
   uniqueVisitorsForEvents,
 } from "@/lib/youtube-funnel/aggregate";
+import { analyticsDateRange } from "@/lib/youtube-analytics/ranges";
 
 describe("funnel-analytics", () => {
   it("maps client events to canonical funnel names", () => {
@@ -120,5 +122,18 @@ describe("youtube-funnel aggregate", () => {
     assert.equal(multi.interacted, 1);
     assert.equal(multi.continued, 1);
     assert.equal(multi.rate, 1);
+  });
+
+  it("funnel date window includes today UTC (unlike YouTube Analytics lag)", () => {
+    const now = new Date("2026-08-30T15:00:00.000Z");
+    const funnel = funnelDateWindow(7, now);
+    const yt = analyticsDateRange(7, now);
+    assert.equal(funnel.endDate, "2026-08-30");
+    assert.equal(funnel.startDate, "2026-08-24");
+    assert.equal(yt.endDate, "2026-08-29");
+    assert.ok(funnel.endExclusive.getTime() > now.getTime() || funnel.endExclusive.toISOString().startsWith("2026-08-31"));
+    // An event created "now" must fall inside [start, endExclusive).
+    assert.ok(now.getTime() >= funnel.start.getTime());
+    assert.ok(now.getTime() < funnel.endExclusive.getTime());
   });
 });

@@ -14,11 +14,12 @@ export function isPublicApiWhilePrivate(pathname: string) {
 }
 
 /** Block recipe/content APIs from public access while the site is private.
- * Guest analytics stay open so anonymous Coming Soon visits are recorded.
+ * Guest + funnel analytics stay open so anonymous visits are recorded.
  */
 export function isBlockedApiWhilePrivate(pathname: string) {
   if (!isSitePrivate()) return false;
   if (isPublicApiWhilePrivate(pathname)) return false;
   if (pathname.startsWith("/api/analytics/guest")) return false;
+  if (pathname.startsWith("/api/analytics/events")) return false;
   return pathname.startsWith("/api/recipes");
 }

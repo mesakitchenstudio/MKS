@@ -24,8 +24,15 @@ function recipePath(slug: string) {
   return `/recipes/${slug}`;
 }
 
+function maskVisitorId(id: string) {
+  const trimmed = id.trim();
+  if (trimmed.length <= 8) return "••••";
+  return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
+}
+
 export async function loadYoutubeFunnelDashboard(input?: {
   analyticsRangeDays?: AnalyticsRangeDays | string | number;
+  includeDiagnostics?: boolean;
 }): Promise<YoutubeFunnelDashboard> {
   const rangeDays = parseAnalyticsRangeDays(
     input?.analyticsRangeDays ?? DEFAULT_ANALYTICS_RANGE_DAYS,
@@ -37,7 +44,7 @@ export async function loadYoutubeFunnelDashboard(input?: {
   const linkedSlugs = recipesWithVideo.map((r) => r.recipeSlug);
   const linkedPaths = linkedSlugs.map(recipePath);
 
-  const [pageViews, events] = await Promise.all([
+  const [pageViews, events, latestPageview, latestFunnelEvent] = await Promise.all([
     linkedPaths.length
       ? db.guestPageView.findMany({
           where: {
@@ -68,6 +75,19 @@ export async function loadYoutubeFunnelDashboard(input?: {
         chapterIndex: true,
       },
     }),
+    input?.includeDiagnostics
+      ? db.guestPageView.findFirst({
+          where: linkedPaths.length ? { path: { in: linkedPaths } } : undefined,
+          orderBy: { createdAt: "desc" },
+          select: { path: true, createdAt: true, visitorId: true },
+        })
+      : Promise.resolve(null),
+    input?.includeDiagnostics
+      ? db.funnelEvent.findFirst({
+          orderBy: { createdAt: "desc" },
+          select: { name: true, recipeSlug: true, createdAt: true, visitorId: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   const pageviewsBySlug = new Map<string, { views: number; uniqueVisitors: number }>();
@@ -123,7 +143,10 @@ export async function loadYoutubeFunnelDashboard(input?: {
     startDate: window.startDate,
     endDate: window.endDate,
     trackingNote:
-      "CTA clicks, embedded plays, and chapter interactions are counted from when website funnel tracking shipped. Linked recipe pageviews include earlier visitor history when available. Rates use unique anonymous visitors (mks_guest), not confirmed YouTube conversions.",
+      `UTC window ${window.startDate} → ${window.endDate} (includes today). ` +
+      "Recipe views / Linked recipe pageviews = raw GuestPageView rows on `/recipes/{slug}` for YouTube-linked published recipes (human UA). " +
+      "Rates use COUNT(DISTINCT mks_guest / visitorId) with a linked-recipe pageview in the period as the denominator (except continued viewing). " +
+      "CTA clicks, embedded plays, and chapters count from FunnelEvent rows since funnel tracking shipped — not confirmed YouTube conversions.",
     summary,
     summaryDisplay: {
       linkedRecipePageviews: formatFunnelCount(summary.linkedRecipePageviews),
@@ -150,6 +173,30 @@ export async function loadYoutubeFunnelDashboard(input?: {
       subscribeCtaClicks: formatFunnelCount(row.subscribeCtaClicks),
     })),
     hasFunnelEvents,
+    diagnostics: input?.includeDiagnostics
+      ? {
+          windowLabel: `${window.startDate} → ${window.endDate} UTC (includes today)`,
+          latestPageview: latestPageview
+            ? {
+                path: latestPageview.path,
+                receivedAt: latestPageview.createdAt.toISOString(),
+                visitorMasked: maskVisitorId(latestPageview.visitorId),
+              }
+            : null,
+          latestFunnelEvent: latestFunnelEvent
+            ? {
+                name: latestFunnelEvent.name,
+                recipeSlug: latestFunnelEvent.recipeSlug || "(none)",
+                receivedAt: latestFunnelEvent.createdAt.toISOString(),
+                visitorMasked: maskVisitorId(latestFunnelEvent.visitorId),
+              }
+            : null,
+          trackingEndpoints: {
+            guestPageview: "POST /api/analytics/guest (pageview: true)",
+            funnelEvents: "POST /api/analytics/events",
+          },
+        }
+      : undefined,
   };
 }
 

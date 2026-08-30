@@ -113,6 +113,34 @@ export function YoutubeFunnelPanel({
       </div>
 
       <p className="text-xs leading-5 text-muted">{funnel.trackingNote}</p>
+      <p className="text-xs text-muted">
+        Range shown: {funnel.startDate} → {funnel.endDate} UTC (includes today).
+      </p>
+
+      {funnel.diagnostics ? (
+        <section className="rounded-sm border border-dashed border-line bg-cream/30 px-4 py-3 text-xs text-muted">
+          <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+            Website funnel diagnostics (owner)
+          </h3>
+          <p className="mt-2">Window: {funnel.diagnostics.windowLabel}</p>
+          <p className="mt-1">
+            Endpoints: {funnel.diagnostics.trackingEndpoints.guestPageview};{" "}
+            {funnel.diagnostics.trackingEndpoints.funnelEvents}
+          </p>
+          <p className="mt-1">
+            Latest linked recipe pageview:{" "}
+            {funnel.diagnostics.latestPageview
+              ? `${funnel.diagnostics.latestPageview.path} · ${funnel.diagnostics.latestPageview.receivedAt} · visitor ${funnel.diagnostics.latestPageview.visitorMasked}`
+              : "none yet"}
+          </p>
+          <p className="mt-1">
+            Latest funnel event:{" "}
+            {funnel.diagnostics.latestFunnelEvent
+              ? `${funnel.diagnostics.latestFunnelEvent.name} · ${funnel.diagnostics.latestFunnelEvent.recipeSlug} · ${funnel.diagnostics.latestFunnelEvent.receivedAt} · visitor ${funnel.diagnostics.latestFunnelEvent.visitorMasked}`
+              : "none yet"}
+          </p>
+        </section>
+      ) : null}
 
       <section className="rounded-sm border border-line bg-paper px-4 py-4">
         <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">

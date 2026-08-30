@@ -33,4 +33,23 @@ export type YoutubeFunnelDashboard = {
     subscribeCtaClicks: string;
   }>;
   hasFunnelEvents: boolean;
+  /** Owner-only temporary diagnostics; omitted for other roles. */
+  diagnostics?: {
+    windowLabel: string;
+    latestPageview: {
+      path: string;
+      receivedAt: string;
+      visitorMasked: string;
+    } | null;
+    latestFunnelEvent: {
+      name: string;
+      recipeSlug: string;
+      receivedAt: string;
+      visitorMasked: string;
+    } | null;
+    trackingEndpoints: {
+      guestPageview: string;
+      funnelEvents: string;
+    };
+  };
 };

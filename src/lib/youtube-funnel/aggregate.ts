@@ -1,9 +1,12 @@
 import {
-  analyticsDateRange,
   type AnalyticsRangeDays,
   utcDayStart,
 } from "@/lib/youtube-analytics/ranges";
 import type { FunnelEventName, FunnelPlacement } from "@/lib/funnel-analytics";
+
+function utcYmd(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
 
 export type FunnelSummaryMetrics = {
   linkedRecipePageviews: number;
@@ -299,16 +302,25 @@ export function buildChapterClickRows(
   });
 }
 
-export function funnelDateWindow(days: AnalyticsRangeDays) {
-  const range = analyticsDateRange(days);
+/**
+ * Website funnel date window (UTC).
+ * Ends on **today** inclusive — first-party events are near-real-time.
+ * Do not reuse YouTube Analytics' lag window (which ends yesterday).
+ */
+export function funnelDateWindow(days: AnalyticsRangeDays, now: Date = new Date()) {
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+  const startDate = utcYmd(start);
+  const endDate = utcYmd(end);
   return {
     days,
-    start: utcDayStart(range.startDate),
-    end: utcDayStart(range.endDate),
-    /** Inclusive end of day UTC for queries. */
-    endExclusive: new Date(utcDayStart(range.endDate).getTime() + 24 * 60 * 60 * 1000),
-    startDate: range.startDate,
-    endDate: range.endDate,
+    start: utcDayStart(startDate),
+    end: utcDayStart(endDate),
+    /** Exclusive upper bound (start of tomorrow UTC). */
+    endExclusive: new Date(utcDayStart(endDate).getTime() + 24 * 60 * 60 * 1000),
+    startDate,
+    endDate,
   };
 }
 
