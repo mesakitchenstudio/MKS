@@ -15,8 +15,27 @@ const fields = [
   { key: "instructions", label: "Instructions", kind: "instructions", required: true },
   { key: "youtubeUrl", label: "YouTube", kind: "text", required: false },
   { key: "image", label: "Hero", kind: "image", required: true },
+  { key: "imageAlt", label: "Image description", kind: "text", required: true },
   { key: "riseHours", label: "Rise hours", kind: "number", required: false },
 ];
+
+const sampleImageAlt =
+  "A serving plate loaded with warm, golden-brown banana oatmeal cookies studded with mini chocolate chips.";
+
+function baseAiRaw(fieldBag: Record<string, unknown>) {
+  return {
+    recipeTypeId: "type-1",
+    title: { value: "Cookies", confidence: "VERIFIED" as const, sourceNote: "" },
+    slug: { value: "cookies", confidence: "ESTIMATED" as const, sourceNote: "" },
+    excerpt: { value: "Warm cookies", confidence: "HIGH_CONFIDENCE_INFERENCE" as const, sourceNote: "" },
+    featured: { value: false, confidence: "VERIFIED" as const, sourceNote: "" },
+    seasonal: { value: false, confidence: "VERIFIED" as const, sourceNote: "" },
+    categoryIds: { value: [], confidence: "UNKNOWN" as const, sourceNote: "" },
+    ...fieldBag,
+    insufficientRecipeInformation: false,
+    insufficientReason: "",
+  };
+}
 
 test("normalize rejects unknown categories and forces featured/seasonal false", () => {
   const draft = normalizeAiRecipeResponse({
@@ -123,6 +142,217 @@ test("normalize promotes root-level field keys into fields bag", () => {
   });
 
   assert.equal(draft.values.intro, "Root-level intro should still map.");
+});
+
+test("AI draft imageAlt under values bag maps into normalized draft", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      values: {
+        imageAlt: {
+          value: sampleImageAlt,
+          confidence: "HIGH_CONFIDENCE_INFERENCE",
+          sourceNote: "visible plating",
+        },
+        intro: { value: "Hello", confidence: "VERIFIED", sourceNote: "" },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  assert.equal(draft.values.imageAlt, sampleImageAlt);
+  assert.equal(draft.confidenceByPath["values.imageAlt"]?.confidence, "HIGH_CONFIDENCE_INFERENCE");
+  assert.notEqual(draft.confidenceByPath["values.imageAlt"]?.confidence, "UNKNOWN");
+});
+
+test("AI draft contains imageAlt + empty form → alt text populated", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "Hello", confidence: "VERIFIED", sourceNote: "" },
+        imageAlt: {
+          value: sampleImageAlt,
+          confidence: "HIGH_CONFIDENCE_INFERENCE",
+          sourceNote: "visible plating",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const merged = mergeAiDraftIntoEditor(
+    {
+      title: "",
+      slug: "",
+      excerpt: "",
+      featured: false,
+      seasonal: false,
+      categoryIds: [],
+      values: { intro: "", image: "", imageAlt: "", prepMinutes: 0, youtubeUrl: "", riseHours: 0 },
+    },
+    draft,
+    fields,
+    "fill_empty",
+  );
+
+  assert.equal(merged.values.imageAlt, sampleImageAlt);
+  assert.ok(merged.appliedPaths.includes("values.imageAlt"));
+  assert.equal(merged.fieldProvenance?.["values.imageAlt"]?.aiGenerated, true);
+  assert.equal(merged.confidenceByPath["values.imageAlt"]?.confidence, "HIGH_CONFIDENCE_INFERENCE");
+  // Publishing validation: required imageAlt is satisfied when populated.
+  assert.ok(String(merged.values.imageAlt ?? "").trim().length > 0);
+});
+
+test("Regenerate + empty alt → AI alt populated; manual alt preserved", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "Hello", confidence: "VERIFIED", sourceNote: "" },
+        imageAlt: {
+          value: sampleImageAlt,
+          confidence: "HIGH_CONFIDENCE_INFERENCE",
+          sourceNote: "",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const emptyAlt = mergeAiDraftIntoEditor(
+    {
+      title: "Cookies",
+      slug: "cookies",
+      excerpt: "",
+      featured: false,
+      seasonal: false,
+      categoryIds: [],
+      values: { intro: "Keep", image: "", imageAlt: "", prepMinutes: 10, youtubeUrl: "", riseHours: 0 },
+    },
+    draft,
+    fields,
+    "fill_empty",
+  );
+  assert.equal(emptyAlt.values.imageAlt, sampleImageAlt);
+
+  const manual = "Editor-written alt text for accessibility.";
+  const preserved = mergeAiDraftIntoEditor(
+    {
+      title: "Cookies",
+      slug: "cookies",
+      excerpt: "",
+      featured: false,
+      seasonal: false,
+      categoryIds: [],
+      values: {
+        intro: "Keep",
+        image: "",
+        imageAlt: manual,
+        prepMinutes: 10,
+        youtubeUrl: "",
+        riseHours: 0,
+      },
+    },
+    draft,
+    fields,
+    "fill_empty",
+  );
+  assert.equal(preserved.values.imageAlt, manual);
+
+  const replaceAll = mergeAiDraftIntoEditor(
+    {
+      title: "Cookies",
+      slug: "cookies",
+      excerpt: "",
+      featured: false,
+      seasonal: false,
+      categoryIds: [],
+      values: {
+        intro: "Keep",
+        image: "",
+        imageAlt: "Previous AI alt",
+        prepMinutes: 10,
+        youtubeUrl: "",
+        riseHours: 0,
+      },
+    },
+    draft,
+    fields,
+    "replace_all_ai_fillable",
+  );
+  assert.equal(replaceAll.values.imageAlt, sampleImageAlt);
+});
+
+test("fill_empty does not replace populated imageAlt", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "Hello", confidence: "VERIFIED", sourceNote: "" },
+        imageAlt: {
+          value: sampleImageAlt,
+          confidence: "HIGH_CONFIDENCE_INFERENCE",
+          sourceNote: "",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const existing = "Already filled alt from a prior draft.";
+  const merged = mergeAiDraftIntoEditor(
+    {
+      title: "Cookies",
+      slug: "cookies",
+      excerpt: "",
+      featured: false,
+      seasonal: false,
+      categoryIds: [],
+      values: {
+        intro: "Intro",
+        image: "",
+        imageAlt: existing,
+        prepMinutes: 10,
+        youtubeUrl: "",
+        riseHours: 0,
+      },
+    },
+    draft,
+    fields,
+    "fill_empty",
+  );
+  assert.equal(merged.values.imageAlt, existing);
+});
+
+test("truly empty imageAlt remains invalid for publishing", () => {
+  assert.equal(String("").trim().length > 0, false);
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "Hello", confidence: "VERIFIED", sourceNote: "" },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+  assert.equal(String(draft.values.imageAlt ?? "").trim(), "");
+  assert.equal(draft.confidenceByPath["values.imageAlt"]?.confidence, "UNKNOWN");
 });
 
 test("fill_empty merge keeps manual title", () => {

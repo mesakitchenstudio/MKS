@@ -407,4 +407,31 @@ describe("recipe-link", () => {
     const linked = applyYoutubeVideoLinkToValues({}, { ...sampleVideo, thumbnailUrl: "" });
     assert.equal(String(linked.image ?? ""), "");
   });
+
+  it("YouTube thumbnail auto-populates hero without clearing AI imageAlt", () => {
+    const alt =
+      "A serving plate loaded with warm, golden-brown banana oatmeal cookies studded with mini chocolate chips.";
+    const values = {
+      image: "",
+      imageAlt: alt,
+      youtubeUrl: `https://www.youtube.com/watch?v=${sampleVideo.videoId}`,
+      youtube: {
+        preserved: {
+          videoId: sampleVideo.videoId,
+          thumbnail: sampleVideo.thumbnailUrl,
+        },
+      },
+    };
+    const filled = fillEmptyHeroImageFromYoutubeThumbnail(values, baseMeta());
+    assert.equal(filled.values.image, sampleVideo.thumbnailUrl);
+    assert.equal(filled.values.imageAlt, alt);
+
+    const refreshed = applyYoutubeMetadataSync({
+      values: filled.values,
+      aiMeta: baseMeta(),
+      video: sampleVideo,
+    });
+    assert.equal(refreshed.imageAlt, alt);
+    assert.equal(refreshed.image, sampleVideo.thumbnailUrl);
+  });
 });

@@ -39,6 +39,7 @@ import {
 import { ADMIN_IMAGE_HELP } from "@/lib/admin-upload";
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
 import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS, slugify } from "@/lib/fields";
+import { fieldValueHasContent } from "@/lib/field-content";
 import { youtubeVideoId } from "@/lib/youtube";
 import {
   serializeYoutubeMetadataEditorState,
@@ -799,6 +800,7 @@ export function RecipeEditor({
     );
 
     // AI never invents hero images; fill empty Hero from linked YouTube thumbnail metadata.
+    // This must not clear imageAlt or other editorial fields.
     const withHero = fillEmptyHeroImageFromYoutubeThumbnail(merged.values, {
       ...payload.meta,
       heroImageSource: aiMeta?.heroImageSource ?? payload.meta.heroImageSource,
@@ -811,6 +813,19 @@ export function RecipeEditor({
       ...(aiMeta?.confidenceByPath ?? {}),
       ...merged.confidenceByPath,
     };
+    // If a field now has content, never keep a stale "Needs input" (UNKNOWN) badge.
+    for (const field of fields) {
+      const path = `values.${field.key}`;
+      const annotation = confidenceByPath[path];
+      if (!annotation || annotation.confidence !== "UNKNOWN") continue;
+      if (!fieldValueHasContent(withHero.values[field.key], field.kind)) continue;
+      const fromDraft = payload.meta.confidenceByPath?.[path];
+      if (fromDraft && fromDraft.confidence !== "UNKNOWN") {
+        confidenceByPath[path] = fromDraft;
+      } else {
+        delete confidenceByPath[path];
+      }
+    }
     for (const annotation of Object.values(confidenceByPath)) {
       tallyConfidence(annotation.confidence, summary);
     }

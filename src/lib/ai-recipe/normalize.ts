@@ -74,8 +74,20 @@ function resolveFieldsRaw(root: Record<string, unknown>, fieldKeys: readonly str
       ? { ...(root.fields as Record<string, unknown>) }
       : {};
 
+  // Some model responses nest dynamic fields under `values` (Mesa editor shape)
+  // instead of / in addition to `fields`. Prefer `fields`, then `values`, then root.
+  const valuesBag =
+    root.values && typeof root.values === "object" && !Array.isArray(root.values)
+      ? (root.values as Record<string, unknown>)
+      : null;
+
   for (const key of fieldKeys) {
-    if (bag[key] === undefined && root[key] !== undefined) {
+    if (bag[key] !== undefined) continue;
+    if (valuesBag && valuesBag[key] !== undefined) {
+      bag[key] = valuesBag[key];
+      continue;
+    }
+    if (root[key] !== undefined) {
       bag[key] = root[key];
     }
   }
