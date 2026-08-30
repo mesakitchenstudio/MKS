@@ -17,6 +17,7 @@ export const STAFF_SAVED_PARAMS = ["saved", "admin"] as const;
 export const STAFF_CREATED_PARAMS = ["created"] as const;
 export const STAFF_REMOVED_PARAMS = ["removed"] as const;
 export const PROFILE_SAVED_PARAMS = ["saved"] as const;
+export { ANALYTICS_FLASH_PARAMS as YOUTUBE_ANALYTICS_FLASH_PARAMS } from "@/lib/youtube-analytics/status";
 
 /** Strip transient query keys while preserving pathname and hash. */
 export function stripSearchParams(href: string, keys: readonly string[]): string {

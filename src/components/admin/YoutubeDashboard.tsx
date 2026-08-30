@@ -18,8 +18,6 @@ import {
 } from "@/lib/youtube-data/video-format";
 import type { AnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
 import { ANALYTICS_RANGE_DAYS } from "@/lib/youtube-analytics/ranges";
-import { clearTransientSearchParams } from "@/lib/admin-transient-feedback";
-import { ANALYTICS_FLASH_PARAMS } from "@/lib/youtube-analytics/status";
 
 type ChannelSummary = {
   channelId: string;
@@ -179,8 +177,6 @@ export function YoutubeDashboard({
   recipeTypes = [],
   initialFilter = "all",
   analytics,
-  analyticsNotice = "",
-  analyticsError = "",
 }: {
   channel: ChannelSummary | null;
   summary: {
@@ -200,16 +196,14 @@ export function YoutubeDashboard({
   recipeTypes?: RecipeTypeOption[];
   initialFilter?: YoutubeDashboardVideoFilter | string;
   analytics: AnalyticsSummary;
-  analyticsNotice?: string;
-  analyticsError?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [analyticsPending, startAnalyticsTransition] = useTransition();
   const [syncMessage, setSyncMessage] = useState("");
   const [syncError, setSyncError] = useState("");
-  const [analyticsMessage, setAnalyticsMessage] = useState(analyticsNotice);
-  const [analyticsAlert, setAnalyticsAlert] = useState(analyticsError || analytics.connection.lastError);
+  const [analyticsMessage, setAnalyticsMessage] = useState("");
+  const [analyticsAlert, setAnalyticsAlert] = useState(analytics.connection.lastError);
   const [healthOpen, setHealthOpen] = useState(false);
   const [videos, setVideos] = useState(initialVideos);
   const [filter, setFilter] = useState<YoutubeDashboardVideoFilter>(() =>
@@ -228,12 +222,8 @@ export function YoutubeDashboard({
   }, [initialFilter]);
 
   useEffect(() => {
-    setAnalyticsMessage(analyticsNotice);
-    setAnalyticsAlert(analyticsError || analytics.connection.lastError);
-    if (analyticsNotice || analyticsError) {
-      clearTransientSearchParams(ANALYTICS_FLASH_PARAMS);
-    }
-  }, [analyticsNotice, analyticsError, analytics.connection.lastError]);
+    setAnalyticsAlert(analytics.connection.lastError);
+  }, [analytics.connection.lastError]);
 
   function updateFilter(next: YoutubeDashboardVideoFilter) {
     setFilter(next);

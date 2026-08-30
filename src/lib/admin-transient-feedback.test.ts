@@ -65,4 +65,18 @@ test("stripSearchParams clears YouTube Analytics flash params", () => {
     ),
     "/admin/youtube?range=28",
   );
+  assert.equal(
+    stripSearchParams(
+      "http://localhost/admin/youtube?analyticsConnected=Mesa+Kitchen+Studio&filter=long",
+      ["analyticsConnected", "analyticsNotice", "analyticsError"],
+    ),
+    "/admin/youtube?filter=long",
+  );
+  assert.equal(
+    stripSearchParams(
+      "http://localhost/admin/youtube?analyticsConnected=Mesa+Kitchen+Studio",
+      ["analyticsConnected", "analyticsNotice", "analyticsError"],
+    ),
+    "/admin/youtube",
+  );
 });
