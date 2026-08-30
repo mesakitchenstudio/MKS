@@ -1,4 +1,6 @@
 import type { Recipe } from "@/data/types";
+import type { RecipeWithExtras } from "@/lib/recipe-timing";
+import { publicRestMinutes } from "@/lib/recipe-timing";
 
 export function filterRecipes(recipes: Recipe[], query: string): Recipe[] {
   const needle = query.trim().toLowerCase();
@@ -39,16 +41,50 @@ export function recipeSearchHaystack(recipe: {
     .toLowerCase();
 }
 
+export function ovenBakeMinutes(recipe: Recipe) {
+  return recipe.bakeMinutes ?? 0;
+}
+
+export function stovetopCookMinutes(recipe: Recipe) {
+  return recipe.cookMinutes ?? 0;
+}
+
+/** @deprecated Use ovenBakeMinutes — kept for callers expecting bakeMinutes(). */
 export function bakeMinutes(recipe: Recipe) {
-  return recipe.bakeMinutes || recipe.cookMinutes || 0;
+  return ovenBakeMinutes(recipe);
 }
 
 export function restMinutes(recipe: Recipe) {
-  return recipe.restMinutes || 0;
+  return recipe.restMinutes ?? 0;
 }
 
-export function totalMinutes(recipe: Recipe) {
-  return recipe.prepMinutes + bakeMinutes(recipe) + restMinutes(recipe);
+export type HeatTimingRing = {
+  minutes: number;
+  label: "Baking" | "Cooking";
+};
+
+export function heatTimingRing(recipe: Recipe): HeatTimingRing | null {
+  const bake = ovenBakeMinutes(recipe);
+  const cook = stovetopCookMinutes(recipe);
+  if (bake > 0) return { minutes: bake, label: "Baking" };
+  if (cook > 0) return { minutes: cook, label: "Cooking" };
+  return null;
+}
+
+/** Count oven + stovetop without double-counting legacy synced rows. */
+export function countedHeatMinutes(recipe: Recipe) {
+  const bake = ovenBakeMinutes(recipe);
+  const cook = stovetopCookMinutes(recipe);
+  if (bake > 0 && cook > 0 && bake !== cook) return bake + cook;
+  return Math.max(bake, cook);
+}
+
+export function totalMinutes(recipe: Recipe | RecipeWithExtras) {
+  const rest =
+    "extras" in recipe && Array.isArray(recipe.extras)
+      ? publicRestMinutes(recipe)
+      : restMinutes(recipe);
+  return recipe.prepMinutes + countedHeatMinutes(recipe) + rest;
 }
 
 export function formatTime(minutes: number): string {

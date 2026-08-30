@@ -4,6 +4,7 @@ import {
   buildProvenanceSnapshots,
   collectAppliedPaths,
   mergeProvenanceAfterApply,
+  mergeYoutubeMetadataValues,
   shouldApplyDraftField,
 } from "@/lib/ai-recipe/field-tracking";
 import { isAiFillableFieldKey } from "@/lib/ai-recipe/schema-version";
@@ -17,6 +18,7 @@ import {
   type RecipeAiMeta,
 } from "@/lib/ai-recipe/types";
 import { slugify } from "@/lib/fields";
+import { buildYoutubeBlobFromAi } from "@/lib/ai-recipe/youtube-chapters";
 
 type ConfidentRaw = {
   value?: unknown;
@@ -296,6 +298,19 @@ export function normalizeAiRecipeResponse(input: {
     values.image = "";
   }
 
+  if (fieldByKey.has("youtube")) {
+    const youtubeBlob = buildYoutubeBlobFromAi({
+      raw: root.youtubeMetadata ?? root.youtube,
+      confidenceByPath,
+      summary,
+    });
+    if (youtubeBlob) {
+      values.youtube = youtubeBlob;
+    }
+  }
+
+  reconcileTimingFields(values, input.fields);
+
   return {
     typeId,
     title,
@@ -313,6 +328,18 @@ export function normalizeAiRecipeResponse(input: {
 }
 
 export type AiMergeMode = "fill_empty" | "replace_all_ai_fillable" | "replace_previous_ai";
+
+function reconcileTimingFields(values: Record<string, unknown>, fields: SchemaField[]) {
+  const hasRiseHours = fields.some((field) => field.key === "riseHours");
+  if (!hasRiseHours) return;
+  const rise = typeof values.riseHours === "number" ? values.riseHours : Number(values.riseHours);
+  const rest = typeof values.restMinutes === "number" ? values.restMinutes : Number(values.restMinutes);
+  if (Number.isFinite(rise) && rise > 0 && Number.isFinite(rest) && rest > 0) {
+    if (Math.abs(rise * 60 - rest) <= 5) {
+      values.restMinutes = 0;
+    }
+  }
+}
 
 function isEditorValueEmpty(kind: string | undefined, value: unknown) {
   if (!kind) return !String(value ?? "").trim();
@@ -403,6 +430,23 @@ export function mergeAiDraftIntoEditor(
       nextValues[field.key] = draftValue;
       for (const [key, annotation] of Object.entries(draft.confidenceByPath)) {
         if (key === path || key.startsWith(`${path}.`)) {
+          confidenceByPath[key] = annotation;
+        }
+      }
+    }
+  }
+
+  if (draft.values.youtube) {
+    const mergedYoutube = mergeYoutubeMetadataValues({
+      current: current.values.youtube,
+      draft: draft.values.youtube,
+      mode,
+      meta,
+    });
+    if (mergedYoutube) {
+      nextValues.youtube = mergedYoutube;
+      for (const [key, annotation] of Object.entries(draft.confidenceByPath)) {
+        if (key.startsWith("values.youtube.")) {
           confidenceByPath[key] = annotation;
         }
       }

@@ -23,6 +23,7 @@ import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-
 import { resolveRecipeYoutube } from "@/lib/recipe-youtube";
 import { recipeTocItems } from "@/lib/recipe-sections";
 import { fieldValueHasContent } from "@/lib/field-content";
+import { readerExtraLabel, visibleExtras } from "@/lib/recipe-timing";
 import { recipeJsonLd } from "@/lib/schema";
 import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
@@ -85,7 +86,7 @@ export default async function RecipePage({ params }: Props) {
     userId: session?.user?.id ?? null,
   });
   const toc = recipeTocItems(recipe);
-  const visibleExtras = (recipe.extras ?? []).filter((field) =>
+  const visibleExtrasList = visibleExtras(recipe).filter((field) =>
     fieldValueHasContent(field.value, field.kind),
   );
   const updated = formatGmtDisplay(recipe.updatedAt);
@@ -192,15 +193,15 @@ export default async function RecipePage({ params }: Props) {
           </section>
         ) : null}
 
-        {visibleExtras.length ? (
+        {visibleExtrasList.length ? (
           <section className="mt-12">
-            {visibleExtras.map((field) => (
+            {visibleExtrasList.map((field) => (
               <div
                 key={field.key}
                 id={`extra-${field.key}`}
                 className="mt-10 scroll-mt-24 first:mt-0"
               >
-                <h2 className="font-serif text-3xl">{field.label}</h2>
+                <h2 className="font-serif text-3xl">{readerExtraLabel(field.label, field.key)}</h2>
                 <ExtraValue kind={field.kind} value={field.value} />
               </div>
             ))}

@@ -239,6 +239,39 @@ export function validateYoutubeMetadataEditorState(
     });
   }
 
+  const durationSeconds = state.duration.trim() ? parseTimestampInput(state.duration.trim()) : null;
+  if (state.duration.trim() && durationSeconds == null) {
+    issues.push({
+      path: "duration",
+      message: "Use MM:SS, H:MM:SS, or seconds for video duration.",
+    });
+  }
+
+  const parsedChapters: { index: number; seconds: number }[] = [];
+  state.timestamps.forEach((row, index) => {
+    const hasLabel = row.label.trim().length > 0;
+    const hasTime = row.timeInput.trim().length > 0;
+    if (!hasLabel && !hasTime) return;
+    const seconds = hasTime ? parseTimestampInput(row.timeInput) : null;
+    if (seconds == null || !hasLabel) return;
+    parsedChapters.push({ index, seconds });
+    if (durationSeconds != null && seconds > durationSeconds) {
+      issues.push({
+        path: `timestamps.${index}.time`,
+        message: "Chapter time cannot exceed the video duration.",
+      });
+    }
+  });
+
+  for (let i = 1; i < parsedChapters.length; i += 1) {
+    if (parsedChapters[i].seconds < parsedChapters[i - 1].seconds) {
+      issues.push({
+        path: `timestamps.${parsedChapters[i].index}.time`,
+        message: "Chapter times must be in ascending order.",
+      });
+    }
+  }
+
   return issues;
 }
 

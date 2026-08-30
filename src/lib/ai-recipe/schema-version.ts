@@ -75,7 +75,7 @@ export function geminiApiKey() {
 
 /** Fields AI may populate (hero image stays manual). */
 export function isAiFillableFieldKey(key: string) {
-  return key !== "image" && key !== "floatingYoutubeUrl";
+  return key !== "image" && key !== "floatingYoutubeUrl" && key !== "youtube";
 }
 
 export function fieldKindForSchema(kind: string): FieldKind | string {

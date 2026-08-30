@@ -25,7 +25,7 @@ import {
   editorHasContent,
   mergeAiDraftIntoEditor,
 } from "@/lib/ai-recipe/normalize";
-import { noteHumanEditorChange } from "@/lib/ai-recipe/field-tracking";
+import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
 import {
   adminFocusRing,
   adminInputClass,
@@ -223,8 +223,9 @@ function hydrateEditorValues(
   const next: Record<string, unknown> = {};
   for (const field of fields) {
     if (field.key === "bakeMinutes") {
-      next[field.key] =
-        rawValues.bakeMinutes ?? rawValues.cookMinutes ?? emptyValue(field.kind);
+      next[field.key] = rawValues.bakeMinutes ?? emptyValue(field.kind);
+    } else if (field.key === "cookMinutes") {
+      next[field.key] = rawValues.cookMinutes ?? emptyValue(field.kind);
     } else if (field.key === "difficulty") {
       next[field.key] = rawValues.difficulty || "Easy";
     } else if (field.key === "youtube") {
@@ -698,8 +699,14 @@ export function RecipeEditor({
   }
 
   function setField(key: string, value: unknown) {
-    setValues((current) => ({ ...current, [key]: value }));
-    setAiMeta((current) => noteHumanEditorChange(current, `values.${key}`, value));
+    setValues((current) => {
+      if (key === "youtube") {
+        setAiMeta((meta) => noteHumanYoutubeMetadataChange(meta, current.youtube, value));
+      } else {
+        setAiMeta((meta) => noteHumanEditorChange(meta, `values.${key}`, value));
+      }
+      return { ...current, [key]: value };
+    });
   }
 
   function updateTitle(next: string) {

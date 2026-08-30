@@ -143,6 +143,7 @@ const PRIORITY_RECIPE_FIELD_KEYS = new Set([
   "instructions",
   "prepMinutes",
   "bakeMinutes",
+  "cookMinutes",
   "restMinutes",
   "servings",
   "difficulty",
@@ -201,6 +202,39 @@ export function buildAiRecipeResponseSchema(input: {
       insufficientReason: {
         type: "STRING",
         description: "When insufficientRecipeInformation is true, explain briefly.",
+      },
+      youtubeMetadata: {
+        type: "OBJECT",
+        description:
+          "Structured YouTube metadata from the video timeline: duration, optional hook, and 5–10 consolidated recipe chapters.",
+        properties: {
+          duration: confident(
+            { type: "STRING" },
+            "Total video duration as MM:SS or HH:MM:SS when available from the video. Do not invent.",
+          ),
+          hook: confident(
+            { type: "STRING" },
+            "Optional one-sentence editorial hook for under the video heading.",
+          ),
+          chapters: {
+            type: "ARRAY",
+            description:
+              "5–10 meaningful recipe chapters mapped to video moments. Consolidate related steps — not one chapter per instruction line.",
+            items: {
+              type: "OBJECT",
+              properties: {
+                time: {
+                  type: "STRING",
+                  description: "Chapter start time as MM:SS (or HH:MM:SS for long videos).",
+                },
+                label: { type: "STRING", description: "Short chapter label." },
+                confidence: confidenceEnum,
+                sourceNote: { type: "STRING" },
+              },
+              required: ["time", "label", "confidence", "sourceNote"],
+            },
+          },
+        },
       },
     },
     required: [

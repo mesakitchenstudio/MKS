@@ -1,5 +1,13 @@
+"use client";
+
 import type { Recipe } from "@/data/types";
-import { bakeMinutes, difficultyLabel, formatTime, restMinutes } from "@/lib/recipe-utils";
+import type { ExtraField } from "@/lib/recipe-map";
+import {
+  heatTimingRing,
+  difficultyLabel,
+  formatTime,
+} from "@/lib/recipe-utils";
+import { publicRestLabel, publicRestMinutes } from "@/lib/recipe-timing";
 
 const RING_FULL_MINUTES = 60;
 
@@ -10,11 +18,13 @@ function TimeRing({
   minutes: number;
   label: string;
 }) {
+  if (minutes <= 0) return null;
+
   const size = 92;
   const stroke = 3;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = Math.min(1, Math.max(0, minutes) / RING_FULL_MINUTES);
+  const progress = Math.min(1, minutes / RING_FULL_MINUTES);
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -52,21 +62,34 @@ function TimeRing({
   );
 }
 
-export function RecipeOverview({ recipe }: { recipe: Recipe }) {
-  const bake = bakeMinutes(recipe);
-  const rest = restMinutes(recipe);
+export function RecipeOverview({
+  recipe,
+}: {
+  recipe: Recipe & { extras?: ExtraField[] };
+}) {
+  const heat = heatTimingRing(recipe);
+  const rest = publicRestMinutes(recipe);
+  const restLabel = publicRestLabel(recipe);
   const utensils = recipe.utensils?.filter(Boolean) ?? [];
+
+  const rings = [
+    { minutes: recipe.prepMinutes, label: "Preparation" as const },
+    heat ? { minutes: heat.minutes, label: heat.label } : null,
+    rest > 0 ? { minutes: rest, label: restLabel } : null,
+  ].filter((ring): ring is { minutes: number; label: string } => ring != null && ring.minutes > 0);
 
   return (
     <div className="recipe-overview bg-paper px-0 py-6 text-ink">
       <p className="text-sm">
         Difficulty: <span className="font-semibold">{difficultyLabel(recipe.difficulty)}</span>
       </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-8 border-y border-line py-6 sm:justify-between sm:px-6">
-        <TimeRing minutes={recipe.prepMinutes} label="Preparation" />
-        <TimeRing minutes={bake} label="Baking" />
-        <TimeRing minutes={rest} label="Resting" />
-      </div>
+      {rings.length ? (
+        <div className="mt-5 flex flex-wrap justify-center gap-8 border-y border-line py-6 sm:justify-between sm:px-6">
+          {rings.map((ring) => (
+            <TimeRing key={ring.label} minutes={ring.minutes} label={ring.label} />
+          ))}
+        </div>
+      ) : null}
       {utensils.length ? (
         <div className="mt-5">
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted">Utensils</p>

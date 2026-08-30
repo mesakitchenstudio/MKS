@@ -1,6 +1,6 @@
 import type { Recipe } from "@/data/types";
 import { fieldValueHasContent } from "@/lib/field-content";
-import type { ExtraField } from "@/lib/recipe-map";
+import { readerExtraLabel, shouldHideRiseHoursExtra } from "@/lib/recipe-timing";
 import { youtubeVideoId } from "@/lib/youtube";
 
 export type RecipeTocItem = {
@@ -39,9 +39,10 @@ export function recipeTocItems(
     items.push({ id: "faqs", label: "Frequently asked" });
   }
   for (const extra of recipe.extras ?? []) {
+    if (extra.key === "riseHours" && shouldHideRiseHoursExtra(recipe)) continue;
     if (!fieldValueHasContent(extra.value, extra.kind)) continue;
     const id = `extra-${extra.key || slugifyHeading(extra.label)}`;
-    items.push({ id, label: extra.label });
+    items.push({ id, label: readerExtraLabel(extra.label, extra.key) });
   }
   if (options?.includeComments !== false) {
     items.push({ id: "recipe-comments", label: "Comments" });

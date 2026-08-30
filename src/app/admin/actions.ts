@@ -394,7 +394,8 @@ export async function saveRecipeAction(formData: FormData) {
     orderBy: { sortOrder: "asc" },
   });
   const values = readDynamicValues(formData, fields);
-  if (typeof values.bakeMinutes === "number") {
+  // Legacy rows may only have bakeMinutes; keep cookMinutes aligned when cook was never set.
+  if (typeof values.bakeMinutes === "number" && values.cookMinutes == null) {
     values.cookMinutes = values.bakeMinutes;
   }
 

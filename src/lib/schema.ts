@@ -1,7 +1,7 @@
 import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
 import { nutritionHasPublicContent } from "@/lib/field-content";
-import { bakeMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
+import { countedHeatMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
 import type { RecipeReviewStats } from "@/lib/recipe-reviews";
 import { isSchemaVideoId } from "@/lib/recipe-youtube";
 
@@ -87,7 +87,7 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
     datePublished: recipe.publishedAt,
     dateModified: recipe.updatedAt,
     prepTime: isoDuration(recipe.prepMinutes),
-    cookTime: isoDuration(bakeMinutes(recipe)),
+    cookTime: isoDuration(countedHeatMinutes(recipe)),
     totalTime: isoDuration(totalMinutes(recipe)),
     recipeYield: `${recipe.servings} ${recipe.servingsUnit}`,
     recipeCategory: recipe.course,

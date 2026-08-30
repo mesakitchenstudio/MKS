@@ -2,6 +2,11 @@ import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import type { AiMergeMode } from "@/lib/ai-recipe/normalize";
 import { isAiFillableFieldKey } from "@/lib/ai-recipe/schema-version";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
+import {
+  serializeYoutubeMetadataEditorState,
+  youtubeMetadataToEditorState,
+  type YoutubeMetadataEditorState,
+} from "@/lib/youtube-metadata-editor";
 
 export type AiFieldProvenance = {
   aiGenerated: true;
@@ -79,6 +84,102 @@ export function shouldApplyDraftField(input: {
   return false;
 }
 
+export function youtubeProvenanceValues(blob: unknown): Record<string, unknown> {
+  const state = youtubeMetadataToEditorState(blob);
+  return {
+    "values.youtube.duration": state.duration,
+    "values.youtube.hook": state.hook,
+    "values.youtube.timestamps": state.timestamps.map((row) => ({
+      timeInput: row.timeInput,
+      label: row.label,
+    })),
+  };
+}
+
+export function noteHumanYoutubeMetadataChange(
+  meta: RecipeAiMeta | null,
+  _previousBlob: unknown,
+  nextBlob: unknown,
+): RecipeAiMeta | null {
+  const next = youtubeProvenanceValues(nextBlob);
+  let updated = meta;
+  for (const path of Object.keys(next)) {
+    updated = noteHumanEditorChange(updated, path, next[path]);
+  }
+  return updated;
+}
+
+export function mergeYoutubeMetadataValues(input: {
+  current: unknown;
+  draft: unknown;
+  mode: AiMergeMode;
+  meta: RecipeAiMeta | null | undefined;
+}): Record<string, unknown> | null {
+  const current = youtubeMetadataToEditorState(input.current);
+  const draft = youtubeMetadataToEditorState(input.draft);
+  const next: YoutubeMetadataEditorState = {
+    ...current,
+    preserved: { ...current.preserved },
+    timestamps: current.timestamps.map((row) => ({ ...row })),
+    relatedVideos: current.relatedVideos.map((row) => ({ ...row })),
+  };
+
+  const apply = (path: string, isEmpty: boolean, applyValue: () => void) => {
+    if (shouldApplyDraftField({ path, mode: input.mode, meta: input.meta, isEmpty })) {
+      applyValue();
+    }
+  };
+
+  apply("values.youtube.duration", !current.duration.trim(), () => {
+    next.duration = draft.duration;
+  });
+  apply("values.youtube.hook", !current.hook.trim(), () => {
+    next.hook = draft.hook;
+  });
+  apply(
+    "values.youtube.timestamps",
+    !current.timestamps.some((row) => row.label.trim() || row.timeInput.trim()),
+    () => {
+      next.timestamps = draft.timestamps.map((row) => ({ ...row }));
+    },
+  );
+
+  return serializeYoutubeMetadataEditorState(next);
+}
+
+export function collectYoutubeAppliedPaths(input: {
+  mode: AiMergeMode;
+  meta: RecipeAiMeta | null | undefined;
+  before: unknown;
+  after: unknown;
+}): string[] {
+  const before = youtubeProvenanceValues(input.before);
+  const after = youtubeProvenanceValues(input.after);
+  const paths: string[] = [];
+  for (const path of Object.keys(after)) {
+    const isEmpty =
+      path === "values.youtube.duration"
+        ? !String(before[path] ?? "").trim()
+        : path === "values.youtube.hook"
+          ? !String(before[path] ?? "").trim()
+          : !Array.isArray(before[path]) ||
+            !(before[path] as unknown[]).some(
+              (row) =>
+                typeof row === "object" &&
+                row &&
+                (String((row as { label?: string }).label ?? "").trim() ||
+                  String((row as { timeInput?: string }).timeInput ?? "").trim()),
+            );
+    if (
+      shouldApplyDraftField({ path, mode: input.mode, meta: input.meta, isEmpty }) &&
+      !aiValuesEqual(before[path], after[path])
+    ) {
+      paths.push(path);
+    }
+  }
+  return paths;
+}
+
 export function buildProvenanceSnapshots(input: {
   title: string;
   slug: string;
@@ -105,6 +206,12 @@ export function buildProvenanceSnapshots(input: {
   for (const field of input.fields) {
     if (!isAiFillableFieldKey(field.key)) continue;
     add(`values.${field.key}`, input.values[field.key]);
+  }
+
+  if (input.values.youtube) {
+    for (const [path, value] of Object.entries(youtubeProvenanceValues(input.values.youtube))) {
+      add(path, value);
+    }
   }
 
   return snapshots;
@@ -192,6 +299,15 @@ export function collectAppliedPaths(input: {
       paths.push(path);
     }
   }
+
+  paths.push(
+    ...collectYoutubeAppliedPaths({
+      mode: input.mode,
+      meta: input.meta,
+      before: input.before.values.youtube,
+      after: input.after.values.youtube,
+    }),
+  );
 
   return paths;
 }

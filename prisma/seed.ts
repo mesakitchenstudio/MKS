@@ -12,7 +12,7 @@ const extraByType: Record<string, FieldDefinition> = {
   dessert: { key: "serveWith", label: "Serve with", kind: "text" },
   drink: { key: "glassware", label: "Glassware", kind: "text" },
   main: { key: "protein", label: "Main protein", kind: "text" },
-  bread: { key: "riseHours", label: "Rise hours", kind: "number" },
+  bread: { key: "riseHours", label: "Proofing time", kind: "number" },
   condiment: { key: "storageNotes", label: "Storage notes", kind: "textarea" },
   breakfast: { key: "servingStyle", label: "Serving style", kind: "text" },
   side: { key: "pairing", label: "Pairs well with", kind: "text" },

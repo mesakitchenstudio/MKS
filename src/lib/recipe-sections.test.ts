@@ -46,13 +46,22 @@ test("TOC omits Rise hours when value is default zero", () => {
   );
 });
 
-test("TOC includes Rise hours when value is meaningful", () => {
+test("TOC includes proofing time when rise value is meaningful and not duplicated", () => {
   const toc = recipeTocItems(
-    baseRecipe([{ key: "riseHours", label: "Rise hours", kind: "number", value: 2 }]),
+    baseRecipe([{ key: "riseHours", label: "Proofing time", kind: "number", value: 2 }]),
     { includeComments: false },
   );
   assert.deepEqual(
     toc.filter((item) => item.id === "extra-riseHours"),
-    [{ id: "extra-riseHours", label: "Rise hours" }],
+    [{ id: "extra-riseHours", label: "Proofing time" }],
   );
+});
+
+test("TOC hides rise extra when restMinutes duplicates proofing time", () => {
+  const recipe = {
+    ...baseRecipe([{ key: "riseHours", label: "Proofing time", kind: "number", value: 1 }]),
+    restMinutes: 60,
+  };
+  const toc = recipeTocItems(recipe, { includeComments: false });
+  assert.equal(toc.some((item) => item.id === "extra-riseHours"), false);
 });
