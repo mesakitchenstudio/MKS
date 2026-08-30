@@ -62,6 +62,7 @@ export function AiRecipeAssistant({
   editorHasContent,
   youtubeUrl,
   onYoutubeUrlChange,
+  linkedVideoId,
   aiMeta,
   onApply,
 }: {
@@ -70,6 +71,7 @@ export function AiRecipeAssistant({
   editorHasContent: boolean;
   youtubeUrl: string;
   onYoutubeUrlChange: (url: string) => void;
+  linkedVideoId?: string | null;
   aiMeta: RecipeAiMeta | null;
   onApply: (payload: AiGenerateApplyPayload) => void;
 }) {
@@ -84,7 +86,10 @@ export function AiRecipeAssistant({
   const [pendingReplaceMode, setPendingReplaceMode] = useState<AiMergeMode | null>(null);
   const [showLongRunningHint, setShowLongRunningHint] = useState(false);
 
-  const currentVideoId = useMemo(() => youtubeVideoId(youtubeUrl.trim()), [youtubeUrl]);
+  const currentVideoId = useMemo(
+    () => linkedVideoId || youtubeVideoId(youtubeUrl.trim()),
+    [linkedVideoId, youtubeUrl],
+  );
   const lastVideoId = useMemo(
     () => aiMeta?.sourceVideoId || youtubeVideoId(aiMeta?.sourceUrl || "") || "",
     [aiMeta?.sourceVideoId, aiMeta?.sourceUrl],
@@ -104,8 +109,8 @@ export function AiRecipeAssistant({
     if (isNewSourceVideo) {
       return { kind: "analyze_new" as const, label: "Analyze new video" };
     }
-    return { kind: "analyze" as const, label: "Analyze video & populate recipe" };
-  }, [isNewSourceVideo, isSameSourceVideo]);
+    return { kind: "analyze" as const, label: linkedVideoId ? "Analyze linked video & populate recipe" : "Analyze video & populate recipe" };
+  }, [isNewSourceVideo, isSameSourceVideo, linkedVideoId]);
 
   useEffect(() => {
     if (!busy) {
@@ -137,11 +142,14 @@ export function AiRecipeAssistant({
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), CLIENT_REQUEST_TIMEOUT_MS);
     try {
+      const effectiveUrl =
+        youtubeUrl.trim() ||
+        (currentVideoId ? `https://www.youtube.com/watch?v=${currentVideoId}` : "");
       const response = await fetch("/api/admin/recipes/ai-generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          youtubeUrl: youtubeUrl.trim(),
+          youtubeUrl: effectiveUrl,
           typeId,
           forceRefresh,
         }),
@@ -197,8 +205,8 @@ export function AiRecipeAssistant({
   }
 
   async function runInitialAnalyze(forceRefresh: boolean) {
-    if (!youtubeUrl.trim()) {
-      setError("Paste a YouTube cooking-video URL first.");
+    if (!currentVideoId) {
+      setError("Link a YouTube video or paste a cooking-video URL first.");
       return;
     }
 
@@ -225,8 +233,8 @@ export function AiRecipeAssistant({
   }
 
   async function runRegenerate() {
-    if (!youtubeUrl.trim()) {
-      setError("Paste a YouTube cooking-video URL first.");
+    if (!currentVideoId) {
+      setError("Link a YouTube video or paste a cooking-video URL first.");
       return;
     }
     const draft = await fetchDraft(true);
@@ -263,22 +271,30 @@ export function AiRecipeAssistant({
 
       {open ? (
         <div id={panelId} className="border-t border-line px-4 py-4">
-          <label className="grid gap-1.5 text-sm font-semibold text-ink">
-            YouTube URL
-            <input
-              type="url"
-              value={youtubeUrl}
-              disabled={busy || disabled}
-              onChange={(event) => onYoutubeUrlChange(event.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              className="h-10 rounded-sm border border-line bg-paper px-3 text-sm font-normal outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
-            />
-          </label>
+          {linkedVideoId ? (
+            <p className="text-sm text-muted">
+              Using linked YouTube video{" "}
+              <span className="font-mono text-xs text-ink">{linkedVideoId}</span>. Change the
+              connection in Media if you need a different video.
+            </p>
+          ) : (
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              YouTube URL
+              <input
+                type="url"
+                value={youtubeUrl}
+                disabled={busy || disabled}
+                onChange={(event) => onYoutubeUrlChange(event.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="h-10 rounded-sm border border-line bg-paper px-3 text-sm font-normal outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
+              />
+            </label>
+          )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={busy || disabled || !youtubeUrl.trim()}
+              disabled={busy || disabled || !currentVideoId}
               onClick={onPrimaryClick}
               className={`${adminPrimaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
             >

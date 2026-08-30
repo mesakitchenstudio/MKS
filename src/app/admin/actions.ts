@@ -32,6 +32,12 @@ import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
 import { syncYoutubeChannel } from "@/lib/youtube-data/sync";
+import { applyYoutubeVideoLinkToValues } from "@/lib/youtube-data/recipe-link";
+import {
+  clearRecipeYoutubeLinkInDb,
+  findRecipeIdLinkedToVideo,
+  loadSyncedVideoForLink,
+} from "@/lib/youtube-data/video-selector";
 
 async function requireEditor() {
   await requireAccess("content");
@@ -818,4 +824,66 @@ export async function syncYoutubeAction() {
   const result = await syncYoutubeChannel({ forceSnapshot: true });
   revalidatePath("/admin/youtube");
   return result;
+}
+
+export async function clearRecipeYoutubeLinkAction(recipeId: string) {
+  await requireEditor();
+  const id = String(recipeId || "").trim();
+  if (!id) return { ok: false as const, error: "Recipe id is required." };
+
+  const cleared = await clearRecipeYoutubeLinkInDb(id);
+  if (!cleared) return { ok: false as const, error: "Recipe not found." };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/youtube");
+  return { ok: true as const };
+}
+
+export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
+  await requireEditor();
+  const db = getDb();
+  const typeId = String(formData.get("typeId") || "").trim();
+  const videoId = String(formData.get("videoId") || "").trim();
+
+  if (!typeId || !videoId) {
+    redirect("/admin/youtube?error=missing-recipe-type");
+  }
+
+  const [video, existingLink, recipeType] = await Promise.all([
+    loadSyncedVideoForLink(videoId),
+    findRecipeIdLinkedToVideo(videoId),
+    db.recipeType.findUnique({ where: { id: typeId } }),
+  ]);
+
+  if (!video) redirect(`/admin/youtube/videos/${videoId}?error=video-not-found`);
+  if (!recipeType) redirect(`/admin/youtube/videos/${videoId}?error=invalid-type`);
+  if (existingLink) {
+    redirect(`/admin/youtube/videos/${videoId}?error=already-linked`);
+  }
+
+  const baseTitle = video.title.trim() || "Untitled recipe";
+  let slug = slugify(baseTitle);
+  const slugTaken = await db.recipe.findUnique({ where: { slug } });
+  if (slugTaken) slug = `${slug}-${videoId.slice(0, 6).toLowerCase()}`;
+
+  const values = applyYoutubeVideoLinkToValues({}, video);
+
+  const recipe = await db.recipe.create({
+    data: {
+      title: baseTitle,
+      slug,
+      excerpt: "",
+      typeId,
+      status: "draft",
+      featured: false,
+      seasonal: false,
+      publishedAt: null,
+      values: JSON.stringify(values),
+      aiMeta: "{}",
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/youtube");
+  redirect(`/admin/recipes/${recipe.id}`);
 }

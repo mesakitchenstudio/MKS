@@ -42,6 +42,13 @@ type HealthIssue = {
   kind: "video" | "recipe";
 };
 
+type HealthSummary = {
+  videosNeedRecipes: number;
+  recipesNeedVideos: number;
+  metadataIssues: number;
+  issues: HealthIssue[];
+};
+
 function statusClass(status: YouTubeVideoRowStatus) {
   if (status === "Healthy") return "text-olive";
   if (status === "No recipe") return "text-muted";
@@ -57,7 +64,7 @@ export function YoutubeDashboard({
   channel,
   summary,
   videos,
-  healthIssues,
+  healthSummary,
   canSync,
 }: {
   channel: ChannelSummary | null;
@@ -68,13 +75,14 @@ export function YoutubeDashboard({
     recipesWithoutVideo: number;
   };
   videos: VideoRow[];
-  healthIssues: HealthIssue[];
+  healthSummary: HealthSummary;
   canSync: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [syncMessage, setSyncMessage] = useState("");
   const [syncError, setSyncError] = useState("");
+  const [healthOpen, setHealthOpen] = useState(false);
 
   function onSync() {
     setSyncMessage("");
@@ -205,11 +213,13 @@ export function YoutubeDashboard({
                     <td className="px-4 py-3">{video.views7d}</td>
                     <td className="px-4 py-3">
                       {video.recipe ? (
-                        <Link href={`/admin/recipes/${video.recipe.id}`} className={adminLinkClass}>
-                          Linked
+                        <Link href={`/admin/recipes/${video.recipe.id}`} className={`line-clamp-2 ${adminLinkClass}`}>
+                          {video.recipe.title}
                         </Link>
                       ) : (
-                        <span className="text-muted">Not linked</span>
+                        <Link href={`/admin/youtube/videos/${video.videoId}`} className={adminLinkClass}>
+                          No recipe
+                        </Link>
                       )}
                     </td>
                     <td className={`px-4 py-3 font-semibold ${statusClass(video.status)}`}>{video.status}</td>
@@ -223,22 +233,44 @@ export function YoutubeDashboard({
 
       <section>
         <h2 className="font-serif text-xl text-ink">Content health</h2>
-        {healthIssues.length === 0 ? (
+        {healthSummary.issues.length === 0 ? (
           <p className="mt-3 text-sm text-muted">No issues detected.</p>
         ) : (
-          <ul className="mt-4 space-y-2">
-            {healthIssues.map((issue) => (
-              <li key={issue.id} className="rounded-sm border border-line bg-paper px-4 py-3 text-sm">
-                {issue.href ? (
-                  <Link href={issue.href} className={adminLinkClass}>
-                    {issue.label}
-                  </Link>
-                ) : (
-                  issue.label
-                )}
-              </li>
-            ))}
-          </ul>
+          <div className="mt-4 rounded-sm border border-line bg-paper px-4 py-4">
+            <ul className="space-y-1 text-sm text-ink">
+              {healthSummary.videosNeedRecipes > 0 ? (
+                <li>{healthSummary.videosNeedRecipes} YouTube videos need recipes</li>
+              ) : null}
+              {healthSummary.recipesNeedVideos > 0 ? (
+                <li>{healthSummary.recipesNeedVideos} recipes need YouTube videos</li>
+              ) : null}
+              {healthSummary.metadataIssues > 0 ? (
+                <li>{healthSummary.metadataIssues} metadata issues</li>
+              ) : null}
+            </ul>
+            <button
+              type="button"
+              className={`mt-3 text-sm font-semibold ${adminLinkClass}`}
+              onClick={() => setHealthOpen((open) => !open)}
+            >
+              {healthOpen ? "Hide issues" : "Review issues"}
+            </button>
+            {healthOpen ? (
+              <ul className="mt-4 space-y-2 border-t border-line pt-4">
+                {healthSummary.issues.map((issue) => (
+                  <li key={issue.id} className="rounded-sm border border-line/70 bg-sand/20 px-3 py-2 text-sm">
+                    {issue.href ? (
+                      <Link href={issue.href} className={adminLinkClass}>
+                        {issue.label}
+                      </Link>
+                    ) : (
+                      issue.label
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         )}
       </section>
     </div>

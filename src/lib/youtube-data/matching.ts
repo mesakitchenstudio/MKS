@@ -19,11 +19,11 @@ export type RecipeVideoRow = {
   youtube?: ReturnType<typeof parseRecipeYoutubeBlob>;
 };
 
-async function loadRecipeVideoRows(): Promise<RecipeVideoRow[]> {
+async function loadRecipeVideoRows(options?: { includeDrafts?: boolean }): Promise<RecipeVideoRow[]> {
   const db = getDb();
   const rows = await db.recipe.findMany({
-    where: { status: "published" },
-    select: { id: true, slug: true, title: true, values: true },
+    where: options?.includeDrafts ? undefined : { status: "published" },
+    select: { id: true, slug: true, title: true, values: true, status: true },
     orderBy: { title: "asc" },
   });
 
@@ -48,13 +48,13 @@ export function recipeMainVideoId(recipe: Pick<RecipeVideoRow, "youtubeUrl" | "y
   return null;
 }
 
-export async function buildRecipeVideoIndex(): Promise<{
+export async function buildRecipeVideoIndex(options?: { includeDrafts?: boolean }): Promise<{
   byVideoId: Map<string, RecipeVideoLink>;
   recipesWithVideo: RecipeVideoLink[];
   recipesWithoutVideo: Pick<RecipeVideoRow, "id" | "slug" | "title">[];
   recipes: RecipeVideoRow[];
 }> {
-  const recipes = await loadRecipeVideoRows();
+  const recipes = await loadRecipeVideoRows(options);
   const byVideoId = new Map<string, RecipeVideoLink>();
   const recipesWithVideo: RecipeVideoLink[] = [];
   const recipesWithoutVideo: Pick<RecipeVideoRow, "id" | "slug" | "title">[] = [];

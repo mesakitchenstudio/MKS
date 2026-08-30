@@ -21,12 +21,31 @@ export function videoRowStatus(input: {
   return "Healthy";
 }
 
+export type YouTubeContentHealthSummary = {
+  videosNeedRecipes: number;
+  recipesNeedVideos: number;
+  metadataIssues: number;
+  issues: YouTubeContentHealthIssue[];
+};
+
+export async function summarizeYoutubeContentHealth(): Promise<YouTubeContentHealthSummary> {
+  const issues = await buildYoutubeContentHealth();
+  const videosNeedRecipes = issues.filter((issue) => issue.id.startsWith("video-no-recipe-")).length;
+  const recipesNeedVideos = issues.filter((issue) => issue.id.startsWith("recipe-no-video-")).length;
+  const metadataIssues = issues.length - videosNeedRecipes - recipesNeedVideos;
+  return { videosNeedRecipes, recipesNeedVideos, metadataIssues, issues };
+}
+
 export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthIssue[]> {
   const db = getDb();
-  const [{ byVideoId, recipesWithoutVideo, recipes }, videos] = await Promise.all([
-    buildRecipeVideoIndex(),
+  const [{ byVideoId, recipes }, videos] = await Promise.all([
+    buildRecipeVideoIndex({ includeDrafts: true }),
     db.youTubeVideo.findMany({ orderBy: { publishedAt: "desc" } }),
   ]);
+
+  const publishedWithoutVideo = await buildRecipeVideoIndex({ includeDrafts: false }).then(
+    (index) => index.recipesWithoutVideo,
+  );
 
   const issues: YouTubeContentHealthIssue[] = [];
 
@@ -101,7 +120,7 @@ export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthI
     }
   }
 
-  for (const recipe of recipesWithoutVideo) {
+  for (const recipe of publishedWithoutVideo) {
     issues.push({
       id: `recipe-no-video-${recipe.id}`,
       label: `Published recipe “${recipe.title}” has no YouTube video`,

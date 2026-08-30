@@ -11,7 +11,7 @@ import {
 } from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import { YoutubeMetadataEditor } from "@/components/admin/YoutubeMetadataEditor";
-import { YoutubeUrlValidationCard } from "@/components/admin/YoutubeUrlValidationCard";
+import { RecipeYoutubeConnection } from "@/components/admin/RecipeYoutubeConnection";
 import {
   RecipeEditorSectionNav,
   type RecipeEditorSectionLink,
@@ -499,7 +499,9 @@ export function RecipeEditor({
 
   const detailFields = pickFieldsOrdered(fields, DETAILS_KEYS);
   const contentFields = pickFieldsOrdered(fields, CONTENT_KEYS);
-  const mediaFields = pickFieldsOrdered(fields, MEDIA_PRIMARY_KEYS);
+  const mediaFields = pickFieldsOrdered(fields, MEDIA_PRIMARY_KEYS).filter(
+    (field) => field.key !== "youtubeUrl",
+  );
   const advancedFields = pickFieldsOrdered(fields, ADVANCED_KEYS);
   const specialistFields = fields.filter((field) => !ALL_GROUPED.has(field.key));
 
@@ -1162,6 +1164,7 @@ export function RecipeEditor({
           editorHasContent={formHasContent}
           youtubeUrl={String(values.youtubeUrl ?? "")}
           onYoutubeUrlChange={(url) => setField("youtubeUrl", url)}
+          linkedVideoId={youtubeVideoId(String(values.youtubeUrl ?? ""))}
           aiMeta={aiMeta}
           onApply={applyAiDraft}
         />
@@ -1433,9 +1436,17 @@ export function RecipeEditor({
             id={SECTION_MEDIA}
             scrollTargetStyle={scrollTargetStyle}
             title="Media"
-            description="Hero image and main walkthrough video."
+            description="Hero image and Mesa YouTube video connection."
           >
-            <div className="grid gap-5 md:grid-cols-2">
+            <RecipeYoutubeConnection
+              recipeId={recipeId}
+              values={values}
+              aiMeta={aiMeta}
+              onValuesChange={(next) => {
+                setValues(next);
+              }}
+            />
+            <div className="mt-5 grid gap-5 md:grid-cols-2">
               {mediaFields.map((field) => renderField(field))}
             </div>
           </EditorSection>

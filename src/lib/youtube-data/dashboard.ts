@@ -21,7 +21,7 @@ export async function loadYoutubeAdminDashboard() {
   const db = getDb();
   const channel = await db.youTubeChannel.findFirst({ orderBy: { lastSyncedAt: "desc" } });
   const [{ byVideoId, recipesWithVideo, recipesWithoutVideo, recipes }, videos] = await Promise.all([
-    buildRecipeVideoIndex(),
+    buildRecipeVideoIndex({ includeDrafts: true }),
     db.youTubeVideo.findMany({ orderBy: { publishedAt: "desc" }, take: 100 }),
   ]);
 
@@ -64,6 +64,7 @@ export async function loadYoutubeAdminDashboard() {
 
   const linkedVideoIds = new Set(recipesWithVideo.map((row) => row.videoId));
   const videosWithoutRecipes = videos.filter((video) => !linkedVideoIds.has(video.videoId)).length;
+  const publishedIndex = await buildRecipeVideoIndex({ includeDrafts: false });
 
   return {
     channel: channel
@@ -86,7 +87,7 @@ export async function loadYoutubeAdminDashboard() {
       linkedVideos: recipesWithVideo.length,
       videosWithoutRecipes,
       recipesWithVideo: recipesWithVideo.length,
-      recipesWithoutVideo: recipesWithoutVideo.length,
+      recipesWithoutVideo: publishedIndex.recipesWithoutVideo.length,
     },
     videos: rows,
   };
@@ -102,7 +103,7 @@ export async function loadYoutubeVideoDetail(videoId: string) {
   });
   if (!video) return null;
 
-  const { byVideoId } = await buildRecipeVideoIndex();
+  const { byVideoId } = await buildRecipeVideoIndex({ includeDrafts: true });
   const link = byVideoId.get(video.videoId);
   const descriptionChapters = parseYoutubeDescriptionChapters(video.description);
 

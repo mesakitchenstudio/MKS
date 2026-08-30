@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CreateRecipeFromYoutubeVideo } from "@/components/admin/CreateRecipeFromYoutubeVideo";
 import { adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { requireAccess } from "@/lib/auth";
+import { getDb } from "@/lib/db";
 import { loadYoutubeVideoDetail } from "@/lib/youtube-data/dashboard";
 import { formatTimestampInput } from "@/lib/youtube-metadata-editor";
 
@@ -15,7 +17,11 @@ export default async function AdminYoutubeVideoPage({
 }) {
   await requireAccess("youtube");
   const { videoId } = await params;
-  const detail = await loadYoutubeVideoDetail(videoId);
+  const db = getDb();
+  const [detail, recipeTypes] = await Promise.all([
+    loadYoutubeVideoDetail(videoId),
+    db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
   if (!detail) notFound();
 
   return (
@@ -59,6 +65,21 @@ export default async function AdminYoutubeVideoPage({
           />
         </dl>
       </div>
+
+      {!detail.recipe ? (
+        <section className="rounded-sm border border-line bg-paper px-4 py-4">
+          <h2 className="font-serif text-lg text-ink">Create Mesa recipe</h2>
+          <p className="mt-1 text-sm text-muted">
+            Start a draft recipe with this YouTube video already linked.
+          </p>
+          <div className="mt-4">
+            <CreateRecipeFromYoutubeVideo
+              videoId={detail.videoId}
+              recipeTypes={recipeTypes}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {detail.tags.length > 0 ? (
         <section>
