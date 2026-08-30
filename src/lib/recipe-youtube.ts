@@ -158,7 +158,7 @@ export function applyDescriptionChaptersToResolvedYoutube(
   description: string,
   durationSeconds?: number | null,
 ): ResolvedRecipeYoutube {
-  if (youtube.timestamps.length > 0) return youtube;
+  if ((youtube.timestamps?.length ?? 0) > 0) return youtube;
 
   const chapters = parseYoutubeDescriptionChapters(description);
   if (!chapters.length) return youtube;
@@ -184,7 +184,7 @@ export async function resolveRecipeYoutubeForDisplay(
   recipe: Pick<Recipe, "slug" | "title" | "youtubeUrl" | "youtube">,
 ): Promise<ResolvedRecipeYoutube | null> {
   const base = resolveRecipeYoutube(recipe);
-  if (!base || base.timestamps.length > 0) return base;
+  if (!base || (base.timestamps?.length ?? 0) > 0) return base;
 
   try {
     const meta = await fetchYoutubeVideoDescriptionMeta(base.videoId);
