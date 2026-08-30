@@ -23,6 +23,8 @@ export function buildAiRecipeSystemInstruction() {
     "- Ingredient amounts that are spoken/shown exactly → VERIFIED; guessed amounts → ESTIMATED.",
     "- Instruction steps must map to Mesa instruction sections with name + steps[].text.",
     "- Ingredient lines must use Mesa keys: amount, item, notes (not a separate 'ingredient' key).",
+    "- Always populate fields.intro, fields.ingredients, fields.instructions, fields.prepMinutes, and fields.servings when the video contains recipe information.",
+    "- Put dynamic field values under a fields object keyed by field key.",
   ].join("\n");
 }
 

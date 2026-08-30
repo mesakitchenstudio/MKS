@@ -11,6 +11,8 @@ import { computeRecipeSchemaVersion } from "./schema-version";
 const fields = [
   { key: "intro", label: "Introduction", kind: "textarea", required: true },
   { key: "prepMinutes", label: "Prep", kind: "minutes", required: true },
+  { key: "ingredients", label: "Ingredients", kind: "ingredients", required: true },
+  { key: "instructions", label: "Instructions", kind: "instructions", required: true },
   { key: "youtubeUrl", label: "YouTube", kind: "text", required: false },
   { key: "image", label: "Hero", kind: "image", required: true },
   { key: "riseHours", label: "Rise hours", kind: "number", required: false },
@@ -52,6 +54,75 @@ test("normalize rejects unknown categories and forces featured/seasonal false", 
   assert.equal(draft.values.youtubeUrl, "https://www.youtube.com/watch?v=abcdefghijk");
   assert.equal(draft.values.image, "");
   assert.equal(draft.confidenceByPath.title?.confidence, "VERIFIED");
+});
+
+test("normalize accepts unwrapped flat field values from prompt-json fallback", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: {
+      recipeTypeId: "type-1",
+      title: "Flatbread",
+      slug: "flatbread",
+      excerpt: "Soft stovetop flatbread",
+      featured: false,
+      seasonal: false,
+      categoryIds: ["cat-ok"],
+      fields: {
+        intro: "A soft flatbread made on the stovetop.",
+        prepMinutes: 20,
+        ingredients: [
+          {
+            name: "",
+            items: [{ amount: "2 cups", item: "flour", notes: "", confidence: "VERIFIED", sourceNote: "spoken" }],
+          },
+        ],
+        instructions: [
+          {
+            name: "",
+            steps: [{ text: "Mix the dough.", confidence: "VERIFIED", sourceNote: "shown" }],
+          },
+        ],
+      },
+      insufficientRecipeInformation: false,
+      insufficientReason: "",
+    },
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(["cat-ok"]),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  assert.equal(draft.title, "Flatbread");
+  assert.equal(draft.values.intro, "A soft flatbread made on the stovetop.");
+  assert.equal(draft.values.prepMinutes, 20);
+  assert.match(String((draft.values.ingredients as { items: { item: string }[] }[])[0]?.items[0]?.item), /flour/);
+});
+
+test("normalize promotes root-level field keys into fields bag", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: {
+      recipeTypeId: "type-1",
+      title: { value: "Flatbread", confidence: "VERIFIED", sourceNote: "" },
+      slug: { value: "flatbread", confidence: "ESTIMATED", sourceNote: "" },
+      excerpt: { value: "Soft flatbread", confidence: "ESTIMATED", sourceNote: "" },
+      featured: { value: false, confidence: "VERIFIED", sourceNote: "" },
+      seasonal: { value: false, confidence: "VERIFIED", sourceNote: "" },
+      categoryIds: { value: [], confidence: "UNKNOWN", sourceNote: "" },
+      intro: "Root-level intro should still map.",
+      fields: {
+        prepMinutes: { value: 15, confidence: "VERIFIED", sourceNote: "" },
+      },
+      insufficientRecipeInformation: false,
+      insufficientReason: "",
+    },
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  assert.equal(draft.values.intro, "Root-level intro should still map.");
 });
 
 test("fill_empty merge keeps manual title", () => {

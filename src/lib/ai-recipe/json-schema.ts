@@ -137,6 +137,19 @@ function fieldProperty(field: SchemaField) {
  * Gemini response schema derived from the live Mesa type/category definitions.
  * Uses Gemini Schema types (STRING/NUMBER/OBJECT/ARRAY), not OpenAPI lowercase.
  */
+const PRIORITY_RECIPE_FIELD_KEYS = new Set([
+  "intro",
+  "ingredients",
+  "instructions",
+  "prepMinutes",
+  "bakeMinutes",
+  "restMinutes",
+  "servings",
+  "difficulty",
+  "youtubeUrl",
+  "imageAlt",
+]);
+
 export function buildAiRecipeResponseSchema(input: {
   recipeType: SchemaRecipeType;
   categories: SchemaCategory[];
@@ -177,6 +190,9 @@ export function buildAiRecipeResponseSchema(input: {
         type: "OBJECT",
         description: "Mesa dynamic field values for this recipe type",
         properties: fieldProperties,
+        required: fillable
+          .map((field) => field.key)
+          .filter((key) => PRIORITY_RECIPE_FIELD_KEYS.has(key)),
       },
       insufficientRecipeInformation: {
         type: "BOOLEAN",

@@ -38,8 +38,10 @@ const PROMPT_JSON_SUFFIX = [
   "",
   "Return ONLY one JSON object matching the requested Mesa draft shape.",
   "Do not wrap the JSON in markdown code fences.",
-  "Use the confident wrapper { value, confidence, sourceNote } for scalar fields.",
-  "Use per-line confidence on ingredient and instruction rows.",
+  "Populate intro, ingredients, instructions, prepMinutes, and servings at minimum.",
+  "Each scalar field should use { value, confidence, sourceNote } when possible.",
+  "Plain values are also accepted for fields, e.g. fields.intro can be a string or a confident wrapper.",
+  "Ingredient lines use amount, item, notes. Instruction steps use steps[].text.",
 ].join("\n");
 
 type GenerationMode = "structured" | "prompt_json";

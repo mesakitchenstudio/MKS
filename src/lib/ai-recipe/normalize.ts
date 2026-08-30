@@ -34,14 +34,45 @@ export type NormalizedAiDraft = {
 };
 
 function readConfident(raw: unknown): { value: unknown; confidence: AiConfidence; sourceNote: string } | null {
-  if (!raw || typeof raw !== "object") return null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const row = raw as ConfidentRaw;
+  if (!("value" in row)) return null;
   const confidence = isAiConfidence(row.confidence) ? row.confidence : "UNKNOWN";
   return {
     value: row.value,
     confidence,
     sourceNote: String(row.sourceNote ?? "").trim(),
   };
+}
+
+/** Accept both Mesa confident wrappers and plain model values. */
+function readConfidentOrRaw(
+  raw: unknown,
+  fallbackConfidence: AiConfidence = "UNKNOWN",
+): { value: unknown; confidence: AiConfidence; sourceNote: string } | null {
+  if (raw === undefined || raw === null) return null;
+  const wrapped = readConfident(raw);
+  if (wrapped) return wrapped;
+  return {
+    value: raw,
+    confidence: fallbackConfidence,
+    sourceNote: "",
+  };
+}
+
+function resolveFieldsRaw(root: Record<string, unknown>, fieldKeys: readonly string[]) {
+  const bag =
+    root.fields && typeof root.fields === "object" && !Array.isArray(root.fields)
+      ? { ...(root.fields as Record<string, unknown>) }
+      : {};
+
+  for (const key of fieldKeys) {
+    if (bag[key] === undefined && root[key] !== undefined) {
+      bag[key] = root[key];
+    }
+  }
+
+  return bag;
 }
 
 function annotate(
@@ -187,12 +218,12 @@ export function normalizeAiRecipeResponse(input: {
   const insufficientRecipeInformation = Boolean(root.insufficientRecipeInformation);
   const insufficientReason = String(root.insufficientReason ?? "").trim();
 
-  const titleC = readConfident(root.title);
-  const slugC = readConfident(root.slug);
-  const excerptC = readConfident(root.excerpt);
-  const featuredC = readConfident(root.featured);
-  const seasonalC = readConfident(root.seasonal);
-  const categoriesC = readConfident(root.categoryIds);
+  const titleC = readConfidentOrRaw(root.title, "VERIFIED");
+  const slugC = readConfidentOrRaw(root.slug, "ESTIMATED");
+  const excerptC = readConfidentOrRaw(root.excerpt, "HIGH_CONFIDENCE_INFERENCE");
+  const featuredC = readConfidentOrRaw(root.featured, "VERIFIED");
+  const seasonalC = readConfidentOrRaw(root.seasonal, "VERIFIED");
+  const categoriesC = readConfidentOrRaw(root.categoryIds, "HIGH_CONFIDENCE_INFERENCE");
 
   if (titleC) annotate("title", titleC.confidence, titleC.sourceNote, confidenceByPath, summary);
   if (slugC) annotate("slug", slugC.confidence, slugC.sourceNote, confidenceByPath, summary);
@@ -215,8 +246,10 @@ export function normalizeAiRecipeResponse(input: {
   const featured = false;
   const seasonal = false;
 
-  const fieldsRaw =
-    root.fields && typeof root.fields === "object" ? (root.fields as Record<string, unknown>) : {};
+  const fieldsRaw = resolveFieldsRaw(
+    root,
+    input.fields.map((field) => field.key),
+  );
   const values: Record<string, unknown> = {};
   const fieldByKey = new Map(input.fields.map((field) => [field.key, field]));
 
@@ -225,7 +258,7 @@ export function normalizeAiRecipeResponse(input: {
       values[field.key] = emptyValue(field.kind);
       continue;
     }
-    const wrapped = readConfident(fieldsRaw[field.key]);
+    const wrapped = readConfidentOrRaw(fieldsRaw[field.key]);
     if (!wrapped) {
       values[field.key] = emptyValue(field.kind);
       annotate(`values.${field.key}`, "UNKNOWN", "Missing from model response", confidenceByPath, summary);

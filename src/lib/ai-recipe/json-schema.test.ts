@@ -21,7 +21,7 @@ describe("ai-recipe json-schema", () => {
     });
   });
 
-  it("does not require every dynamic field in the fields object", () => {
+  it("requires priority recipe fields but not every optional field", () => {
     const schema = buildAiRecipeResponseSchema({
       recipeType: {
         id: "type-1",
@@ -29,6 +29,7 @@ describe("ai-recipe json-schema", () => {
         slug: "bread",
         fields: [
           { key: "intro", label: "Intro", kind: "textarea", required: true },
+          { key: "tips", label: "Tips", kind: "list", required: false },
           { key: "riseHours", label: "Rise hours", kind: "number", required: false },
         ],
       },
@@ -36,7 +37,7 @@ describe("ai-recipe json-schema", () => {
       allTypes: [{ id: "type-1", name: "Bread", slug: "bread", fields: [] }],
     }) as { properties: { fields: { required?: string[] } } };
 
-    assert.equal(schema.properties.fields.required, undefined);
+    assert.deepEqual(schema.properties.fields.required, ["intro"]);
   });
 });
 
