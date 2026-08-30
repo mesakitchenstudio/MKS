@@ -986,22 +986,7 @@ export function RecipeEditor({
           confidence={aiMeta?.confidenceByPath[`values.${field.key}`]?.confidence}
           sourceNote={aiMeta?.confidenceByPath[`values.${field.key}`]?.sourceNote}
         />
-        {field.key === "youtubeUrl" ? (
-          <YoutubeUrlField
-            value={String(values[field.key] ?? "")}
-            onChange={(value) => {
-              setField(field.key, value);
-              if (fieldErrors[field.key]) {
-                setFieldErrors((current) => {
-                  const next = { ...current };
-                  delete next[field.key];
-                  return next;
-                });
-              }
-            }}
-            invalid={Boolean(fieldErrors[field.key])}
-          />
-        ) : field.key === "youtube" ? (
+        {field.key === "youtube" ? (
           <YoutubeMetadataEditor
             value={values[field.key]}
             onChange={(state) => {
@@ -2139,46 +2124,6 @@ function InstructionsEditor({
       >
         + Add section
       </button>
-    </div>
-  );
-}
-
-function YoutubeUrlField({
-  value,
-  onChange,
-  invalid = false,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  invalid?: boolean;
-}) {
-  const trimmed = value.trim();
-  const videoId = trimmed ? youtubeVideoId(trimmed) : null;
-  const showInvalid = trimmed.length > 0 && !videoId;
-
-  return (
-    <div className="grid gap-3">
-      <input
-        value={value}
-        placeholder="https://www.youtube.com/watch?v=…"
-        onChange={(event) => onChange(event.target.value)}
-        aria-invalid={invalid || showInvalid}
-        aria-describedby={showInvalid ? "youtube-url-hint" : undefined}
-        className={`${adminInputClass}${invalid || showInvalid ? ` ${inputErrorClass}` : ""}`}
-      />
-      {trimmed ? (
-        videoId ? (
-          <YoutubeUrlValidationCard videoId={videoId} />
-        ) : (
-          <p id="youtube-url-hint" className="text-xs font-semibold text-terracotta" role="status">
-            Enter a valid YouTube watch, embed, shorts, or youtu.be URL.
-          </p>
-        )
-      ) : (
-        <p className="text-xs text-muted">
-          Optional. Links to the main studio walkthrough on Mesa&apos;s YouTube channel.
-        </p>
-      )}
     </div>
   );
 }
