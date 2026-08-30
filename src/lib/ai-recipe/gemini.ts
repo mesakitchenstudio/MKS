@@ -1,9 +1,13 @@
 import type { GoogleGenAI } from "@google/genai";
-import { buildAiRecipeResponseSchema } from "@/lib/ai-recipe/json-schema";
+import {
+  buildAiRecipeResponseSchemaForGemini,
+} from "@/lib/ai-recipe/json-schema";
 import { buildAiRecipeSystemInstruction, buildAiRecipeUserPrompt } from "@/lib/ai-recipe/prompt";
 import {
   buildAiGeminiError,
+  extractJsonFromModelText,
   isGeminiModelError,
+  isRetryableRecipeSchemaFailure,
   logGeminiFailure,
   mapGeminiException,
   type AiGeminiError,
@@ -29,6 +33,16 @@ export type GeminiGenerateResult =
 
 const VIDEO_PROBE_PROMPT =
   "Return only the title or topic of this cooking video and one sentence describing what food is being prepared. Be concise.";
+
+const PROMPT_JSON_SUFFIX = [
+  "",
+  "Return ONLY one JSON object matching the requested Mesa draft shape.",
+  "Do not wrap the JSON in markdown code fences.",
+  "Use the confident wrapper { value, confidence, sourceNote } for scalar fields.",
+  "Use per-line confidence on ingredient and instruction rows.",
+].join("\n");
+
+type GenerationMode = "structured" | "prompt_json";
 
 async function createVideoInteraction(
   ai: GoogleGenAI,
@@ -71,6 +85,23 @@ function interactionText(interaction: GeminiInteraction) {
     }
   }
   return "";
+}
+
+function parseRecipeJson(text: string): { ok: true; raw: unknown } | { ok: false; error: AiGeminiError } {
+  const jsonText = extractJsonFromModelText(text);
+  if (!jsonText) {
+    return { ok: false, error: buildAiGeminiError("RECIPE_SCHEMA_EMPTY", "recipe_schema") };
+  }
+  try {
+    return { ok: true, raw: JSON.parse(jsonText) };
+  } catch {
+    return {
+      ok: false,
+      error: buildAiGeminiError("RECIPE_SCHEMA_MALFORMED", "recipe_schema", {
+        detail: "Response was not valid JSON.",
+      }),
+    };
+  }
 }
 
 /** Stage A — verify Gemini can read the public YouTube video. */
@@ -175,93 +206,109 @@ export async function generateRecipeDraftWithGemini(input: {
   }
 
   const models = geminiModelCandidates();
-  const responseSchema = buildAiRecipeResponseSchema({
+  const responseSchema = buildAiRecipeResponseSchemaForGemini({
     recipeType: input.recipeType,
     categories: input.categories,
     allTypes: input.allTypes,
   });
-  const userPrompt = buildAiRecipeUserPrompt({
+  const baseUserPrompt = buildAiRecipeUserPrompt({
     youtubeUrl: normalized.canonicalUrl,
     recipeType: input.recipeType,
     allTypes: input.allTypes,
     categories: input.categories,
   });
   const systemInstruction = buildAiRecipeSystemInstruction();
+  const modes: GenerationMode[] = ["structured", "prompt_json"];
 
   let lastError: AiGeminiError | null = null;
+  let videoAnalysisSucceeded = false;
 
   for (const model of models) {
-    try {
-      const interaction = await createVideoInteraction(ai, {
-        model,
-        videoUri: normalized.canonicalUrl,
-        text: userPrompt,
-        systemInstruction,
-        responseFormat: {
-          type: "text",
-          mime_type: "application/json",
-          schema: responseSchema,
-        },
-      });
+    let skipModel = false;
 
-      const text = interactionText(interaction);
-      if (!text) {
-        lastError = buildAiGeminiError("RECIPE_SCHEMA_EMPTY", "recipe_schema");
-        logGeminiFailure({
-          stage: "recipe_schema",
-          code: lastError.code,
-          model,
-          videoId: normalized.videoId,
-        });
-        continue;
-      }
-
-      let raw: unknown;
+    for (const mode of modes) {
       try {
-        raw = JSON.parse(text);
-      } catch {
-        lastError = buildAiGeminiError("RECIPE_SCHEMA_MALFORMED", "recipe_schema", {
-          detail: "Response was not valid JSON.",
+        const interaction = await createVideoInteraction(ai, {
+          model,
+          videoUri: normalized.canonicalUrl,
+          text: mode === "structured" ? baseUserPrompt : `${baseUserPrompt}${PROMPT_JSON_SUFFIX}`,
+          systemInstruction,
+          responseFormat:
+            mode === "structured"
+              ? {
+                  type: "text",
+                  mime_type: "application/json",
+                  schema: responseSchema,
+                }
+              : undefined,
         });
+
+        const text = interactionText(interaction);
+        if (!text) {
+          lastError = buildAiGeminiError("RECIPE_SCHEMA_EMPTY", "recipe_schema", {
+            detail: `No text returned (${mode}).`,
+          });
+          logGeminiFailure({
+            stage: "recipe_schema",
+            code: lastError.code,
+            model,
+            videoId: normalized.videoId,
+            detail: lastError.detail,
+          });
+          if (mode === "structured") continue;
+          break;
+        }
+
+        videoAnalysisSucceeded = true;
+        const parsed = parseRecipeJson(text);
+        if (!parsed.ok) {
+          lastError = parsed.error;
+          logGeminiFailure({
+            stage: "recipe_schema",
+            code: lastError.code,
+            model,
+            videoId: normalized.videoId,
+            detail: lastError.detail,
+          });
+          if (mode === "structured") continue;
+          break;
+        }
+
+        return { ok: true, model, raw: parsed.raw };
+      } catch (error) {
+        lastError = mapGeminiException(error, "recipe_schema");
+        if (lastError.code === "GEMINI_UNKNOWN_ERROR") {
+          lastError.code = "RECIPE_SCHEMA_GENERATION_FAILED";
+          lastError.message = buildAiGeminiError("RECIPE_SCHEMA_GENERATION_FAILED", "recipe_schema").message;
+        }
         logGeminiFailure({
           stage: "recipe_schema",
           code: lastError.code,
           model,
           videoId: normalized.videoId,
+          httpStatus: lastError.httpStatus,
           detail: lastError.detail,
         });
-        return { ok: false, error: lastError, videoAnalysisSucceeded: true };
-      }
 
-      return { ok: true, model, raw };
-    } catch (error) {
-      lastError = mapGeminiException(error, "recipe_schema");
-      if (lastError.code === "GEMINI_UNKNOWN_ERROR") {
-        lastError.code = "RECIPE_SCHEMA_GENERATION_FAILED";
-        lastError.message = buildAiGeminiError("RECIPE_SCHEMA_GENERATION_FAILED", "recipe_schema").message;
+        if (isGeminiModelError(error)) {
+          skipModel = true;
+          break;
+        }
+        if (mode === "structured" && isRetryableRecipeSchemaFailure(lastError.code)) {
+          continue;
+        }
+        break;
       }
-      logGeminiFailure({
-        stage: "recipe_schema",
-        code: lastError.code,
-        model,
-        videoId: normalized.videoId,
-        httpStatus: lastError.httpStatus,
-        detail: lastError.detail,
-      });
-      if (isGeminiModelError(error) && model !== models.at(-1)) {
-        continue;
-      }
-      return {
-        ok: false,
-        error: lastError,
-        videoAnalysisSucceeded: lastError.code !== "GEMINI_MODEL_ERROR" && lastError.code !== "GEMINI_CONFIGURATION_ERROR",
-      };
+    }
+
+    if (skipModel && model !== models.at(-1)) {
+      continue;
     }
   }
 
   return {
     ok: false,
     error: lastError ?? buildAiGeminiError("RECIPE_SCHEMA_GENERATION_FAILED", "recipe_schema"),
-    videoAnalysisSucceeded: Boolean(lastError && lastError.code !== "GEMINI_MODEL_ERROR"),
+    videoAnalysisSucceeded,
   };
 }

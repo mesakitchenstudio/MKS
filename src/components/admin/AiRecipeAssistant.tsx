@@ -82,12 +82,14 @@ export function AiRecipeAssistant({
         ok?: boolean;
         error?: string;
         code?: string;
+        detail?: string;
         draft?: DraftPayload;
         meta?: RecipeAiMeta;
       };
       if (!response.ok || !data.ok || !data.draft || !data.meta) {
         const codeSuffix = data.code ? ` Error: ${data.code}` : "";
-        setError(`${data.error || "Could not generate a recipe draft."}${codeSuffix}`);
+        const detailSuffix = data.detail ? ` (${data.detail})` : "";
+        setError(`${data.error || "Could not generate a recipe draft."}${codeSuffix}${detailSuffix}`);
         return;
       }
       onApply({ draft: data.draft, meta: data.meta, mergeMode });

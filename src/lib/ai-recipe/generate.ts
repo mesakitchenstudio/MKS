@@ -59,6 +59,7 @@ export type AiGenerateFailure = {
   ok: false;
   code: AiGeminiErrorCode | "invalid_url" | "invalid_type" | "insufficient" | "rate_limit";
   message: string;
+  detail?: string;
   videoAnalysisSucceeded?: boolean;
 };
 
@@ -167,6 +168,7 @@ export async function runAiRecipeGeneration(input: {
       ok: false,
       code: generated.error.code,
       message: generated.error.message,
+      detail: generated.error.detail,
       videoAnalysisSucceeded: generated.videoAnalysisSucceeded,
     };
   }

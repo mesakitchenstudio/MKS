@@ -177,7 +177,6 @@ export function buildAiRecipeResponseSchema(input: {
         type: "OBJECT",
         description: "Mesa dynamic field values for this recipe type",
         properties: fieldProperties,
-        required: fillable.map((field) => field.key),
       },
       insufficientRecipeInformation: {
         type: "BOOLEAN",
@@ -201,4 +200,48 @@ export function buildAiRecipeResponseSchema(input: {
       "insufficientReason",
     ],
   };
+}
+
+const GEMINI_TYPE_MAP: Record<string, string> = {
+  STRING: "string",
+  NUMBER: "number",
+  BOOLEAN: "boolean",
+  OBJECT: "object",
+  ARRAY: "array",
+};
+
+/** Convert internal uppercase Gemini schema nodes to OpenAPI lowercase for Interactions API. */
+export function toGeminiOpenApiSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === "type" && typeof value === "string") {
+      output.type = GEMINI_TYPE_MAP[value] ?? value.toLowerCase();
+      continue;
+    }
+    if (key === "properties" && value && typeof value === "object" && !Array.isArray(value)) {
+      output.properties = Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([propertyKey, propertySchema]) => [
+          propertyKey,
+          toGeminiOpenApiSchema(propertySchema as Record<string, unknown>),
+        ]),
+      );
+      continue;
+    }
+    if (key === "items" && value && typeof value === "object" && !Array.isArray(value)) {
+      output.items = toGeminiOpenApiSchema(value as Record<string, unknown>);
+      continue;
+    }
+    output[key] = value;
+  }
+
+  return output;
+}
+
+export function buildAiRecipeResponseSchemaForGemini(input: {
+  recipeType: SchemaRecipeType;
+  categories: SchemaCategory[];
+  allTypes: SchemaRecipeType[];
+}) {
+  return toGeminiOpenApiSchema(buildAiRecipeResponseSchema(input));
 }

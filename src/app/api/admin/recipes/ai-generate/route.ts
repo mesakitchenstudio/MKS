@@ -65,6 +65,7 @@ export async function POST(request: Request) {
         {
           error: result.message,
           code: result.code,
+          detail: result.detail,
           videoAnalysisSucceeded: result.videoAnalysisSucceeded ?? false,
         },
         { status },

@@ -91,6 +91,25 @@ export function isGeminiModelError(error: unknown): boolean {
   );
 }
 
+export function isRetryableRecipeSchemaFailure(code: AiGeminiErrorCode) {
+  return (
+    code === "RECIPE_SCHEMA_GENERATION_FAILED" ||
+    code === "RECIPE_SCHEMA_EMPTY" ||
+    code === "RECIPE_SCHEMA_MALFORMED" ||
+    code === "GEMINI_UNKNOWN_ERROR"
+  );
+}
+
+/** Pull JSON from plain text or ```json fenced blocks. */
+export function extractJsonFromModelText(text: string): string {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
+  if (fenced?.[1]) return fenced[1].trim();
+  const inline = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (inline?.[1]) return inline[1].trim();
+  return trimmed;
+}
+
 export function mapGeminiException(
   error: unknown,
   stage: AiGeminiError["stage"],
