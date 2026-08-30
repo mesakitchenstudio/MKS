@@ -107,37 +107,40 @@ async function fetchViaWatchPage(
   };
 }
 
-/** InnerTube player API — more reliable from datacenter IPs than watch-page HTML scraping. */
+/** InnerTube player API — works from datacenter IPs when using the public WEB client + key. */
 async function fetchViaInnerTube(
   videoId: string,
 ): Promise<{ description: string; durationSeconds: number | null } | null> {
-  const response = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
-    },
-    body: JSON.stringify({
-      videoId,
-      context: {
-        client: {
-          clientName: "ANDROID",
-          clientVersion: "19.09.37",
-          androidSdkVersion: 30,
-          hl: "en",
-          gl: "US",
-        },
+  const innertubeKey =
+    process.env.YOUTUBE_INNERTUBE_API_KEY?.trim() || "AIzaSyAO_FJ2SlqU8Q4STEHLGCilhw_YGO_11w";
+  const response = await fetch(
+    `https://www.youtube.com/youtubei/v1/player?key=${innertubeKey}&prettyPrint=false`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (compatible; MesaKitchenStudio/1.0; +https://mesakitchenstudio.com)",
       },
-    }),
-    next: { revalidate: 3600 },
-  });
+      body: JSON.stringify({
+        videoId,
+        context: {
+          client: {
+            clientName: "WEB",
+            clientVersion: "2.20250205.01.00",
+            hl: "en",
+            gl: "US",
+          },
+        },
+      }),
+      next: { revalidate: 3600 },
+    },
+  );
   if (!response.ok) return null;
 
   const data = (await response.json()) as {
-    playabilityStatus?: { status?: string };
     videoDetails?: { shortDescription?: string; lengthSeconds?: string };
   };
-  if (data.playabilityStatus?.status === "LOGIN_REQUIRED") return null;
 
   const description = String(data.videoDetails?.shortDescription ?? "").trim();
   if (!description) return null;
