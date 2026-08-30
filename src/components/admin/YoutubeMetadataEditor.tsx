@@ -8,6 +8,7 @@ import {
   applyRawYoutubeMetadataJson,
   prettyPrintYoutubeMetadataBlob,
   youtubeMetadataToEditorState,
+  type YoutubeMetadataEditorState,
   type YoutubeRelatedVideoRow,
   type YoutubeTimestampRow,
 } from "@/lib/youtube-metadata-editor";
