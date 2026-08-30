@@ -16,10 +16,12 @@ export async function syncYoutubeAnalytics(input?: {
   const range = analyticsDateRange(input?.days ?? 90);
 
   try {
-    const [channelRows, videoRows] = await Promise.all([
-      fetchChannelDayMetrics({ startDate: range.startDate, endDate: range.endDate }),
-      fetchVideoDayMetrics({ startDate: range.startDate, endDate: range.endDate }),
-    ]);
+    // Channel KPIs are required. Video/traffic are best-effort so a bad video
+    // query cannot blank the whole dashboard.
+    const channelRows = await fetchChannelDayMetrics({
+      startDate: range.startDate,
+      endDate: range.endDate,
+    });
 
     const db = getDb();
     const connection = await db.youTubeAnalyticsConnection.findFirst({
@@ -59,6 +61,26 @@ export async function syncYoutubeAnalytics(input?: {
         },
       });
       channelDays += 1;
+    }
+
+    const catalogVideos = await db.youTubeVideo.findMany({
+      select: { videoId: true },
+      orderBy: { publishedAt: "desc" },
+      take: 400,
+    });
+    const videoIds = catalogVideos.map((v) => v.videoId);
+
+    let videoRows: Awaited<ReturnType<typeof fetchVideoDayMetrics>> = [];
+    try {
+      videoRows = await fetchVideoDayMetrics({
+        startDate: range.startDate,
+        endDate: range.endDate,
+        videoIds,
+      });
+    } catch (error) {
+      if (error instanceof YouTubeAnalyticsError && error.code === "quota") throw error;
+      // Keep channel sync success; video detail can retry on next refresh.
+      console.error("[youtube-analytics] video day sync skipped:", analyticsErrorMessage(error));
     }
 
     let videoDays = 0;

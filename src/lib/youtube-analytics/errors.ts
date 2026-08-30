@@ -24,7 +24,12 @@ export class YouTubeAnalyticsError extends Error {
 }
 
 export function analyticsErrorMessage(error: unknown): string {
-  if (error instanceof YouTubeAnalyticsError) return error.message;
+  if (error instanceof YouTubeAnalyticsError) {
+    if (error.detail && !error.message.includes(error.detail)) {
+      return `${error.message} ${error.detail}`.trim();
+    }
+    return error.message;
+  }
   if (error instanceof Error) return error.message;
   return "YouTube Analytics request failed.";
 }

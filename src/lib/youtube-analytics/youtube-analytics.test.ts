@@ -13,6 +13,7 @@ import {
   analyticsDateRange,
   DEFAULT_ANALYTICS_RANGE_DAYS,
 } from "@/lib/youtube-analytics/ranges";
+import { analyticsErrorMessage, YouTubeAnalyticsError } from "@/lib/youtube-analytics/errors";
 import { createHash } from "crypto";
 import {
   applyYoutubeVideoLinkToValues,
@@ -64,6 +65,15 @@ describe("youtube-analytics", () => {
     assert.ok(sealed.iv);
     assert.ok(sealed.authTag);
     assert.equal(openSecret(sealed), "refresh-token-value");
+  });
+
+  it("includes Google API detail in analytics error messages", () => {
+    const error = new YouTubeAnalyticsError(
+      "api_error",
+      "YouTube Analytics request failed: The query is not supported.",
+      "The query is not supported.",
+    );
+    assert.match(analyticsErrorMessage(error), /query is not supported/i);
   });
 
   it("aggregates empty analytics results safely", () => {

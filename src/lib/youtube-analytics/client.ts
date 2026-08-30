@@ -97,6 +97,7 @@ async function fetchReports(input: {
     error?: { code?: number; message?: string; errors?: Array<{ reason?: string }> };
   };
 
+  const apiMessage = String(json.error?.message || "").trim();
   if (response.status === 403 || response.status === 401) {
     const reason = json.error?.errors?.[0]?.reason || "";
     if (reason.includes("quota") || reason === "quotaExceeded" || reason === "dailyLimitExceeded") {
@@ -104,16 +105,18 @@ async function fetchReports(input: {
     }
     throw new YouTubeAnalyticsError(
       "api_error",
-      "YouTube Analytics authorization failed. Disconnect and connect again if this continues.",
-      json.error?.message,
+      apiMessage
+        ? `YouTube Analytics authorization failed: ${apiMessage}`
+        : "YouTube Analytics authorization failed. Disconnect and connect again if this continues.",
+      apiMessage || undefined,
     );
   }
 
   if (!response.ok) {
     throw new YouTubeAnalyticsError(
       "api_error",
-      "YouTube Analytics request failed.",
-      json.error?.message,
+      apiMessage ? `YouTube Analytics request failed: ${apiMessage}` : "YouTube Analytics request failed.",
+      apiMessage || undefined,
     );
   }
 
@@ -137,20 +140,41 @@ export async function fetchChannelDayMetrics(input: {
   return rows.map((cells) => mapMetricRow(headers, cells));
 }
 
+/** Max video IDs per Analytics filter (comma-separated). Keep conservative for URL length. */
+const VIDEO_FILTER_BATCH = 40;
+
+/**
+ * Daily per-video metrics. YouTube requires a `video==…` filter when using the
+ * `video` dimension with `day` — unfiltered `day,video` returns "query is not supported".
+ */
 export async function fetchVideoDayMetrics(input: {
   startDate: string;
   endDate: string;
+  videoIds: string[];
 }): Promise<AnalyticsMetricRow[]> {
+  const ids = [...new Set(input.videoIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return [];
+
   const { accessToken, channelId } = await getAnalyticsAccessToken();
-  const { headers, rows } = await fetchReports({
-    accessToken,
-    channelId,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    metrics: VIDEO_METRICS,
-    dimensions: "day,video",
-  });
-  return rows.map((cells) => mapMetricRow(headers, cells));
+  const out: AnalyticsMetricRow[] = [];
+
+  for (let i = 0; i < ids.length; i += VIDEO_FILTER_BATCH) {
+    const batch = ids.slice(i, i + VIDEO_FILTER_BATCH);
+    const { headers, rows } = await fetchReports({
+      accessToken,
+      channelId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      metrics: VIDEO_METRICS,
+      dimensions: "day,video",
+      filters: `video==${batch.join(",")}`,
+    });
+    for (const cells of rows) {
+      out.push(mapMetricRow(headers, cells));
+    }
+  }
+
+  return out;
 }
 
 export async function fetchChannelTrafficByDimension(input: {
