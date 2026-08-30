@@ -31,7 +31,17 @@ type PendingDraft = {
 
 type ApplyDialogKind = "initial" | "regenerate" | null;
 
-const secondaryBtn =
+function formatGenerateError(data: { error?: string; code?: string; detail?: string }) {
+  if (data.code === "GEMINI_RATE_LIMIT") {
+    return "Gemini daily quota reached for video analysis (free tier is about 20 requests per day per model). Wait until tomorrow, enable billing in Google AI Studio, or save the recipe — YouTube chapters import without Regenerate.";
+  }
+  const codeSuffix = data.code ? ` Error: ${data.code}` : "";
+  const detailSuffix =
+    data.detail && data.code !== "GEMINI_RATE_LIMIT"
+      ? ` (${data.detail.length > 180 ? `${data.detail.slice(0, 180)}…` : data.detail})`
+      : "";
+  return `${data.error || "Could not generate a recipe draft."}${codeSuffix}${detailSuffix}`;
+}
   "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
 
 const PROGRESS_MESSAGES = [
