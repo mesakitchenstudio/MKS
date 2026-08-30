@@ -11,6 +11,7 @@ import {
   youtubeWatchUrl,
   youtubeWatchUrlAt,
 } from "@/lib/youtube";
+import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -31,7 +32,11 @@ function parseTimestamps(value: unknown): RecipeYoutubeTimestamp[] {
         stepIndex?: unknown;
         instructionIndex?: unknown;
       };
-      const time = asNumber(row.time) ?? asNumber(row.seconds);
+      const time =
+        asNumber(row.time) ??
+        asNumber(row.seconds) ??
+        (typeof row.time === "string" ? parseTimestampInput(row.time) : null) ??
+        (typeof row.seconds === "string" ? parseTimestampInput(row.seconds) : null);
       if (!row.label || time == null || time < 0) return null;
       const stepIndex = asNumber(row.stepIndex) ?? asNumber(row.instructionIndex);
       return {

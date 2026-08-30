@@ -11,6 +11,7 @@ import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import type { AiGeminiErrorCode } from "@/lib/ai-recipe/errors";
 import { normalizeYouTubeForGemini } from "@/lib/ai-recipe/youtube-url";
 import { youtubeVideoId } from "@/lib/youtube";
+import { enrichDraftYoutubeFromDescription } from "@/lib/youtube-description";
 import { getDb } from "@/lib/db";
 
 function mapType(row: {
@@ -137,6 +138,12 @@ export async function runAiRecipeGeneration(input: {
               "This video does not contain enough recipe information to draft reliably.",
           };
         }
+        await enrichDraftYoutubeFromDescription({
+          values: draft.values,
+          videoId,
+          confidenceByPath: draft.confidenceByPath,
+          summary: draft.summary,
+        });
         const meta = buildMeta({
           youtubeUrl,
           model: cached.model,
@@ -192,6 +199,13 @@ export async function runAiRecipeGeneration(input: {
         "This video does not contain enough recipe information to draft reliably.",
     };
   }
+
+  await enrichDraftYoutubeFromDescription({
+    values: draft.values,
+    videoId,
+    confidenceByPath: draft.confidenceByPath,
+    summary: draft.summary,
+  });
 
   await db.aiRecipeGenerationCache.upsert({
     where: {

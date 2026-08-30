@@ -29,7 +29,7 @@ export function buildAiRecipeSystemInstruction() {
     "  • cookMinutes = active stovetop, grill, pan-frying, or similar cooking time. Estimate total active cooking when the video shows repeated items (e.g. six flatbreads at ~2–3 minutes each ≈ 15 minutes cookMinutes, confidence ESTIMATED). Use 0 only when there is truly no active cooking.",
     "  • restMinutes = chill or generic rest. For bread yeast proofing, prefer the type-specific riseHours field and set restMinutes to 0 to avoid duplicating proofing time.",
     "  • riseHours (bread types) = proof/rise duration in hours when the dough proofs.",
-    "- YouTube metadata (youtubeMetadata): populate duration from the video when available (VERIFIED). Generate 5–10 consolidated recipe chapters in youtubeMetadata.chapters with MM:SS times grounded in the video (VERIFIED for times, HIGH_CONFIDENCE_INFERENCE for summarized labels). Do not invent duration or timestamps.",
+    "- YouTube metadata (youtubeMetadata): populate duration from the video when available (VERIFIED). Generate 5–10 consolidated recipe chapters in youtubeMetadata.chapters with MM:SS times grounded in the video (VERIFIED for times, HIGH_CONFIDENCE_INFERENCE for summarized labels). When the video description lists timestamped chapters (e.g. 0:42 Step name), use those times as VERIFIED chapters. Do not invent duration or timestamps.",
     "- Put dynamic field values under a fields object keyed by field key.",
   ].join("\n");
 }
