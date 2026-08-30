@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
-import { homeForRole, isAccessLevel } from "@/lib/admin-access";
+import { homeForRole, isAccessLevel, canManageYoutubeSync } from "@/lib/admin-access";
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
 import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -31,6 +31,7 @@ import { enrichRecipeValuesYoutubeFromDescription } from "@/lib/youtube-descript
 import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
+import { syncYoutubeChannel } from "@/lib/youtube-data/sync";
 
 async function requireEditor() {
   await requireAccess("content");
@@ -806,4 +807,15 @@ export async function replyToReviewAction(formData: FormData) {
     if (Number.isFinite(page) && page > 1) params.set("page", String(page));
     redirect(`/admin/reviews?${params.toString()}`);
   }
+}
+
+export async function syncYoutubeAction() {
+  const admin = await requireAccess("youtube");
+  if (!canManageYoutubeSync(admin.role)) {
+    return { ok: false as const, videosSynced: 0, snapshotCreated: false, error: "Only owners can sync YouTube." };
+  }
+
+  const result = await syncYoutubeChannel({ forceSnapshot: true });
+  revalidatePath("/admin/youtube");
+  return result;
 }

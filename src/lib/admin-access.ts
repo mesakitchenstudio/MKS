@@ -17,7 +17,7 @@ export const ACCESS_LEVELS = [
 ] as const;
 
 export type AccessLevel = (typeof ACCESS_LEVELS)[number]["id"];
-export type AdminArea = "content" | "members" | "staff";
+export type AdminArea = "content" | "members" | "staff" | "youtube";
 
 export function isAccessLevel(value: string): value is AccessLevel {
   return ACCESS_LEVELS.some((level) => level.id === value);
@@ -31,7 +31,13 @@ export function canAccess(role: string, area: AdminArea) {
   if (role === "owner") return true;
   if (area === "content") return role === "editor";
   if (area === "members") return role === "members";
+  if (area === "youtube") return role === "editor" || role === "members";
   return false;
+}
+
+/** Manual YouTube sync is owner-only; reports are visible to editors and Audience. */
+export function canManageYoutubeSync(role: string) {
+  return role === "owner";
 }
 
 export function homeForRole(role: string) {

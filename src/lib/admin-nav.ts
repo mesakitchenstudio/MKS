@@ -48,14 +48,21 @@ export function buildAdminNavSections(role: AccessLevel): AdminNavSection[] {
     });
   }
 
-  if (canAccess(role, "members")) {
+  if (canAccess(role, "members") || canAccess(role, "youtube")) {
+    const audienceItems: AdminNavItem[] = [];
+    if (canAccess(role, "members")) {
+      audienceItems.push(
+        { href: "/admin/members", label: "Members" },
+        { href: "/admin/visitors", label: "Visitors" },
+      );
+    }
+    if (canAccess(role, "youtube")) {
+      audienceItems.push({ href: "/admin/youtube", label: "YouTube" });
+    }
     sections.push({
       id: "audience",
       label: "Audience",
-      items: [
-        { href: "/admin/members", label: "Members" },
-        { href: "/admin/visitors", label: "Visitors" },
-      ],
+      items: audienceItems,
     });
   }
 
@@ -76,7 +83,8 @@ export function adminWorkspaceWidthForPath(pathname: string) {
     pathname === "/admin" ||
     pathname.startsWith("/admin/recipes") ||
     pathname.startsWith("/admin/members") ||
-    pathname.startsWith("/admin/visitors")
+    pathname.startsWith("/admin/visitors") ||
+    pathname.startsWith("/admin/youtube")
   ) {
     return adminWorkspaceWide;
   }

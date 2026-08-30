@@ -11,6 +11,7 @@ import {
 } from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import { YoutubeMetadataEditor } from "@/components/admin/YoutubeMetadataEditor";
+import { YoutubeUrlValidationCard } from "@/components/admin/YoutubeUrlValidationCard";
 import {
   RecipeEditorSectionNav,
   type RecipeEditorSectionLink,
@@ -34,7 +35,7 @@ import {
 import { ADMIN_IMAGE_HELP } from "@/lib/admin-upload";
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
 import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS, slugify } from "@/lib/fields";
-import { youtubeThumbnailUrl, youtubeVideoId } from "@/lib/youtube";
+import { youtubeVideoId } from "@/lib/youtube";
 import {
   serializeYoutubeMetadataEditorState,
   validateYoutubeMetadataEditorState,
@@ -2156,18 +2157,7 @@ function YoutubeUrlField({
       />
       {trimmed ? (
         videoId ? (
-          <div className="flex gap-3 rounded-sm border border-line bg-cream/40 p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={youtubeThumbnailUrl(videoId)}
-              alt=""
-              className="h-16 w-[7.125rem] shrink-0 rounded-sm object-cover"
-            />
-            <div className="min-w-0 text-sm">
-              <p className="font-semibold text-olive">Valid YouTube video</p>
-              <p className="mt-0.5 break-all font-mono text-xs text-muted">{videoId}</p>
-            </div>
-          </div>
+          <YoutubeUrlValidationCard videoId={videoId} />
         ) : (
           <p id="youtube-url-hint" className="text-xs font-semibold text-terracotta" role="status">
             Enter a valid YouTube watch, embed, shorts, or youtu.be URL.

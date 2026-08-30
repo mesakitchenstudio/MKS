@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canAccess, homeForRole } from "./admin-access";
+import { canAccess, canManageYoutubeSync, homeForRole } from "./admin-access";
 import {
   applyPersistedStaffRole,
   emailsConflictCaseInsensitive,
@@ -192,6 +192,7 @@ test("Editor route restrictions", () => {
   assert.equal(canAccess("editor", "content"), true);
   assert.equal(canAccess("editor", "members"), false);
   assert.equal(canAccess("editor", "staff"), false);
+  assert.equal(canAccess("editor", "youtube"), true);
   assert.equal(homeForRole("editor"), "/admin");
 });
 
@@ -199,6 +200,7 @@ test("Members route restrictions", () => {
   assert.equal(canAccess("members", "members"), true);
   assert.equal(canAccess("members", "content"), false);
   assert.equal(canAccess("members", "staff"), false);
+  assert.equal(canAccess("members", "youtube"), true);
   assert.equal(homeForRole("members"), "/admin/members");
 });
 
@@ -206,6 +208,10 @@ test("Owner has full admin access including staff", () => {
   assert.equal(canAccess("owner", "staff"), true);
   assert.equal(canAccess("owner", "content"), true);
   assert.equal(canAccess("owner", "members"), true);
+  assert.equal(canAccess("owner", "youtube"), true);
+  assert.equal(canManageYoutubeSync("owner"), true);
+  assert.equal(canManageYoutubeSync("editor"), false);
+  assert.equal(canManageYoutubeSync("members"), false);
 });
 
 test("buildAdminNavSections hides unauthorized areas", async () => {
@@ -213,12 +219,12 @@ test("buildAdminNavSections hides unauthorized areas", async () => {
   const editor = buildAdminNavSections("editor");
   assert.deepEqual(
     editor.flatMap((section) => section.items.map((item) => item.href)),
-    ["/admin", "/admin/types", "/admin/categories", "/admin/reviews"],
+    ["/admin", "/admin/types", "/admin/categories", "/admin/reviews", "/admin/youtube"],
   );
   const audience = buildAdminNavSections("members");
   assert.deepEqual(
     audience.flatMap((section) => section.items.map((item) => item.href)),
-    ["/admin/members", "/admin/visitors"],
+    ["/admin/members", "/admin/visitors", "/admin/youtube"],
   );
   const owner = buildAdminNavSections("owner");
   assert.ok(owner.some((section) => section.items.some((item) => item.href === "/admin/staff")));

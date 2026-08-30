@@ -260,3 +260,80 @@ model ContactMessage {
 
   @@index([createdAt])
 }
+
+/// Cached Mesa Kitchen Studio YouTube channel metadata (Data API v3).
+model YouTubeChannel {
+  id                   String   @id @default(cuid())
+  channelId            String   @unique
+  title                String   @default("")
+  description          String   @default("")
+  customUrl            String   @default("")
+  publishedAt          DateTime?
+  thumbnailUrl         String   @default("")
+  country              String   @default("")
+  uploadsPlaylistId    String   @default("")
+  viewCount            String   @default("0")
+  subscriberCount      String   @default("0")
+  hiddenSubscriberCount Boolean @default(false)
+  videoCount           String   @default("0")
+  lastSyncedAt         DateTime?
+  lastSyncAttemptAt    DateTime?
+  lastSyncError        String   @default("")
+  lastSyncStatus       String   @default("never")
+  snapshots            YouTubeChannelSnapshot[]
+  videos               YouTubeVideo[]
+}
+
+/// Public uploaded video metadata synced from YouTube Data API v3.
+model YouTubeVideo {
+  id              String   @id @default(cuid())
+  videoId         String   @unique
+  channelId       String
+  channel         YouTubeChannel @relation(fields: [channelId], references: [channelId], onDelete: Cascade)
+  title           String   @default("")
+  description     String   @default("")
+  publishedAt     DateTime?
+  thumbnailUrl    String   @default("")
+  durationSeconds Int      @default(0)
+  durationDisplay String   @default("")
+  tags            String   @default("[]")
+  categoryId      String   @default("")
+  definition      String   @default("")
+  caption         String   @default("")
+  privacyStatus   String   @default("")
+  embeddable      Boolean  @default(true)
+  madeForKids     Boolean  @default(false)
+  viewCount       String   @default("0")
+  likeCount       String   @default("0")
+  commentCount    String   @default("0")
+  lastSyncedAt    DateTime?
+  snapshots       YouTubeVideoSnapshot[]
+
+  @@index([channelId, publishedAt])
+}
+
+/// Periodic public counter snapshot for channel trend deltas.
+model YouTubeChannelSnapshot {
+  id               String         @id @default(cuid())
+  channelId        String
+  channel          YouTubeChannel @relation(fields: [channelId], references: [channelId], onDelete: Cascade)
+  recordedAt       DateTime       @default(now())
+  viewCount        String         @default("0")
+  subscriberCount  String         @default("0")
+  videoCount       String         @default("0")
+
+  @@index([channelId, recordedAt])
+}
+
+/// Periodic public counter snapshot for video trend deltas.
+model YouTubeVideoSnapshot {
+  id           String       @id @default(cuid())
+  videoId      String
+  video        YouTubeVideo @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
+  recordedAt   DateTime     @default(now())
+  viewCount    String       @default("0")
+  likeCount    String       @default("0")
+  commentCount String       @default("0")
+
+  @@index([videoId, recordedAt])
+}
