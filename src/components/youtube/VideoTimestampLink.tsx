@@ -33,6 +33,7 @@ export function VideoTimestampLink({
           videoTitle,
           source: "instruction_timestamp",
           timestamp: time,
+          chapterLabel: label,
         });
         if (ctx) {
           ctx.activate({ start: time, source: "instruction_timestamp" });

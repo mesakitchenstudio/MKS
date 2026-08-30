@@ -7,8 +7,9 @@ import { canAccess } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { loadYoutubeVideoDetail } from "@/lib/youtube-data/dashboard";
-import { formatTimestampInput } from "@/lib/youtube-metadata-editor";
+import { formatChapterTime, formatTimestampInput } from "@/lib/youtube-metadata-editor";
 import { ANALYTICS_RANGE_DAYS, parseAnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
+import { loadVideoFunnelChapters } from "@/lib/youtube-funnel/load";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +26,12 @@ export default async function AdminYoutubeVideoPage({
   const { range } = await searchParams;
   const rangeDays = parseAnalyticsRangeDays(range);
   const db = getDb();
-  const [detail, recipeTypes] = await Promise.all([
+  const [detail, recipeTypes, funnelChapters] = await Promise.all([
     loadYoutubeVideoDetail(videoId, { analyticsRangeDays: rangeDays }),
     canCreateRecipes
       ? db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
       : Promise.resolve([] as { id: string; name: string }[]),
+    loadVideoFunnelChapters({ youtubeVideoId: videoId, analyticsRangeDays: rangeDays }),
   ]);
   if (!detail) notFound();
 
@@ -124,6 +126,45 @@ export default async function AdminYoutubeVideoPage({
               <Meta label="Likes (Analytics)" value={detail.analytics.metrics.likes} />
             </dl>
           </>
+        )}
+      </section>
+
+      <section className="rounded-sm border border-line bg-paper px-4 py-4">
+        <h2 className="font-serif text-lg text-ink">Website chapter clicks</h2>
+        <p className="mt-1 text-xs text-muted">
+          Clicks on recipe-page chapter/timestamp controls for this video (last {funnelChapters.rangeDays}{" "}
+          days). Separate from YouTube description chapters.
+        </p>
+        {funnelChapters.chapters.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">No website chapter clicks in this period yet.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-sm border border-line">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className={adminTableHeadClass}>
+                  <th className="px-4 py-3 font-medium">Time</th>
+                  <th className="px-4 py-3 font-medium">Chapter</th>
+                  <th className="px-4 py-3 font-medium">Clicks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {funnelChapters.chapters.map((row, index) => (
+                  <tr
+                    key={`${row.chapterIndex ?? index}-${row.chapterTimeSeconds ?? 0}-${row.chapterLabel}`}
+                    className="border-t border-line/70"
+                  >
+                    <td className="px-4 py-3 tabular-nums text-muted">
+                      {typeof row.chapterTimeSeconds === "number"
+                        ? formatChapterTime(row.chapterTimeSeconds)
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3">{row.chapterLabel}</td>
+                    <td className="px-4 py-3">{row.clicksLabel}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

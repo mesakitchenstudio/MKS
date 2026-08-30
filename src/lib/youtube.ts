@@ -28,7 +28,13 @@ export function youtubeThumbnailUrl(videoId: string, quality: "hq" | "max" = "hq
 
 export function youtubeEmbedUrl(
   urlOrId: string,
-  options?: { autoplay?: boolean; mute?: boolean; start?: number; enableApi?: boolean },
+  options?: {
+    autoplay?: boolean;
+    mute?: boolean;
+    start?: number;
+    enableApi?: boolean;
+    origin?: string;
+  },
 ) {
   const id = youtubeVideoId(urlOrId) || urlOrId;
   if (!id || id.length !== 11) return null;
@@ -36,7 +42,10 @@ export function youtubeEmbedUrl(
   const params = new URLSearchParams();
   params.set("rel", "0");
   params.set("modestbranding", "1");
-  if (options?.enableApi) params.set("enablejsapi", "1");
+  if (options?.enableApi) {
+    params.set("enablejsapi", "1");
+    if (options.origin) params.set("origin", options.origin);
+  }
   if (options?.start && options.start > 0) params.set("start", String(Math.floor(options.start)));
   if (options?.autoplay) {
     params.set("autoplay", "1");

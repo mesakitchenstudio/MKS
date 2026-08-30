@@ -18,7 +18,7 @@ export function VideoCard({
   video: ResolvedVideoItem;
   priority?: boolean;
   analyticsSource?: VideoAnalyticsSource;
-  analyticsRecipe?: { slug: string; name: string };
+  analyticsRecipe?: { slug: string; name: string; sourceVideoId?: string };
 }) {
   const playable = Boolean(video.watchUrl);
   const watchLabel = `Watch “${video.title}” on YouTube`;
@@ -28,10 +28,12 @@ export function VideoCard({
     if (analyticsSource === "related_videos") {
       trackVideoEvent("recipe_related_video_click", {
         source: "related_videos",
-        videoId: video.videoId,
+        videoId: analyticsRecipe?.sourceVideoId || video.videoId,
         videoTitle: video.title,
+        relatedVideoId: video.videoId,
         recipeSlug: analyticsRecipe?.slug,
         recipeName: analyticsRecipe?.name,
+        targetRecipeId: video.recipeSlug,
       });
     } else if (analyticsSource === "videos_page") {
       trackVideoEvent("videos_page_video_click", {

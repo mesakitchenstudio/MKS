@@ -3,6 +3,7 @@ import { Fraunces, Source_Sans_3 } from "next/font/google";
 import { AuthSessionProvider } from "@/components/AuthSessionProvider";
 import { AnalyticsBridge } from "@/components/AnalyticsBridge";
 import { AnalyticsScripts } from "@/components/AnalyticsScripts";
+import { FunnelAnalyticsBridge } from "@/components/FunnelAnalyticsBridge";
 import { JsonLd } from "@/components/JsonLd";
 import { PublicChrome } from "@/components/PublicChrome";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -126,6 +127,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <AnalyticsScripts />
         <AnalyticsBridge />
         <AuthSessionProvider>
+          <FunnelAnalyticsBridge />
           <PublicChrome
             hideTools={privateMode}
             recipes={recipes}

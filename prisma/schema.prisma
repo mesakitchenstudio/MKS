@@ -206,6 +206,7 @@ model GuestVisitor {
   userAgent   String         @default("")
   pageViews   GuestPageView[]
   presenceSessions GuestPresenceSession[]
+  funnelEvents FunnelEvent[]
 }
 
 /** Per-tab anonymous heartbeat rows for session-aware Online status. */
@@ -240,6 +241,32 @@ model GuestPageView {
   @@index([visitorId, createdAt])
   @@index([createdAt])
   @@index([path])
+}
+
+/** Website → YouTube funnel interaction events (anonymous guest visitor). */
+model FunnelEvent {
+  id                 String       @id @default(cuid())
+  visitorId          String
+  visitor            GuestVisitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  name               String
+  recipeId           String       @default("")
+  recipeSlug         String       @default("")
+  youtubeVideoId     String       @default("")
+  targetRecipeId     String       @default("")
+  targetVideoId      String       @default("")
+  placement          String       @default("")
+  chapterLabel       String       @default("")
+  chapterTimeSeconds Int?
+  chapterIndex       Int?
+  /// Opaque JSON props bag (no PII).
+  meta               String       @default("{}")
+  createdAt          DateTime     @default(now())
+
+  @@index([createdAt, name])
+  @@index([recipeSlug, createdAt])
+  @@index([youtubeVideoId, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([name, visitorId, recipeSlug, createdAt])
 }
 
 model NewsletterSubscriber {

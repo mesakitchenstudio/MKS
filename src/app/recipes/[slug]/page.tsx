@@ -226,10 +226,15 @@ export default async function RecipePage({ params }: Props) {
             videos={youtube.relatedVideos}
             recipeSlug={recipe.slug}
             recipeName={recipe.title}
+            sourceVideoId={youtube.videoId}
           />
         ) : null}
 
-        <YouTubeSubscribeCTA recipeSlug={recipe.slug} recipeName={recipe.title} />
+        <YouTubeSubscribeCTA
+          recipeSlug={recipe.slug}
+          recipeName={recipe.title}
+          videoId={youtube?.videoId}
+        />
 
         <p className="mt-10 text-sm text-muted">
           Filed under{" "}

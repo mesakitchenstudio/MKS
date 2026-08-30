@@ -17,10 +17,15 @@ export type VideoAnalyticsSource =
 export type VideoAnalyticsPayload = {
   recipeSlug?: string;
   recipeName?: string;
+  recipeId?: string;
   videoId?: string;
   videoTitle?: string;
+  relatedVideoId?: string;
+  targetRecipeId?: string;
   source: VideoAnalyticsSource;
   timestamp?: number;
+  chapterLabel?: string;
+  chapterIndex?: number;
 };
 
 type VideoAnalyticsEvent =
@@ -50,10 +55,15 @@ function toAnalyticsProps(payload: VideoAnalyticsPayload): AnalyticsProperties {
   return {
     recipe_slug: payload.recipeSlug,
     recipe_title: payload.recipeName,
+    recipe_id: payload.recipeId,
     video_id: payload.videoId,
     video_title: payload.videoTitle,
+    related_video_id: payload.relatedVideoId,
+    target_recipe_id: payload.targetRecipeId,
     source: payload.source,
     timestamp: payload.timestamp,
+    chapter_label: payload.chapterLabel,
+    chapter_index: payload.chapterIndex,
   };
 }
 

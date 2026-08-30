@@ -27,11 +27,16 @@ export type AnalyticsEvent =
 export type AnalyticsProperties = {
   recipe_slug?: string;
   recipe_title?: string;
+  recipe_id?: string;
   video_id?: string;
   video_title?: string;
   related_video_id?: string;
+  target_video_id?: string;
+  target_recipe_id?: string;
   source?: string;
   timestamp?: number;
+  chapter_label?: string;
+  chapter_index?: number;
   platform?: string;
   direction?: "increase" | "decrease";
   servings?: number;

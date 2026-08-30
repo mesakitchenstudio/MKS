@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { trackVideoMilestone } from "@/lib/video-analytics";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { trackVideoEvent, trackVideoMilestone } from "@/lib/video-analytics";
 import { youtubeEmbedUrl } from "@/lib/youtube";
+import { loadYouTubeIframeApi, YT_PLAYER_STATE } from "@/lib/youtube-iframe-api";
 
 type Props = {
   videoId: string;
@@ -34,22 +35,34 @@ export function YouTubeEmbedFacade({
   onNearComplete,
   analytics,
 }: Props) {
+  const reactId = useId();
+  const iframeDomId = `mesa-yt-${reactId.replace(/:/g, "")}`;
   const [loaded, setLoaded] = useState(false);
   const playStartedRef = useRef(false);
-  const completeSentRef = useRef(false);
+  const endedSentRef = useRef(false);
+  const playerRef = useRef<{ destroy?: () => void } | null>(null);
+  const onPlayStartRef = useRef(onPlayStart);
+  const onNearCompleteRef = useRef(onNearComplete);
+  const analyticsRef = useRef(analytics);
+
+  useEffect(() => {
+    onPlayStartRef.current = onPlayStart;
+    onNearCompleteRef.current = onNearComplete;
+    analyticsRef.current = analytics;
+  }, [analytics, onNearComplete, onPlayStart]);
+
+  const origin = typeof window !== "undefined" ? window.location.origin : undefined;
   const embed = youtubeEmbedUrl(videoId, {
     autoplay: loaded,
     start: startSeconds,
     enableApi: true,
+    origin,
   });
 
   const beginPlayback = useCallback(() => {
-    if (!playStartedRef.current) {
-      playStartedRef.current = true;
-      onPlayStart?.();
-    }
+    // Load iframe only — PLAYING from the IFrame API records the play event.
     setLoaded(true);
-  }, [onPlayStart]);
+  }, []);
 
   useEffect(() => {
     if (!forceLoad || loaded) return;
@@ -57,9 +70,77 @@ export function YouTubeEmbedFacade({
   }, [beginPlayback, forceLoad, loaded]);
 
   useEffect(() => {
-    if (!loaded || !analytics) return;
+    if (!loaded || !embed) return;
+    let cancelled = false;
+
+    void loadYouTubeIframeApi()
+      .then((YT) => {
+        if (cancelled) return;
+        const el = document.getElementById(iframeDomId);
+        if (!el) return;
+
+        playerRef.current?.destroy?.();
+        playerRef.current = new YT.Player(iframeDomId, {
+          events: {
+            onStateChange: (event) => {
+              if (event.data === YT.PlayerState.PLAYING || event.data === YT_PLAYER_STATE.PLAYING) {
+                if (!playStartedRef.current) {
+                  playStartedRef.current = true;
+                  onPlayStartRef.current?.();
+                }
+              }
+              if (event.data === YT.PlayerState.ENDED || event.data === YT_PLAYER_STATE.ENDED) {
+                if (endedSentRef.current) return;
+                endedSentRef.current = true;
+                const a = analyticsRef.current;
+                if (a) {
+                  trackVideoEvent("recipe_video_complete", {
+                    recipeSlug: a.recipeSlug,
+                    recipeName: a.recipeName,
+                    videoId,
+                    videoTitle: a.videoTitle,
+                    source: "main_embed",
+                  });
+                  // Keep milestone set for Plausible listeners that expect complete.
+                  trackVideoMilestone(100, {
+                    recipeSlug: a.recipeSlug,
+                    recipeName: a.recipeName,
+                    videoId,
+                    videoTitle: a.videoTitle,
+                    source: "main_embed",
+                  });
+                }
+                onNearCompleteRef.current?.();
+              }
+            },
+          },
+        });
+      })
+      .catch(() => {
+        // If the API fails to load, fall back so click-to-load still records a play once.
+        if (!playStartedRef.current) {
+          playStartedRef.current = true;
+          onPlayStartRef.current?.();
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      try {
+        playerRef.current?.destroy?.();
+      } catch {
+        /* ignore */
+      }
+      playerRef.current = null;
+    };
+  }, [embed, iframeDomId, loaded, videoId]);
+
+  // Optional Plausible mid-roll milestones (not used for funnel play/ended).
+  useEffect(() => {
+    if (!loaded || !analytics || !playStartedRef.current) return;
     const started = Date.now();
     const timer = window.setInterval(() => {
+      if (!playStartedRef.current) return;
       const elapsed = (Date.now() - started) / 1000;
       const payload = {
         recipeSlug: analytics.recipeSlug,
@@ -71,18 +152,14 @@ export function YouTubeEmbedFacade({
       if (elapsed >= 15) trackVideoMilestone(25, payload);
       if (elapsed >= 30) trackVideoMilestone(50, payload);
       if (elapsed >= 45) trackVideoMilestone(75, payload);
-      if (elapsed >= 55 && !completeSentRef.current) {
-        completeSentRef.current = true;
-        trackVideoMilestone(100, payload);
-        onNearComplete?.();
-      }
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [analytics, loaded, onNearComplete, videoId]);
+  }, [analytics, loaded, videoId]);
 
   if (loaded && embed) {
     return (
       <iframe
+        id={iframeDomId}
         src={embed}
         title={title}
         className={`h-full w-full ${className}`}

@@ -7,10 +7,12 @@ export function WatchNextPrompt({
   next,
   recipeSlug,
   recipeName,
+  sourceVideoId,
 }: {
   next: RecipeYoutubeRelatedVideo;
   recipeSlug: string;
   recipeName: string;
+  sourceVideoId?: string;
 }) {
   return (
     <div className="mt-4 border border-line bg-cream/50 px-4 py-3">
@@ -24,8 +26,9 @@ export function WatchNextPrompt({
           trackVideoEvent("recipe_related_video_click", {
             recipeSlug,
             recipeName,
-            videoId: next.videoId,
+            videoId: sourceVideoId || next.videoId,
             videoTitle: next.title,
+            relatedVideoId: next.videoId,
             source: "watch_next",
           })
         }

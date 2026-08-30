@@ -62,6 +62,8 @@ export function RecipeVideoChapters() {
                   videoTitle: youtube.title,
                   source: "main_embed_chapter",
                   timestamp: chapter.time,
+                  chapterLabel: chapter.label,
+                  chapterIndex: index,
                 });
                 activate({ start: chapter.time, source: "main_embed" });
                 scrollToVideo();

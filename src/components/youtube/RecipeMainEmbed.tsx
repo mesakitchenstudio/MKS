@@ -58,7 +58,12 @@ export function RecipeMainEmbed() {
       </div>
 
       {showWatchNext && watchNext ? (
-        <WatchNextPrompt next={watchNext} recipeSlug={recipeSlug} recipeName={recipeName} />
+        <WatchNextPrompt
+          next={watchNext}
+          recipeSlug={recipeSlug}
+          recipeName={recipeName}
+          sourceVideoId={youtube.videoId}
+        />
       ) : null}
 
       <RecipeVideoChapters />

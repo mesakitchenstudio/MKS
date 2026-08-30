@@ -23,10 +23,12 @@ export function RelatedYouTubeVideos({
   videos,
   recipeSlug,
   recipeName,
+  sourceVideoId,
 }: {
   videos: RecipeYoutubeRelatedVideo[];
   recipeSlug: string;
   recipeName: string;
+  sourceVideoId?: string;
 }) {
   if (!videos.length) return null;
 
@@ -43,7 +45,7 @@ export function RelatedYouTubeVideos({
             <VideoCard
               video={video}
               analyticsSource="related_videos"
-              analyticsRecipe={{ slug: recipeSlug, name: recipeName }}
+              analyticsRecipe={{ slug: recipeSlug, name: recipeName, sourceVideoId }}
             />
           </li>
         ))}

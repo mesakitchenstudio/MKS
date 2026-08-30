@@ -6,9 +6,11 @@ import { trackEvent } from "@/lib/analytics";
 export function YouTubeSubscribeCTA({
   recipeSlug,
   recipeName,
+  videoId,
 }: {
   recipeSlug?: string;
   recipeName?: string;
+  videoId?: string;
 }) {
   const subscribeUrl = `${site.social.youtube}?sub_confirmation=1`;
 
@@ -26,6 +28,7 @@ export function YouTubeSubscribeCTA({
           trackEvent("recipe_youtube_subscribe_click", {
             recipe_slug: recipeSlug,
             recipe_title: recipeName,
+            video_id: videoId,
             source: "subscribe",
           });
         }}
