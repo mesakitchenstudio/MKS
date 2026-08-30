@@ -144,20 +144,26 @@ export async function loadYoutubeFunnelDashboard(input?: {
     endDate: window.endDate,
     trackingNote:
       `UTC window ${window.startDate} → ${window.endDate} (includes today). ` +
-      "Recipe views / Linked recipe pageviews = raw GuestPageView rows on `/recipes/{slug}` for YouTube-linked published recipes (human UA). " +
-      "Rates use COUNT(DISTINCT mks_guest / visitorId) with a linked-recipe pageview in the period as the denominator (except continued viewing). " +
-      "CTA clicks, embedded plays, and chapters count from FunnelEvent rows since funnel tracking shipped — not confirmed YouTube conversions.",
+      "Linked recipe pageviews = raw GuestPageView rows. " +
+      "Visitor play rate / Visitor YouTube CTR / Visitor Subscribe CTR = unique visitors who did the action ÷ unique linked-recipe visitors (mks_guest). " +
+      "Continued-viewing visitor rate = visitors who interacted with ≥2 distinct videos ÷ visitors with ≥1 video interaction. " +
+      "Raw click/play counts are also shown; rates never use raw pageviews as the denominator.",
     summary,
     summaryDisplay: {
       linkedRecipePageviews: formatFunnelCount(summary.linkedRecipePageviews),
+      uniquePageviewVisitors: formatFunnelCount(summary.uniquePageviewVisitors),
       videoPlays: formatFunnelCount(summary.videoPlays),
+      uniquePlayVisitors: formatFunnelCount(summary.uniquePlayVisitors),
       playRate: formatFunnelRate(summary.playRate),
       chapterClicks: formatFunnelCount(summary.chapterClicks),
       watchOnYoutubeClicks: formatFunnelCount(summary.watchOnYoutubeClicks),
+      uniqueWatchOnYoutubeVisitors: formatFunnelCount(summary.uniqueWatchOnYoutubeVisitors),
       watchOnYoutubeCtr: formatFunnelRate(summary.watchOnYoutubeCtr),
       subscribeCtaClicks: formatFunnelCount(summary.subscribeCtaClicks),
+      uniqueSubscribeVisitors: formatFunnelCount(summary.uniqueSubscribeVisitors),
       subscribeCtr: formatFunnelRate(summary.subscribeCtr),
       continuedViewingSessions: formatFunnelCount(summary.continuedViewingSessions),
+      videoInteractionSessions: formatFunnelCount(summary.videoInteractionSessions),
       continuedViewingRate: formatFunnelRate(summary.continuedViewingRate),
     },
     recipes: recipeRows.map((row) => ({

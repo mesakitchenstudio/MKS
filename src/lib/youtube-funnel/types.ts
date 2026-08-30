@@ -9,14 +9,19 @@ export type YoutubeFunnelDashboard = {
   summary: FunnelSummaryMetrics;
   summaryDisplay: {
     linkedRecipePageviews: string;
+    uniquePageviewVisitors: string;
     videoPlays: string;
+    uniquePlayVisitors: string;
     playRate: string;
     chapterClicks: string;
     watchOnYoutubeClicks: string;
+    uniqueWatchOnYoutubeVisitors: string;
     watchOnYoutubeCtr: string;
     subscribeCtaClicks: string;
+    uniqueSubscribeVisitors: string;
     subscribeCtr: string;
     continuedViewingSessions: string;
+    videoInteractionSessions: string;
     continuedViewingRate: string;
   };
   recipes: Array<
