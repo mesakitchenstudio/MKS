@@ -90,7 +90,7 @@ async function fetchViaWatchPage(
     headers: {
       "Accept-Language": "en-US,en;q=0.9",
       "User-Agent":
-        "Mozilla/5.0 (compatible; MesaKitchenStudio/1.0; +https://mesakitchen.studio)",
+        "Mozilla/5.0 (compatible; MesaKitchenStudio/1.0; +https://mesakitchenstudio.com)",
     },
     next: { revalidate: 3600 },
   });
@@ -107,6 +107,48 @@ async function fetchViaWatchPage(
   };
 }
 
+/** InnerTube player API — more reliable from datacenter IPs than watch-page HTML scraping. */
+async function fetchViaInnerTube(
+  videoId: string,
+): Promise<{ description: string; durationSeconds: number | null } | null> {
+  const response = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
+    },
+    body: JSON.stringify({
+      videoId,
+      context: {
+        client: {
+          clientName: "ANDROID",
+          clientVersion: "19.09.37",
+          androidSdkVersion: 30,
+          hl: "en",
+          gl: "US",
+        },
+      },
+    }),
+    next: { revalidate: 3600 },
+  });
+  if (!response.ok) return null;
+
+  const data = (await response.json()) as {
+    playabilityStatus?: { status?: string };
+    videoDetails?: { shortDescription?: string; lengthSeconds?: string };
+  };
+  if (data.playabilityStatus?.status === "LOGIN_REQUIRED") return null;
+
+  const description = String(data.videoDetails?.shortDescription ?? "").trim();
+  if (!description) return null;
+
+  const lengthSeconds = data.videoDetails?.lengthSeconds;
+  return {
+    description,
+    durationSeconds: lengthSeconds ? Number(lengthSeconds) : null,
+  };
+}
+
 export async function fetchYoutubeVideoDescriptionMeta(
   videoId: string,
 ): Promise<{ description: string; durationSeconds: number | null } | null> {
@@ -118,6 +160,9 @@ export async function fetchYoutubeVideoDescriptionMeta(
     const fromApi = await fetchViaYoutubeDataApi(trimmedId, apiKey);
     if (fromApi?.description) return fromApi;
   }
+
+  const fromInnerTube = await fetchViaInnerTube(trimmedId);
+  if (fromInnerTube?.description) return fromInnerTube;
 
   return fetchViaWatchPage(trimmedId);
 }

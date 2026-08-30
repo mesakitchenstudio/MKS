@@ -1,15 +1,45 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import type { RecipeYoutubeTimestamp } from "@/data/youtube-types";
 import { formatChapterTime } from "@/lib/youtube-metadata-editor";
 import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideo } from "./RecipeVideoContext";
 
-export function RecipeVideoChapters() {
-  const { youtube, recipeSlug, recipeName, activate, scrollToVideo } = useRecipeVideo();
-
-  const chapters = [...(youtube.timestamps ?? [])]
+function normalizeChapters(timestamps: RecipeYoutubeTimestamp[] | undefined) {
+  return [...(timestamps ?? [])]
     .filter((item) => item.label.trim() && item.time >= 0)
     .sort((a, b) => a.time - b.time);
+}
+
+export function RecipeVideoChapters() {
+  const { youtube, recipeSlug, recipeName, activate, scrollToVideo } = useRecipeVideo();
+  const initialChapters = useMemo(
+    () => normalizeChapters(youtube.timestamps),
+    [youtube.timestamps],
+  );
+  const [chapters, setChapters] = useState(initialChapters);
+
+  useEffect(() => {
+    setChapters(initialChapters);
+  }, [initialChapters]);
+
+  useEffect(() => {
+    if (chapters.length || !youtube.videoId) return;
+
+    let cancelled = false;
+    fetch(`/api/youtube/chapters?videoId=${encodeURIComponent(youtube.videoId)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { timestamps?: RecipeYoutubeTimestamp[] } | null) => {
+        if (cancelled || !data?.timestamps?.length) return;
+        setChapters(normalizeChapters(data.timestamps));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chapters.length, youtube.videoId]);
 
   if (!chapters.length) return null;
 

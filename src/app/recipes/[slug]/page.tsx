@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { CollectionRow } from "@/components/CollectionRow";
@@ -20,7 +21,7 @@ import { YouTubeSubscribeCTA } from "@/components/youtube/YouTubeSubscribeCTA";
 import { site } from "@/data/site";
 import { getAdminSession } from "@/lib/auth";
 import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
-import { resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
+import { resolveRecipeYoutube, resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
 import { recipeTocItems } from "@/lib/recipe-sections";
 import { fieldValueHasContent } from "@/lib/field-content";
 import { readerExtraLabel, visibleExtras } from "@/lib/recipe-timing";
@@ -90,6 +91,10 @@ export default async function RecipePage({ params }: Props) {
     fieldValueHasContent(field.value, field.kind),
   );
   const updated = formatGmtDisplay(recipe.updatedAt);
+  const baseYoutube = resolveRecipeYoutube(recipe);
+  if (baseYoutube && !(baseYoutube.timestamps?.length ?? 0)) {
+    await connection();
+  }
   const youtube = await resolveRecipeYoutubeForDisplay(recipe);
 
   const article = (
