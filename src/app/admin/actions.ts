@@ -32,13 +32,10 @@ import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
 import { syncYoutubeChannel } from "@/lib/youtube-data/sync";
-import { applyYoutubeVideoLinkToValues } from "@/lib/youtube-data/recipe-link";
 import {
   clearRecipeYoutubeLinkInDb,
-  findRecipeIdLinkedToVideo,
-  loadSyncedVideoForLink,
 } from "@/lib/youtube-data/video-selector";
-import { buildYoutubeDraftAiMeta } from "@/lib/ai-recipe/classify-recipe-type";
+import { createAndPopulateRecipeFromYoutubeVideo } from "@/lib/youtube-data/create-recipe-from-video";
 import type { RecipeTypeConfidence } from "@/lib/ai-recipe/classify-recipe-type";
 
 async function requireEditor() {
@@ -843,7 +840,6 @@ export async function clearRecipeYoutubeLinkAction(recipeId: string) {
 
 export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
   await requireEditor();
-  const db = getDb();
   const typeId = String(formData.get("typeId") || "").trim();
   const videoId = String(formData.get("videoId") || "").trim();
   const typeSourceRaw = String(formData.get("typeSource") || "manual").trim();
@@ -858,47 +854,29 @@ export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
     redirect(`/admin/youtube/videos/${videoId || ""}?error=missing-recipe-type`);
   }
 
-  const [video, existingLink, recipeType] = await Promise.all([
-    loadSyncedVideoForLink(videoId),
-    findRecipeIdLinkedToVideo(videoId),
-    db.recipeType.findUnique({ where: { id: typeId } }),
-  ]);
-
-  if (!video) redirect(`/admin/youtube/videos/${videoId}?error=video-not-found`);
-  if (!recipeType) redirect(`/admin/youtube/videos/${videoId}?error=invalid-type`);
-  if (existingLink) {
-    redirect(`/admin/youtube/videos/${videoId}?error=already-linked`);
-  }
-
-  const baseTitle = video.title.trim() || "Untitled recipe";
-  let slug = slugify(baseTitle);
-  const slugTaken = await db.recipe.findUnique({ where: { slug } });
-  if (slugTaken) slug = `${slug}-${videoId.slice(0, 6).toLowerCase()}`;
-
-  const values = applyYoutubeVideoLinkToValues({}, video);
-  const aiMeta = buildYoutubeDraftAiMeta({
+  const result = await createAndPopulateRecipeFromYoutubeVideo({
     videoId,
-    recipeTypeSource: typeSource,
-    recipeTypeConfidence: typeSource === "ai" ? confidence : undefined,
-    recipeTypeConfirmed: typeSource === "manual",
+    typeId,
+    typeSource,
+    typeConfidence: confidence,
   });
 
-  const recipe = await db.recipe.create({
-    data: {
-      title: baseTitle,
-      slug,
-      excerpt: "",
-      typeId,
-      status: "draft",
-      featured: false,
-      seasonal: false,
-      publishedAt: null,
-      values: JSON.stringify(values),
-      aiMeta: JSON.stringify(aiMeta),
-    },
-  });
+  if (!result.ok) {
+    redirect(`/admin/youtube/videos/${videoId}?error=${encodeURIComponent(result.code)}`);
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/youtube");
-  redirect(`/admin/recipes/${recipe.id}`);
+  revalidatePath(`/admin/recipes/${result.recipeId}`);
+
+  const params = new URLSearchParams();
+  if (!result.analysisOk) {
+    params.set(
+      "aiNotice",
+      result.analysisMessage ||
+        "Draft created, but AI analysis could not be completed. You can regenerate the analysis or edit the recipe manually.",
+    );
+  }
+  const qs = params.toString();
+  redirect(`/admin/recipes/${result.recipeId}${qs ? `?${qs}` : ""}`);
 }

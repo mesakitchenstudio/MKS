@@ -1,7 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createRecipeFromYoutubeVideoAction } from "@/app/admin/actions";
 import { adminFocusRing, adminPrimaryButtonClass } from "@/lib/admin-ui";
 
 const secondaryBtn =
@@ -12,18 +12,23 @@ type RecipeTypeOption = { id: string; name: string };
 type DetectionState =
   | { phase: "idle" }
   | { phase: "detecting" }
+  | { phase: "creating" }
+  | { phase: "analyzing" }
+  | { phase: "opening" }
   | {
       phase: "ready";
       typeId: string;
       typeName: string;
       confidence: "HIGH" | "MEDIUM";
       reasoning?: string;
-      manual: boolean;
     }
   | {
       phase: "manual";
       message: string;
-    };
+      typeId?: string;
+      typeName?: string;
+    }
+  | { phase: "error"; message: string };
 
 function confidenceLabel(confidence: "HIGH" | "MEDIUM") {
   return confidence === "HIGH" ? "High confidence" : "Medium confidence";
@@ -38,58 +43,144 @@ export function CreateRecipeFromYoutubeVideo({
   recipeTypes: RecipeTypeOption[];
   disabled?: boolean;
 }) {
+  const router = useRouter();
   const [state, setState] = useState<DetectionState>({ phase: "idle" });
   const [typeId, setTypeId] = useState("");
   const [typeSource, setTypeSource] = useState<"ai" | "manual">("manual");
   const [typeConfidence, setTypeConfidence] = useState<"HIGH" | "MEDIUM" | "LOW">("LOW");
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  async function startDetection() {
-    setState({ phase: "detecting" });
+  async function createAndOpen(
+    nextTypeId: string,
+    nextSource: "ai" | "manual",
+    nextConfidence: "HIGH" | "MEDIUM" | "LOW",
+  ) {
+    setBusy(true);
+    setState({ phase: "creating" });
     try {
-      const response = await fetch("/api/admin/youtube/classify-recipe-type", {
+      setState({ phase: "analyzing" });
+      const response = await fetch("/api/admin/youtube/create-recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId }),
+        body: JSON.stringify({
+          step: "create",
+          videoId,
+          typeId: nextTypeId,
+          typeSource: nextSource,
+          typeConfidence: nextConfidence,
+        }),
       });
       const data = (await response.json()) as {
         ok?: boolean;
-        recipeTypeId?: string;
-        recipeTypeName?: string;
-        confidence?: "HIGH" | "MEDIUM" | "LOW";
-        reasoning?: string;
+        recipeId?: string;
+        analysisOk?: boolean;
+        analysisMessage?: string;
         message?: string;
       };
 
-      if (response.ok && data.ok && data.recipeTypeId && data.recipeTypeName && data.confidence) {
-        setTypeId(data.recipeTypeId);
-        setTypeSource("ai");
-        setTypeConfidence(data.confidence);
+      if (!response.ok || !data.ok || !data.recipeId) {
+        setState({
+          phase: "error",
+          message: data.message || "Could not create draft recipe.",
+        });
+        setBusy(false);
+        return;
+      }
+
+      setState({ phase: "opening" });
+      const params = new URLSearchParams();
+      if (data.analysisOk === false) {
+        params.set(
+          "aiNotice",
+          data.analysisMessage ||
+            "Draft created, but AI analysis could not be completed. You can regenerate the analysis or edit the recipe manually.",
+        );
+      }
+      const qs = params.toString();
+      router.push(`/admin/recipes/${data.recipeId}${qs ? `?${qs}` : ""}`);
+    } catch {
+      setState({ phase: "error", message: "Could not create draft recipe." });
+      setBusy(false);
+    }
+  }
+
+  async function startDetection() {
+    if (busy) return;
+    setBusy(true);
+    setState({ phase: "detecting" });
+    try {
+      const response = await fetch("/api/admin/youtube/create-recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: "classify", videoId }),
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        alreadyLinked?: boolean;
+        recipeId?: string;
+        confidence?: "HIGH" | "MEDIUM" | "LOW";
+        recipeTypeId?: string | null;
+        recipeTypeName?: string | null;
+        reasoning?: string | null;
+        message?: string;
+        needsTypeConfirmation?: boolean;
+      };
+
+      if (data.alreadyLinked && data.recipeId) {
+        setState({ phase: "opening" });
+        router.push(`/admin/recipes/${data.recipeId}`);
+        return;
+      }
+
+      if (!response.ok || !data.ok) {
+        setTypeId("");
+        setTypeSource("manual");
+        setTypeConfidence("LOW");
+        setShowTypePicker(true);
+        setState({
+          phase: "manual",
+          message: data.message || "AI could not confidently determine the recipe type.",
+        });
+        setBusy(false);
+        return;
+      }
+
+      if (data.confidence === "HIGH" && data.recipeTypeId) {
+        await createAndOpen(data.recipeTypeId, "ai", "HIGH");
+        return;
+      }
+
+      setTypeId(data.recipeTypeId || "");
+      setTypeSource(data.recipeTypeId ? "ai" : "manual");
+      setTypeConfidence(data.confidence === "MEDIUM" ? "MEDIUM" : "LOW");
+      setBusy(false);
+
+      if (data.confidence === "MEDIUM" && data.recipeTypeId && data.recipeTypeName) {
         setShowTypePicker(false);
         setState({
           phase: "ready",
           typeId: data.recipeTypeId,
           typeName: data.recipeTypeName,
-          confidence: data.confidence === "HIGH" ? "HIGH" : "MEDIUM",
-          reasoning: data.reasoning,
-          manual: false,
+          confidence: "MEDIUM",
+          reasoning: data.reasoning || undefined,
         });
         return;
       }
 
-      setTypeId("");
-      setTypeSource("manual");
-      setTypeConfidence("LOW");
       setShowTypePicker(true);
       setState({
         phase: "manual",
         message: data.message || "AI could not confidently determine the recipe type.",
+        typeId: data.recipeTypeId || undefined,
+        typeName: data.recipeTypeName || undefined,
       });
     } catch {
       setTypeId("");
       setTypeSource("manual");
       setTypeConfidence("LOW");
       setShowTypePicker(true);
+      setBusy(false);
       setState({
         phase: "manual",
         message: "Could not detect recipe type automatically. Select one manually.",
@@ -100,19 +191,12 @@ export function CreateRecipeFromYoutubeVideo({
   function openManualPicker() {
     setShowTypePicker(true);
     setTypeSource("manual");
-    setTypeConfidence("LOW");
-    if (state.phase === "ready") {
-      setState({ ...state, manual: true });
-    }
   }
 
   function onTypeChange(nextTypeId: string) {
     setTypeId(nextTypeId);
     setTypeSource("manual");
     setTypeConfidence("LOW");
-    if (state.phase === "ready") {
-      setState({ ...state, manual: true, typeId: nextTypeId });
-    }
   }
 
   if (disabled) {
@@ -138,6 +222,32 @@ export function CreateRecipeFromYoutubeVideo({
   if (state.phase === "detecting") {
     return <p className="text-sm text-muted">Detecting recipe type…</p>;
   }
+  if (state.phase === "creating") {
+    return <p className="text-sm text-muted">Creating draft…</p>;
+  }
+  if (state.phase === "analyzing") {
+    return <p className="text-sm text-muted">Analyzing video…</p>;
+  }
+  if (state.phase === "opening") {
+    return <p className="text-sm text-muted">Opening recipe…</p>;
+  }
+  if (state.phase === "error") {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-terracotta">{state.message}</p>
+        <button
+          type="button"
+          className={`${secondaryBtn} ${adminFocusRing}`}
+          onClick={() => {
+            setState({ phase: "idle" });
+            setBusy(false);
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   const selectedTypeName =
     recipeTypes.find((type) => type.id === typeId)?.name ||
@@ -158,7 +268,9 @@ export function CreateRecipeFromYoutubeVideo({
         ) : (
           <>
             <p className="mt-2 text-muted">
-              {state.phase === "manual" ? state.message : "Choose the Mesa recipe type for this draft."}
+              {state.phase === "manual"
+                ? state.message
+                : "Confirm or change the Mesa recipe type for this draft."}
             </p>
             <label className="mt-3 grid gap-1">
               <span className="text-xs font-semibold text-ink">Select recipe type</span>
@@ -179,15 +291,12 @@ export function CreateRecipeFromYoutubeVideo({
         )}
       </div>
 
-      <form action={createRecipeFromYoutubeVideoAction} className="flex flex-wrap items-center gap-3">
-        <input type="hidden" name="videoId" value={videoId} />
-        <input type="hidden" name="typeId" value={typeId} />
-        <input type="hidden" name="typeSource" value={typeSource} />
-        <input type="hidden" name="typeConfidence" value={typeConfidence} />
+      <div className="flex flex-wrap items-center gap-3">
         <button
-          type="submit"
-          disabled={!typeId}
+          type="button"
+          disabled={!typeId || busy}
           className={`${adminPrimaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
+          onClick={() => void createAndOpen(typeId, typeSource, typeConfidence)}
         >
           Create draft recipe
         </button>
@@ -203,11 +312,12 @@ export function CreateRecipeFromYoutubeVideo({
             setState({ phase: "idle" });
             setTypeId("");
             setShowTypePicker(false);
+            setBusy(false);
           }}
         >
           Cancel
         </button>
-      </form>
+      </div>
 
       {selectedTypeName && typeId ? (
         <p className="text-xs text-muted">Draft will use the {selectedTypeName} field schema.</p>

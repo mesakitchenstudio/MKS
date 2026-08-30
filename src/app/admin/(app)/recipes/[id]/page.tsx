@@ -11,12 +11,12 @@ export default async function EditRecipePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; aiNotice?: string }>;
 }) {
   await requireAccess("content");
   await ensureRecipeOverviewFields();
   const { id } = await params;
-  const { saved } = await searchParams;
+  const { saved, aiNotice } = await searchParams;
   const db = getDb();
   const [recipe, categories] = await Promise.all([
     db.recipe.findUnique({
@@ -36,6 +36,7 @@ export default async function EditRecipePage({
       typeId={recipe.typeId}
       typeName={recipe.type.name}
       saved={Boolean(saved)}
+      aiNotice={aiNotice ? String(aiNotice) : undefined}
       fields={recipe.type.fields.map((field) => ({
         ...field,
         options: JSON.parse(field.options || "[]") as string[],

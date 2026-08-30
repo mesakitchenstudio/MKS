@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreateRecipeFromYoutubeVideo } from "@/components/admin/CreateRecipeFromYoutubeVideo";
 import { adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
+import { canAccess } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { loadYoutubeVideoDetail } from "@/lib/youtube-data/dashboard";
@@ -15,12 +16,15 @@ export default async function AdminYoutubeVideoPage({
 }: {
   params: Promise<{ videoId: string }>;
 }) {
-  await requireAccess("youtube");
+  const admin = await requireAccess("youtube");
+  const canCreateRecipes = canAccess(admin.role, "content");
   const { videoId } = await params;
   const db = getDb();
   const [detail, recipeTypes] = await Promise.all([
     loadYoutubeVideoDetail(videoId),
-    db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    canCreateRecipes
+      ? db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
+      : Promise.resolve([] as { id: string; name: string }[]),
   ]);
   if (!detail) notFound();
 
@@ -66,11 +70,11 @@ export default async function AdminYoutubeVideoPage({
         </dl>
       </div>
 
-      {!detail.recipe ? (
+      {!detail.recipe && canCreateRecipes ? (
         <section className="rounded-sm border border-line bg-paper px-4 py-4">
           <h2 className="font-serif text-lg text-ink">Create Mesa recipe</h2>
           <p className="mt-1 text-sm text-muted">
-            Start a draft recipe with this YouTube video already linked.
+            Detect the recipe type, create a draft linked to this video, and run AI analysis for review.
           </p>
           <div className="mt-4">
             <CreateRecipeFromYoutubeVideo
@@ -79,6 +83,10 @@ export default async function AdminYoutubeVideoPage({
             />
           </div>
         </section>
+      ) : null}
+
+      {!detail.recipe && !canCreateRecipes ? (
+        <p className="text-sm text-muted">This video is not linked to a Mesa recipe.</p>
       ) : null}
 
       {detail.tags.length > 0 ? (

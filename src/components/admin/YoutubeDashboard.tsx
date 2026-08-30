@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { syncYoutubeAction } from "@/app/admin/actions";
 import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass, adminTableHeadClass } from "@/lib/admin-ui";
 import type { YouTubeVideoRowStatus } from "@/lib/youtube-data/types";
@@ -49,6 +49,34 @@ type HealthSummary = {
   issues: HealthIssue[];
 };
 
+type RecipeTypeOption = { id: string; name: string };
+
+type VideoFilter = "all" | "needs" | "linked";
+
+type RowPhase =
+  | "idle"
+  | "detecting"
+  | "confirm"
+  | "creating"
+  | "analyzing"
+  | "opening"
+  | "error";
+
+type ConfirmState = {
+  videoId: string;
+  confidence: "MEDIUM" | "LOW";
+  typeId: string;
+  typeName?: string;
+  message?: string;
+  reasoning?: string;
+};
+
+const compactLinkBtn =
+  "inline-flex items-center rounded-sm text-xs font-semibold text-terracotta transition-colors duration-150 motion-reduce:transition-none hover:text-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-50";
+
+const secondaryBtn =
+  "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+
 function statusClass(status: YouTubeVideoRowStatus) {
   if (status === "Healthy") return "text-olive";
   if (status === "No recipe") return "text-muted";
@@ -60,12 +88,33 @@ function formatTrend(value: string | null, label: string) {
   return `${value} ${label}`;
 }
 
+function rowStatusLabel(phase: RowPhase, error?: string) {
+  switch (phase) {
+    case "detecting":
+      return "Detecting type…";
+    case "confirm":
+      return "Confirm type…";
+    case "creating":
+      return "Creating recipe…";
+    case "analyzing":
+      return "Analyzing video…";
+    case "opening":
+      return "Opening recipe…";
+    case "error":
+      return error || "Could not create recipe.";
+    default:
+      return null;
+  }
+}
+
 export function YoutubeDashboard({
   channel,
   summary,
-  videos,
+  videos: initialVideos,
   healthSummary,
   canSync,
+  canCreateRecipes = false,
+  recipeTypes = [],
 }: {
   channel: ChannelSummary | null;
   summary: {
@@ -77,12 +126,56 @@ export function YoutubeDashboard({
   videos: VideoRow[];
   healthSummary: HealthSummary;
   canSync: boolean;
+  canCreateRecipes?: boolean;
+  recipeTypes?: RecipeTypeOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [syncMessage, setSyncMessage] = useState("");
   const [syncError, setSyncError] = useState("");
   const [healthOpen, setHealthOpen] = useState(false);
+  const [videos, setVideos] = useState(initialVideos);
+  const [filter, setFilter] = useState<VideoFilter>("all");
+  const [rowPhase, setRowPhase] = useState<Record<string, RowPhase>>({});
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+
+  useEffect(() => {
+    setVideos(initialVideos);
+  }, [initialVideos]);
+
+  const filteredVideos = useMemo(() => {
+    if (filter === "needs") return videos.filter((video) => !video.recipe);
+    if (filter === "linked") return videos.filter((video) => Boolean(video.recipe));
+    return videos;
+  }, [filter, videos]);
+
+  function setPhase(videoId: string, phase: RowPhase, error?: string) {
+    setRowPhase((current) => ({ ...current, [videoId]: phase }));
+    if (error) {
+      setRowError((current) => ({ ...current, [videoId]: error }));
+    } else {
+      setRowError((current) => {
+        const next = { ...current };
+        delete next[videoId];
+        return next;
+      });
+    }
+  }
+
+  function markLinked(videoId: string, recipe: { id: string; slug: string; title: string }) {
+    setVideos((current) =>
+      current.map((video) =>
+        video.videoId === videoId
+          ? {
+              ...video,
+              recipe,
+              status: video.status === "No recipe" ? "Healthy" : video.status,
+            }
+          : video,
+      ),
+    );
+  }
 
   function onSync() {
     setSyncMessage("");
@@ -98,6 +191,127 @@ export function YoutubeDashboard({
         setSyncError(result.error || "YouTube sync failed.");
       }
     });
+  }
+
+  async function createWithType(
+    videoId: string,
+    typeId: string,
+    typeSource: "ai" | "manual",
+    typeConfidence: "HIGH" | "MEDIUM" | "LOW",
+  ) {
+    setConfirm(null);
+    setPhase(videoId, "creating");
+    try {
+      setPhase(videoId, "analyzing");
+      const response = await fetch("/api/admin/youtube/create-recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          step: "create",
+          videoId,
+          typeId,
+          typeSource,
+          typeConfidence,
+        }),
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        recipeId?: string;
+        recipeTitle?: string;
+        recipeSlug?: string;
+        alreadyExisted?: boolean;
+        analysisOk?: boolean;
+        analysisMessage?: string;
+        message?: string;
+      };
+
+      if (!response.ok || !data.ok || !data.recipeId) {
+        setPhase(videoId, "error", data.message || "Could not create recipe.");
+        return;
+      }
+
+      markLinked(videoId, {
+        id: data.recipeId,
+        slug: data.recipeSlug || "",
+        title: data.recipeTitle || "Recipe",
+      });
+      setPhase(videoId, "opening");
+
+      const params = new URLSearchParams();
+      if (data.analysisOk === false) {
+        params.set(
+          "aiNotice",
+          data.analysisMessage ||
+            "Draft created, but AI analysis could not be completed. You can regenerate the analysis or edit the recipe manually.",
+        );
+      }
+      const qs = params.toString();
+      router.push(`/admin/recipes/${data.recipeId}${qs ? `?${qs}` : ""}`);
+    } catch {
+      setPhase(videoId, "error", "Could not create recipe.");
+    }
+  }
+
+  async function startCreate(videoId: string) {
+    if (!canCreateRecipes) return;
+    if (rowPhase[videoId] && rowPhase[videoId] !== "idle" && rowPhase[videoId] !== "error" && rowPhase[videoId] !== "confirm") {
+      return;
+    }
+
+    setPhase(videoId, "detecting");
+    try {
+      const response = await fetch("/api/admin/youtube/create-recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: "classify", videoId }),
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        alreadyLinked?: boolean;
+        recipeId?: string;
+        recipeTitle?: string;
+        recipeSlug?: string;
+        confidence?: "HIGH" | "MEDIUM" | "LOW";
+        recipeTypeId?: string | null;
+        recipeTypeName?: string | null;
+        reasoning?: string | null;
+        message?: string;
+        needsTypeConfirmation?: boolean;
+      };
+
+      if (data.alreadyLinked && data.recipeId) {
+        markLinked(videoId, {
+          id: data.recipeId,
+          slug: data.recipeSlug || "",
+          title: data.recipeTitle || "Recipe",
+        });
+        setPhase(videoId, "opening");
+        router.push(`/admin/recipes/${data.recipeId}`);
+        return;
+      }
+
+      if (!response.ok || !data.ok) {
+        setPhase(videoId, "error", data.message || "Could not detect recipe type.");
+        return;
+      }
+
+      if (data.confidence === "HIGH" && data.recipeTypeId) {
+        await createWithType(videoId, data.recipeTypeId, "ai", "HIGH");
+        return;
+      }
+
+      setConfirm({
+        videoId,
+        confidence: data.confidence === "MEDIUM" ? "MEDIUM" : "LOW",
+        typeId: data.recipeTypeId || "",
+        typeName: data.recipeTypeName || undefined,
+        message: data.message,
+        reasoning: data.reasoning || undefined,
+      });
+      setPhase(videoId, "confirm");
+    } catch {
+      setPhase(videoId, "error", "Could not detect recipe type.");
+    }
   }
 
   return (
@@ -140,7 +354,6 @@ export function YoutubeDashboard({
           ) : (
             <p className="mt-2">Ask an owner to run the first sync.</p>
           )}
-          {channel === null && syncError ? null : null}
         </div>
       ) : (
         <>
@@ -174,7 +387,29 @@ export function YoutubeDashboard({
       )}
 
       <section>
-        <h2 className="font-serif text-xl text-ink">Recent videos</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="font-serif text-xl text-ink">Recent videos</h2>
+          <div className="flex flex-wrap gap-1 rounded-sm border border-line bg-paper p-1 text-xs">
+            {(
+              [
+                ["all", "All videos"],
+                ["needs", "Needs recipe"],
+                ["linked", "Linked to recipe"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                  filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                } ${adminFocusRing}`}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="mt-4 overflow-x-auto rounded-sm border border-line">
           <table className="min-w-full text-left text-sm">
             <thead>
@@ -190,46 +425,162 @@ export function YoutubeDashboard({
               </tr>
             </thead>
             <tbody>
-              {videos.length === 0 ? (
+              {filteredVideos.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-muted">
-                    No synced videos yet.
+                    {videos.length === 0 ? "No synced videos yet." : "No videos match this filter."}
                   </td>
                 </tr>
               ) : (
-                videos.map((video) => (
-                  <tr key={video.videoId} className="border-t border-line/70">
-                    <td className="px-4 py-3">
-                      <Link href={`/admin/youtube/videos/${video.videoId}`} className={`flex min-w-[14rem] items-center gap-3 ${adminLinkClass}`}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={video.thumbnailUrl} alt="" className="h-10 w-[4.5rem] shrink-0 rounded-sm object-cover" />
-                        <span className="line-clamp-2 font-medium text-ink">{video.title}</span>
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted">{video.publishedAt}</td>
-                    <td className="px-4 py-3">{video.viewCount}</td>
-                    <td className="px-4 py-3">{video.likeCount}</td>
-                    <td className="px-4 py-3">{video.commentCount}</td>
-                    <td className="px-4 py-3">{video.views7d}</td>
-                    <td className="px-4 py-3">
-                      {video.recipe ? (
-                        <Link href={`/admin/recipes/${video.recipe.id}`} className={`line-clamp-2 ${adminLinkClass}`}>
-                          {video.recipe.title}
+                filteredVideos.map((video) => {
+                  const phase = rowPhase[video.videoId] || "idle";
+                  const busy =
+                    phase === "detecting" ||
+                    phase === "creating" ||
+                    phase === "analyzing" ||
+                    phase === "opening";
+                  const statusLabel = rowStatusLabel(phase, rowError[video.videoId]);
+
+                  return (
+                    <tr key={video.videoId} className="border-t border-line/70">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/admin/youtube/videos/${video.videoId}`}
+                          className={`flex min-w-[14rem] items-center gap-3 ${adminLinkClass}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={video.thumbnailUrl}
+                            alt=""
+                            className="h-10 w-[4.5rem] shrink-0 rounded-sm object-cover"
+                          />
+                          <span className="line-clamp-2 font-medium text-ink">{video.title}</span>
                         </Link>
-                      ) : (
-                        <Link href={`/admin/youtube/videos/${video.videoId}`} className={adminLinkClass}>
-                          No recipe
-                        </Link>
-                      )}
-                    </td>
-                    <td className={`px-4 py-3 font-semibold ${statusClass(video.status)}`}>{video.status}</td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-3 text-muted">{video.publishedAt}</td>
+                      <td className="px-4 py-3">{video.viewCount}</td>
+                      <td className="px-4 py-3">{video.likeCount}</td>
+                      <td className="px-4 py-3">{video.commentCount}</td>
+                      <td className="px-4 py-3">{video.views7d}</td>
+                      <td className="px-4 py-3">
+                        {video.recipe ? (
+                          <Link
+                            href={`/admin/recipes/${video.recipe.id}`}
+                            className={`line-clamp-2 ${adminLinkClass}`}
+                          >
+                            {video.recipe.title}
+                          </Link>
+                        ) : busy || phase === "confirm" ? (
+                          <p className="text-xs text-muted" role="status">
+                            {statusLabel || "Working…"}
+                          </p>
+                        ) : canCreateRecipes ? (
+                          <div className="space-y-1">
+                            {phase === "error" && rowError[video.videoId] ? (
+                              <p className="text-xs text-terracotta" role="alert">
+                                {rowError[video.videoId]}
+                              </p>
+                            ) : null}
+                            <button
+                              type="button"
+                              className={compactLinkBtn}
+                              disabled={busy}
+                              onClick={() => void startCreate(video.videoId)}
+                            >
+                              + Create recipe
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-muted">No recipe</span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-3 font-semibold ${statusClass(video.status)}`}>
+                        {video.status}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </section>
+
+      {confirm ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="yt-create-recipe-title"
+        >
+          <div className="w-full max-w-md rounded-sm border border-line bg-paper px-5 py-5 shadow-lg">
+            <h3 id="yt-create-recipe-title" className="font-serif text-xl text-ink">
+              Create recipe
+            </h3>
+            {confirm.confidence === "MEDIUM" && confirm.typeName ? (
+              <p className="mt-3 text-sm text-muted">
+                AI suggested recipe type:{" "}
+                <span className="font-semibold text-ink">{confirm.typeName}</span>
+                <span className="mt-1 block text-xs">Confidence: Medium</span>
+              </p>
+            ) : (
+              <p className="mt-3 text-sm text-muted">
+                {confirm.message || "Recipe type could not be determined confidently."}
+              </p>
+            )}
+            {confirm.reasoning ? <p className="mt-2 text-xs text-muted">{confirm.reasoning}</p> : null}
+            <label className="mt-4 grid gap-1 text-sm">
+              <span className="text-xs font-semibold text-ink">Recipe type</span>
+              <select
+                value={confirm.typeId}
+                onChange={(event) =>
+                  setConfirm((current) =>
+                    current ? { ...current, typeId: event.target.value } : current,
+                  )
+                }
+                className="h-10 rounded-sm border border-line bg-paper px-3 text-sm outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
+              >
+                <option value="">Select recipe type…</option>
+                {recipeTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`${adminPrimaryButtonClass} ${adminFocusRing} h-10 px-4`}
+                disabled={!confirm.typeId}
+                onClick={() => {
+                  const typeChanged =
+                    !confirm.typeName ||
+                    recipeTypes.find((type) => type.id === confirm.typeId)?.name !== confirm.typeName;
+                  void createWithType(
+                    confirm.videoId,
+                    confirm.typeId,
+                    typeChanged || confirm.confidence === "LOW" ? "manual" : "ai",
+                    confirm.confidence,
+                  );
+                }}
+              >
+                Create draft recipe
+              </button>
+              <button
+                type="button"
+                className={`${secondaryBtn} ${adminFocusRing}`}
+                onClick={() => {
+                  setPhase(confirm.videoId, "idle");
+                  setConfirm(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <section>
         <h2 className="font-serif text-xl text-ink">Content health</h2>

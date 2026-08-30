@@ -433,6 +433,7 @@ export function RecipeEditor({
   fields,
   categories,
   saved,
+  aiNotice,
 }: {
   recipeId?: string;
   typeId: string;
@@ -451,6 +452,7 @@ export function RecipeEditor({
   fields: Field[];
   categories: CategoryOption[];
   saved?: boolean;
+  aiNotice?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
@@ -1143,6 +1145,15 @@ export function RecipeEditor({
         {categoryIds.map((id) => (
           <input key={id} type="hidden" name="categoryIds" value={id} />
         ))}
+
+        {aiNotice ? (
+          <p
+            className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-3 py-2 text-sm text-terracotta"
+            role="status"
+          >
+            {aiNotice}
+          </p>
+        ) : null}
 
         <AiRecipeAssistant
           typeId={typeId}
