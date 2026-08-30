@@ -60,6 +60,49 @@ test("replace_previous_ai skips human-modified AI fields", () => {
   );
 });
 
+test("replace_previous_ai allows humanModified empty placeholder fields", () => {
+  const meta: RecipeAiMeta = {
+    ...baseMeta,
+    fieldProvenance: {
+      "values.ingredients": {
+        aiGenerated: true,
+        aiGeneratedValue: [{ name: "", items: [] }],
+        humanModifiedAfterGeneration: true,
+      },
+    },
+  };
+  assert.equal(canReplaceFieldOnRegenerate("values.ingredients", meta, true), true);
+  assert.equal(
+    shouldApplyDraftField({
+      path: "values.ingredients",
+      mode: "replace_previous_ai",
+      meta,
+      isEmpty: true,
+    }),
+    true,
+  );
+});
+
+test("noteHumanEditorChange ignores blank ingredient template reshaping", () => {
+  const meta: RecipeAiMeta = {
+    ...baseMeta,
+    fieldProvenance: {
+      "values.ingredients": {
+        aiGenerated: true,
+        aiGeneratedValue: [
+          { name: "", items: [] },
+          { name: "", items: [] },
+        ],
+        humanModifiedAfterGeneration: false,
+      },
+    },
+  };
+  const next = noteHumanEditorChange(meta, "values.ingredients", [
+    { name: "", items: [{ item: "", amount: "", notes: "" }] },
+  ]);
+  assert.equal(next?.fieldProvenance?.["values.ingredients"]?.humanModifiedAfterGeneration, false);
+});
+
 test("replace_previous_ai skips verified recipe fields", () => {
   const meta: RecipeAiMeta = {
     ...baseMeta,

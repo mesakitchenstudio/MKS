@@ -106,72 +106,305 @@ function annotate(
   tallyConfidence(confidence, summary);
 }
 
-function normalizeNamedNotes(value: unknown, path: string, confidenceByPath: Record<string, AiFieldAnnotation>, summary: RecipeAiMeta["summary"]) {
-  if (!Array.isArray(value)) return emptyValue("namedNotes");
-  return value.map((entry, index) => {
-    const row = (entry || {}) as Record<string, unknown>;
-    const confidence = isAiConfidence(row.confidence) ? row.confidence : "UNKNOWN";
-    annotate(`${path}.${index}`, confidence, String(row.sourceNote ?? ""), confidenceByPath, summary);
-    return {
-      name: String(row.name ?? ""),
-      note: String(row.note ?? ""),
-    };
-  });
+/** Peel nested { value, confidence, sourceNote } wrappers models sometimes apply recursively. */
+function unwrapConfidentLayers(raw: unknown, maxDepth = 4): {
+  value: unknown;
+  confidence: AiConfidence;
+  sourceNote: string;
+} {
+  let value: unknown = raw;
+  let confidence: AiConfidence = "UNKNOWN";
+  let sourceNote = "";
+  for (let depth = 0; depth < maxDepth; depth += 1) {
+    const wrapped = readConfident(value);
+    if (!wrapped) break;
+    value = wrapped.value;
+    confidence = wrapped.confidence;
+    sourceNote = wrapped.sourceNote || sourceNote;
+  }
+  return { value, confidence, sourceNote };
 }
 
-function normalizeIngredients(value: unknown, path: string, confidenceByPath: Record<string, AiFieldAnnotation>, summary: RecipeAiMeta["summary"]) {
-  if (!Array.isArray(value)) return emptyValue("ingredients");
-  return value.map((group, groupIndex) => {
-    const row = (group || {}) as { name?: string; items?: unknown[] };
-    const items = Array.isArray(row.items) ? row.items : [];
-    return {
-      name: String(row.name ?? ""),
-      items: items.map((item, itemIndex) => {
-        const line = (item || {}) as Record<string, unknown>;
-        const confidence = isAiConfidence(line.confidence) ? line.confidence : "UNKNOWN";
-        annotate(
-          `${path}.${groupIndex}.items.${itemIndex}`,
-          confidence,
-          String(line.sourceNote ?? ""),
-          confidenceByPath,
-          summary,
-        );
-        const ingredientName = String(line.item ?? line.ingredient ?? "");
-        return {
-          amount: String(line.amount ?? ""),
-          item: ingredientName,
-          notes: String(line.notes ?? ""),
-        };
-      }),
-    };
-  });
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function ingredientLineHasContent(line: { amount: string; item: string; notes: string }) {
+  return Boolean(line.amount.trim() || line.item.trim() || line.notes.trim());
+}
+
+function normalizeIngredientLine(raw: unknown): {
+  amount: string;
+  item: string;
+  notes: string;
+  confidence: AiConfidence;
+  sourceNote: string;
+} | null {
+  const unwrapped = unwrapConfidentLayers(raw);
+  const row = asRecord(unwrapped.value);
+  if (!row) return null;
+
+  const amount = String(row.amount ?? row.quantity ?? row.qty ?? "").trim();
+  const item = String(row.item ?? row.ingredient ?? row.ingredientName ?? "").trim();
+  // Models sometimes put the ingredient name in `name` on a flat line (not a group).
+  const nameAsItem = !item ? String(row.name ?? "").trim() : "";
+  const notes = String(row.notes ?? row.note ?? "").trim();
+  const confidence = isAiConfidence(row.confidence)
+    ? row.confidence
+    : unwrapped.confidence !== "UNKNOWN"
+      ? unwrapped.confidence
+      : "UNKNOWN";
+  const sourceNote = String(row.sourceNote ?? unwrapped.sourceNote ?? "").trim();
+  const normalized = {
+    amount,
+    item: item || nameAsItem,
+    notes,
+    confidence,
+    sourceNote,
+  };
+  if (!ingredientLineHasContent(normalized)) return null;
+  return normalized;
+}
+
+function looksLikeFlatIngredientLine(raw: unknown): boolean {
+  const unwrapped = unwrapConfidentLayers(raw);
+  const row = asRecord(unwrapped.value);
+  if (!row) return false;
+  const hasItemsBag =
+    Array.isArray(row.items) || Array.isArray(row.ingredients) || Array.isArray(row.lines);
+  if (hasItemsBag) return false;
+  return (
+    row.amount != null ||
+    row.quantity != null ||
+    row.qty != null ||
+    row.item != null ||
+    row.ingredient != null ||
+    row.ingredientName != null ||
+    // Flat line using name + amount/quantity
+    ((row.name != null || row.notes != null) &&
+      (row.amount != null || row.quantity != null || row.qty != null))
+  );
+}
+
+function readGroupItems(row: Record<string, unknown>): unknown[] {
+  if (Array.isArray(row.items)) return row.items;
+  if (Array.isArray(row.ingredients)) return row.ingredients;
+  if (Array.isArray(row.lines)) return row.lines;
+  return [];
+}
+
+export type NormalizedIngredientGroup = {
+  name: string;
+  items: { amount: string; item: string; notes: string }[];
+};
+
+export function countNonEmptyIngredientItems(groups: NormalizedIngredientGroup[]): number {
+  return groups.reduce(
+    (sum, group) => sum + group.items.filter((item) => ingredientLineHasContent(item)).length,
+    0,
+  );
+}
+
+/**
+ * Coerce Gemini ingredient payloads into Mesa groups.
+ * Handles flat ingredient lines, alternate keys, and nested confident wrappers.
+ * Never returns stacks of blank placeholder groups.
+ */
+export function normalizeIngredients(
+  value: unknown,
+  path: string,
+  confidenceByPath: Record<string, AiFieldAnnotation>,
+  summary: RecipeAiMeta["summary"],
+): NormalizedIngredientGroup[] {
+  const unwrapped = unwrapConfidentLayers(value);
+  let raw = unwrapped.value;
+
+  // Rare: model returns { groups: [...] } or { ingredients: [...] } instead of a bare array.
+  if (!Array.isArray(raw)) {
+    const bag = asRecord(raw);
+    if (bag) {
+      if (Array.isArray(bag.groups)) raw = bag.groups;
+      else if (Array.isArray(bag.ingredients)) raw = bag.ingredients;
+      else if (Array.isArray(bag.items)) raw = bag.items;
+    }
+  }
+
+  if (!Array.isArray(raw)) return [];
+
+  // Flat list of ingredient lines → one unnamed group.
+  if (raw.length > 0 && raw.every((entry) => looksLikeFlatIngredientLine(entry))) {
+    const items: NormalizedIngredientGroup["items"] = [];
+    for (const entry of raw) {
+      const line = normalizeIngredientLine(entry);
+      if (!line) continue;
+      const itemIndex = items.length;
+      annotate(
+        `${path}.0.items.${itemIndex}`,
+        line.confidence,
+        line.sourceNote,
+        confidenceByPath,
+        summary,
+      );
+      items.push({ amount: line.amount, item: line.item, notes: line.notes });
+    }
+    return items.length ? [{ name: "", items }] : [];
+  }
+
+  const groups: NormalizedIngredientGroup[] = [];
+  for (const entry of raw) {
+    const groupUnwrap = unwrapConfidentLayers(entry);
+    const row = asRecord(groupUnwrap.value);
+    if (!row) continue;
+
+    // Mis-nested flat line inside an otherwise grouped array.
+    if (looksLikeFlatIngredientLine(row)) {
+      const line = normalizeIngredientLine(row);
+      if (!line) continue;
+      if (!groups.length) groups.push({ name: "", items: [] });
+      const groupIndex = groups.length - 1;
+      const itemIndex = groups[groupIndex].items.length;
+      annotate(
+        `${path}.${groupIndex}.items.${itemIndex}`,
+        line.confidence,
+        line.sourceNote,
+        confidenceByPath,
+        summary,
+      );
+      groups[groupIndex].items.push({
+        amount: line.amount,
+        item: line.item,
+        notes: line.notes,
+      });
+      continue;
+    }
+
+    const groupName = String(row.name ?? row.sectionName ?? row.title ?? "").trim();
+    const rawItems = readGroupItems(row);
+    const items: NormalizedIngredientGroup["items"] = [];
+    for (const rawItem of rawItems) {
+      const line = normalizeIngredientLine(rawItem);
+      if (!line) continue;
+      const groupIndex = groups.length;
+      const itemIndex = items.length;
+      annotate(
+        `${path}.${groupIndex}.items.${itemIndex}`,
+        line.confidence,
+        line.sourceNote,
+        confidenceByPath,
+        summary,
+      );
+      items.push({ amount: line.amount, item: line.item, notes: line.notes });
+    }
+
+    if (!items.length && !groupName) continue;
+    if (!items.length) continue; // drop empty named groups too — no blank placeholders
+    groups.push({ name: groupName, items });
+  }
+
+  return groups;
+}
+
+function normalizeNamedNotes(value: unknown, path: string, confidenceByPath: Record<string, AiFieldAnnotation>, summary: RecipeAiMeta["summary"]) {
+  const unwrapped = unwrapConfidentLayers(value);
+  if (!Array.isArray(unwrapped.value)) return [];
+  return unwrapped.value
+    .map((entry, index) => {
+      const layer = unwrapConfidentLayers(entry);
+      const row = asRecord(layer.value) || {};
+      const confidence = isAiConfidence(row.confidence)
+        ? row.confidence
+        : layer.confidence !== "UNKNOWN"
+          ? layer.confidence
+          : "UNKNOWN";
+      annotate(`${path}.${index}`, confidence, String(row.sourceNote ?? layer.sourceNote ?? ""), confidenceByPath, summary);
+      return {
+        name: String(row.name ?? ""),
+        note: String(row.note ?? row.text ?? ""),
+      };
+    })
+    .filter((row) => row.name.trim() || row.note.trim());
 }
 
 function normalizeInstructions(value: unknown, path: string, confidenceByPath: Record<string, AiFieldAnnotation>, summary: RecipeAiMeta["summary"]) {
-  if (!Array.isArray(value)) return emptyValue("instructions");
-  return value.map((group, groupIndex) => {
-    const row = (group || {}) as { name?: string; sectionName?: string | null; steps?: unknown[] };
-    const steps = Array.isArray(row.steps) ? row.steps : [];
-    return {
-      name: String(row.name ?? row.sectionName ?? ""),
-      steps: steps.map((step, stepIndex) => {
-        if (typeof step === "string") {
-          annotate(`${path}.${groupIndex}.steps.${stepIndex}`, "UNKNOWN", "", confidenceByPath, summary);
-          return step;
-        }
-        const line = (step || {}) as Record<string, unknown>;
-        const confidence = isAiConfidence(line.confidence) ? line.confidence : "UNKNOWN";
-        annotate(
-          `${path}.${groupIndex}.steps.${stepIndex}`,
-          confidence,
-          String(line.sourceNote ?? ""),
-          confidenceByPath,
-          summary,
-        );
-        return String(line.text ?? "");
-      }),
-    };
-  });
+  const unwrapped = unwrapConfidentLayers(value);
+  let raw = unwrapped.value;
+
+  // Flat array of step strings / step objects → one section.
+  if (Array.isArray(raw) && raw.length > 0) {
+    const allSteps = raw.every((entry) => {
+      if (typeof entry === "string") return true;
+      const row = asRecord(unwrapConfidentLayers(entry).value);
+      if (!row) return false;
+      return (
+        (row.text != null || row.step != null || row.instruction != null) &&
+        !Array.isArray(row.steps)
+      );
+    });
+    if (allSteps) {
+      const steps = raw
+        .map((entry, stepIndex) => {
+          if (typeof entry === "string") {
+            annotate(`${path}.0.steps.${stepIndex}`, "UNKNOWN", "", confidenceByPath, summary);
+            return entry.trim();
+          }
+          const layer = unwrapConfidentLayers(entry);
+          const line = asRecord(layer.value) || {};
+          const confidence = isAiConfidence(line.confidence)
+            ? line.confidence
+            : layer.confidence !== "UNKNOWN"
+              ? layer.confidence
+              : "UNKNOWN";
+          annotate(
+            `${path}.0.steps.${stepIndex}`,
+            confidence,
+            String(line.sourceNote ?? layer.sourceNote ?? ""),
+            confidenceByPath,
+            summary,
+          );
+          return String(line.text ?? line.step ?? line.instruction ?? "").trim();
+        })
+        .filter(Boolean);
+      return steps.length ? [{ name: "", steps }] : [];
+    }
+  }
+
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((group, groupIndex) => {
+      const groupLayer = unwrapConfidentLayers(group);
+      const row = asRecord(groupLayer.value) || {};
+      const stepsRaw = Array.isArray(row.steps) ? row.steps : [];
+      const steps = stepsRaw
+        .map((step, stepIndex) => {
+          if (typeof step === "string") {
+            annotate(`${path}.${groupIndex}.steps.${stepIndex}`, "UNKNOWN", "", confidenceByPath, summary);
+            return step.trim();
+          }
+          const layer = unwrapConfidentLayers(step);
+          const line = asRecord(layer.value) || {};
+          const confidence = isAiConfidence(line.confidence)
+            ? line.confidence
+            : layer.confidence !== "UNKNOWN"
+              ? layer.confidence
+              : "UNKNOWN";
+          annotate(
+            `${path}.${groupIndex}.steps.${stepIndex}`,
+            confidence,
+            String(line.sourceNote ?? layer.sourceNote ?? ""),
+            confidenceByPath,
+            summary,
+          );
+          return String(line.text ?? line.step ?? line.instruction ?? "").trim();
+        })
+        .filter(Boolean);
+      return {
+        name: String(row.name ?? row.sectionName ?? "").trim(),
+        steps,
+      };
+    })
+    .filter((group) => group.steps.length > 0);
 }
 
 function normalizeNutrition(value: unknown) {
@@ -288,7 +521,12 @@ export function normalizeAiRecipeResponse(input: {
     }
     const wrapped = readConfidentOrRaw(fieldsRaw[field.key]);
     if (!wrapped) {
-      values[field.key] = emptyValue(field.kind);
+      values[field.key] =
+        field.kind === "ingredients" ||
+        field.kind === "instructions" ||
+        field.kind === "namedNotes"
+          ? []
+          : emptyValue(field.kind);
       annotate(`values.${field.key}`, "UNKNOWN", "Missing from model response", confidenceByPath, summary);
       continue;
     }
@@ -301,6 +539,8 @@ export function normalizeAiRecipeResponse(input: {
       summary,
     );
   }
+
+  reconcileStructuredFieldConfidence(values, input.fields, confidenceByPath);
 
   // Reject unknown keys silently (do not pass through)
   for (const key of Object.keys(fieldsRaw)) {
@@ -358,6 +598,45 @@ function reconcileTimingFields(values: Record<string, unknown>, fields: SchemaFi
     if (Math.abs(rise * 60 - rest) <= 5) {
       values.restMinutes = 0;
     }
+  }
+}
+
+/**
+ * VERIFIED/INFERRED structured fields with zero real rows are inconsistent — downgrade.
+ */
+export function reconcileStructuredFieldConfidence(
+  values: Record<string, unknown>,
+  fields: SchemaField[],
+  confidenceByPath: Record<string, AiFieldAnnotation>,
+) {
+  for (const field of fields) {
+    if (
+      field.kind !== "ingredients" &&
+      field.kind !== "instructions" &&
+      field.kind !== "namedNotes"
+    ) {
+      continue;
+    }
+    const path = `values.${field.key}`;
+    const annotation = confidenceByPath[path];
+    if (!annotation) continue;
+    if (
+      annotation.confidence !== "VERIFIED" &&
+      annotation.confidence !== "HIGH_CONFIDENCE_INFERENCE"
+    ) {
+      continue;
+    }
+    if (fieldValueHasContent(values[field.key], field.kind)) continue;
+
+    console.warn(
+      `[ai-recipe] Inconsistent confidence for ${path}: ${annotation.confidence} but zero non-empty rows. Downgrading to UNKNOWN.`,
+    );
+    confidenceByPath[path] = {
+      confidence: "UNKNOWN",
+      sourceNote:
+        annotation.sourceNote?.trim() ||
+        "Model claimed verified/inferred content but no usable structured rows were returned.",
+    };
   }
 }
 

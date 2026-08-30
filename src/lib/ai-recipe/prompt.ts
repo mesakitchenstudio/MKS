@@ -23,6 +23,7 @@ export function buildAiRecipeSystemInstruction() {
     "- Ingredient amounts that are spoken/shown exactly → VERIFIED; guessed amounts → ESTIMATED.",
     "- Instruction steps must map to Mesa instruction sections with name + steps[].text.",
     "- Ingredient lines must use Mesa keys: amount, item, notes (not a separate 'ingredient' key).",
+    "- fields.ingredients MUST be an array of groups: [{ name, items: [{ amount, item, notes, confidence, sourceNote }] }]. Do not return a flat list of ingredient lines at the top level — always nest lines under items[]. Use one group with name \"\" when there is no section heading.",
     "- Always populate fields.intro, fields.ingredients, fields.instructions, fields.prepMinutes, fields.bakeMinutes, fields.cookMinutes, and fields.servings when the video contains recipe information.",
     "- Timing rules:",
     "  • bakeMinutes = oven/baking time only. Use 0 when the recipe is not baked.",

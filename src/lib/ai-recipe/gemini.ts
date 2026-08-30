@@ -44,7 +44,8 @@ const PROMPT_JSON_SUFFIX = [
   "Populate intro, ingredients, instructions, prepMinutes, and servings at minimum.",
   "Each scalar field should use { value, confidence, sourceNote } when possible.",
   "Plain values are also accepted for fields, e.g. fields.intro can be a string or a confident wrapper.",
-  "Ingredient lines use amount, item, notes. Instruction steps use steps[].text.",
+  "Ingredient lines use amount, item, notes nested under group items[] (never a flat top-level ingredient array).",
+  "Instruction steps use steps[].text.",
 ].join("\n");
 
 type GenerationMode = "structured" | "prompt_json";

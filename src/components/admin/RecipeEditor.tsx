@@ -1769,9 +1769,17 @@ function KindInput({
   }
   if (kind === "ingredients") {
     const groups = Array.isArray(value)
-      ? (value as { name?: string; items: { item: string; amount: string; notes?: string }[] }[])
+      ? (value as { name?: string; items?: { item: string; amount: string; notes?: string }[] }[])
       : [];
-    return <IngredientsEditor groups={groups} onChange={onChange} />;
+    return (
+      <IngredientsEditor
+        groups={groups.map((group) => ({
+          name: group.name || "",
+          items: Array.isArray(group.items) ? group.items : [],
+        }))}
+        onChange={onChange}
+      />
+    );
   }
   if (kind === "instructions") {
     const groups = Array.isArray(value) ? (value as { name?: string; steps: string[] }[]) : [];

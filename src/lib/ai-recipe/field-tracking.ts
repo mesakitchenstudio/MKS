@@ -53,7 +53,57 @@ export function noteHumanEditorChange(
   const provenance = meta.fieldProvenance[path];
   if (provenance.humanModifiedAfterGeneration) return meta;
   if (aiValuesEqual(provenance.aiGeneratedValue, nextValue)) return meta;
+
+  // Form hydration / blank-template reshaping of empty structured fields is not a human edit.
+  const previousEmpty = isBlankAiStructuredValue(provenance.aiGeneratedValue);
+  const nextEmpty = isBlankAiStructuredValue(nextValue);
+  if (previousEmpty && nextEmpty) return meta;
+
   return markFieldHumanModified(meta, path);
+}
+
+/** Empty ingredient/instruction/namedNotes placeholders (including stacks of blank groups). */
+function isBlankAiStructuredValue(value: unknown): boolean {
+  if (value == null) return true;
+  if (typeof value === "string") return !value.trim();
+  if (typeof value === "number") return value === 0;
+  if (!Array.isArray(value)) return false;
+  if (value.length === 0) return true;
+
+  // Ingredient groups
+  if (
+    value.every((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const row = entry as { name?: string; items?: unknown[]; steps?: unknown[]; note?: string };
+      if (Array.isArray(row.items)) {
+        return (
+          !String(row.name ?? "").trim() &&
+          row.items.every((item) => {
+            if (!item || typeof item !== "object") return !String(item ?? "").trim();
+            const line = item as { amount?: string; item?: string; notes?: string };
+            return (
+              !String(line.amount ?? "").trim() &&
+              !String(line.item ?? "").trim() &&
+              !String(line.notes ?? "").trim()
+            );
+          })
+        );
+      }
+      if (Array.isArray(row.steps)) {
+        return (
+          !String(row.name ?? "").trim() &&
+          row.steps.every((step) => !String(step ?? "").trim())
+        );
+      }
+      if ("note" in row || "name" in row) {
+        return !String(row.name ?? "").trim() && !String(row.note ?? "").trim();
+      }
+      return false;
+    })
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function isRecipeAiVerified(meta: RecipeAiMeta | null | undefined) {
@@ -63,12 +113,15 @@ export function isRecipeAiVerified(meta: RecipeAiMeta | null | undefined) {
 export function canReplaceFieldOnRegenerate(
   path: string,
   meta: RecipeAiMeta | null | undefined,
+  isEmpty = false,
 ): boolean {
   if (!meta) return false;
   if (isRecipeAiVerified(meta)) return false;
   const provenance = meta.fieldProvenance?.[path];
   if (!provenance?.aiGenerated) return false;
-  return !provenance.humanModifiedAfterGeneration;
+  // Genuine human edits are preserved — blank placeholder "edits" are not.
+  if (provenance.humanModifiedAfterGeneration && !isEmpty) return false;
+  return true;
 }
 
 export function shouldApplyDraftField(input: {
@@ -80,7 +133,7 @@ export function shouldApplyDraftField(input: {
   const { path, mode, meta, isEmpty } = input;
   if (mode === "fill_empty") return isEmpty;
   if (mode === "replace_all_ai_fillable") return true;
-  if (mode === "replace_previous_ai") return canReplaceFieldOnRegenerate(path, meta);
+  if (mode === "replace_previous_ai") return canReplaceFieldOnRegenerate(path, meta, isEmpty);
   return false;
 }
 

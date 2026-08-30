@@ -491,6 +491,251 @@ test("editorHasContent detects typed title", () => {
   );
 });
 
+test("flat Gemini ingredient lines survive normalization as one group", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "Crusty bread tips", confidence: "VERIFIED", sourceNote: "spoken" },
+        prepMinutes: { value: 20, confidence: "VERIFIED", sourceNote: "" },
+        ingredients: {
+          value: [
+            { amount: "500 g", item: "Bread flour", notes: "", confidence: "VERIFIED", sourceNote: "overlay" },
+            { amount: "290 ml", item: "Warm water", notes: "", confidence: "VERIFIED", sourceNote: "overlay" },
+            { amount: "10 g", item: "Salt", notes: "", confidence: "VERIFIED", sourceNote: "overlay" },
+            { amount: "4 g", item: "Active dry yeast", notes: "", confidence: "VERIFIED", sourceNote: "overlay" },
+            { amount: "20 ml", item: "Warm water", notes: "for yeast", confidence: "VERIFIED", sourceNote: "overlay" },
+          ],
+          confidence: "VERIFIED",
+          sourceNote: "Exact quantities displayed on video overlay.",
+        },
+        instructions: {
+          value: [
+            {
+              name: "",
+              steps: [{ text: "Mix 500g bread flour with 290ml warm water.", confidence: "VERIFIED", sourceNote: "" }],
+            },
+          ],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=W_bykMwhJXk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const groups = draft.values.ingredients as { name: string; items: { amount: string; item: string }[] }[];
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].items.length, 5);
+  assert.match(groups[0].items[0].item, /flour/i);
+  assert.match(groups[0].items[0].amount, /500/);
+  assert.equal(draft.confidenceByPath["values.ingredients"]?.confidence, "VERIFIED");
+});
+
+test("grouped ingredients and nested confident item wrappers survive", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "Dough", confidence: "VERIFIED", sourceNote: "" },
+        prepMinutes: { value: 10, confidence: "VERIFIED", sourceNote: "" },
+        ingredients: {
+          value: [
+            {
+              name: "Dough",
+              items: [
+                {
+                  value: { amount: "500 g", item: "Bread flour", notes: "" },
+                  confidence: "VERIFIED",
+                  sourceNote: "overlay",
+                },
+                { quantity: "10 g", ingredient: "Salt", notes: "", confidence: "VERIFIED", sourceNote: "" },
+              ],
+            },
+          ],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+        instructions: {
+          value: [{ name: "", steps: [{ text: "Mix.", confidence: "VERIFIED", sourceNote: "" }] }],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const groups = draft.values.ingredients as { name: string; items: { amount: string; item: string }[] }[];
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].name, "Dough");
+  assert.equal(groups[0].items.length, 2);
+  assert.equal(groups[0].items[0].item, "Bread flour");
+  assert.equal(groups[0].items[1].item, "Salt");
+});
+
+test("blank placeholder ingredient groups are removed", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "x", confidence: "VERIFIED", sourceNote: "" },
+        prepMinutes: { value: 1, confidence: "VERIFIED", sourceNote: "" },
+        ingredients: {
+          value: [
+            { name: "", items: [] },
+            { name: "", items: [{ amount: "", item: "", notes: "" }] },
+            { name: "Dough", items: [{ amount: "1 cup", item: "flour", notes: "" }] },
+          ],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+        instructions: {
+          value: [{ name: "", steps: [{ text: "Mix.", confidence: "VERIFIED", sourceNote: "" }] }],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const groups = draft.values.ingredients as { name: string; items: unknown[] }[];
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].name, "Dough");
+});
+
+test("VERIFIED ingredients with zero rows are downgraded to UNKNOWN", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "x", confidence: "VERIFIED", sourceNote: "" },
+        prepMinutes: { value: 1, confidence: "VERIFIED", sourceNote: "" },
+        ingredients: {
+          value: [
+            { name: "", items: [] },
+            { name: "", items: [{ amount: "", item: "", notes: "" }] },
+          ],
+          confidence: "VERIFIED",
+          sourceNote: "Exact quantities displayed on video overlay.",
+        },
+        instructions: {
+          value: [{ name: "", steps: [{ text: "Mix.", confidence: "VERIFIED", sourceNote: "" }] }],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  assert.deepEqual(draft.values.ingredients, []);
+  assert.equal(draft.confidenceByPath["values.ingredients"]?.confidence, "UNKNOWN");
+});
+
+test("fill_empty merge persists normalized ingredients without blank group inflation", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "Intro", confidence: "VERIFIED", sourceNote: "" },
+        prepMinutes: { value: 15, confidence: "VERIFIED", sourceNote: "" },
+        ingredients: {
+          value: [
+            { amount: "500 g", item: "Bread flour", notes: "" },
+            { amount: "10 g", item: "Salt", notes: "" },
+          ],
+          confidence: "VERIFIED",
+          sourceNote: "overlay",
+        },
+        instructions: {
+          value: [{ name: "", steps: [{ text: "Mix flour and salt.", confidence: "VERIFIED", sourceNote: "" }] }],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=W_bykMwhJXk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const merged = mergeAiDraftIntoEditor(
+    {
+      title: "Why Your Homemade Bread Isn't Crusty",
+      slug: "crusty",
+      excerpt: "",
+      featured: false,
+      seasonal: false,
+      categoryIds: [],
+      values: {
+        intro: "",
+        prepMinutes: 0,
+        ingredients: [
+          { name: "", items: [] },
+          { name: "", items: [] },
+          { name: "", items: [{ item: "", amount: "", notes: "" }] },
+        ],
+        instructions: [{ name: "", steps: [""] }],
+        youtubeUrl: "",
+        image: "",
+      },
+    },
+    draft,
+    fields,
+    "fill_empty",
+  );
+
+  const groups = merged.values.ingredients as { items: { item: string }[] }[];
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].items.length, 2);
+  assert.equal(merged.fieldProvenance?.["values.ingredients"]?.humanModifiedAfterGeneration, false);
+  assert.equal(merged.fieldProvenance?.["values.ingredients"]?.aiGenerated, true);
+
+  // Round-trip: re-merge with replace_previous_ai keeps populated ingredients
+  const again = mergeAiDraftIntoEditor(
+    {
+      title: merged.title,
+      slug: merged.slug,
+      excerpt: merged.excerpt,
+      featured: false,
+      seasonal: false,
+      categoryIds: [],
+      values: merged.values,
+    },
+    draft,
+    fields,
+    "replace_previous_ai",
+    {
+      generatedByAI: true,
+      sourceType: "youtube",
+      sourceUrl: "https://www.youtube.com/watch?v=W_bykMwhJXk",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      model: "test",
+      schemaVersion: "v1",
+      verificationStatus: "unverified",
+      confidenceByPath: draft.confidenceByPath,
+      summary: draft.summary,
+      fieldProvenance: merged.fieldProvenance,
+    },
+  );
+  assert.equal((again.values.ingredients as unknown[]).length, 1);
+});
+
 test("schema version changes when fields change", () => {
   const a = computeRecipeSchemaVersion({
     coreFieldKeys: ["intro"],
