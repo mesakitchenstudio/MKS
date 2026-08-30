@@ -45,7 +45,8 @@ export function buildAnalyticsAuthUrl(input: {
     response_type: "code",
     scope: YT_ANALYTICS_SCOPES.join(" "),
     access_type: "offline",
-    prompt: "consent",
+    // Always show account + consent so Owners can pick the channel-owner Google account.
+    prompt: "select_account consent",
     include_granted_scopes: "true",
     state: input.state,
   });
