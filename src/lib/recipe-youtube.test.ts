@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyDescriptionChaptersToResolvedYoutube,
   hasRecipeYoutube,
   parseRecipeYoutubeBlob,
   resolveRecipeYoutube,
@@ -60,5 +61,28 @@ describe("recipe-youtube", () => {
       youtube: { relatedVideos: [] },
     });
     assert.deepEqual(resolved?.relatedVideos, []);
+  });
+
+  it("applyDescriptionChaptersToResolvedYoutube fills missing timestamps", () => {
+    const base = resolveRecipeYoutube({
+      slug: "soft-stovetop-flatbread",
+      title: "Soft Stovetop Flatbread",
+      youtubeUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
+      youtube: { hook: "Studio walkthrough." },
+    });
+    assert.ok(base);
+    assert.equal(base?.timestamps.length, 0);
+
+    const description = `
+0:00 The Secret to Perfect No-Oven Bread
+0:42 Transforming Texture Through Kneading
+2:17 Shaping and Preparing Your Portions
+3:36 The Pan-Frying Technique
+`.trim();
+
+    const enriched = applyDescriptionChaptersToResolvedYoutube(base!, description, 337);
+    assert.equal(enriched.timestamps.length, 4);
+    assert.equal(enriched.timestamps[1].label, "Transforming Texture Through Kneading");
+    assert.equal(enriched.duration, "05:37");
   });
 });

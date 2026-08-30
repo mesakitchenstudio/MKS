@@ -20,7 +20,7 @@ import { YouTubeSubscribeCTA } from "@/components/youtube/YouTubeSubscribeCTA";
 import { site } from "@/data/site";
 import { getAdminSession } from "@/lib/auth";
 import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
-import { resolveRecipeYoutube } from "@/lib/recipe-youtube";
+import { resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
 import { recipeTocItems } from "@/lib/recipe-sections";
 import { fieldValueHasContent } from "@/lib/field-content";
 import { readerExtraLabel, visibleExtras } from "@/lib/recipe-timing";
@@ -90,7 +90,7 @@ export default async function RecipePage({ params }: Props) {
     fieldValueHasContent(field.value, field.kind),
   );
   const updated = formatGmtDisplay(recipe.updatedAt);
-  const youtube = resolveRecipeYoutube(recipe);
+  const youtube = await resolveRecipeYoutubeForDisplay(recipe);
 
   const article = (
     <>

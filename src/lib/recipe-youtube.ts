@@ -11,7 +11,11 @@ import {
   youtubeWatchUrl,
   youtubeWatchUrlAt,
 } from "@/lib/youtube";
-import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
+import { parseTimestampInput, formatTimestampInput } from "@/lib/youtube-metadata-editor";
+import {
+  fetchYoutubeVideoDescriptionMeta,
+  parseYoutubeDescriptionChapters,
+} from "@/lib/youtube-description";
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -146,6 +150,53 @@ export function resolveRecipeYoutube(recipe: Pick<Recipe, "slug" | "title" | "yo
     timestamps: blob?.timestamps ?? [],
     relatedVideos: blob?.relatedVideos ?? [],
   };
+}
+
+/** Fill missing chapter timestamps from the YouTube description (pure helper for tests). */
+export function applyDescriptionChaptersToResolvedYoutube(
+  youtube: ResolvedRecipeYoutube,
+  description: string,
+  durationSeconds?: number | null,
+): ResolvedRecipeYoutube {
+  if (youtube.timestamps.length > 0) return youtube;
+
+  const chapters = parseYoutubeDescriptionChapters(description);
+  if (!chapters.length) return youtube;
+
+  const duration =
+    youtube.duration ||
+    (durationSeconds != null && durationSeconds > 0
+      ? formatTimestampInput(durationSeconds)
+      : undefined);
+
+  return {
+    ...youtube,
+    duration,
+    timestamps: chapters.map((chapter) => ({
+      time: chapter.time,
+      label: chapter.label,
+    })),
+  };
+}
+
+/** Resolve recipe YouTube metadata, importing description chapters when the DB has none. */
+export async function resolveRecipeYoutubeForDisplay(
+  recipe: Pick<Recipe, "slug" | "title" | "youtubeUrl" | "youtube">,
+): Promise<ResolvedRecipeYoutube | null> {
+  const base = resolveRecipeYoutube(recipe);
+  if (!base || base.timestamps.length > 0) return base;
+
+  try {
+    const meta = await fetchYoutubeVideoDescriptionMeta(base.videoId);
+    if (!meta?.description.trim()) return base;
+    return applyDescriptionChaptersToResolvedYoutube(
+      base,
+      meta.description,
+      meta.durationSeconds,
+    );
+  } catch {
+    return base;
+  }
 }
 
 export function hasRecipeYoutube(recipe: Pick<Recipe, "youtubeUrl" | "youtube">) {
