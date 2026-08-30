@@ -6,6 +6,12 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { syncYoutubeAction } from "@/app/admin/actions";
 import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass, adminTableHeadClass } from "@/lib/admin-ui";
 import type { YouTubeVideoRowStatus } from "@/lib/youtube-data/types";
+import type { YouTubeVideoFormat } from "@/lib/youtube-data/video-format";
+import {
+  parseYoutubeDashboardFilter,
+  youtubeDashboardFilterQueryValue,
+  type YoutubeDashboardVideoFilter,
+} from "@/lib/youtube-data/video-format";
 
 type ChannelSummary = {
   channelId: string;
@@ -31,6 +37,8 @@ type VideoRow = {
   likeCount: string;
   commentCount: string;
   views7d: string;
+  format: YouTubeVideoFormat;
+  formatLabel: string;
   recipe: { id: string; slug: string; title: string } | null;
   status: YouTubeVideoRowStatus;
 };
@@ -51,8 +59,6 @@ type HealthSummary = {
 
 type RecipeTypeOption = { id: string; name: string };
 
-type VideoFilter = "all" | "needs" | "linked";
-
 type RowPhase =
   | "idle"
   | "detecting"
@@ -70,6 +76,14 @@ type ConfirmState = {
   message?: string;
   reasoning?: string;
 };
+
+const FILTER_OPTIONS: { value: YoutubeDashboardVideoFilter; label: string }[] = [
+  { value: "all", label: "All videos" },
+  { value: "long", label: "Long videos" },
+  { value: "shorts", label: "Shorts" },
+  { value: "needs", label: "Needs recipe" },
+  { value: "linked", label: "Linked to recipe" },
+];
 
 const compactLinkBtn =
   "inline-flex items-center rounded-sm text-xs font-semibold text-terracotta transition-colors duration-150 motion-reduce:transition-none hover:text-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-50";
@@ -115,6 +129,7 @@ export function YoutubeDashboard({
   canSync,
   canCreateRecipes = false,
   recipeTypes = [],
+  initialFilter = "all",
 }: {
   channel: ChannelSummary | null;
   summary: {
@@ -122,12 +137,16 @@ export function YoutubeDashboard({
     videosWithoutRecipes: number;
     recipesWithVideo: number;
     recipesWithoutVideo: number;
+    longVideos?: number;
+    shorts?: number;
+    unknownFormat?: number;
   };
   videos: VideoRow[];
   healthSummary: HealthSummary;
   canSync: boolean;
   canCreateRecipes?: boolean;
   recipeTypes?: RecipeTypeOption[];
+  initialFilter?: YoutubeDashboardVideoFilter | string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -135,7 +154,9 @@ export function YoutubeDashboard({
   const [syncError, setSyncError] = useState("");
   const [healthOpen, setHealthOpen] = useState(false);
   const [videos, setVideos] = useState(initialVideos);
-  const [filter, setFilter] = useState<VideoFilter>("all");
+  const [filter, setFilter] = useState<YoutubeDashboardVideoFilter>(() =>
+    parseYoutubeDashboardFilter(initialFilter),
+  );
   const [rowPhase, setRowPhase] = useState<Record<string, RowPhase>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -144,7 +165,20 @@ export function YoutubeDashboard({
     setVideos(initialVideos);
   }, [initialVideos]);
 
+  useEffect(() => {
+    setFilter(parseYoutubeDashboardFilter(initialFilter));
+  }, [initialFilter]);
+
+  function updateFilter(next: YoutubeDashboardVideoFilter) {
+    setFilter(next);
+    const query = youtubeDashboardFilterQueryValue(next);
+    const url = query ? `/admin/youtube?filter=${query}` : "/admin/youtube";
+    router.replace(url, { scroll: false });
+  }
+
   const filteredVideos = useMemo(() => {
+    if (filter === "long") return videos.filter((video) => video.format === "LONG");
+    if (filter === "shorts") return videos.filter((video) => video.format === "SHORT");
     if (filter === "needs") return videos.filter((video) => !video.recipe);
     if (filter === "linked") return videos.filter((video) => Boolean(video.recipe));
     return videos;
@@ -394,22 +428,29 @@ export function YoutubeDashboard({
 
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="font-serif text-xl text-ink">Recent videos</h2>
-          <div className="flex flex-wrap gap-1 rounded-sm border border-line bg-paper p-1 text-xs">
-            {(
-              [
-                ["all", "All videos"],
-                ["needs", "Needs recipe"],
-                ["linked", "Linked to recipe"],
-              ] as const
-            ).map(([value, label]) => (
+          <div>
+            <h2 className="font-serif text-xl text-ink">Recent videos</h2>
+            <p className="mt-1 text-xs text-muted">
+              Long videos: {summary.longVideos ?? 0}
+              <span className="mx-1.5 text-line">·</span>
+              Shorts: {summary.shorts ?? 0}
+              {(summary.unknownFormat ?? 0) > 0 ? (
+                <>
+                  <span className="mx-1.5 text-line">·</span>
+                  Unknown format: {summary.unknownFormat}
+                </>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex max-w-full flex-wrap gap-1 rounded-sm border border-line bg-paper p-1 text-xs">
+            {FILTER_OPTIONS.map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
                 className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
                   filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
                 } ${adminFocusRing}`}
-                onClick={() => setFilter(value)}
+                onClick={() => updateFilter(value)}
               >
                 {label}
               </button>
@@ -422,6 +463,7 @@ export function YoutubeDashboard({
               <tr className={adminTableHeadClass}>
                 <th className="px-4 py-3 font-medium">Video</th>
                 <th className="px-4 py-3 font-medium">Published</th>
+                <th className="px-4 py-3 font-medium">Format</th>
                 <th className="px-4 py-3 font-medium">Views</th>
                 <th className="px-4 py-3 font-medium">Likes</th>
                 <th className="px-4 py-3 font-medium">Comments</th>
@@ -433,7 +475,7 @@ export function YoutubeDashboard({
             <tbody>
               {filteredVideos.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-muted">
+                  <td colSpan={9} className="px-4 py-8 text-muted">
                     {videos.length === 0 ? "No synced videos yet." : "No videos match this filter."}
                   </td>
                 </tr>
@@ -464,6 +506,7 @@ export function YoutubeDashboard({
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-muted">{video.publishedAt}</td>
+                      <td className="px-4 py-3 text-muted">{video.formatLabel}</td>
                       <td className="px-4 py-3">{video.viewCount}</td>
                       <td className="px-4 py-3">{video.likeCount}</td>
                       <td className="px-4 py-3">{video.commentCount}</td>

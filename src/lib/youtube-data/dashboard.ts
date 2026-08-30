@@ -8,12 +8,26 @@ import {
   computeViewsGained,
   formatViewsGainedDisplay,
 } from "@/lib/youtube-data/snapshots";
+import {
+  classifyYouTubeVideoFormat,
+  youtubeVideoFormatLabel,
+  type YouTubeVideoFormat,
+} from "@/lib/youtube-data/video-format";
 
 function formatCount(value: string) {
   try {
     return BigInt(value).toLocaleString("en-US");
   } catch {
     return value;
+  }
+}
+
+function parseTags(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw || "[]") as unknown;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
   }
 }
 
@@ -31,6 +45,8 @@ export async function loadYoutubeAdminDashboard() {
     ? await getChannelTrendDeltas(channel.channelId, 7)
     : { views: null, subscribers: null };
 
+  const formatCounts = { long: 0, shorts: 0, unknown: 0 };
+
   const rows = await Promise.all(
     videos.map(async (video) => {
       const link = byVideoId.get(video.videoId);
@@ -38,6 +54,13 @@ export async function loadYoutubeAdminDashboard() {
       const descriptionChapters = parseYoutubeDescriptionChapters(video.description);
       const hasRecipeChapters = recipe ? recipeHasSavedChapters(recipe) : false;
       const views7d = await getVideoViewsDelta7d(video.videoId);
+      const tags = parseTags(video.tags);
+      const format: YouTubeVideoFormat = classifyYouTubeVideoFormat({
+        title: video.title,
+        description: video.description,
+        tags,
+        durationSeconds: video.durationSeconds,
+      });
 
       return {
         videoId: video.videoId,
@@ -48,6 +71,8 @@ export async function loadYoutubeAdminDashboard() {
         likeCount: formatCount(video.likeCount),
         commentCount: formatCount(video.commentCount),
         views7d: views7d ?? "—",
+        format,
+        formatLabel: youtubeVideoFormatLabel(format),
         recipe: link
           ? { id: link.recipeId, slug: link.recipeSlug, title: link.recipeTitle }
           : null,
@@ -61,6 +86,12 @@ export async function loadYoutubeAdminDashboard() {
       };
     }),
   );
+
+  for (const row of rows) {
+    if (row.format === "LONG") formatCounts.long += 1;
+    else if (row.format === "SHORT") formatCounts.shorts += 1;
+    else formatCounts.unknown += 1;
+  }
 
   const linkedVideoIds = new Set(recipesWithVideo.map((row) => row.videoId));
   const videosWithoutRecipes = videos.filter((video) => !linkedVideoIds.has(video.videoId)).length;
@@ -88,6 +119,9 @@ export async function loadYoutubeAdminDashboard() {
       videosWithoutRecipes,
       recipesWithVideo: recipesWithVideo.length,
       recipesWithoutVideo: publishedIndex.recipesWithoutVideo.length,
+      longVideos: formatCounts.long,
+      shorts: formatCounts.shorts,
+      unknownFormat: formatCounts.unknown,
     },
     videos: rows,
   };

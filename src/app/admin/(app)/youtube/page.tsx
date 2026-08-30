@@ -4,11 +4,17 @@ import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { summarizeYoutubeContentHealth } from "@/lib/youtube-data/health";
 import { loadYoutubeAdminDashboard } from "@/lib/youtube-data/dashboard";
+import { parseYoutubeDashboardFilter } from "@/lib/youtube-data/video-format";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminYoutubePage() {
+export default async function AdminYoutubePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const admin = await requireAccess("youtube");
+  const { filter } = await searchParams;
   const db = getDb();
   const canCreateRecipes = canAccess(admin.role, "content");
   const [dashboard, health, recipeTypes] = await Promise.all([
@@ -28,6 +34,7 @@ export default async function AdminYoutubePage() {
       canSync={canManageYoutubeSync(admin.role)}
       canCreateRecipes={canCreateRecipes}
       recipeTypes={recipeTypes}
+      initialFilter={parseYoutubeDashboardFilter(filter)}
     />
   );
 }
