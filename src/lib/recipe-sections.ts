@@ -1,5 +1,6 @@
 import type { Recipe } from "@/data/types";
 import { fieldValueHasContent } from "@/lib/field-content";
+import type { ExtraField } from "@/lib/recipe-map";
 import { readerExtraLabel, shouldHideRiseHoursExtra } from "@/lib/recipe-timing";
 import { youtubeVideoId } from "@/lib/youtube";
 
