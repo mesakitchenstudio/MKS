@@ -25,6 +25,7 @@ import {
   editorHasContent,
   mergeAiDraftIntoEditor,
 } from "@/lib/ai-recipe/normalize";
+import { noteHumanEditorChange } from "@/lib/ai-recipe/field-tracking";
 import {
   adminFocusRing,
   adminInputClass,
@@ -698,6 +699,27 @@ export function RecipeEditor({
 
   function setField(key: string, value: unknown) {
     setValues((current) => ({ ...current, [key]: value }));
+    setAiMeta((current) => noteHumanEditorChange(current, `values.${key}`, value));
+  }
+
+  function updateTitle(next: string) {
+    setTitle(next);
+    setAiMeta((current) => noteHumanEditorChange(current, "title", next));
+  }
+
+  function updateSlug(next: string) {
+    setSlug(next);
+    setAiMeta((current) => noteHumanEditorChange(current, "slug", next));
+  }
+
+  function updateExcerpt(next: string) {
+    setExcerpt(next);
+    setAiMeta((current) => noteHumanEditorChange(current, "excerpt", next));
+  }
+
+  function updateCategoryIds(next: string[]) {
+    setCategoryIds(next);
+    setAiMeta((current) => noteHumanEditorChange(current, "categoryIds", next));
   }
 
   const formHasContent = useMemo(
@@ -752,10 +774,15 @@ export function RecipeEditor({
       },
       fields,
       payload.mergeMode,
+      aiMeta,
     );
 
     const summary = emptyAiSummary();
-    for (const annotation of Object.values(merged.confidenceByPath)) {
+    const confidenceByPath = {
+      ...(aiMeta?.confidenceByPath ?? {}),
+      ...merged.confidenceByPath,
+    };
+    for (const annotation of Object.values(confidenceByPath)) {
       tallyConfidence(annotation.confidence, summary);
     }
 
@@ -767,7 +794,9 @@ export function RecipeEditor({
     setValues(hydrateEditorValues(fields, merged.values));
     setAiMeta({
       ...payload.meta,
-      confidenceByPath: merged.confidenceByPath,
+      sourceVideoId: payload.meta.sourceVideoId,
+      confidenceByPath,
+      fieldProvenance: merged.fieldProvenance,
       summary,
       verificationStatus: "unverified",
       verifiedAt: undefined,
@@ -833,14 +862,16 @@ export function RecipeEditor({
   }
 
   function toggleCategory(id: string) {
-    setCategoryIds((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
-    );
+    setCategoryIds((current) => {
+      const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
+      setAiMeta((meta) => noteHumanEditorChange(meta, "categoryIds", next));
+      return next;
+    });
   }
 
   function onTitleChange(next: string) {
-    setTitle(next);
-    if (!slugTouched) setSlug(slugify(next));
+    updateTitle(next);
+    if (!slugTouched) updateSlug(slugify(next));
   }
 
   function submitWithStatus(nextStatus: string) {
@@ -1121,6 +1152,9 @@ export function RecipeEditor({
         <AiRecipeAssistant
           typeId={typeId}
           editorHasContent={formHasContent}
+          youtubeUrl={String(values.youtubeUrl ?? "")}
+          onYoutubeUrlChange={(url) => setField("youtubeUrl", url)}
+          aiMeta={aiMeta}
           onApply={applyAiDraft}
         />
 
@@ -1221,7 +1255,7 @@ export function RecipeEditor({
                 value={slug}
                 onChange={(event) => {
                   setSlugTouched(true);
-                  setSlug(event.target.value);
+                  updateSlug(event.target.value);
                 }}
                 className={compactInputClass}
               />
@@ -1237,7 +1271,7 @@ export function RecipeEditor({
               <textarea
                 name="excerpt"
                 value={excerpt}
-                onChange={(event) => setExcerpt(event.target.value)}
+                onChange={(event) => updateExcerpt(event.target.value)}
                 rows={3}
                 className={adminInputClass}
               />

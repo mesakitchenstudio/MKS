@@ -14,16 +14,22 @@ export type AiFieldAnnotation = {
 
 export type AiVerificationStatus = "none" | "unverified" | "verified";
 
+import type { AiFieldProvenance } from "@/lib/ai-recipe/field-tracking";
+
 export type RecipeAiMeta = {
   generatedByAI: boolean;
   sourceType: "youtube";
   sourceUrl: string;
+  /** YouTube video ID from the last successful generation. */
+  sourceVideoId?: string;
   generatedAt: string;
   model: string;
   schemaVersion: string;
   verificationStatus: AiVerificationStatus;
   verifiedAt?: string;
   verifiedBy?: string;
+  /** Field path → AI origin snapshot (title, values.intro, …). */
+  fieldProvenance?: Record<string, AiFieldProvenance>;
   /** Field path → confidence (e.g. title, values.intro, values.ingredients.0.items.1) */
   confidenceByPath: Record<string, AiFieldAnnotation>;
   summary: {
@@ -64,6 +70,7 @@ export function parseRecipeAiMeta(raw: string | null | undefined): RecipeAiMeta 
       generatedByAI: true,
       sourceType: "youtube",
       sourceUrl: String(parsed.sourceUrl || ""),
+      sourceVideoId: parsed.sourceVideoId ? String(parsed.sourceVideoId) : undefined,
       generatedAt: String(parsed.generatedAt || ""),
       model: String(parsed.model || ""),
       schemaVersion: String(parsed.schemaVersion || ""),
@@ -79,6 +86,10 @@ export function parseRecipeAiMeta(raw: string | null | undefined): RecipeAiMeta 
         parsed.confidenceByPath && typeof parsed.confidenceByPath === "object"
           ? (parsed.confidenceByPath as Record<string, AiFieldAnnotation>)
           : {},
+      fieldProvenance:
+        parsed.fieldProvenance && typeof parsed.fieldProvenance === "object"
+          ? (parsed.fieldProvenance as Record<string, AiFieldProvenance>)
+          : undefined,
       summary: {
         verified: Number(parsed.summary?.verified || 0),
         inferred: Number(parsed.summary?.inferred || 0),

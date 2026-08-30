@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { AiMergeMode } from "@/lib/ai-recipe/normalize";
+import { isRecipeAiVerified } from "@/lib/ai-recipe/field-tracking";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { adminFocusRing, adminPrimaryButtonClass } from "@/lib/admin-ui";
+import { youtubeVideoId } from "@/lib/youtube";
 
 type DraftPayload = {
   typeId: string;
@@ -22,6 +24,13 @@ export type AiGenerateApplyPayload = {
   mergeMode: AiMergeMode;
 };
 
+type PendingDraft = {
+  draft: DraftPayload;
+  meta: RecipeAiMeta;
+};
+
+type ApplyDialogKind = "initial" | "regenerate" | null;
+
 const secondaryBtn =
   "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -37,21 +46,51 @@ export function AiRecipeAssistant({
   typeId,
   disabled,
   editorHasContent,
+  youtubeUrl,
+  onYoutubeUrlChange,
+  aiMeta,
   onApply,
 }: {
   typeId: string;
   disabled?: boolean;
   editorHasContent: boolean;
+  youtubeUrl: string;
+  onYoutubeUrlChange: (url: string) => void;
+  aiMeta: RecipeAiMeta | null;
   onApply: (payload: AiGenerateApplyPayload) => void;
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(true);
-  const [youtubeUrl, setYoutubeUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [progressIndex, setProgressIndex] = useState(0);
   const [error, setError] = useState("");
-  const [overwriteOpen, setOverwriteOpen] = useState(false);
-  const [pendingForceRefresh, setPendingForceRefresh] = useState(false);
+  const [applyDialog, setApplyDialog] = useState<ApplyDialogKind>(null);
+  const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);
+  const [destructiveReplaceOpen, setDestructiveReplaceOpen] = useState(false);
+  const [pendingReplaceMode, setPendingReplaceMode] = useState<AiMergeMode | null>(null);
+
+  const currentVideoId = useMemo(() => youtubeVideoId(youtubeUrl.trim()), [youtubeUrl]);
+  const lastVideoId = useMemo(
+    () => aiMeta?.sourceVideoId || youtubeVideoId(aiMeta?.sourceUrl || "") || "",
+    [aiMeta?.sourceVideoId, aiMeta?.sourceUrl],
+  );
+  const hasSuccessfulGeneration = Boolean(aiMeta?.generatedByAI && aiMeta.generatedAt);
+  const isSameSourceVideo = Boolean(
+    hasSuccessfulGeneration && currentVideoId && lastVideoId && currentVideoId === lastVideoId,
+  );
+  const isNewSourceVideo = Boolean(
+    hasSuccessfulGeneration && currentVideoId && lastVideoId && currentVideoId !== lastVideoId,
+  );
+
+  const primaryAction = useMemo(() => {
+    if (isSameSourceVideo) {
+      return { kind: "regenerate" as const, label: "Regenerate" };
+    }
+    if (isNewSourceVideo) {
+      return { kind: "analyze_new" as const, label: "Analyze new video" };
+    }
+    return { kind: "analyze" as const, label: "Analyze video & populate recipe" };
+  }, [isNewSourceVideo, isSameSourceVideo]);
 
   useEffect(() => {
     if (!busy) {
@@ -64,10 +103,16 @@ export function AiRecipeAssistant({
     return () => window.clearInterval(timer);
   }, [busy]);
 
-  async function runGenerate(mergeMode: AiMergeMode, forceRefresh = false) {
+  function closeDialogs() {
+    setApplyDialog(null);
+    setPendingDraft(null);
+    setDestructiveReplaceOpen(false);
+    setPendingReplaceMode(null);
+  }
+
+  async function fetchDraft(forceRefresh: boolean): Promise<PendingDraft | null> {
     setBusy(true);
     setError("");
-    setOverwriteOpen(false);
     try {
       const response = await fetch("/api/admin/recipes/ai-generate", {
         method: "POST",
@@ -90,35 +135,87 @@ export function AiRecipeAssistant({
         const codeSuffix = data.code ? ` Error: ${data.code}` : "";
         const detailSuffix = data.detail ? ` (${data.detail})` : "";
         setError(`${data.error || "Could not generate a recipe draft."}${codeSuffix}${detailSuffix}`);
-        return;
+        return null;
       }
-      onApply({ draft: data.draft, meta: data.meta, mergeMode });
-    } catch (error) {
+      return { draft: data.draft, meta: data.meta };
+    } catch (fetchError) {
       const timedOut =
-        error instanceof TypeError ||
-        (error instanceof Error &&
-          /failed to fetch|network|timeout|aborted/i.test(error.message));
+        fetchError instanceof TypeError ||
+        (fetchError instanceof Error &&
+          /failed to fetch|network|timeout|aborted/i.test(fetchError.message));
       setError(
         timedOut
-          ? "The request timed out while analyzing the video. Try again — the first successful run is cached for faster Regenerate."
+          ? "The request timed out while analyzing the video. Try again in a moment."
           : "Network error while contacting the AI assistant.",
       );
+      return null;
     } finally {
       setBusy(false);
     }
   }
 
-  function onAnalyzeClick(forceRefresh = false) {
+  function applyDraft(draft: PendingDraft, mergeMode: AiMergeMode) {
+    onApply({ draft: draft.draft, meta: draft.meta, mergeMode });
+    closeDialogs();
+  }
+
+  function requestReplaceMode(mode: AiMergeMode) {
+    const needsDestructiveConfirm =
+      mode === "replace_all_ai_fillable" && isRecipeAiVerified(aiMeta);
+    if (needsDestructiveConfirm) {
+      setPendingReplaceMode(mode);
+      setDestructiveReplaceOpen(true);
+      return;
+    }
+    if (!pendingDraft) return;
+    applyDraft(pendingDraft, mode);
+  }
+
+  async function runInitialAnalyze(forceRefresh: boolean) {
     if (!youtubeUrl.trim()) {
       setError("Paste a YouTube cooking-video URL first.");
       return;
     }
+
     if (editorHasContent) {
-      setPendingForceRefresh(forceRefresh);
-      setOverwriteOpen(true);
+      setApplyDialog("initial");
       return;
     }
-    void runGenerate("fill_empty", forceRefresh);
+
+    const draft = await fetchDraft(forceRefresh);
+    if (!draft) return;
+    applyDraft(draft, "fill_empty");
+  }
+
+  async function confirmInitialAnalyze(mergeMode: AiMergeMode) {
+    if (mergeMode === "replace_all_ai_fillable" && isRecipeAiVerified(aiMeta)) {
+      setPendingReplaceMode(mergeMode);
+      setDestructiveReplaceOpen(true);
+      return;
+    }
+    setApplyDialog(null);
+    const draft = await fetchDraft(isNewSourceVideo);
+    if (!draft) return;
+    applyDraft(draft, mergeMode);
+  }
+
+  async function runRegenerate() {
+    if (!youtubeUrl.trim()) {
+      setError("Paste a YouTube cooking-video URL first.");
+      return;
+    }
+    const draft = await fetchDraft(true);
+    if (!draft) return;
+    setPendingDraft(draft);
+    setApplyDialog("regenerate");
+  }
+
+  function onPrimaryClick() {
+    if (primaryAction.kind === "regenerate") {
+      void runRegenerate();
+      return;
+    }
+    void runInitialAnalyze(isNewSourceVideo);
   }
 
   return (
@@ -147,7 +244,7 @@ export function AiRecipeAssistant({
               type="url"
               value={youtubeUrl}
               disabled={busy || disabled}
-              onChange={(event) => setYoutubeUrl(event.target.value)}
+              onChange={(event) => onYoutubeUrlChange(event.target.value)}
               placeholder="https://www.youtube.com/watch?v=..."
               className="h-10 rounded-sm border border-line bg-paper px-3 text-sm font-normal outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
             />
@@ -156,22 +253,27 @@ export function AiRecipeAssistant({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={busy || disabled}
-              onClick={() => onAnalyzeClick(false)}
+              disabled={busy || disabled || !youtubeUrl.trim()}
+              onClick={onPrimaryClick}
               className={`${adminPrimaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              Analyze video & populate recipe
-            </button>
-            <button
-              type="button"
-              disabled={busy || disabled || !youtubeUrl.trim()}
-              onClick={() => onAnalyzeClick(true)}
-              className={`${secondaryBtn} ${adminFocusRing}`}
-              title="Ignore cache and regenerate"
-            >
-              Regenerate
+              {primaryAction.label}
             </button>
           </div>
+
+          {hasSuccessfulGeneration && isSameSourceVideo ? (
+            <p className="mt-2 text-xs text-muted">
+              Regenerate re-analyzes this video and lets you apply a fresh draft without touching fields
+              you edited manually.
+            </p>
+          ) : null}
+
+          {isNewSourceVideo ? (
+            <p className="mt-2 text-xs text-muted">
+              This URL points to a different video than the last successful AI analysis. Use Analyze new
+              video to treat it as a new source.
+            </p>
+          ) : null}
 
           {busy ? (
             <p className="mt-3 flex items-center gap-2 text-sm text-muted" role="status" aria-live="polite">
@@ -193,35 +295,117 @@ export function AiRecipeAssistant({
             AI-generated recipe information must be reviewed before publishing.
           </p>
 
-          {overwriteOpen ? (
+          {applyDialog === "initial" ? (
             <div
               className="mt-4 rounded-sm border border-line bg-cream/50 px-3 py-3"
               role="dialog"
-              aria-label="Overwrite existing recipe fields"
+              aria-label="Apply AI draft to existing recipe"
             >
               <p className="text-sm font-semibold text-ink">This recipe already contains information.</p>
               <p className="mt-1 text-xs text-muted">Choose how to apply the AI draft.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={`${secondaryBtn} ${adminFocusRing}`}
-                  onClick={() => setOverwriteOpen(false)}
-                >
+                <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} onClick={closeDialogs}>
                   Cancel
                 </button>
                 <button
                   type="button"
                   className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-                  onClick={() => void runGenerate("fill_empty", pendingForceRefresh)}
+                  onClick={() => void confirmInitialAnalyze("fill_empty")}
                 >
                   Fill empty fields only
                 </button>
                 <button
                   type="button"
                   className={`${secondaryBtn} ${adminFocusRing}`}
-                  onClick={() => void runGenerate("replace", pendingForceRefresh)}
+                  onClick={() => void confirmInitialAnalyze("replace_all_ai_fillable")}
                 >
-                  Replace AI-fillable fields
+                  Replace all AI-fillable recipe fields
+                </button>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-terracotta">
+                Replace all AI-fillable recipe fields may overwrite existing recipe information in those
+                fields.
+              </p>
+            </div>
+          ) : null}
+
+          {applyDialog === "regenerate" && pendingDraft ? (
+            <div
+              className="mt-4 rounded-sm border border-line bg-cream/50 px-3 py-3"
+              role="dialog"
+              aria-label="Apply regenerated AI draft"
+            >
+              <p className="text-sm font-semibold text-ink">A previous AI draft already exists.</p>
+              <p className="mt-1 text-xs text-muted">Choose how to apply the new analysis.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} onClick={closeDialogs}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                  onClick={() => applyDraft(pendingDraft, "fill_empty")}
+                >
+                  Fill empty fields only
+                </button>
+                <button
+                  type="button"
+                  className={`${secondaryBtn} ${adminFocusRing}`}
+                  onClick={() => requestReplaceMode("replace_previous_ai")}
+                  disabled={isRecipeAiVerified(aiMeta)}
+                >
+                  Replace previous AI-generated fields
+                </button>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-muted">
+                Replace previous AI-generated fields updates only AI-origin values you have not edited
+                manually. Verified recipes keep human-approved values.
+              </p>
+            </div>
+          ) : null}
+
+          {destructiveReplaceOpen && pendingReplaceMode ? (
+            <div
+              className="mt-4 rounded-sm border border-terracotta/40 bg-terracotta/5 px-3 py-3"
+              role="dialog"
+              aria-label="Confirm overwrite of verified recipe information"
+            >
+              <p className="text-sm font-semibold text-ink">Overwrite verified recipe information?</p>
+              <p className="mt-1 text-xs text-muted">
+                This recipe has been marked verified. Replacing AI-fillable fields may overwrite
+                human-approved values.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={`${secondaryBtn} ${adminFocusRing}`}
+                  onClick={() => {
+                    setDestructiveReplaceOpen(false);
+                    setPendingReplaceMode(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                  onClick={() => {
+                    if (pendingDraft && pendingReplaceMode) {
+                      applyDraft(pendingDraft, pendingReplaceMode);
+                      return;
+                    }
+                    void (async () => {
+                      setDestructiveReplaceOpen(false);
+                      setApplyDialog(null);
+                      const draft = await fetchDraft(isNewSourceVideo);
+                      if (draft && pendingReplaceMode) {
+                        applyDraft(draft, pendingReplaceMode);
+                      }
+                      setPendingReplaceMode(null);
+                    })();
+                  }}
+                >
+                  Replace anyway
                 </button>
               </div>
             </div>

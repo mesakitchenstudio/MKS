@@ -10,6 +10,7 @@ import {
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import type { AiGeminiErrorCode } from "@/lib/ai-recipe/errors";
 import { normalizeYouTubeForGemini } from "@/lib/ai-recipe/youtube-url";
+import { youtubeVideoId } from "@/lib/youtube";
 import { getDb } from "@/lib/db";
 
 function mapType(row: {
@@ -236,10 +237,12 @@ function buildMeta(input: {
   schemaVersion: string;
   draft: NormalizedAiDraft;
 }): RecipeAiMeta {
+  const sourceVideoId = youtubeVideoId(input.youtubeUrl) || undefined;
   return {
     generatedByAI: true,
     sourceType: "youtube",
     sourceUrl: input.youtubeUrl,
+    sourceVideoId,
     generatedAt: new Date().toISOString(),
     model: input.model,
     schemaVersion: input.schemaVersion,

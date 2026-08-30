@@ -1,5 +1,11 @@
 import { fieldValueHasContent } from "@/lib/field-content";
 import { emptyValue } from "@/lib/fields";
+import {
+  buildProvenanceSnapshots,
+  collectAppliedPaths,
+  mergeProvenanceAfterApply,
+  shouldApplyDraftField,
+} from "@/lib/ai-recipe/field-tracking";
 import { isAiFillableFieldKey } from "@/lib/ai-recipe/schema-version";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
 import {
@@ -306,7 +312,7 @@ export function normalizeAiRecipeResponse(input: {
   };
 }
 
-export type AiMergeMode = "fill_empty" | "replace";
+export type AiMergeMode = "fill_empty" | "replace_all_ai_fillable" | "replace_previous_ai";
 
 function isEditorValueEmpty(kind: string | undefined, value: unknown) {
   if (!kind) return !String(value ?? "").trim();
@@ -337,6 +343,7 @@ export function mergeAiDraftIntoEditor(
   draft: NormalizedAiDraft,
   fields: SchemaField[],
   mode: AiMergeMode,
+  meta?: RecipeAiMeta | null,
 ): {
   title: string;
   slug: string;
@@ -346,18 +353,21 @@ export function mergeAiDraftIntoEditor(
   categoryIds: string[];
   values: Record<string, unknown>;
   confidenceByPath: Record<string, AiFieldAnnotation>;
+  appliedPaths: string[];
+  fieldProvenance: RecipeAiMeta["fieldProvenance"];
 } {
   const fieldKind = new Map(fields.map((field) => [field.key, field.kind]));
   const nextValues = { ...current.values };
   const confidenceByPath: Record<string, AiFieldAnnotation> = {};
 
   const takeScalar = (
-    path: string,
+    path: "title" | "slug" | "excerpt",
     currentValue: string,
     draftValue: string,
     annotation: AiFieldAnnotation | undefined,
   ) => {
-    if (mode === "replace" || !currentValue.trim()) {
+    const isEmpty = !currentValue.trim();
+    if (shouldApplyDraftField({ path, mode, meta, isEmpty })) {
       if (annotation) confidenceByPath[path] = annotation;
       return draftValue;
     }
@@ -369,7 +379,14 @@ export function mergeAiDraftIntoEditor(
   const excerpt = takeScalar("excerpt", current.excerpt, draft.excerpt, draft.confidenceByPath.excerpt);
 
   let categoryIds = current.categoryIds;
-  if (mode === "replace" || current.categoryIds.length === 0) {
+  if (
+    shouldApplyDraftField({
+      path: "categoryIds",
+      mode,
+      meta,
+      isEmpty: current.categoryIds.length === 0,
+    })
+  ) {
     categoryIds = draft.categoryIds;
     if (draft.confidenceByPath.categoryIds) {
       confidenceByPath.categoryIds = draft.confidenceByPath.categoryIds;
@@ -382,9 +399,8 @@ export function mergeAiDraftIntoEditor(
     const currentValue = current.values[field.key];
     const draftValue = draft.values[field.key];
     const empty = isEditorValueEmpty(fieldKind.get(field.key), currentValue);
-    if (mode === "replace" || empty) {
+    if (shouldApplyDraftField({ path, mode, meta, isEmpty: empty })) {
       nextValues[field.key] = draftValue;
-      // Copy related nested annotations
       for (const [key, annotation] of Object.entries(draft.confidenceByPath)) {
         if (key === path || key.startsWith(`${path}.`)) {
           confidenceByPath[key] = annotation;
@@ -393,7 +409,7 @@ export function mergeAiDraftIntoEditor(
     }
   }
 
-  return {
+  const merged = {
     title,
     slug,
     excerpt,
@@ -401,6 +417,38 @@ export function mergeAiDraftIntoEditor(
     seasonal: current.seasonal,
     categoryIds,
     values: nextValues,
+  };
+
+  const appliedPaths = collectAppliedPaths({
+    mode,
+    meta,
+    fields,
+    before: current,
+    after: merged,
+    fieldKind,
+    isEmpty: (_path, value, kind) => isEditorValueEmpty(kind, value),
+  });
+
+  const nextSnapshots = buildProvenanceSnapshots({
+    title: merged.title,
+    slug: merged.slug,
+    excerpt: merged.excerpt,
+    categoryIds: merged.categoryIds,
+    values: merged.values,
+    fields,
+  });
+
+  const fieldProvenance = mergeProvenanceAfterApply({
+    previous: meta,
+    mode,
+    appliedPaths,
+    nextSnapshots,
+  });
+
+  return {
+    ...merged,
     confidenceByPath,
+    appliedPaths,
+    fieldProvenance,
   };
 }

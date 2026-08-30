@@ -169,6 +169,75 @@ test("fill_empty merge keeps manual title", () => {
   assert.equal(merged.slug, "ai-title");
 });
 
+test("replace_previous_ai keeps human-edited AI field on regenerate", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: {
+      recipeTypeId: "type-1",
+      title: { value: "AI Title", confidence: "VERIFIED", sourceNote: "" },
+      slug: { value: "ai-title", confidence: "ESTIMATED", sourceNote: "" },
+      excerpt: { value: "AI excerpt", confidence: "ESTIMATED", sourceNote: "" },
+      featured: { value: false, confidence: "VERIFIED", sourceNote: "" },
+      seasonal: { value: false, confidence: "VERIFIED", sourceNote: "" },
+      categoryIds: { value: [], confidence: "UNKNOWN", sourceNote: "" },
+      fields: {
+        intro: { value: "AI intro", confidence: "VERIFIED", sourceNote: "" },
+        prepMinutes: { value: 25, confidence: "VERIFIED", sourceNote: "" },
+      },
+      insufficientRecipeInformation: false,
+      insufficientReason: "",
+    },
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const meta: import("./types").RecipeAiMeta = {
+    generatedByAI: true,
+    sourceType: "youtube",
+    sourceUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    sourceVideoId: "abcdefghijk",
+    generatedAt: "2026-01-01T00:00:00.000Z",
+    model: "gemini-test",
+    schemaVersion: "v1",
+    verificationStatus: "unverified",
+    confidenceByPath: {},
+    summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
+    fieldProvenance: {
+      "values.prepMinutes": {
+        aiGenerated: true,
+        aiGeneratedValue: 20,
+        humanModifiedAfterGeneration: true,
+      },
+      "values.intro": {
+        aiGenerated: true,
+        aiGeneratedValue: "",
+        humanModifiedAfterGeneration: false,
+      },
+    },
+  };
+
+  const merged = mergeAiDraftIntoEditor(
+    {
+      title: "Manual Title",
+      slug: "manual-title",
+      excerpt: "",
+      featured: false,
+      seasonal: false,
+      categoryIds: [],
+      values: { intro: "", prepMinutes: 30, youtubeUrl: "", image: "", riseHours: 0 },
+    },
+    draft,
+    fields,
+    "replace_previous_ai",
+    meta,
+  );
+
+  assert.equal(merged.values.prepMinutes, 30);
+  assert.equal(merged.values.intro, "AI intro");
+});
+
 test("editorHasContent detects typed title", () => {
   assert.equal(
     editorHasContent({

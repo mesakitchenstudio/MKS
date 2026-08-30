@@ -1,0 +1,197 @@
+import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
+import type { AiMergeMode } from "@/lib/ai-recipe/normalize";
+import { isAiFillableFieldKey } from "@/lib/ai-recipe/schema-version";
+import type { SchemaField } from "@/lib/ai-recipe/schema-version";
+
+export type AiFieldProvenance = {
+  aiGenerated: true;
+  aiGeneratedValue: unknown;
+  humanModifiedAfterGeneration: boolean;
+};
+
+export function stableJsonValue(value: unknown): string {
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return String(value);
+  }
+}
+
+export function aiValuesEqual(a: unknown, b: unknown): boolean {
+  return stableJsonValue(a) === stableJsonValue(b);
+}
+
+export function markFieldHumanModified(
+  meta: RecipeAiMeta | null,
+  path: string,
+): RecipeAiMeta | null {
+  if (!meta?.fieldProvenance?.[path]) return meta;
+  if (meta.fieldProvenance[path].humanModifiedAfterGeneration) return meta;
+  return {
+    ...meta,
+    fieldProvenance: {
+      ...meta.fieldProvenance,
+      [path]: {
+        ...meta.fieldProvenance[path],
+        humanModifiedAfterGeneration: true,
+      },
+    },
+  };
+}
+
+export function noteHumanEditorChange(
+  meta: RecipeAiMeta | null,
+  path: string,
+  nextValue: unknown,
+): RecipeAiMeta | null {
+  if (!meta?.fieldProvenance?.[path]) return meta;
+  const provenance = meta.fieldProvenance[path];
+  if (provenance.humanModifiedAfterGeneration) return meta;
+  if (aiValuesEqual(provenance.aiGeneratedValue, nextValue)) return meta;
+  return markFieldHumanModified(meta, path);
+}
+
+export function isRecipeAiVerified(meta: RecipeAiMeta | null | undefined) {
+  return meta?.verificationStatus === "verified";
+}
+
+export function canReplaceFieldOnRegenerate(
+  path: string,
+  meta: RecipeAiMeta | null | undefined,
+): boolean {
+  if (!meta) return false;
+  if (isRecipeAiVerified(meta)) return false;
+  const provenance = meta.fieldProvenance?.[path];
+  if (!provenance?.aiGenerated) return false;
+  return !provenance.humanModifiedAfterGeneration;
+}
+
+export function shouldApplyDraftField(input: {
+  path: string;
+  mode: AiMergeMode;
+  meta: RecipeAiMeta | null | undefined;
+  isEmpty: boolean;
+}): boolean {
+  const { path, mode, meta, isEmpty } = input;
+  if (mode === "fill_empty") return isEmpty;
+  if (mode === "replace_all_ai_fillable") return true;
+  if (mode === "replace_previous_ai") return canReplaceFieldOnRegenerate(path, meta);
+  return false;
+}
+
+export function buildProvenanceSnapshots(input: {
+  title: string;
+  slug: string;
+  excerpt: string;
+  categoryIds: string[];
+  values: Record<string, unknown>;
+  fields: SchemaField[];
+}): Record<string, AiFieldProvenance> {
+  const snapshots: Record<string, AiFieldProvenance> = {};
+
+  const add = (path: string, value: unknown) => {
+    snapshots[path] = {
+      aiGenerated: true,
+      aiGeneratedValue: value,
+      humanModifiedAfterGeneration: false,
+    };
+  };
+
+  add("title", input.title);
+  add("slug", input.slug);
+  add("excerpt", input.excerpt);
+  add("categoryIds", input.categoryIds);
+
+  for (const field of input.fields) {
+    if (!isAiFillableFieldKey(field.key)) continue;
+    add(`values.${field.key}`, input.values[field.key]);
+  }
+
+  return snapshots;
+}
+
+export function mergeProvenanceAfterApply(input: {
+  previous: RecipeAiMeta | null | undefined;
+  mode: AiMergeMode;
+  appliedPaths: string[];
+  nextSnapshots: Record<string, AiFieldProvenance>;
+}): Record<string, AiFieldProvenance> {
+  const merged: Record<string, AiFieldProvenance> = { ...(input.previous?.fieldProvenance ?? {}) };
+
+  for (const path of input.appliedPaths) {
+    const snapshot = input.nextSnapshots[path];
+    if (snapshot) {
+      merged[path] = snapshot;
+    }
+  }
+
+  if (input.mode === "replace_all_ai_fillable") {
+    return { ...input.nextSnapshots };
+  }
+
+  return merged;
+}
+
+export function collectAppliedPaths(input: {
+  mode: AiMergeMode;
+  meta: RecipeAiMeta | null | undefined;
+  fields: SchemaField[];
+  before: {
+    title: string;
+    slug: string;
+    excerpt: string;
+    categoryIds: string[];
+    values: Record<string, unknown>;
+  };
+  after: {
+    title: string;
+    slug: string;
+    excerpt: string;
+    categoryIds: string[];
+    values: Record<string, unknown>;
+  };
+  isEmpty: (path: string, value: unknown, kind?: string) => boolean;
+  fieldKind: Map<string, string>;
+}): string[] {
+  const paths: string[] = [];
+  const scalarPaths = ["title", "slug", "excerpt"] as const;
+
+  for (const path of scalarPaths) {
+    const value = input.after[path];
+    const empty = !String(input.before[path] ?? "").trim();
+    if (
+      shouldApplyDraftField({ path, mode: input.mode, meta: input.meta, isEmpty: empty }) &&
+      !aiValuesEqual(input.before[path], value)
+    ) {
+      paths.push(path);
+    }
+  }
+
+  const categoriesEmpty = input.before.categoryIds.length === 0;
+  if (
+    shouldApplyDraftField({
+      path: "categoryIds",
+      mode: input.mode,
+      meta: input.meta,
+      isEmpty: categoriesEmpty,
+    }) &&
+    !aiValuesEqual(input.before.categoryIds, input.after.categoryIds)
+  ) {
+    paths.push("categoryIds");
+  }
+
+  for (const field of input.fields) {
+    if (!isAiFillableFieldKey(field.key)) continue;
+    const path = `values.${field.key}`;
+    const kind = input.fieldKind.get(field.key);
+    const empty = input.isEmpty(path, input.before.values[field.key], kind);
+    if (
+      shouldApplyDraftField({ path, mode: input.mode, meta: input.meta, isEmpty: empty }) &&
+      !aiValuesEqual(input.before.values[field.key], input.after.values[field.key])
+    ) {
+      paths.push(path);
+    }
+  }
+
+  return paths;
+}
