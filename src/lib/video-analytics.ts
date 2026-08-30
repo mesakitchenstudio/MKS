@@ -15,7 +15,8 @@ export type VideoAnalyticsSource =
   | "playlist"
   | "subscribe"
   | "end_of_recipe"
-  | "post_video_subscribe";
+  | "post_video_subscribe"
+  | "series_page";
 
 export type VideoAnalyticsPayload = {
   recipeSlug?: string;

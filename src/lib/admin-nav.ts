@@ -39,6 +39,7 @@ export function buildAdminNavSections(role: AccessLevel): AdminNavSection[] {
         { href: "/admin", label: "Recipes", match: "recipes-index" },
         { href: "/admin/types", label: "Recipe types" },
         { href: "/admin/categories", label: "Categories" },
+        { href: "/admin/series", label: "Series" },
       ],
     });
     sections.push({
@@ -82,6 +83,7 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (
     pathname === "/admin" ||
     pathname.startsWith("/admin/recipes") ||
+    pathname.startsWith("/admin/series") ||
     pathname.startsWith("/admin/members") ||
     pathname.startsWith("/admin/visitors") ||
     pathname.startsWith("/admin/youtube")

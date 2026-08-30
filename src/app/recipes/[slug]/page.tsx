@@ -29,6 +29,8 @@ import { recipeJsonLd } from "@/lib/schema";
 import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
 import { getWatchNextRecommendation } from "@/lib/youtube-data/watch-next";
+import { getSeriesLinksForRecipeSlug } from "@/lib/series";
+import { RecipeSeriesLinks } from "@/components/series/RecipeSeriesLinks";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -74,10 +76,11 @@ export default async function RecipePage({ params }: Props) {
   const recipe = await getRecipeBySlug(slug);
   if (!recipe) notFound();
 
-  const [related, session, admin] = await Promise.all([
+  const [related, session, admin, seriesLinks] = await Promise.all([
     getRelatedRecipes(recipe),
     auth(),
     getAdminSession(),
+    getSeriesLinksForRecipeSlug(recipe.slug),
   ]);
   const canStaffReply =
     Boolean(admin && canManageRecipeReviewReplies(admin.role)) ||
@@ -229,6 +232,8 @@ export default async function RecipePage({ params }: Props) {
           defaultName={session?.user?.name ?? ""}
           defaultEmail={session?.user?.email ?? ""}
         />
+
+        <RecipeSeriesLinks links={seriesLinks} />
 
         {youtube?.relatedVideos?.length ? (
           <RelatedYouTubeVideos

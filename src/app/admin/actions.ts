@@ -904,3 +904,161 @@ export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
   const qs = params.toString();
   redirect(`/admin/recipes/${result.recipeId}${qs ? `?${qs}` : ""}`);
 }
+
+type SeriesItemPayload = {
+  recipeId?: string;
+  youtubeVideoId?: string;
+  customTitle?: string;
+  customDescription?: string;
+  featured?: boolean;
+};
+
+function parseSeriesItemsJson(raw: string): SeriesItemPayload[] {
+  try {
+    const parsed = JSON.parse(raw || "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => {
+      const row = item as SeriesItemPayload;
+      return {
+        recipeId: String(row.recipeId || "").trim(),
+        youtubeVideoId: String(row.youtubeVideoId || "").trim(),
+        customTitle: String(row.customTitle || "").trim(),
+        customDescription: String(row.customDescription || "").trim(),
+        featured: Boolean(row.featured),
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function saveSeriesAction(formData: FormData) {
+  await requireEditor();
+  const db = getDb();
+  const id = String(formData.get("id") || "").trim();
+  const title = String(formData.get("title") || "").trim();
+  const shortTitle = String(formData.get("shortTitle") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const intro = String(formData.get("intro") || "").trim();
+  const heroImage = String(formData.get("heroImage") || "").trim();
+  const seoTitle = String(formData.get("seoTitle") || "").trim();
+  const seoDescription = String(formData.get("seoDescription") || "").trim();
+  const youtubePlaylistId = String(formData.get("youtubePlaylistId") || "").trim();
+  const isPublished = String(formData.get("isPublished") || "") === "1";
+  const sortOrder = Number(formData.get("sortOrder") || 0) || 0;
+  const items = parseSeriesItemsJson(String(formData.get("itemsJson") || "[]")).filter(
+    (item) => item.recipeId || item.youtubeVideoId,
+  );
+
+  if (!title) {
+    redirect(id ? `/admin/series/${id}?error=missing-title` : "/admin/series/new?error=missing-title");
+  }
+
+  let featuredSeen = false;
+  const normalizedItems = items.map((item, index) => {
+    let featured = Boolean(item.featured);
+    if (featured && featuredSeen) featured = false;
+    if (featured) featuredSeen = true;
+    return {
+      recipeId: item.recipeId || null,
+      youtubeVideoId: item.youtubeVideoId || null,
+      customTitle: item.customTitle || "",
+      customDescription: item.customDescription || "",
+      featured,
+      sortOrder: index,
+    };
+  });
+
+  // Validate FKs exist so broken refs do not crash saves
+  for (const item of normalizedItems) {
+    if (item.recipeId) {
+      const ok = await db.recipe.findUnique({ where: { id: item.recipeId }, select: { id: true } });
+      if (!ok) item.recipeId = null;
+    }
+    if (item.youtubeVideoId) {
+      const ok = await db.youTubeVideo.findUnique({
+        where: { videoId: item.youtubeVideoId },
+        select: { videoId: true },
+      });
+      if (!ok) item.youtubeVideoId = null;
+    }
+  }
+  const validItems = normalizedItems.filter((item) => item.recipeId || item.youtubeVideoId);
+
+  if (id) {
+    const existing = await db.series.findUnique({ where: { id } });
+    if (!existing) redirect("/admin/series");
+    await db.$transaction(async (tx) => {
+      await tx.seriesItem.deleteMany({ where: { seriesId: id } });
+      await tx.series.update({
+        where: { id },
+        data: {
+          title,
+          slug: existing.slug,
+          shortTitle,
+          description,
+          intro,
+          heroImage,
+          seoTitle,
+          seoDescription,
+          youtubePlaylistId,
+          isPublished,
+          sortOrder,
+          items: {
+            create: validItems,
+          },
+        },
+      });
+    });
+    revalidatePath("/admin/series");
+    revalidatePath(`/admin/series/${id}`);
+    revalidatePath("/series");
+    revalidatePath(`/series/${existing.slug}`);
+    redirect(`/admin/series/${id}?saved=1`);
+  }
+
+  const slug = slugify(String(formData.get("slug") || title));
+  if (!slug) redirect("/admin/series/new?error=invalid-slug");
+
+  try {
+    const created = await db.series.create({
+      data: {
+        title,
+        slug,
+        shortTitle,
+        description,
+        intro,
+        heroImage,
+        seoTitle,
+        seoDescription,
+        youtubePlaylistId,
+        isPublished,
+        sortOrder,
+        items: { create: validItems },
+      },
+    });
+    revalidatePath("/admin/series");
+    revalidatePath("/series");
+    if (isPublished) revalidatePath(`/series/${created.slug}`);
+    redirect(`/admin/series/${created.id}?saved=1`);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      redirect("/admin/series/new?error=duplicate-slug");
+    }
+    throw error;
+  }
+}
+
+export async function deleteSeriesAction(formData: FormData) {
+  await requireEditor();
+  const db = getDb();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) redirect("/admin/series");
+  const existing = await db.series.findUnique({ where: { id }, select: { slug: true } });
+  if (!existing) redirect("/admin/series");
+  await db.series.delete({ where: { id } });
+  revalidatePath("/admin/series");
+  revalidatePath("/series");
+  revalidatePath(`/series/${existing.slug}`);
+  redirect("/admin/series?deleted=1");
+}

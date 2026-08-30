@@ -22,7 +22,9 @@ export type AnalyticsEvent =
   | "recipe_copy_link"
   | "recipe_favorite"
   | "recipe_servings_change"
-  | "recipe_comment_submit";
+  | "recipe_comment_submit"
+  | "series_item_click"
+  | "series_watch_click";
 
 export type AnalyticsProperties = {
   recipe_slug?: string;
@@ -34,6 +36,9 @@ export type AnalyticsProperties = {
   target_video_id?: string;
   target_recipe_id?: string;
   target_recipe_slug?: string;
+  series_id?: string;
+  series_slug?: string;
+  item_position?: number;
   source?: string;
   timestamp?: number;
   chapter_label?: string;

@@ -3,7 +3,7 @@
 import { site } from "@/data/site";
 import { trackEvent } from "@/lib/analytics";
 
-type SubscribePlacement = "post_video_subscribe" | "end_of_recipe";
+type SubscribePlacement = "post_video_subscribe" | "end_of_recipe" | "series_page";
 
 export function YouTubeSubscribeCTA({
   recipeSlug,
@@ -19,31 +19,36 @@ export function YouTubeSubscribeCTA({
 }) {
   const subscribeUrl = `${site.social.youtube}?sub_confirmation=1`;
   const isPostVideo = placement === "post_video_subscribe";
+  const isSeries = placement === "series_page";
 
   return (
     <section
       className={
-        isPostVideo
+        isPostVideo || isSeries
           ? "mt-8 border border-line bg-cream/50 px-5 py-7 text-center md:px-8"
           : "mt-12 border border-line bg-cream/40 px-6 py-8 text-center md:px-10"
       }
     >
-      {isPostVideo ? (
+      {isPostVideo || isSeries ? (
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-olive">
           Cook with Mesa
         </p>
       ) : null}
       <h2
         className={
-          isPostVideo
+          isPostVideo || isSeries
             ? "mt-2 font-serif text-2xl text-ink md:text-[1.75rem]"
             : "font-serif text-2xl text-ink md:text-3xl"
         }
       >
-        {isPostVideo ? "Enjoy this recipe?" : "Cook with Mesa every week"}
+        {isPostVideo
+          ? "Enjoy this recipe?"
+          : isSeries
+            ? "Cook along with Mesa"
+            : "Cook with Mesa every week"}
       </h2>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-        {isPostVideo
+        {isPostVideo || isSeries
           ? "Get new step-by-step recipes and kitchen techniques from Mesa Kitchen Studio."
           : "New step-by-step recipes from our kitchen."}
       </p>
@@ -63,7 +68,7 @@ export function YouTubeSubscribeCTA({
       >
         Subscribe on YouTube
       </a>
-      {isPostVideo ? (
+      {isPostVideo || isSeries ? (
         <p className="mx-auto mt-3 max-w-sm text-xs leading-5 text-muted">
           Opens YouTube&apos;s subscribe confirmation — Mesa does not confirm the subscription.
         </p>

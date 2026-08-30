@@ -26,9 +26,30 @@ export {
 export async function getWatchNextRecommendation(input: {
   currentVideoId: string;
   currentRecipeSlug: string;
+  currentRecipeId?: string;
   currentCategories: string[];
   curatedRelated?: RecipeYoutubeRelatedVideo[];
 }): Promise<WatchNextRecommendation | null> {
+  if (input.currentRecipeId || input.currentRecipeSlug) {
+    const { getSeriesWatchNextForRecipe } = await import("@/lib/series");
+    const seriesNext = await getSeriesWatchNextForRecipe({
+      recipeId: input.currentRecipeId,
+      recipeSlug: input.currentRecipeSlug,
+      currentVideoId: input.currentVideoId,
+    });
+    if (seriesNext) {
+      return {
+        videoId: seriesNext.videoId,
+        title: seriesNext.title,
+        thumbnailUrl: seriesNext.thumbnailUrl,
+        durationDisplay: seriesNext.durationDisplay,
+        watchUrl: seriesNext.watchUrl,
+        recipeSlug: seriesNext.recipeSlug,
+        recipeTitle: seriesNext.recipeTitle,
+      };
+    }
+  }
+
   const currentVideoId = youtubeVideoId(input.currentVideoId) || input.currentVideoId;
   if (!currentVideoId) return null;
 

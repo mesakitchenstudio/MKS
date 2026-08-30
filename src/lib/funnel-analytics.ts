@@ -7,6 +7,8 @@ export const FUNNEL_EVENT_NAMES = [
   "recipe_youtube_subscribe_click",
   "recipe_watch_next_click",
   "recipe_video_ended",
+  "series_item_click",
+  "series_watch_click",
 ] as const;
 
 export type FunnelEventName = (typeof FUNNEL_EVENT_NAMES)[number];
@@ -22,6 +24,7 @@ export type FunnelPlacement =
   | "subscribe"
   | "post_video_subscribe"
   | "end_of_recipe"
+  | "series_page"
   | "other";
 
 const FUNNEL_NAME_SET = new Set<string>(FUNNEL_EVENT_NAMES);
@@ -36,6 +39,8 @@ const CLIENT_EVENT_TO_FUNNEL: Record<string, FunnelEventName> = {
   recipe_related_video_click: "recipe_watch_next_click",
   recipe_watch_next_click: "recipe_watch_next_click",
   recipe_video_complete: "recipe_video_ended",
+  series_item_click: "series_item_click",
+  series_watch_click: "series_watch_click",
 };
 
 const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
@@ -55,6 +60,7 @@ const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   subscribe: "end_of_recipe",
   end_of_recipe: "end_of_recipe",
   post_video_subscribe: "post_video_subscribe",
+  series_page: "series_page",
 };
 
 const BLOCKED_META_KEYS = new Set([
@@ -119,8 +125,8 @@ export function funnelPayloadFromAnalyticsDetail(
   const name = mapClientEventToFunnelName(clientEvent);
   if (!name) return null;
 
-  const recipeSlug = String(detail.recipe_slug || "").trim();
-  const youtubeVideoId = String(detail.video_id || "").trim();
+  const recipeSlug = String(detail.recipe_slug || detail.target_recipe_slug || "").trim();
+  const youtubeVideoId = String(detail.video_id || detail.related_video_id || "").trim();
   const targetVideoId = String(detail.related_video_id || detail.target_video_id || "").trim();
   const chapterTime =
     typeof detail.timestamp === "number"
@@ -154,6 +160,9 @@ export function funnelPayloadFromAnalyticsDetail(
       source: detail.source,
       target_recipe_slug: detail.target_recipe_slug,
       destination_recipe_slug: detail.destination_recipe_slug,
+      series_id: detail.series_id,
+      series_slug: detail.series_slug,
+      item_position: detail.item_position,
     }),
   };
 }

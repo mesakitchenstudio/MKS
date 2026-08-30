@@ -11,6 +11,7 @@ const STATIC_TITLES: Record<string, string> = {
   "/contact": "Contact",
   "/disclosures": "Disclosures",
   "/search": "Search",
+  "/series": "Cooking Series",
   "/auth/error": "Error",
 };
 
@@ -42,6 +43,11 @@ export function guestPathTitle(path: string, recipeTitles?: Map<string, string>)
   const categoryMatch = clean.match(/^\/category\/([^/]+)\/?$/);
   if (categoryMatch?.[1]) {
     return humanizeSlug(categoryMatch[1]);
+  }
+
+  const seriesMatch = clean.match(/^\/series\/([^/]+)\/?$/);
+  if (seriesMatch?.[1]) {
+    return humanizeSlug(seriesMatch[1]);
   }
 
   const studioMatch = clean.match(/^\/studio\/([^/]+)\/?$/);

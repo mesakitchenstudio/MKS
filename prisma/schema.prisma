@@ -57,6 +57,7 @@ model Recipe {
   /// Non-public AI generation / editorial verification metadata (JSON).
   aiMeta      String           @default("{}")
   categories  RecipeCategory[]
+  seriesItems SeriesItem[]
 }
 
 model AiRecipeGenerationCache {
@@ -335,8 +336,52 @@ model YouTubeVideo {
   commentCount    String   @default("0")
   lastSyncedAt    DateTime?
   snapshots       YouTubeVideoSnapshot[]
+  seriesItems     SeriesItem[]
 
   @@index([channelId, publishedAt])
+}
+
+/// Mesa-owned cooking series (editorial landing pages — not YouTube playlists).
+model Series {
+  id               String       @id @default(cuid())
+  slug             String       @unique
+  title            String
+  shortTitle       String       @default("")
+  description      String       @default("")
+  intro            String       @default("")
+  heroImage        String       @default("")
+  seoTitle         String       @default("")
+  seoDescription   String       @default("")
+  /// Optional future link to a YouTube playlist (not synced in v1).
+  youtubePlaylistId String      @default("")
+  isPublished      Boolean      @default(false)
+  sortOrder        Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  items            SeriesItem[]
+
+  @@index([isPublished, sortOrder])
+}
+
+/// Ordered content row inside a Series (recipe and/or synced YouTube video).
+model SeriesItem {
+  id                String        @id @default(cuid())
+  seriesId          String
+  series            Series        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  recipeId          String?
+  recipe            Recipe?       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  youtubeVideoId    String?
+  youtubeVideo      YouTubeVideo? @relation(fields: [youtubeVideoId], references: [videoId], onDelete: SetNull)
+  sortOrder         Int           @default(0)
+  customTitle       String        @default("")
+  customDescription String        @default("")
+  featured          Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([seriesId, sortOrder])
+  @@index([recipeId])
+  @@index([youtubeVideoId])
 }
 
 /// Periodic public counter snapshot for channel trend deltas.
