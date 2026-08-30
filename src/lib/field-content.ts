@@ -1,4 +1,9 @@
 import type { Nutrition } from "@/data/types";
+import { youtubeMetadataEditorHasContent } from "@/lib/youtube-metadata-editor";
+
+function isYoutubeMetadataEditorState(value: unknown): value is import("@/lib/youtube-metadata-editor").YoutubeMetadataEditorState {
+  return Boolean(value && typeof value === "object" && "preserved" in (value as object));
+}
 
 /**
  * Whether a typed field value has meaningful public/admin content.
@@ -13,6 +18,10 @@ import type { Nutrition } from "@/data/types";
 export function fieldValueHasContent(value: unknown, kind: string): boolean {
   switch (kind) {
     case "textarea":
+      if (isYoutubeMetadataEditorState(value)) {
+        return youtubeMetadataEditorHasContent(value);
+      }
+      return String(value ?? "").trim().length > 0;
     case "text":
     case "image":
       return String(value ?? "").trim().length > 0;

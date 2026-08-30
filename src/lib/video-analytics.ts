@@ -4,6 +4,7 @@ import { trackEvent } from "@/lib/analytics";
 export type VideoAnalyticsSource =
   | "hero_cta"
   | "main_embed"
+  | "main_embed_chapter"
   | "instruction_timestamp"
   | "floating_card"
   | "floating_player"

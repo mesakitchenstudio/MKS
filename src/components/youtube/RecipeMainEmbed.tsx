@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideo } from "./RecipeVideoContext";
+import { RecipeVideoChapters } from "./RecipeVideoChapters";
 import { WatchNextPrompt } from "./WatchNextPrompt";
 import { YouTubeEmbedFacade } from "./YouTubeEmbedFacade";
 
@@ -59,6 +60,8 @@ export function RecipeMainEmbed() {
       {showWatchNext && watchNext ? (
         <WatchNextPrompt next={watchNext} recipeSlug={recipeSlug} recipeName={recipeName} />
       ) : null}
+
+      <RecipeVideoChapters />
 
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
         <a

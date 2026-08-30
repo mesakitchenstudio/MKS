@@ -10,6 +10,7 @@ import {
   type AiGenerateApplyPayload,
 } from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
+import { YoutubeMetadataEditor } from "@/components/admin/YoutubeMetadataEditor";
 import {
   RecipeEditorSectionNav,
   type RecipeEditorSectionLink,
@@ -33,6 +34,12 @@ import { ADMIN_IMAGE_HELP } from "@/lib/admin-upload";
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
 import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS, slugify } from "@/lib/fields";
 import { youtubeThumbnailUrl, youtubeVideoId } from "@/lib/youtube";
+import {
+  serializeYoutubeMetadataEditorState,
+  validateYoutubeMetadataEditorState,
+  youtubeMetadataToEditorState,
+  type YoutubeMetadataEditorState,
+} from "@/lib/youtube-metadata-editor";
 
 type Field = {
   key: string;
@@ -175,6 +182,13 @@ function validateForPublish(
   if (youtubeUrl && !youtubeVideoId(youtubeUrl)) {
     errors.youtubeUrl = "Enter a valid YouTube watch or youtu.be URL.";
   }
+  const youtubeState = values.youtube as YoutubeMetadataEditorState | undefined;
+  if (youtubeState && typeof youtubeState === "object") {
+    const youtubeIssues = validateYoutubeMetadataEditorState(youtubeState);
+    if (youtubeIssues.length) {
+      errors.youtube = youtubeIssues[0]?.message ?? "Fix YouTube metadata before publishing.";
+    }
+  }
   return errors;
 }
 
@@ -212,12 +226,8 @@ function hydrateEditorValues(
         rawValues.bakeMinutes ?? rawValues.cookMinutes ?? emptyValue(field.kind);
     } else if (field.key === "difficulty") {
       next[field.key] = rawValues.difficulty || "Easy";
-    } else if (
-      field.key === "youtube" &&
-      rawValues.youtube &&
-      typeof rawValues.youtube === "object"
-    ) {
-      next[field.key] = JSON.stringify(rawValues.youtube, null, 2);
+    } else if (field.key === "youtube") {
+      next[field.key] = youtubeMetadataToEditorState(rawValues.youtube);
     } else {
       next[field.key] = rawValues[field.key] ?? emptyValue(field.kind);
     }
@@ -542,7 +552,14 @@ export function RecipeEditor({
   const encoded = useMemo(() => {
     const out: Record<string, string> = {};
     for (const field of fields) {
-      out[field.key] = JSON.stringify(values[field.key] ?? emptyValue(field.kind));
+      if (field.key === "youtube") {
+        const blob = serializeYoutubeMetadataEditorState(
+          (values.youtube as YoutubeMetadataEditorState) ?? youtubeMetadataToEditorState(undefined),
+        );
+        out[field.key] = JSON.stringify(blob ?? {});
+      } else {
+        out[field.key] = JSON.stringify(values[field.key] ?? emptyValue(field.kind));
+      }
     }
     return out;
   }, [fields, values]);
@@ -942,6 +959,31 @@ export function RecipeEditor({
               }
             }}
             invalid={Boolean(fieldErrors[field.key])}
+          />
+        ) : field.key === "youtube" ? (
+          <YoutubeMetadataEditor
+            value={values[field.key]}
+            onChange={(state) => {
+              setField(field.key, state);
+              if (fieldErrors[field.key]) {
+                setFieldErrors((current) => {
+                  const next = { ...current };
+                  delete next[field.key];
+                  return next;
+                });
+              }
+            }}
+            confidenceByPath={aiMeta?.confidenceByPath}
+            invalidPaths={
+              fieldErrors[field.key]
+                ? new Set(
+                    validateYoutubeMetadataEditorState(
+                      (values[field.key] as YoutubeMetadataEditorState) ??
+                        youtubeMetadataToEditorState(undefined),
+                    ).map((issue) => issue.path),
+                  )
+                : undefined
+            }
           />
         ) : (
           <KindInput
@@ -1382,10 +1424,6 @@ export function RecipeEditor({
               <p className="mt-1 text-xs text-muted">
                 Optional video metadata, nutrition, and type-specific fields.
               </p>
-              <p className="mt-2 text-xs leading-relaxed text-muted">
-                Rich YouTube metadata is currently edited as JSON in Advanced. A structured
-                editor for hooks, timestamps, and related videos is planned for a later phase.
-              </p>
               <span className="sr-only">{advancedOpen ? "Collapse advanced fields" : "Expand advanced fields"}</span>
             </button>
             {advancedOpen ? (
@@ -1395,7 +1433,15 @@ export function RecipeEditor({
                 aria-labelledby="recipe-advanced-toggle"
                 className="grid gap-5 border-t border-line px-5 py-5 md:grid-cols-2 md:px-6"
               >
-                {advancedFields.map((field) => renderField(field))}
+                {advancedFields.map((field) =>
+                  field.key === "youtube" ? (
+                    <div key={field.key} id={`recipe-field-${field.key}`} className="md:col-span-2">
+                      {renderField(field)}
+                    </div>
+                  ) : (
+                    renderField(field)
+                  ),
+                )}
                 {specialistFields.map((field) => renderField(field))}
               </div>
             ) : null}
