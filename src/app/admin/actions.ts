@@ -43,6 +43,16 @@ async function requireEditor() {
   await requireAccess("content");
 }
 
+function isNextRedirect(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string" &&
+      String((error as { digest: string }).digest).startsWith("NEXT_REDIRECT"),
+  );
+}
+
 export async function loginAction(formData: FormData) {
   const ip = connectionMeta(await headers()).ip;
   if (isAdminLoginBlocked(ip)) {
@@ -906,11 +916,13 @@ export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
 }
 
 type SeriesItemPayload = {
+  id?: string;
   recipeId?: string;
   youtubeVideoId?: string;
   customTitle?: string;
   customDescription?: string;
   featured?: boolean;
+  removedFromPlaylist?: boolean;
 };
 
 function parseSeriesItemsJson(raw: string): SeriesItemPayload[] {
@@ -920,11 +932,13 @@ function parseSeriesItemsJson(raw: string): SeriesItemPayload[] {
     return parsed.map((item) => {
       const row = item as SeriesItemPayload;
       return {
+        id: String(row.id || "").trim() || undefined,
         recipeId: String(row.recipeId || "").trim(),
         youtubeVideoId: String(row.youtubeVideoId || "").trim(),
         customTitle: String(row.customTitle || "").trim(),
         customDescription: String(row.customDescription || "").trim(),
         featured: Boolean(row.featured),
+        removedFromPlaylist: Boolean(row.removedFromPlaylist),
       };
     });
   } catch {
@@ -943,7 +957,7 @@ export async function saveSeriesAction(formData: FormData) {
   const heroImage = String(formData.get("heroImage") || "").trim();
   const seoTitle = String(formData.get("seoTitle") || "").trim();
   const seoDescription = String(formData.get("seoDescription") || "").trim();
-  const youtubePlaylistId = String(formData.get("youtubePlaylistId") || "").trim();
+  const followYoutubeOrder = String(formData.get("followYoutubeOrder") || "") === "1";
   const isPublished = String(formData.get("isPublished") || "") === "1";
   const sortOrder = Number(formData.get("sortOrder") || 0) || 0;
   const items = parseSeriesItemsJson(String(formData.get("itemsJson") || "[]")).filter(
@@ -960,16 +974,17 @@ export async function saveSeriesAction(formData: FormData) {
     if (featured && featuredSeen) featured = false;
     if (featured) featuredSeen = true;
     return {
+      id: item.id,
       recipeId: item.recipeId || null,
       youtubeVideoId: item.youtubeVideoId || null,
       customTitle: item.customTitle || "",
       customDescription: item.customDescription || "",
       featured,
       sortOrder: index,
+      removedFromPlaylist: Boolean(item.removedFromPlaylist),
     };
   });
 
-  // Validate FKs exist so broken refs do not crash saves
   for (const item of normalizedItems) {
     if (item.recipeId) {
       const ok = await db.recipe.findUnique({ where: { id: item.recipeId }, select: { id: true } });
@@ -988,6 +1003,9 @@ export async function saveSeriesAction(formData: FormData) {
   if (id) {
     const existing = await db.series.findUnique({ where: { id } });
     if (!existing) redirect("/admin/series");
+
+    // Preserve playlist snapshot fields; only Mesa editorial + order mode are editable here.
+    const isYoutube = existing.syncMode === "YOUTUBE" || Boolean(existing.youtubePlaylistId);
     await db.$transaction(async (tx) => {
       await tx.seriesItem.deleteMany({ where: { seriesId: id } });
       await tx.series.update({
@@ -1001,11 +1019,20 @@ export async function saveSeriesAction(formData: FormData) {
           heroImage,
           seoTitle,
           seoDescription,
-          youtubePlaylistId,
+          followYoutubeOrder: isYoutube ? followYoutubeOrder : false,
+          // Never clear/overwrite YouTube playlist snapshots from this form.
           isPublished,
           sortOrder,
           items: {
-            create: validItems,
+            create: validItems.map((item) => ({
+              recipeId: item.recipeId,
+              youtubeVideoId: item.youtubeVideoId,
+              customTitle: item.customTitle,
+              customDescription: item.customDescription,
+              featured: item.featured,
+              sortOrder: item.sortOrder,
+              removedFromPlaylist: item.removedFromPlaylist,
+            })),
           },
         },
       });
@@ -1031,10 +1058,22 @@ export async function saveSeriesAction(formData: FormData) {
         heroImage,
         seoTitle,
         seoDescription,
-        youtubePlaylistId,
+        syncMode: "CUSTOM",
+        followYoutubeOrder: false,
+        youtubePlaylistId: "",
         isPublished,
         sortOrder,
-        items: { create: validItems },
+        items: {
+          create: validItems.map((item) => ({
+            recipeId: item.recipeId,
+            youtubeVideoId: item.youtubeVideoId,
+            customTitle: item.customTitle,
+            customDescription: item.customDescription,
+            featured: item.featured,
+            sortOrder: item.sortOrder,
+            removedFromPlaylist: false,
+          })),
+        },
       },
     });
     revalidatePath("/admin/series");
@@ -1061,4 +1100,102 @@ export async function deleteSeriesAction(formData: FormData) {
   revalidatePath("/series");
   revalidatePath(`/series/${existing.slug}`);
   redirect("/admin/series?deleted=1");
+}
+
+export async function importYoutubePlaylistAction(formData: FormData) {
+  await requireEditor();
+  const playlistId = String(formData.get("playlistId") || "").trim();
+  if (!playlistId) redirect("/admin/series/import?error=missing-playlist");
+  try {
+    const { importYoutubePlaylistAsSeries } = await import("@/lib/series-playlist");
+    const result = await importYoutubePlaylistAsSeries(playlistId);
+    revalidatePath("/admin/series");
+    revalidatePath("/series");
+    const qs = new URLSearchParams({
+      imported: "1",
+      videos: String(result.videoCount),
+      linked: String(result.linkedRecipeCount),
+      videoOnly: String(result.videoOnlyCount),
+      skipped: String(result.skippedUnavailable),
+    });
+    redirect(`/admin/series/${result.seriesId}?${qs.toString()}`);
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message =
+      error instanceof Error ? error.message.slice(0, 180) : "import-failed";
+    redirect(`/admin/series/import?error=${encodeURIComponent(message)}`);
+  }
+}
+
+export async function refreshSeriesFromYoutubeAction(formData: FormData) {
+  await requireEditor();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) redirect("/admin/series");
+  try {
+    const { refreshSeriesFromYoutubePlaylist } = await import("@/lib/series-playlist");
+    const result = await refreshSeriesFromYoutubePlaylist(id);
+    revalidatePath("/admin/series");
+    revalidatePath(`/admin/series/${id}`);
+    revalidatePath("/series");
+    const series = await getDb().series.findUnique({ where: { id }, select: { slug: true } });
+    if (series) revalidatePath(`/series/${series.slug}`);
+    const qs = new URLSearchParams({
+      refreshed: "1",
+      added: String(result.added),
+      removed: String(result.removedMarked),
+      restored: String(result.restored),
+      reordered: result.reordered ? "1" : "0",
+    });
+    redirect(`/admin/series/${id}?${qs.toString()}`);
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message =
+      error instanceof Error ? error.message.slice(0, 180) : "refresh-failed";
+    redirect(`/admin/series/${id}?error=${encodeURIComponent(message)}`);
+  }
+}
+
+export async function linkSeriesToYoutubePlaylistAction(formData: FormData) {
+  await requireEditor();
+  const id = String(formData.get("id") || "").trim();
+  const playlistId = String(formData.get("playlistId") || "").trim();
+  if (!id) redirect("/admin/series");
+  if (!playlistId) redirect(`/admin/series/${id}?error=missing-playlist`);
+  try {
+    const { linkCustomSeriesToYoutubePlaylist } = await import("@/lib/series-playlist");
+    await linkCustomSeriesToYoutubePlaylist(id, playlistId);
+    revalidatePath("/admin/series");
+    revalidatePath(`/admin/series/${id}`);
+    revalidatePath("/series");
+    redirect(`/admin/series/${id}?playlistLinked=1`);
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message =
+      error instanceof Error ? error.message.slice(0, 180) : "link-failed";
+    redirect(`/admin/series/${id}?error=${encodeURIComponent(message)}`);
+  }
+}
+
+export async function removeSeriesItemAction(formData: FormData) {
+  await requireEditor();
+  const seriesId = String(formData.get("seriesId") || "").trim();
+  const itemId = String(formData.get("itemId") || "").trim();
+  if (!seriesId || !itemId) redirect("/admin/series");
+  const { deleteSeriesItemPermanently } = await import("@/lib/series-playlist");
+  await deleteSeriesItemPermanently(itemId);
+  revalidatePath(`/admin/series/${seriesId}`);
+  revalidatePath("/admin/series");
+  revalidatePath("/series");
+  redirect(`/admin/series/${seriesId}?saved=1`);
+}
+
+export async function keepRemovedSeriesItemAction(formData: FormData) {
+  await requireEditor();
+  const seriesId = String(formData.get("seriesId") || "").trim();
+  const itemId = String(formData.get("itemId") || "").trim();
+  if (!seriesId || !itemId) redirect("/admin/series");
+  const { keepRemovedSeriesItemInSeries } = await import("@/lib/series-playlist");
+  await keepRemovedSeriesItemInSeries(itemId);
+  revalidatePath(`/admin/series/${seriesId}`);
+  redirect(`/admin/series/${seriesId}?saved=1`);
 }

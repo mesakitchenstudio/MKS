@@ -1,5 +1,6 @@
 import { SeriesEditor } from "@/components/admin/SeriesEditor";
 import { requireAccess } from "@/lib/auth";
+import { getDb } from "@/lib/db";
 import { listSeriesPickerCandidates } from "@/lib/series-admin";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,10 @@ export default async function AdminSeriesNewPage({
 }) {
   await requireAccess("content");
   const query = await searchParams;
-  const candidates = await listSeriesPickerCandidates();
+  const [candidates, recipeTypes] = await Promise.all([
+    listSeriesPickerCandidates(),
+    getDb().recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -23,6 +27,7 @@ export default async function AdminSeriesNewPage({
       <SeriesEditor
         isNew
         candidates={candidates}
+        recipeTypes={recipeTypes}
         series={{
           id: "",
           slug: "",
@@ -33,7 +38,13 @@ export default async function AdminSeriesNewPage({
           heroImage: "",
           seoTitle: "",
           seoDescription: "",
+          syncMode: "CUSTOM",
+          followYoutubeOrder: false,
           youtubePlaylistId: "",
+          youtubePlaylistTitle: "",
+          youtubePlaylistDescription: "",
+          youtubePlaylistThumbnail: "",
+          youtubePlaylistLastSyncedAt: null,
           isPublished: false,
           sortOrder: 0,
           items: [],

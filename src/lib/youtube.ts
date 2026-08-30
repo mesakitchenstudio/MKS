@@ -63,6 +63,12 @@ export function youtubeWatchUrl(urlOrId: string) {
   return id ? `https://www.youtube.com/watch?v=${id}` : null;
 }
 
+export function youtubePlaylistUrl(playlistId: string) {
+  const id = playlistId.trim();
+  if (!id) return null;
+  return `https://www.youtube.com/playlist?list=${encodeURIComponent(id)}`;
+}
+
 export function youtubeWatchUrlAt(urlOrId: string, seconds: number) {
   const base = youtubeWatchUrl(urlOrId);
   if (!base || seconds <= 0) return base;

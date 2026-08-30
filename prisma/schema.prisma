@@ -341,43 +341,53 @@ model YouTubeVideo {
   @@index([channelId, publishedAt])
 }
 
-/// Mesa-owned cooking series (editorial landing pages — not YouTube playlists).
+/// Mesa cooking series — custom collections or imported YouTube playlists.
 model Series {
-  id               String       @id @default(cuid())
-  slug             String       @unique
-  title            String
-  shortTitle       String       @default("")
-  description      String       @default("")
-  intro            String       @default("")
-  heroImage        String       @default("")
-  seoTitle         String       @default("")
-  seoDescription   String       @default("")
-  /// Optional future link to a YouTube playlist (not synced in v1).
-  youtubePlaylistId String      @default("")
-  isPublished      Boolean      @default(false)
-  sortOrder        Int          @default(0)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  items            SeriesItem[]
+  id                          String       @id @default(cuid())
+  slug                        String       @unique
+  title                       String
+  shortTitle                  String       @default("")
+  description                 String       @default("")
+  intro                       String       @default("")
+  heroImage                   String       @default("")
+  seoTitle                    String       @default("")
+  seoDescription              String       @default("")
+  /// YOUTUBE = imported playlist; CUSTOM = Mesa-only collection.
+  syncMode                    String       @default("CUSTOM")
+  /// When true (typical for YOUTUBE mode), refresh reorders items to match playlist.
+  followYoutubeOrder          Boolean      @default(true)
+  youtubePlaylistId           String       @default("")
+  youtubePlaylistTitle        String       @default("")
+  youtubePlaylistDescription  String       @default("")
+  youtubePlaylistThumbnail    String       @default("")
+  youtubePlaylistLastSyncedAt DateTime?
+  isPublished                 Boolean      @default(false)
+  sortOrder                   Int          @default(0)
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @updatedAt
+  items                       SeriesItem[]
 
   @@index([isPublished, sortOrder])
+  @@index([youtubePlaylistId])
 }
 
 /// Ordered content row inside a Series (recipe and/or synced YouTube video).
 model SeriesItem {
-  id                String        @id @default(cuid())
-  seriesId          String
-  series            Series        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
-  recipeId          String?
-  recipe            Recipe?       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
-  youtubeVideoId    String?
-  youtubeVideo      YouTubeVideo? @relation(fields: [youtubeVideoId], references: [videoId], onDelete: SetNull)
-  sortOrder         Int           @default(0)
-  customTitle       String        @default("")
-  customDescription String        @default("")
-  featured          Boolean       @default(false)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  seriesId            String
+  series              Series        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  recipeId            String?
+  recipe              Recipe?       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  youtubeVideoId      String?
+  youtubeVideo        YouTubeVideo? @relation(fields: [youtubeVideoId], references: [videoId], onDelete: SetNull)
+  sortOrder           Int           @default(0)
+  customTitle         String        @default("")
+  customDescription   String        @default("")
+  featured            Boolean       @default(false)
+  /// Still kept in Mesa Series but no longer present on the YouTube playlist.
+  removedFromPlaylist Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([seriesId, sortOrder])
   @@index([recipeId])

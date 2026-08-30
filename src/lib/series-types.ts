@@ -40,6 +40,8 @@ export type PublicSeriesDetail = {
   heroImage: string;
   seoTitle: string;
   seoDescription: string;
+  youtubePlaylistId: string | null;
+  youtubePlaylistUrl: string | null;
   itemCount: number;
   items: PublicSeriesItem[];
   featured: PublicSeriesItem | null;

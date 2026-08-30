@@ -24,7 +24,8 @@ export type AnalyticsEvent =
   | "recipe_servings_change"
   | "recipe_comment_submit"
   | "series_item_click"
-  | "series_watch_click";
+  | "series_watch_click"
+  | "series_watch_playlist_on_youtube_click";
 
 export type AnalyticsProperties = {
   recipe_slug?: string;
@@ -38,6 +39,7 @@ export type AnalyticsProperties = {
   target_recipe_slug?: string;
   series_id?: string;
   series_slug?: string;
+  playlist_id?: string;
   item_position?: number;
   source?: string;
   timestamp?: number;

@@ -190,6 +190,113 @@ export async function fetchUploadsPlaylistVideoIds(uploadsPlaylistId: string): P
   return ids;
 }
 
+type PlaylistListItem = {
+  id?: string;
+  snippet?: {
+    title?: string;
+    description?: string;
+    publishedAt?: string;
+    channelId?: string;
+    thumbnails?: Record<string, { url?: string }>;
+  };
+  contentDetails?: { itemCount?: number };
+  status?: { privacyStatus?: string };
+};
+
+export type YouTubeApiPlaylist = {
+  playlistId: string;
+  title: string;
+  description: string;
+  thumbnailUrl: string;
+  videoCount: number;
+  privacyStatus: string;
+  publishedAt: string | null;
+  channelId: string;
+};
+
+function mapPlaylistItem(item: PlaylistListItem): YouTubeApiPlaylist | null {
+  if (!item.id) return null;
+  return {
+    playlistId: item.id,
+    title: String(item.snippet?.title ?? ""),
+    description: String(item.snippet?.description ?? ""),
+    thumbnailUrl: pickBestThumbnail(item.snippet?.thumbnails),
+    videoCount: Number(item.contentDetails?.itemCount ?? 0) || 0,
+    privacyStatus: String(item.status?.privacyStatus ?? "public"),
+    publishedAt: item.snippet?.publishedAt ?? null,
+    channelId: String(item.snippet?.channelId ?? ""),
+  };
+}
+
+/** Public playlists for a channel (Data API key — no OAuth write scopes). */
+export async function fetchChannelPlaylists(channelId: string): Promise<YouTubeApiPlaylist[]> {
+  const rows: YouTubeApiPlaylist[] = [];
+  let pageToken = "";
+  do {
+    const data = await youtubeApiFetch<ApiListResponse<PlaylistListItem>>("/playlists", {
+      part: "snippet,contentDetails,status",
+      channelId,
+      maxResults: "50",
+      ...(pageToken ? { pageToken } : {}),
+    });
+    for (const item of data.items ?? []) {
+      const mapped = mapPlaylistItem(item);
+      if (!mapped) continue;
+      const privacy = mapped.privacyStatus.toLowerCase();
+      if (privacy && privacy !== "public") continue;
+      rows.push(mapped);
+    }
+    pageToken = data.nextPageToken ?? "";
+  } while (pageToken);
+  return rows.sort((a, b) => a.title.localeCompare(b.title));
+}
+
+export async function fetchPlaylistById(playlistId: string): Promise<YouTubeApiPlaylist | null> {
+  const data = await youtubeApiFetch<ApiListResponse<PlaylistListItem>>("/playlists", {
+    part: "snippet,contentDetails,status",
+    id: playlistId,
+  });
+  const item = data.items?.[0];
+  return item ? mapPlaylistItem(item) : null;
+}
+
+export type YouTubeApiPlaylistVideoRef = {
+  videoId: string;
+  position: number;
+  title: string;
+};
+
+/** Ordered video IDs in a playlist (skips missing videoIds). */
+export async function fetchPlaylistVideoRefs(playlistId: string): Promise<YouTubeApiPlaylistVideoRef[]> {
+  const rows: YouTubeApiPlaylistVideoRef[] = [];
+  let pageToken = "";
+  let position = 0;
+  do {
+    const data = await youtubeApiFetch<
+      ApiListResponse<PlaylistItemRow & { snippet?: { title?: string; resourceId?: { videoId?: string } } }>
+    >("/playlistItems", {
+      part: "contentDetails,snippet",
+      playlistId,
+      maxResults: "50",
+      ...(pageToken ? { pageToken } : {}),
+    });
+    for (const item of data.items ?? []) {
+      const videoId =
+        item.contentDetails?.videoId ||
+        (item as { snippet?: { resourceId?: { videoId?: string } } }).snippet?.resourceId?.videoId;
+      if (!videoId) continue;
+      rows.push({
+        videoId,
+        position,
+        title: String((item as { snippet?: { title?: string } }).snippet?.title ?? ""),
+      });
+      position += 1;
+    }
+    pageToken = data.nextPageToken ?? "";
+  } while (pageToken);
+  return rows;
+}
+
 export async function fetchVideosByIds(videoIds: string[]): Promise<YouTubeApiVideo[]> {
   const results: YouTubeApiVideo[] = [];
   for (let index = 0; index < videoIds.length; index += 50) {

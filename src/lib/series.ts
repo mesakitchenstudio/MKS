@@ -1,7 +1,7 @@
 import "server-only";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
-import { youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube";
+import { youtubePlaylistUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube";
 import { recipeMainVideoId } from "@/lib/youtube-data/matching";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { site } from "@/data/site";
@@ -56,6 +56,7 @@ function mapSeriesItem(row: {
   customTitle: string;
   customDescription: string;
   featured: boolean;
+  removedFromPlaylist?: boolean;
   recipe: {
     id: string;
     slug: string;
@@ -75,6 +76,7 @@ function mapSeriesItem(row: {
     embeddable: boolean;
   } | null;
 }): PublicSeriesItem | null {
+  if (row.removedFromPlaylist) return null;
   const recipeOk = row.recipe && row.recipe.status === "published" ? row.recipe : null;
   const video = row.youtubeVideo;
   const videoOk =
@@ -193,6 +195,7 @@ export async function getPublishedSeriesBySlug(slug: string): Promise<PublicSeri
   const featured = items.find((i) => i.featured) || items[0] || null;
   const heroImage = seriesHeroImage({ heroImage: row.heroImage, items });
 
+  const playlistId = row.youtubePlaylistId?.trim() || "";
   return {
     id: row.id,
     slug: row.slug,
@@ -203,6 +206,8 @@ export async function getPublishedSeriesBySlug(slug: string): Promise<PublicSeri
     heroImage,
     seoTitle: row.seoTitle,
     seoDescription: row.seoDescription,
+    youtubePlaylistId: playlistId || null,
+    youtubePlaylistUrl: playlistId ? youtubePlaylistUrl(playlistId) : null,
     itemCount: items.length,
     items,
     featured,
@@ -235,12 +240,14 @@ export async function getSeriesLinksForRecipe(recipeId: string): Promise<RecipeS
   const rows = await db.seriesItem.findMany({
     where: {
       recipeId,
+      removedFromPlaylist: false,
       series: { isPublished: true },
     },
     include: {
       series: {
         include: {
           items: {
+            where: { removedFromPlaylist: false },
             orderBy: { sortOrder: "asc" },
             include: {
               recipe: { select: { id: true, slug: true, title: true, status: true } },

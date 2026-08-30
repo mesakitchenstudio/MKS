@@ -13,8 +13,21 @@ export type AdminSeriesListRow = {
   isPublished: boolean;
   sortOrder: number;
   itemCount: number;
+  linkedRecipeCount: number;
+  videoOnlyCount: number;
+  syncMode: "YOUTUBE" | "CUSTOM";
+  followYoutubeOrder: boolean;
+  youtubePlaylistId: string;
+  youtubePlaylistLastSyncedAt: string | null;
   updatedAt: string;
 };
+
+export type AdminSeriesItemStatus =
+  | "ready"
+  | "video_only"
+  | "recipe_unpublished"
+  | "video_unavailable"
+  | "removed_from_playlist";
 
 export type AdminSeriesItemDraft = {
   id?: string;
@@ -24,10 +37,16 @@ export type AdminSeriesItemDraft = {
   customDescription: string;
   featured: boolean;
   sortOrder: number;
+  removedFromPlaylist: boolean;
   /** Display helpers for editor UI */
   label: string;
   thumbnail: string;
   meta: string;
+  status: AdminSeriesItemStatus;
+  recipeSlug: string;
+  recipePublished: boolean;
+  videoPrivacy: string;
+  videoEmbeddable: boolean;
 };
 
 export type AdminSeriesDetail = {
@@ -40,7 +59,13 @@ export type AdminSeriesDetail = {
   heroImage: string;
   seoTitle: string;
   seoDescription: string;
+  syncMode: "YOUTUBE" | "CUSTOM";
+  followYoutubeOrder: boolean;
   youtubePlaylistId: string;
+  youtubePlaylistTitle: string;
+  youtubePlaylistDescription: string;
+  youtubePlaylistThumbnail: string;
+  youtubePlaylistLastSyncedAt: string | null;
   isPublished: boolean;
   sortOrder: number;
   items: AdminSeriesItemDraft[];
@@ -61,21 +86,59 @@ export type SeriesPickerCandidate = {
   status: string;
 };
 
+function resolveItemStatus(input: {
+  removedFromPlaylist: boolean;
+  recipeStatus: string | null;
+  hasRecipe: boolean;
+  hasVideo: boolean;
+  privacyStatus: string;
+  embeddable: boolean;
+}): AdminSeriesItemStatus {
+  if (input.removedFromPlaylist) return "removed_from_playlist";
+  if (input.hasVideo) {
+    const privacy = (input.privacyStatus || "public").toLowerCase();
+    if (privacy !== "public" || input.embeddable === false) return "video_unavailable";
+  }
+  if (input.hasRecipe && input.recipeStatus && input.recipeStatus !== "published") {
+    return "recipe_unpublished";
+  }
+  if (input.hasRecipe) return "ready";
+  if (input.hasVideo) return "video_only";
+  return "video_unavailable";
+}
+
 export async function listAdminSeries(): Promise<AdminSeriesListRow[]> {
   const db = getDb();
   const rows = await db.series.findMany({
     orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
-    include: { _count: { select: { items: true } } },
+    include: {
+      items: {
+        select: {
+          recipeId: true,
+          youtubeVideoId: true,
+          removedFromPlaylist: true,
+        },
+      },
+    },
   });
-  return rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    isPublished: row.isPublished,
-    sortOrder: row.sortOrder,
-    itemCount: row._count.items,
-    updatedAt: row.updatedAt.toISOString(),
-  }));
+  return rows.map((row) => {
+    const active = row.items.filter((item) => !item.removedFromPlaylist);
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      isPublished: row.isPublished,
+      sortOrder: row.sortOrder,
+      itemCount: active.length,
+      linkedRecipeCount: active.filter((item) => item.recipeId).length,
+      videoOnlyCount: active.filter((item) => item.youtubeVideoId && !item.recipeId).length,
+      syncMode: row.syncMode === "YOUTUBE" ? "YOUTUBE" : "CUSTOM",
+      followYoutubeOrder: row.followYoutubeOrder,
+      youtubePlaylistId: row.youtubePlaylistId,
+      youtubePlaylistLastSyncedAt: row.youtubePlaylistLastSyncedAt?.toISOString() ?? null,
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  });
 }
 
 export async function getAdminSeries(id: string): Promise<AdminSeriesDetail | null> {
@@ -87,7 +150,15 @@ export async function getAdminSeries(id: string): Promise<AdminSeriesDetail | nu
         orderBy: { sortOrder: "asc" },
         include: {
           recipe: { select: { id: true, title: true, slug: true, values: true, status: true } },
-          youtubeVideo: { select: { videoId: true, title: true, thumbnailUrl: true } },
+          youtubeVideo: {
+            select: {
+              videoId: true,
+              title: true,
+              thumbnailUrl: true,
+              privacyStatus: true,
+              embeddable: true,
+            },
+          },
         },
       },
     },
@@ -104,7 +175,13 @@ export async function getAdminSeries(id: string): Promise<AdminSeriesDetail | nu
     heroImage: row.heroImage,
     seoTitle: row.seoTitle,
     seoDescription: row.seoDescription,
+    syncMode: row.syncMode === "YOUTUBE" ? "YOUTUBE" : "CUSTOM",
+    followYoutubeOrder: row.followYoutubeOrder,
     youtubePlaylistId: row.youtubePlaylistId,
+    youtubePlaylistTitle: row.youtubePlaylistTitle,
+    youtubePlaylistDescription: row.youtubePlaylistDescription,
+    youtubePlaylistThumbnail: row.youtubePlaylistThumbnail,
+    youtubePlaylistLastSyncedAt: row.youtubePlaylistLastSyncedAt?.toISOString() ?? null,
     isPublished: row.isPublished,
     sortOrder: row.sortOrder,
     items: row.items.map((item, index) => {
@@ -120,11 +197,27 @@ export async function getAdminSeries(id: string): Promise<AdminSeriesDetail | nu
         item.recipe?.title ||
         item.youtubeVideo?.title ||
         "Untitled item";
+      const status = resolveItemStatus({
+        removedFromPlaylist: item.removedFromPlaylist,
+        recipeStatus: item.recipe?.status ?? null,
+        hasRecipe: Boolean(item.recipeId),
+        hasVideo: Boolean(item.youtubeVideoId),
+        privacyStatus: item.youtubeVideo?.privacyStatus || "",
+        embeddable: item.youtubeVideo?.embeddable !== false,
+      });
       const bits = [
-        item.recipe ? `Recipe: ${item.recipe.slug}` : null,
-        item.youtubeVideoId ? `Video: ${item.youtubeVideoId}` : null,
-        item.recipe?.status === "published" ? "Published" : item.recipe ? "Draft" : null,
-      ].filter(Boolean);
+        item.recipe ? `Recipe: ${item.recipe.slug}` : "Recipe: none",
+        item.youtubeVideoId ? `Video: ${item.youtubeVideoId}` : "Video: none",
+        status === "ready"
+          ? "Ready"
+          : status === "video_only"
+            ? "Create recipe"
+            : status === "recipe_unpublished"
+              ? "Recipe unpublished"
+              : status === "removed_from_playlist"
+                ? "No longer in YouTube playlist"
+                : "Video unavailable",
+      ];
       return {
         id: item.id,
         recipeId: item.recipeId || "",
@@ -133,9 +226,15 @@ export async function getAdminSeries(id: string): Promise<AdminSeriesDetail | nu
         customDescription: item.customDescription,
         featured: item.featured,
         sortOrder: index,
+        removedFromPlaylist: item.removedFromPlaylist,
         label,
         thumbnail: thumb,
         meta: bits.join(" · "),
+        status,
+        recipeSlug: item.recipe?.slug || "",
+        recipePublished: item.recipe?.status === "published",
+        videoPrivacy: item.youtubeVideo?.privacyStatus || "",
+        videoEmbeddable: item.youtubeVideo?.embeddable !== false,
       };
     }),
   };
@@ -205,7 +304,6 @@ export async function listSeriesPickerCandidates(): Promise<SeriesPickerCandidat
     });
   }
 
-  // Videos without a published/draft linked recipe still selectable as video-only
   const linkedVideoIds = new Set(out.map((c) => c.youtubeVideoId).filter(Boolean));
   for (const video of videos) {
     if (linkedVideoIds.has(video.videoId)) continue;

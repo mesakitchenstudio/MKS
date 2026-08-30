@@ -121,6 +121,7 @@ export default async function SeriesDetailPage({ params }: Props) {
                       itemPosition={featured.position}
                       destinationRecipeSlug={featured.recipeSlug}
                       destinationVideoId={featured.youtubeVideoId || undefined}
+                      playlistId={series.youtubePlaylistId || undefined}
                     >
                       View recipe
                     </SeriesItemTrackLink>
@@ -136,8 +137,23 @@ export default async function SeriesDetailPage({ params }: Props) {
                       itemPosition={featured.position}
                       destinationRecipeSlug={featured.recipeSlug || undefined}
                       destinationVideoId={featured.youtubeVideoId || undefined}
+                      playlistId={series.youtubePlaylistId || undefined}
                     >
                       Watch video
+                    </SeriesItemTrackLink>
+                  ) : null}
+                  {series.youtubePlaylistUrl ? (
+                    <SeriesItemTrackLink
+                      href={series.youtubePlaylistUrl}
+                      external
+                      className="inline-flex min-h-11 items-center text-sm font-semibold text-muted underline-offset-2 hover:text-ink hover:underline"
+                      event="series_watch_playlist_on_youtube_click"
+                      seriesId={series.id}
+                      seriesSlug={series.slug}
+                      playlistId={series.youtubePlaylistId || undefined}
+                      placement="series_page"
+                    >
+                      Watch playlist on YouTube
                     </SeriesItemTrackLink>
                   ) : null}
                 </div>
@@ -210,6 +226,24 @@ export default async function SeriesDetailPage({ params }: Props) {
         <div className="mx-auto mt-4 max-w-3xl">
           <YouTubeSubscribeCTA placement="series_page" />
         </div>
+
+        {series.youtubePlaylistUrl ? (
+          <p className="mt-8 text-center text-sm text-muted">
+            Prefer binge-watching on YouTube?{" "}
+            <SeriesItemTrackLink
+              href={series.youtubePlaylistUrl}
+              external
+              className="font-semibold text-olive hover:underline"
+              event="series_watch_playlist_on_youtube_click"
+              seriesId={series.id}
+              seriesSlug={series.slug}
+              playlistId={series.youtubePlaylistId || undefined}
+              placement="series_page_footer"
+            >
+              Watch playlist on YouTube
+            </SeriesItemTrackLink>
+          </p>
+        ) : null}
       </div>
     </article>
   );

@@ -9,6 +9,7 @@ export const FUNNEL_EVENT_NAMES = [
   "recipe_video_ended",
   "series_item_click",
   "series_watch_click",
+  "series_watch_playlist_on_youtube_click",
 ] as const;
 
 export type FunnelEventName = (typeof FUNNEL_EVENT_NAMES)[number];
@@ -41,6 +42,7 @@ const CLIENT_EVENT_TO_FUNNEL: Record<string, FunnelEventName> = {
   recipe_video_complete: "recipe_video_ended",
   series_item_click: "series_item_click",
   series_watch_click: "series_watch_click",
+  series_watch_playlist_on_youtube_click: "series_watch_playlist_on_youtube_click",
 };
 
 const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
@@ -61,6 +63,7 @@ const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   end_of_recipe: "end_of_recipe",
   post_video_subscribe: "post_video_subscribe",
   series_page: "series_page",
+  series_page_footer: "series_page",
 };
 
 const BLOCKED_META_KEYS = new Set([
@@ -163,6 +166,7 @@ export function funnelPayloadFromAnalyticsDetail(
       series_id: detail.series_id,
       series_slug: detail.series_slug,
       item_position: detail.item_position,
+      playlist_id: detail.playlist_id,
     }),
   };
 }

@@ -4,6 +4,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { trackEvent } from "@/lib/analytics";
 
+type SeriesTrackEvent =
+  | "series_item_click"
+  | "series_watch_click"
+  | "series_watch_playlist_on_youtube_click";
+
 export function SeriesItemTrackLink({
   href,
   children,
@@ -14,17 +19,21 @@ export function SeriesItemTrackLink({
   itemPosition,
   destinationRecipeSlug,
   destinationVideoId,
+  playlistId,
+  placement,
   external = false,
 }: {
   href: string;
   children: ReactNode;
   className?: string;
-  event: "series_item_click" | "series_watch_click";
+  event: SeriesTrackEvent;
   seriesId: string;
   seriesSlug: string;
-  itemPosition: number;
+  itemPosition?: number;
   destinationRecipeSlug?: string;
   destinationVideoId?: string;
+  playlistId?: string;
+  placement?: string;
   external?: boolean;
 }) {
   function onClick() {
@@ -34,7 +43,8 @@ export function SeriesItemTrackLink({
       item_position: itemPosition,
       target_recipe_slug: destinationRecipeSlug,
       related_video_id: destinationVideoId,
-      source: "series_page",
+      playlist_id: playlistId,
+      source: placement || "series_page",
     });
   }
 

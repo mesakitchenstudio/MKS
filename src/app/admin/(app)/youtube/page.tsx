@@ -45,7 +45,7 @@ export default async function AdminYoutubePage({
   const filter = parseYoutubeDashboardFilter(params.filter);
   const filterQuery = youtubeDashboardFilterQueryValue(filter);
 
-  const [dashboard, health, recipeTypes, funnel] = await Promise.all([
+  const [dashboard, health, recipeTypes, funnel, importedSeriesCount] = await Promise.all([
     loadYoutubeAdminDashboard({ analyticsRangeDays: rangeDays }),
     summarizeYoutubeContentHealth(),
     canCreateRecipes
@@ -57,6 +57,9 @@ export default async function AdminYoutubePage({
           includeDiagnostics: admin.role === "owner",
         })
       : null,
+    canCreateRecipes
+      ? db.series.count({ where: { youtubePlaylistId: { not: "" } } })
+      : Promise.resolve(0),
   ]);
 
   const connectedFlash = params.analyticsConnected?.trim()
@@ -118,18 +121,33 @@ export default async function AdminYoutubePage({
       {view === "funnel" && funnel ? (
         <YoutubeFunnelPanel funnel={funnel} filterQuery={filterQuery || undefined} />
       ) : (
-        <YoutubeDashboard
-          channel={dashboard.channel}
-          summary={dashboard.summary}
-          videos={dashboard.videos}
-          healthSummary={health}
-          canSync={canManageYoutubeSync(admin.role)}
-          canManageAnalytics={canManageYoutubeAnalytics(admin.role)}
-          canCreateRecipes={canCreateRecipes}
-          recipeTypes={recipeTypes}
-          initialFilter={filter}
-          analytics={dashboard.analytics}
-        />
+        <>
+          {canCreateRecipes ? (
+            <div className="rounded-sm border border-line bg-cream/30 px-4 py-3 text-sm">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
+                Playlist / Series coverage
+              </p>
+              <p className="mt-1 text-ink">
+                Imported as Mesa Series: <span className="font-semibold">{importedSeriesCount}</span>
+              </p>
+              <Link href="/admin/series" className={`mt-2 inline-block font-semibold text-olive hover:underline ${adminFocusRing}`}>
+                Manage Series
+              </Link>
+            </div>
+          ) : null}
+          <YoutubeDashboard
+            channel={dashboard.channel}
+            summary={dashboard.summary}
+            videos={dashboard.videos}
+            healthSummary={health}
+            canSync={canManageYoutubeSync(admin.role)}
+            canManageAnalytics={canManageYoutubeAnalytics(admin.role)}
+            canCreateRecipes={canCreateRecipes}
+            recipeTypes={recipeTypes}
+            initialFilter={filter}
+            analytics={dashboard.analytics}
+          />
+        </>
       )}
     </div>
   );

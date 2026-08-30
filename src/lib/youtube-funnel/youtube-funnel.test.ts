@@ -30,7 +30,12 @@ describe("funnel-analytics", () => {
     assert.equal(mapClientEventToFunnelName("recipe_video_cta_click"), null);
     assert.equal(mapClientEventToFunnelName("recipe_video_complete"), "recipe_video_ended");
     assert.equal(mapClientEventToFunnelName("recipe_related_video_click"), "recipe_watch_next_click");
+    assert.equal(
+      mapClientEventToFunnelName("series_watch_playlist_on_youtube_click"),
+      "series_watch_playlist_on_youtube_click",
+    );
     assert.ok(isFunnelEventName("recipe_youtube_subscribe_click"));
+    assert.ok(isFunnelEventName("series_watch_playlist_on_youtube_click"));
   });
 
   it("maps video analytics sources to placements", () => {
