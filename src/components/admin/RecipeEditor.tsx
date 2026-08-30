@@ -36,7 +36,7 @@ import {
   adminInputClass,
   adminPrimaryButtonClass,
 } from "@/lib/admin-ui";
-import { ADMIN_IMAGE_HELP } from "@/lib/admin-upload";
+import { ADMIN_IMAGE_FORMAT_HELP, RECIPE_HERO_IMAGE_HELP } from "@/lib/admin-upload";
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
 import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS, slugify } from "@/lib/fields";
 import { fieldValueHasContent } from "@/lib/field-content";
@@ -1706,7 +1706,14 @@ function KindInput({
     );
   }
   if (kind === "image") {
-    return <ImageField value={String(value || "")} onChange={onChange} invalid={invalid} />;
+    return (
+      <ImageField
+        value={String(value || "")}
+        onChange={onChange}
+        invalid={invalid}
+        helpText={fieldKey === "image" ? RECIPE_HERO_IMAGE_HELP : ADMIN_IMAGE_FORMAT_HELP}
+      />
+    );
   }
   if (kind === "gallery") {
     const urls = Array.isArray(value) ? (value as string[]) : [];
@@ -1735,6 +1742,7 @@ function KindInput({
         <ImageField
           value=""
           buttonLabel="Add image"
+          helpText={ADMIN_IMAGE_FORMAT_HELP}
           onChange={(url) => {
             if (url) onChange([...urls, url]);
           }}
@@ -2188,11 +2196,13 @@ function ImageField({
   onChange,
   buttonLabel = "Upload image",
   invalid = false,
+  helpText = RECIPE_HERO_IMAGE_HELP,
 }: {
   value: string;
   onChange: (value: string) => void;
   buttonLabel?: string;
   invalid?: boolean;
+  helpText?: string;
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -2208,7 +2218,7 @@ function ImageField({
 
   return (
     <div className="grid gap-3">
-      <p className="text-xs text-muted">{ADMIN_IMAGE_HELP}</p>
+      <p className="text-xs text-muted">{helpText}</p>
       <label className="cursor-pointer">
         <span
           className={`inline-flex h-10 items-center justify-center rounded-full bg-terracotta px-5 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 hover:bg-terracotta-dark active:scale-[0.995] ${adminFocusRing}`}
@@ -2237,12 +2247,14 @@ function ImageField({
       </div>
       {value ? (
         <figure className="overflow-hidden rounded-sm border border-line bg-cream/50">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={value}
-            alt="Hero image preview"
-            className="max-h-72 w-full max-w-full object-contain"
-          />
+          <div className="relative aspect-video w-full bg-sand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={value}
+              alt="Hero image preview"
+              className="absolute inset-0 h-full w-full object-contain"
+            />
+          </div>
         </figure>
       ) : null}
     </div>

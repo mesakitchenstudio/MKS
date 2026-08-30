@@ -13,8 +13,19 @@ export type AdminImageMime = (typeof ADMIN_IMAGE_MIME_TYPES)[number];
 
 export const ADMIN_IMAGE_ACCEPT = ADMIN_IMAGE_MIME_TYPES.join(",");
 
+/** Profile / avatar uploads — square crops work best in circular UI. */
 export const ADMIN_IMAGE_HELP =
   "Square images work best. JPEG, PNG, WebP, or GIF · max 2 MB.";
+
+/**
+ * Recipe hero image guidance (Media tab).
+ * 1600×900 is a recommendation only — YouTube maxres (typically 1280×720) remains valid.
+ */
+export const RECIPE_HERO_IMAGE_HELP =
+  "16:9 landscape images work best. Recommended: 1600 × 900 px. JPEG, PNG, WebP, or GIF · max 2 MB.";
+
+/** Format + size only (no aspect advice) — gallery and other non-hero uploads. */
+export const ADMIN_IMAGE_FORMAT_HELP = "JPEG, PNG, WebP, or GIF · max 2 MB.";
 
 export function isAdminImageMime(value: string): value is AdminImageMime {
   return (ADMIN_IMAGE_MIME_TYPES as readonly string[]).includes(value);

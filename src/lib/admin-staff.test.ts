@@ -15,7 +15,7 @@ import {
   validateAdminDeletion,
   validateAdminRoleChange,
 } from "./admin-staff";
-import { validateAdminImageFile, sniffAdminImageMime, validateAdminImageBytes, isOwnedAdminUploadUrl } from "./admin-upload";
+import { validateAdminImageFile, sniffAdminImageMime, validateAdminImageBytes, isOwnedAdminUploadUrl, RECIPE_HERO_IMAGE_HELP } from "./admin-upload";
 import { formatAdminDateTime } from "./datetime";
 import { hashPassword, verifyPassword } from "./passwords";
 import { isGooglePhotoUrl } from "./accounts";
@@ -332,6 +332,14 @@ test("admin image uploads reject bad types and oversized files", () => {
   if (!oversized.ok) {
     assert.equal(oversized.error, "Choose an image smaller than 2 MB.");
   }
+});
+
+test("recipe hero image help recommends 16:9 without requiring 1600×900", () => {
+  assert.match(RECIPE_HERO_IMAGE_HELP, /16:9 landscape images work best/);
+  assert.match(RECIPE_HERO_IMAGE_HELP, /Recommended: 1600 × 900 px/);
+  assert.match(RECIPE_HERO_IMAGE_HELP, /max 2 MB/);
+  // Upload validation stays format/size only — 1280×720 YouTube thumbs are not rejected by dimension rules.
+  assert.equal(validateAdminImageFile({ type: "image/jpeg", size: 180_000 }).ok, true);
 });
 
 test("admin image sniffing accepts real signatures and rejects spoofed files", () => {

@@ -126,7 +126,7 @@ export default async function RecipePage({ params }: Props) {
         ) : null}
 
         <figure className="mt-8 overflow-hidden border border-line bg-sand">
-          <div className="relative aspect-[4/3] w-full">
+          <div className="relative aspect-video w-full">
             <Image
               src={recipe.image}
               alt={recipe.imageAlt}
