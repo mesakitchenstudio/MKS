@@ -59,3 +59,12 @@ export function eachUtcDay(startDate: string, endDate: string): Date[] {
 export function utcDayStart(ymd: string): Date {
   return parseUtcYmd(ymd);
 }
+
+/**
+ * Synthetic UTC date used to store Top-videos period aggregates in VideoDay.
+ * Top videos reports are period totals (not daily), and 7/28/90 share the same
+ * real endDate — so we key rows by these reserved calendar days instead.
+ */
+export function analyticsVideoPeriodStoreDate(days: AnalyticsRangeDays): Date {
+  return new Date(Date.UTC(2099, 0, days));
+}

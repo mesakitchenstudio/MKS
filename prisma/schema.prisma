@@ -355,6 +355,9 @@ model YouTubeAnalyticsConnection {
   lastRefreshAt      DateTime?
   lastSyncAt         DateTime?
   lastError          String   @default("")
+  /// SUCCESS_WITH_DATA | SUCCESS_NO_DATA | API_ERROR (per-video Top videos sync).
+  videoMetricsStatus String   @default("")
+  videoMetricsError  String   @default("")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

@@ -47,9 +47,14 @@ export default async function AdminYoutubePage({
       analytics={dashboard.analytics}
       analyticsError={params.analyticsError || ""}
       analyticsNotice={
-        params.analyticsConnected
-          ? `Connected YouTube Analytics as ${params.analyticsConnected}.`
-          : params.analyticsNotice || ""
+        [
+          params.analyticsConnected
+            ? `Connected YouTube Analytics as ${params.analyticsConnected}.`
+            : "",
+          params.analyticsNotice || "",
+        ]
+          .filter(Boolean)
+          .join(" ")
       }
     />
   );

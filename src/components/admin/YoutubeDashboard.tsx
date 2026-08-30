@@ -18,6 +18,8 @@ import {
 } from "@/lib/youtube-data/video-format";
 import type { AnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
 import { ANALYTICS_RANGE_DAYS } from "@/lib/youtube-analytics/ranges";
+import { clearTransientSearchParams } from "@/lib/admin-transient-feedback";
+import { ANALYTICS_FLASH_PARAMS } from "@/lib/youtube-analytics/status";
 
 type ChannelSummary = {
   channelId: string;
@@ -65,6 +67,9 @@ type AnalyticsConnection = {
   connectedAt: string | null;
   lastSyncAt: string | null;
   lastError: string;
+  videoMetricsStatus?: string;
+  videoMetricsError?: string;
+  scopesSufficient?: boolean;
 };
 
 type AnalyticsSummary = {
@@ -81,6 +86,8 @@ type AnalyticsSummary = {
     shares: string;
     hasData: boolean;
   };
+  videoMetricsStatus?: string;
+  videoMetricsNotice?: string;
 };
 
 type HealthIssue = {
@@ -223,6 +230,9 @@ export function YoutubeDashboard({
   useEffect(() => {
     setAnalyticsMessage(analyticsNotice);
     setAnalyticsAlert(analyticsError || analytics.connection.lastError);
+    if (analyticsNotice || analyticsError) {
+      clearTransientSearchParams(ANALYTICS_FLASH_PARAMS);
+    }
   }, [analyticsNotice, analyticsError, analytics.connection.lastError]);
 
   function updateFilter(next: YoutubeDashboardVideoFilter) {
@@ -301,9 +311,18 @@ export function YoutubeDashboard({
     startAnalyticsTransition(async () => {
       const result = await syncYoutubeAnalyticsAction();
       if (result.ok) {
-        setAnalyticsMessage(
-          `Analytics refreshed (${result.channelDays} channel days, ${result.videoDays} video days).`,
-        );
+        if (result.videoMetricsStatus === "API_ERROR") {
+          setAnalyticsAlert(
+            "Per-video YouTube Analytics could not be loaded. Public YouTube data is still available.",
+          );
+          setAnalyticsMessage(
+            `Channel analytics refreshed (${result.channelDays} channel days).`,
+          );
+        } else {
+          setAnalyticsMessage(
+            `Analytics refreshed (${result.channelDays} channel days, ${result.videoDays} video rows).`,
+          );
+        }
         router.refresh();
       } else {
         setAnalyticsAlert(result.error || "YouTube Analytics refresh failed.");
@@ -494,6 +513,11 @@ export function YoutubeDashboard({
       {analyticsAlert ? (
         <p className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-3 py-2 text-sm text-terracotta" role="alert">
           {analyticsAlert}
+        </p>
+      ) : null}
+      {!analyticsAlert && analytics.videoMetricsNotice ? (
+        <p className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-3 py-2 text-sm text-terracotta" role="alert">
+          {analytics.videoMetricsNotice}
         </p>
       ) : null}
 

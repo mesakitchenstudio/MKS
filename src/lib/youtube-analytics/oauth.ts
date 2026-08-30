@@ -1,11 +1,9 @@
 import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { YouTubeAnalyticsError } from "@/lib/youtube-analytics/errors";
+import { YT_ANALYTICS_SCOPES } from "@/lib/youtube-analytics/oauth-scopes";
 
-export const YT_ANALYTICS_SCOPES = [
-  "https://www.googleapis.com/auth/yt-analytics.readonly",
-  "https://www.googleapis.com/auth/youtube.readonly",
-] as const;
+export { YT_ANALYTICS_SCOPES } from "@/lib/youtube-analytics/oauth-scopes";
 
 export const OAUTH_STATE_COOKIE = "mesa_yt_analytics_oauth_state";
 

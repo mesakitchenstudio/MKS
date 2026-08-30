@@ -1,10 +1,12 @@
 import { getDb } from "@/lib/db";
 import {
   analyticsDateRange,
+  analyticsVideoPeriodStoreDate,
   parseAnalyticsRangeDays,
   type AnalyticsRangeDays,
   utcDayStart,
 } from "@/lib/youtube-analytics/ranges";
+import type { VideoAnalyticsLoadState } from "@/lib/youtube-analytics/status";
 
 export type AggregatedAnalyticsMetrics = {
   views: number;
@@ -144,18 +146,12 @@ export async function loadVideoAnalyticsAggregate(
   days: AnalyticsRangeDays,
 ): Promise<AggregatedAnalyticsMetrics> {
   if (!videoId) return emptyAggregatedMetrics();
-  const range = analyticsDateRange(days);
   const db = getDb();
-  const rows = await db.youTubeAnalyticsVideoDay.findMany({
-    where: {
-      videoId,
-      date: {
-        gte: utcDayStart(range.startDate),
-        lte: utcDayStart(range.endDate),
-      },
-    },
+  const storeDate = analyticsVideoPeriodStoreDate(days);
+  const row = await db.youTubeAnalyticsVideoDay.findUnique({
+    where: { videoId_date: { videoId, date: storeDate } },
   });
-  return aggregateDayMetrics(rows);
+  return row ? aggregateDayMetrics([row]) : emptyAggregatedMetrics();
 }
 
 export async function loadVideoAnalyticsAggregatesForIds(
@@ -166,26 +162,17 @@ export async function loadVideoAnalyticsAggregatesForIds(
   for (const id of videoIds) map.set(id, emptyAggregatedMetrics());
   if (!videoIds.length) return map;
 
-  const range = analyticsDateRange(days);
   const db = getDb();
+  const storeDate = analyticsVideoPeriodStoreDate(days);
   const rows = await db.youTubeAnalyticsVideoDay.findMany({
     where: {
       videoId: { in: videoIds },
-      date: {
-        gte: utcDayStart(range.startDate),
-        lte: utcDayStart(range.endDate),
-      },
+      date: storeDate,
     },
   });
 
-  const byVideo = new Map<string, typeof rows>();
   for (const row of rows) {
-    const list = byVideo.get(row.videoId) || [];
-    list.push(row);
-    byVideo.set(row.videoId, list);
-  }
-  for (const [videoId, list] of byVideo) {
-    map.set(videoId, aggregateDayMetrics(list));
+    map.set(row.videoId, aggregateDayMetrics([row]));
   }
   return map;
 }
@@ -204,6 +191,32 @@ export function displayMetrics(metrics: AggregatedAnalyticsMetrics) {
     shares: metrics.shares.toLocaleString("en-US"),
     hasData: metrics.dayCount > 0 || metrics.views > 0,
   };
+}
+
+/** Format per-video Analytics cells; API_ERROR must never look like genuine zeros. */
+export function displayVideoAnalyticsMetrics(
+  metrics: AggregatedAnalyticsMetrics,
+  state: VideoAnalyticsLoadState,
+) {
+  if (state === "API_ERROR") {
+    return {
+      views: "—",
+      watchTime: "—",
+      averageViewDuration: "—",
+      averageViewPercentage: "—",
+      subscribersGained: "—",
+      subscribersLost: "—",
+      subscriberGrowth: "—",
+      likes: "—",
+      comments: "—",
+      shares: "—",
+      hasData: false,
+      state,
+    };
+  }
+
+  const display = displayMetrics(metrics);
+  return { ...display, state };
 }
 
 export { parseAnalyticsRangeDays, analyticsDateRange };

@@ -16,6 +16,7 @@ import {
 import { getAnalyticsConnectionPublic } from "@/lib/youtube-analytics/connection";
 import {
   displayMetrics,
+  displayVideoAnalyticsMetrics,
   emptyAggregatedMetrics,
   loadChannelAnalyticsAggregate,
   loadVideoAnalyticsAggregate,
@@ -26,6 +27,11 @@ import {
   parseAnalyticsRangeDays,
   type AnalyticsRangeDays,
 } from "@/lib/youtube-analytics/ranges";
+import {
+  parseVideoAnalyticsLoadState,
+  type VideoAnalyticsLoadState,
+  VIDEO_ANALYTICS_API_ERROR_NOTICE,
+} from "@/lib/youtube-analytics/status";
 
 function formatCount(value: string) {
   try {
@@ -72,12 +78,20 @@ export async function loadYoutubeAdminDashboard(input?: {
       )
     : emptyAggregatedMetrics();
 
-  const videoAnalyticsMap = analyticsConnection.connected
-    ? await loadVideoAnalyticsAggregatesForIds(
-        videos.map((video) => video.videoId),
-        analyticsRangeDays,
-      )
-    : new Map();
+  const videoMetricsState: VideoAnalyticsLoadState = !analyticsConnection.connected
+    ? "SUCCESS_NO_DATA"
+    : !analyticsConnection.scopesSufficient
+      ? "API_ERROR"
+      : parseVideoAnalyticsLoadState(analyticsConnection.videoMetricsStatus) ||
+        (analyticsConnection.videoMetricsError ? "API_ERROR" : "SUCCESS_NO_DATA");
+
+  const videoAnalyticsMap =
+    analyticsConnection.connected && videoMetricsState !== "API_ERROR"
+      ? await loadVideoAnalyticsAggregatesForIds(
+          videos.map((video) => video.videoId),
+          analyticsRangeDays,
+        )
+      : new Map();
 
   const formatCounts = { long: 0, shorts: 0, unknown: 0 };
 
@@ -95,7 +109,10 @@ export async function loadYoutubeAdminDashboard(input?: {
         tags,
         durationSeconds: video.durationSeconds,
       });
-      const analytics = displayMetrics(videoAnalyticsMap.get(video.videoId) || emptyAggregatedMetrics());
+      const analytics = displayVideoAnalyticsMetrics(
+        videoAnalyticsMap.get(video.videoId) || emptyAggregatedMetrics(),
+        videoMetricsState,
+      );
 
       return {
         videoId: video.videoId,
@@ -124,6 +141,7 @@ export async function loadYoutubeAdminDashboard(input?: {
           averageViewPercentage: analytics.averageViewPercentage,
           subscribersGained: analytics.subscribersGained,
           hasData: analytics.hasData,
+          state: analytics.state,
         },
       };
     }),
@@ -171,6 +189,13 @@ export async function loadYoutubeAdminDashboard(input?: {
       connection: analyticsConnection,
       rangeDays: analyticsRangeDays,
       channel: channelAnalyticsDisplay,
+      videoMetricsStatus: videoMetricsState,
+      videoMetricsNotice:
+        videoMetricsState === "API_ERROR"
+          ? analyticsConnection.scopesSufficient
+            ? VIDEO_ANALYTICS_API_ERROR_NOTICE
+            : "YouTube Analytics needs to be re-authorized for readonly access. Disconnect and connect again."
+          : "",
     },
   };
 }
@@ -215,9 +240,20 @@ export async function loadYoutubeVideoDetail(
     })
     .reverse();
 
-  const analyticsMetrics = analyticsConnection.connected
-    ? displayMetrics(await loadVideoAnalyticsAggregate(video.videoId, analyticsRangeDays))
-    : displayMetrics(emptyAggregatedMetrics());
+  const videoMetricsState: VideoAnalyticsLoadState = !analyticsConnection.connected
+    ? "SUCCESS_NO_DATA"
+    : !analyticsConnection.scopesSufficient
+      ? "API_ERROR"
+      : parseVideoAnalyticsLoadState(analyticsConnection.videoMetricsStatus) ||
+        (analyticsConnection.videoMetricsError ? "API_ERROR" : "SUCCESS_NO_DATA");
+
+  const analyticsMetrics =
+    analyticsConnection.connected && videoMetricsState !== "API_ERROR"
+      ? displayVideoAnalyticsMetrics(
+          await loadVideoAnalyticsAggregate(video.videoId, analyticsRangeDays),
+          videoMetricsState,
+        )
+      : displayVideoAnalyticsMetrics(emptyAggregatedMetrics(), videoMetricsState);
 
   return {
     videoId: video.videoId,
@@ -241,6 +277,13 @@ export async function loadYoutubeVideoDetail(
       connection: analyticsConnection,
       rangeDays: analyticsRangeDays,
       metrics: analyticsMetrics,
+      videoMetricsStatus: videoMetricsState,
+      videoMetricsNotice:
+        videoMetricsState === "API_ERROR"
+          ? analyticsConnection.scopesSufficient
+            ? VIDEO_ANALYTICS_API_ERROR_NOTICE
+            : "YouTube Analytics needs to be re-authorized for readonly access. Disconnect and connect again."
+          : "",
     },
   };
 }

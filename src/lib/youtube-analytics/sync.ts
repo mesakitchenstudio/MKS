@@ -3,21 +3,33 @@ import { getDb } from "@/lib/db";
 import {
   fetchChannelDayMetrics,
   fetchChannelTrafficByDimension,
-  fetchVideoDayMetrics,
+  fetchTopVideoMetrics,
 } from "@/lib/youtube-analytics/client";
 import { markAnalyticsSyncResult } from "@/lib/youtube-analytics/connection";
 import { analyticsErrorMessage, YouTubeAnalyticsError } from "@/lib/youtube-analytics/errors";
-import { analyticsDateRange, utcDayStart } from "@/lib/youtube-analytics/ranges";
+import {
+  ANALYTICS_RANGE_DAYS,
+  analyticsDateRange,
+  analyticsVideoPeriodStoreDate,
+  utcDayStart,
+} from "@/lib/youtube-analytics/ranges";
+import type { VideoAnalyticsLoadState } from "@/lib/youtube-analytics/status";
 
 export async function syncYoutubeAnalytics(input?: {
-  /** Pull this many trailing days (default 90). */
+  /** Pull this many trailing days for channel daily rows (default 90). */
   days?: 7 | 28 | 90;
-}): Promise<{ ok: true; channelDays: number; videoDays: number } | { ok: false; error: string }> {
+}): Promise<
+  | {
+      ok: true;
+      channelDays: number;
+      videoDays: number;
+      videoMetricsStatus: VideoAnalyticsLoadState;
+    }
+  | { ok: false; error: string }
+> {
   const range = analyticsDateRange(input?.days ?? 90);
 
   try {
-    // Channel KPIs are required. Video/traffic are best-effort so a bad video
-    // query cannot blank the whole dashboard.
     const channelRows = await fetchChannelDayMetrics({
       startDate: range.startDate,
       endDate: range.endDate,
@@ -63,60 +75,62 @@ export async function syncYoutubeAnalytics(input?: {
       channelDays += 1;
     }
 
-    const catalogVideos = await db.youTubeVideo.findMany({
-      select: { videoId: true },
-      orderBy: { publishedAt: "desc" },
-      take: 400,
-    });
-    const videoIds = catalogVideos.map((v) => v.videoId);
+    let videoDays = 0;
+    let videoMetricsStatus: VideoAnalyticsLoadState = "SUCCESS_NO_DATA";
+    let videoMetricsError = "";
 
-    let videoRows: Awaited<ReturnType<typeof fetchVideoDayMetrics>> = [];
     try {
-      videoRows = await fetchVideoDayMetrics({
-        startDate: range.startDate,
-        endDate: range.endDate,
-        videoIds,
-      });
+      for (const days of ANALYTICS_RANGE_DAYS) {
+        const period = analyticsDateRange(days);
+        const videoRows = await fetchTopVideoMetrics({
+          startDate: period.startDate,
+          endDate: period.endDate,
+        });
+        const storeDate = analyticsVideoPeriodStoreDate(days);
+
+        for (const row of videoRows) {
+          if (!row.video) continue;
+          await db.youTubeAnalyticsVideoDay.upsert({
+            where: { videoId_date: { videoId: row.video, date: storeDate } },
+            create: {
+              videoId: row.video,
+              channelId,
+              date: storeDate,
+              views: Math.round(row.views),
+              estimatedMinutesWatched: Math.round(row.estimatedMinutesWatched),
+              averageViewDuration: row.averageViewDuration,
+              averageViewPercentage: row.averageViewPercentage,
+              subscribersGained: Math.round(row.subscribersGained),
+              subscribersLost: Math.round(row.subscribersLost),
+              likes: Math.round(row.likes),
+              comments: Math.round(row.comments),
+              shares: Math.round(row.shares),
+            },
+            update: {
+              channelId,
+              views: Math.round(row.views),
+              estimatedMinutesWatched: Math.round(row.estimatedMinutesWatched),
+              averageViewDuration: row.averageViewDuration,
+              averageViewPercentage: row.averageViewPercentage,
+              subscribersGained: Math.round(row.subscribersGained),
+              subscribersLost: Math.round(row.subscribersLost),
+              likes: Math.round(row.likes),
+              comments: Math.round(row.comments),
+              shares: Math.round(row.shares),
+            },
+          });
+          videoDays += 1;
+        }
+
+        if (videoRows.length > 0) {
+          videoMetricsStatus = "SUCCESS_WITH_DATA";
+        }
+      }
     } catch (error) {
       if (error instanceof YouTubeAnalyticsError && error.code === "quota") throw error;
-      // Keep channel sync success; video detail can retry on next refresh.
-      console.error("[youtube-analytics] video day sync skipped:", analyticsErrorMessage(error));
-    }
-
-    let videoDays = 0;
-    for (const row of videoRows) {
-      if (!row.day || !row.video) continue;
-      const date = utcDayStart(row.day);
-      await db.youTubeAnalyticsVideoDay.upsert({
-        where: { videoId_date: { videoId: row.video, date } },
-        create: {
-          videoId: row.video,
-          channelId,
-          date,
-          views: Math.round(row.views),
-          estimatedMinutesWatched: Math.round(row.estimatedMinutesWatched),
-          averageViewDuration: row.averageViewDuration,
-          averageViewPercentage: row.averageViewPercentage,
-          subscribersGained: Math.round(row.subscribersGained),
-          subscribersLost: Math.round(row.subscribersLost),
-          likes: Math.round(row.likes),
-          comments: Math.round(row.comments),
-          shares: Math.round(row.shares),
-        },
-        update: {
-          channelId,
-          views: Math.round(row.views),
-          estimatedMinutesWatched: Math.round(row.estimatedMinutesWatched),
-          averageViewDuration: row.averageViewDuration,
-          averageViewPercentage: row.averageViewPercentage,
-          subscribersGained: Math.round(row.subscribersGained),
-          subscribersLost: Math.round(row.subscribersLost),
-          likes: Math.round(row.likes),
-          comments: Math.round(row.comments),
-          shares: Math.round(row.shares),
-        },
-      });
-      videoDays += 1;
+      videoMetricsStatus = "API_ERROR";
+      videoMetricsError = analyticsErrorMessage(error);
+      console.error("[youtube-analytics] top-videos sync failed:", videoMetricsError);
     }
 
     // Traffic foundation — best effort, no UI yet.
@@ -162,8 +176,12 @@ export async function syncYoutubeAnalytics(input?: {
       }
     }
 
-    await markAnalyticsSyncResult({ ok: true });
-    return { ok: true, channelDays, videoDays };
+    await markAnalyticsSyncResult({
+      ok: true,
+      videoMetricsStatus,
+      videoMetricsError,
+    });
+    return { ok: true, channelDays, videoDays, videoMetricsStatus };
   } catch (error) {
     const message = analyticsErrorMessage(error);
     await markAnalyticsSyncResult({ ok: false, error: message });

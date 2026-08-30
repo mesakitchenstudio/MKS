@@ -104,19 +104,26 @@ export default async function AdminYoutubeVideoPage({
             Public metadata on this page still works.
           </p>
         ) : (
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <Meta label="Period views" value={detail.analytics.metrics.views} />
-            <Meta label="Watch time" value={detail.analytics.metrics.watchTime} />
-            <Meta label="Average view duration" value={detail.analytics.metrics.averageViewDuration} />
-            <Meta
-              label="Average percentage viewed"
-              value={detail.analytics.metrics.averageViewPercentage}
-            />
-            <Meta label="Subscribers gained" value={detail.analytics.metrics.subscribersGained} />
-            <Meta label="Subscribers lost" value={detail.analytics.metrics.subscribersLost} />
-            <Meta label="Shares" value={detail.analytics.metrics.shares} />
-            <Meta label="Likes (Analytics)" value={detail.analytics.metrics.likes} />
-          </dl>
+          <>
+            {detail.analytics.videoMetricsNotice ? (
+              <p className="mt-4 text-sm text-terracotta" role="alert">
+                {detail.analytics.videoMetricsNotice}
+              </p>
+            ) : null}
+            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <Meta label="Period views" value={detail.analytics.metrics.views} />
+              <Meta label="Watch time" value={detail.analytics.metrics.watchTime} />
+              <Meta label="Average view duration" value={detail.analytics.metrics.averageViewDuration} />
+              <Meta
+                label="Average percentage viewed"
+                value={detail.analytics.metrics.averageViewPercentage}
+              />
+              <Meta label="Subscribers gained" value={detail.analytics.metrics.subscribersGained} />
+              <Meta label="Subscribers lost" value={detail.analytics.metrics.subscribersLost} />
+              <Meta label="Shares" value={detail.analytics.metrics.shares} />
+              <Meta label="Likes (Analytics)" value={detail.analytics.metrics.likes} />
+            </dl>
+          </>
         )}
       </section>
 

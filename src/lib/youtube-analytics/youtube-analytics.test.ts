@@ -11,9 +11,15 @@ import {
 } from "@/lib/youtube-analytics/aggregate";
 import {
   analyticsDateRange,
+  analyticsVideoPeriodStoreDate,
   DEFAULT_ANALYTICS_RANGE_DAYS,
 } from "@/lib/youtube-analytics/ranges";
 import { analyticsErrorMessage, YouTubeAnalyticsError } from "@/lib/youtube-analytics/errors";
+import {
+  displayVideoAnalyticsMetrics,
+  emptyAggregatedMetrics,
+} from "@/lib/youtube-analytics/aggregate";
+import { analyticsScopesAreSufficient } from "@/lib/youtube-analytics/oauth-scopes";
 import { createHash } from "crypto";
 import {
   applyYoutubeVideoLinkToValues,
@@ -74,6 +80,41 @@ describe("youtube-analytics", () => {
       "The query is not supported.",
     );
     assert.match(analyticsErrorMessage(error), /query is not supported/i);
+  });
+
+  it("stores top-video period aggregates on reserved 2099 dates", () => {
+    assert.equal(analyticsVideoPeriodStoreDate(7).toISOString(), "2099-01-07T00:00:00.000Z");
+    assert.equal(analyticsVideoPeriodStoreDate(28).toISOString(), "2099-01-28T00:00:00.000Z");
+    assert.equal(analyticsVideoPeriodStoreDate(90).toISOString(), "2099-03-31T00:00:00.000Z");
+  });
+
+  it("requires both Analytics and YouTube readonly OAuth scopes", () => {
+    assert.equal(
+      analyticsScopesAreSufficient(
+        "https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/youtube.readonly",
+      ),
+      true,
+    );
+    assert.equal(
+      analyticsScopesAreSufficient("https://www.googleapis.com/auth/yt-analytics.readonly"),
+      false,
+    );
+  });
+
+  it("shows em dashes for per-video metrics when the Analytics API failed", () => {
+    const failed = displayVideoAnalyticsMetrics(emptyAggregatedMetrics(), "API_ERROR");
+    assert.equal(failed.views, "—");
+    assert.equal(failed.watchTime, "—");
+    assert.equal(failed.averageViewPercentage, "—");
+    assert.equal(failed.subscribersGained, "—");
+    assert.equal(failed.hasData, false);
+  });
+
+  it("shows genuine zeros when Analytics succeeded with no activity", () => {
+    const empty = displayVideoAnalyticsMetrics(emptyAggregatedMetrics(), "SUCCESS_NO_DATA");
+    assert.equal(empty.views, "0");
+    assert.equal(empty.watchTime, "0h");
+    assert.equal(empty.subscribersGained, "0");
   });
 
   it("aggregates empty analytics results safely", () => {

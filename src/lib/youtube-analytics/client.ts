@@ -35,14 +35,22 @@ const CHANNEL_METRICS = [
   "shares",
 ].join(",");
 
-const VIDEO_METRICS = [
+/** Top videos report metrics (supported channel video report combination). */
+const TOP_VIDEO_METRICS = [
   "views",
   "estimatedMinutesWatched",
   "averageViewDuration",
   "averageViewPercentage",
   "subscribersGained",
-  "likes",
-  "comments",
+  "subscribersLost",
+  "shares",
+].join(",");
+
+const TOP_VIDEO_METRICS_CORE = [
+  "views",
+  "estimatedMinutesWatched",
+  "averageViewDuration",
+  "subscribersGained",
   "shares",
 ].join(",");
 
@@ -71,6 +79,35 @@ function mapMetricRow(headers: string[], cells: unknown[]): AnalyticsMetricRow {
   };
 }
 
+/** Safe server log — never includes tokens, secrets, or Authorization headers. */
+function logReportsFailure(input: {
+  status: number;
+  ids: string;
+  dimensions: string;
+  metrics: string;
+  startDate: string;
+  endDate: string;
+  sort?: string;
+  maxResults?: number;
+  filtersPresent: boolean;
+  reason?: string;
+  message?: string;
+}) {
+  console.error("[youtube-analytics] reports.query failed", {
+    status: input.status,
+    ids: input.ids,
+    dimensions: input.dimensions,
+    metrics: input.metrics,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    sort: input.sort,
+    maxResults: input.maxResults,
+    filtersPresent: input.filtersPresent,
+    reason: input.reason || "",
+    message: input.message || "",
+  });
+}
+
 async function fetchReports(input: {
   accessToken: string;
   channelId: string;
@@ -79,6 +116,8 @@ async function fetchReports(input: {
   metrics: string;
   dimensions: string;
   filters?: string;
+  sort?: string;
+  maxResults?: number;
 }): Promise<{ headers: string[]; rows: unknown[][] }> {
   // Prefer channel==MINE with Brand Account OAuth tokens; fall back to explicit channel id.
   const idsList = input.channelId
@@ -95,6 +134,10 @@ async function fetchReports(input: {
     url.searchParams.set("metrics", input.metrics);
     url.searchParams.set("dimensions", input.dimensions);
     if (input.filters) url.searchParams.set("filters", input.filters);
+    if (input.sort) url.searchParams.set("sort", input.sort);
+    if (typeof input.maxResults === "number") {
+      url.searchParams.set("maxResults", String(input.maxResults));
+    }
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${input.accessToken}` },
@@ -106,13 +149,28 @@ async function fetchReports(input: {
     };
 
     const apiMessage = String(json.error?.message || "").trim();
+    const reason = json.error?.errors?.[0]?.reason || "";
+
     if (response.ok) {
       const headers = (json.columnHeaders || []).map((header) => String(header.name || ""));
       return { headers, rows: Array.isArray(json.rows) ? json.rows : [] };
     }
 
+    logReportsFailure({
+      status: response.status,
+      ids,
+      dimensions: input.dimensions,
+      metrics: input.metrics,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      sort: input.sort,
+      maxResults: input.maxResults,
+      filtersPresent: Boolean(input.filters),
+      reason,
+      message: apiMessage,
+    });
+
     if (response.status === 403 || response.status === 401) {
-      const reason = json.error?.errors?.[0]?.reason || "";
       if (reason.includes("quota") || reason === "quotaExceeded" || reason === "dailyLimitExceeded") {
         throw new YouTubeAnalyticsError("quota", "YouTube Analytics quota exceeded. Try again later.");
       }
@@ -130,7 +188,6 @@ async function fetchReports(input: {
       apiMessage ? `YouTube Analytics request failed: ${apiMessage}` : "YouTube Analytics request failed.",
       apiMessage || undefined,
     );
-    // Retry with explicit channel id when MINE fails (unsupported query / ids issues).
     if (ids === "channel==MINE" && idsList.length > 1) continue;
     throw lastError;
   }
@@ -176,41 +233,36 @@ export async function fetchChannelDayMetrics(input: {
   }
 }
 
-/** Max video IDs per Analytics filter (comma-separated). Keep conservative for URL length. */
-const VIDEO_FILTER_BATCH = 40;
-
 /**
- * Daily per-video metrics. YouTube requires a `video==…` filter when using the
- * `video` dimension with `day` — unfiltered `day,video` returns "query is not supported".
+ * Channel Top videos report for a date window.
+ * Requires dimensions=video, sort, and maxResults <= 200 (Google channel reports).
  */
-export async function fetchVideoDayMetrics(input: {
+export async function fetchTopVideoMetrics(input: {
   startDate: string;
   endDate: string;
-  videoIds: string[];
 }): Promise<AnalyticsMetricRow[]> {
-  const ids = [...new Set(input.videoIds.map((id) => id.trim()).filter(Boolean))];
-  if (ids.length === 0) return [];
-
   const { accessToken, channelId } = await getAnalyticsAccessToken();
-  const out: AnalyticsMetricRow[] = [];
 
-  for (let i = 0; i < ids.length; i += VIDEO_FILTER_BATCH) {
-    const batch = ids.slice(i, i + VIDEO_FILTER_BATCH);
-    const { headers, rows } = await fetchReports({
+  const run = (metrics: string) =>
+    fetchReports({
       accessToken,
       channelId,
       startDate: input.startDate,
       endDate: input.endDate,
-      metrics: VIDEO_METRICS,
-      dimensions: "day,video",
-      filters: `video==${batch.join(",")}`,
+      metrics,
+      dimensions: "video",
+      sort: "-views",
+      maxResults: 200,
     });
-    for (const cells of rows) {
-      out.push(mapMetricRow(headers, cells));
-    }
-  }
 
-  return out;
+  try {
+    const { headers, rows } = await run(TOP_VIDEO_METRICS);
+    return rows.map((cells) => mapMetricRow(headers, cells));
+  } catch (error) {
+    if (!(error instanceof YouTubeAnalyticsError) || error.code === "quota") throw error;
+    const { headers, rows } = await run(TOP_VIDEO_METRICS_CORE);
+    return rows.map((cells) => mapMetricRow(headers, cells));
+  }
 }
 
 export async function fetchChannelTrafficByDimension(input: {
@@ -239,7 +291,6 @@ export async function fetchChannelTrafficByDimension(input: {
       estimatedMinutesWatched: num(watchIndex >= 0 ? cells[watchIndex] : 0),
     }));
   } catch (error) {
-    // Traffic dimensions are foundation-only; ignore soft failures during sync.
     if (error instanceof YouTubeAnalyticsError && error.code === "quota") throw error;
     return [];
   }

@@ -57,9 +57,12 @@ test("stripSearchParams clears Team Access saved flash params", () => {
   );
 });
 
-test("stripSearchParams clears profile photo saved flash", () => {
+test("stripSearchParams clears YouTube Analytics flash params", () => {
   assert.equal(
-    stripSearchParams("http://localhost/admin/profile?saved=1", ["saved"]),
-    "/admin/profile",
+    stripSearchParams(
+      "http://localhost/admin/youtube?analyticsConnected=Mesa&analyticsNotice=fail&range=28",
+      ["analyticsConnected", "analyticsNotice", "analyticsError"],
+    ),
+    "/admin/youtube?range=28",
   );
 });

@@ -74,7 +74,14 @@ export async function GET(request: Request) {
     jar.delete(OAUTH_STATE_COOKIE);
     return redirectToYoutube(origin, {
       analyticsConnected: saved.channelTitle || "Mesa Kitchen Studio",
-      ...(syncResult.ok ? {} : { analyticsNotice: syncResult.error }),
+      ...(syncResult.ok
+        ? syncResult.videoMetricsStatus === "API_ERROR"
+          ? {
+              analyticsNotice:
+                "Per-video YouTube Analytics could not be loaded. Public YouTube data is still available.",
+            }
+          : {}
+        : { analyticsNotice: syncResult.error }),
     });
   } catch (error) {
     jar.delete(OAUTH_STATE_COOKIE);
