@@ -86,7 +86,7 @@ export function YoutubeVideoSelector({
           {loading ? <p className="px-3 py-6 text-sm text-muted">Loading videos…</p> : null}
           {error ? <p className="px-3 py-6 text-sm text-terracotta">{error}</p> : null}
           {!loading && !error && videos.length === 0 ? (
-            <p className="px-3 py-6 text-sm text-muted">No synced videos found. Run Sync YouTube first.</p>
+            <p className="px-3 py-6 text-sm text-muted">No synced videos found. Refresh YouTube data first.</p>
           ) : null}
           <ul className="space-y-1">
             {videos.map((video) => (

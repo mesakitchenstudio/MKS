@@ -6,6 +6,9 @@ import {
   titlesDifferSignificantly,
 } from "@/lib/youtube-data/matching";
 import { getDb } from "@/lib/db";
+import { parseValues } from "@/lib/recipe-map";
+import { parseRecipeAiMeta } from "@/lib/ai-recipe/types";
+import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 
 export function videoRowStatus(input: {
   privacyStatus: string;
@@ -28,6 +31,50 @@ export type YouTubeContentHealthSummary = {
   issues: YouTubeContentHealthIssue[];
 };
 
+/** True when a verified recipe's stored YouTube mirror differs from the synced cache. */
+export function verifiedRecipeHasYoutubeMetadataDrift(input: {
+  aiMetaRaw: string | null | undefined;
+  recipeValuesRaw: string | Record<string, unknown> | null | undefined;
+  video: {
+    title: string;
+    thumbnailUrl: string;
+    durationDisplay: string;
+    description: string;
+  };
+}): boolean {
+  const aiMeta = parseRecipeAiMeta(input.aiMetaRaw);
+  if (aiMeta?.verificationStatus !== "verified") return false;
+
+  const values = parseValues(input.recipeValuesRaw);
+  const blob = parseRecipeYoutubeBlob(values.youtube);
+  if (!blob) return false;
+
+  if (blob.title && titlesDifferSignificantly(input.video.title, blob.title)) return true;
+  if (
+    blob.duration &&
+    input.video.durationDisplay &&
+    blob.duration.trim() !== input.video.durationDisplay.trim()
+  ) {
+    return true;
+  }
+  if (
+    blob.thumbnail &&
+    input.video.thumbnailUrl &&
+    blob.thumbnail.trim() !== input.video.thumbnailUrl.trim()
+  ) {
+    return true;
+  }
+
+  const descriptionChapters = parseYoutubeDescriptionChapters(input.video.description);
+  const recipeChapterCount = blob.timestamps?.length ?? 0;
+  if (descriptionChapters.length > 0 && recipeChapterCount > 0) {
+    // Count mismatch only — do not rewrite chapters; report drift for editorial review.
+    if (descriptionChapters.length !== recipeChapterCount) return true;
+  }
+
+  return false;
+}
+
 export async function summarizeYoutubeContentHealth(): Promise<YouTubeContentHealthSummary> {
   const issues = await buildYoutubeContentHealth();
   const videosNeedRecipes = issues.filter((issue) => issue.id.startsWith("video-no-recipe-")).length;
@@ -46,6 +93,16 @@ export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthI
   const publishedWithoutVideo = await buildRecipeVideoIndex({ includeDrafts: false }).then(
     (index) => index.recipesWithoutVideo,
   );
+
+  const linkedRecipeIds = [...new Set([...byVideoId.values()].map((link) => link.recipeId))];
+  const linkedRecipeMeta =
+    linkedRecipeIds.length > 0
+      ? await db.recipe.findMany({
+          where: { id: { in: linkedRecipeIds } },
+          select: { id: true, values: true, aiMeta: true },
+        })
+      : [];
+  const metaById = new Map(linkedRecipeMeta.map((row) => [row.id, row]));
 
   const issues: YouTubeContentHealthIssue[] = [];
 
@@ -114,6 +171,28 @@ export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthI
       issues.push({
         id: `recipe-missing-saved-chapters-${video.videoId}`,
         label: `Recipe “${link.recipeTitle}” has no saved chapters but YouTube description includes them`,
+        href: `/admin/recipes/${link.recipeId}`,
+        kind: "recipe",
+      });
+    }
+
+    const stored = metaById.get(link.recipeId);
+    if (
+      stored &&
+      verifiedRecipeHasYoutubeMetadataDrift({
+        aiMetaRaw: stored.aiMeta,
+        recipeValuesRaw: stored.values,
+        video: {
+          title: video.title,
+          thumbnailUrl: video.thumbnailUrl,
+          durationDisplay: video.durationDisplay,
+          description: video.description,
+        },
+      })
+    ) {
+      issues.push({
+        id: `verified-yt-drift-${video.videoId}`,
+        label: `YouTube metadata has changed since verified recipe “${link.recipeTitle}” was last reviewed`,
         href: `/admin/recipes/${link.recipeId}`,
         kind: "recipe",
       });

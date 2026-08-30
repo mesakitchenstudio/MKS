@@ -27,6 +27,8 @@ export type MetadataSyncField = {
   skipReason?: string;
 };
 
+export type HeroImageSource = NonNullable<RecipeAiMeta["heroImageSource"]>;
+
 export function recipeLinkedVideoId(values: Record<string, unknown>): string | null {
   const fromUrl = youtubeVideoId(String(values.youtubeUrl ?? ""));
   if (fromUrl) return fromUrl;
@@ -36,13 +38,145 @@ export function recipeLinkedVideoId(values: Record<string, unknown>): string | n
   return null;
 }
 
+function currentHeroImage(values: Record<string, unknown>) {
+  return String(values.image ?? "").trim();
+}
+
+/** True when Hero image is empty or still the auto-inherited YouTube thumbnail. */
+export function shouldApplyYoutubeThumbnailAsHero(
+  values: Record<string, unknown>,
+  aiMeta: RecipeAiMeta | null | undefined,
+  nextThumbnailUrl?: string,
+): boolean {
+  const current = currentHeroImage(values);
+  if (!current) return true;
+
+  if (aiMeta?.heroImageSource === "manual_upload" || aiMeta?.heroImageSource === "manual_url") {
+    return false;
+  }
+
+  if (aiMeta?.heroImageSource === "youtube_thumbnail") return true;
+
+  // Fallback when provenance is missing: treat image as inherited if it matches
+  // the current YouTube blob thumbnail or the incoming video thumbnail.
+  const blob = parseRecipeYoutubeBlob(values.youtube);
+  if (blob?.thumbnail && current === String(blob.thumbnail).trim()) return true;
+  if (nextThumbnailUrl && current === nextThumbnailUrl.trim()) return true;
+
+  return false;
+}
+
+/**
+ * Populate Recipe.values.image from the synced video thumbnail when appropriate.
+ * Never invents a URL — uses video.thumbnailUrl from YouTube sync (already best-available).
+ */
+export function applyHeroImageFromYoutubeVideo(
+  values: Record<string, unknown>,
+  video: SyncedYoutubeVideo,
+  aiMeta?: RecipeAiMeta | null,
+): { values: Record<string, unknown>; applied: boolean } {
+  const thumbnailUrl = String(video.thumbnailUrl ?? "").trim();
+  if (!thumbnailUrl) {
+    return { values, applied: false };
+  }
+
+  if (!shouldApplyYoutubeThumbnailAsHero(values, aiMeta, thumbnailUrl)) {
+    return { values, applied: false };
+  }
+
+  if (currentHeroImage(values) === thumbnailUrl) {
+    // Idempotent: already set to this thumbnail.
+    return { values: { ...values, image: thumbnailUrl }, applied: true };
+  }
+
+  return {
+    values: { ...values, image: thumbnailUrl },
+    applied: true,
+  };
+}
+
+export function markHeroImageFromYoutube(
+  aiMeta: RecipeAiMeta | null | undefined,
+  videoId: string,
+): RecipeAiMeta {
+  if (!aiMeta) {
+    return {
+      generatedByAI: false,
+      sourceType: "youtube",
+      sourceUrl: "",
+      generatedAt: "",
+      model: "",
+      schemaVersion: "",
+      verificationStatus: "none",
+      confidenceByPath: {},
+      summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
+      heroImageSource: "youtube_thumbnail",
+      heroImageYoutubeVideoId: videoId,
+    };
+  }
+  return {
+    ...aiMeta,
+    heroImageSource: "youtube_thumbnail",
+    heroImageYoutubeVideoId: videoId,
+  };
+}
+
+export function markHeroImageManual(
+  aiMeta: RecipeAiMeta | null | undefined,
+  imageUrl: string,
+): RecipeAiMeta | null {
+  const url = String(imageUrl ?? "").trim();
+  if (!url) {
+    if (!aiMeta) return null;
+    const next = { ...aiMeta };
+    delete next.heroImageSource;
+    delete next.heroImageYoutubeVideoId;
+    return next;
+  }
+
+  const isUpload =
+    /blob\.vercel-storage\.com/i.test(url) ||
+    /\/api\/.*upload/i.test(url) ||
+    url.includes("public.blob.vercel-storage.com");
+
+  const source: HeroImageSource = isUpload ? "manual_upload" : "manual_url";
+
+  if (!aiMeta) {
+    // Minimal meta so provenance survives save when recipe has no AI generation yet.
+    return {
+      generatedByAI: false,
+      sourceType: "youtube",
+      sourceUrl: "",
+      generatedAt: "",
+      model: "",
+      schemaVersion: "",
+      verificationStatus: "none",
+      confidenceByPath: {},
+      summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
+      heroImageSource: source,
+    };
+  }
+
+  return {
+    ...aiMeta,
+    heroImageSource: source,
+    heroImageYoutubeVideoId: undefined,
+  };
+}
+
 export function applyYoutubeVideoLinkToValues(
   values: Record<string, unknown>,
   video: SyncedYoutubeVideo,
+  options?: { aiMeta?: RecipeAiMeta | null; applyHeroImage?: boolean },
 ): Record<string, unknown> {
   const watchUrl = youtubeWatchUrl(video.videoId) || `https://www.youtube.com/watch?v=${video.videoId}`;
   const existing = parseRecipeYoutubeBlob(values.youtube) ?? {};
-  const next = {
+  // Decide using pre-link values so Change video still replaces an inherited thumb.
+  const shouldApplyHero =
+    options?.applyHeroImage !== false &&
+    shouldApplyYoutubeThumbnailAsHero(values, options?.aiMeta, video.thumbnailUrl);
+
+  const next: Record<string, unknown> = {
     ...values,
     youtubeUrl: watchUrl,
     youtube: {
@@ -54,6 +188,12 @@ export function applyYoutubeVideoLinkToValues(
       url: watchUrl,
     },
   };
+
+  const thumbnailUrl = String(video.thumbnailUrl ?? "").trim();
+  if (shouldApplyHero && thumbnailUrl) {
+    next.image = thumbnailUrl;
+  }
+
   return next;
 }
 
@@ -61,6 +201,7 @@ export function clearYoutubeLinkFromValues(values: Record<string, unknown>): Rec
   const next = { ...values };
   next.youtubeUrl = "";
   delete next.youtube;
+  // Keep Hero image (including YouTube-inherited thumbnails).
   return next;
 }
 
@@ -121,6 +262,28 @@ export function previewYoutubeMetadataSync(input: {
     video.thumbnailUrl,
   );
 
+  const verified = isRecipeAiVerified(aiMeta);
+
+  const heroCurrent = currentHeroImage(values);
+  const heroNext = String(video.thumbnailUrl ?? "").trim();
+  if (heroNext && shouldApplyYoutubeThumbnailAsHero(values, aiMeta, heroNext) && heroCurrent !== heroNext) {
+    addChange(
+      "image",
+      "Hero image",
+      heroCurrent || "None",
+      "YouTube thumbnail",
+      verified ? "Verified recipe — Hero image will be kept" : undefined,
+    );
+  } else if (heroCurrent && heroNext && !shouldApplyYoutubeThumbnailAsHero(values, aiMeta, heroNext)) {
+    addChange(
+      "image",
+      "Hero image",
+      "Custom image",
+      "YouTube thumbnail",
+      "Custom Hero image will be kept",
+    );
+  }
+
   if (chapters.length) {
     const currentCount = blob?.timestamps?.length ?? 0;
     addChange(
@@ -128,8 +291,12 @@ export function previewYoutubeMetadataSync(input: {
       "Chapters",
       currentCount ? `${currentCount} saved chapter(s)` : "None",
       `${chapters.length} chapter(s) from YouTube description`,
-      hasSavedTimestamps(values) || fieldIsHumanProtected("values.youtube.timestamps", aiMeta)
-        ? "Existing saved chapters will be kept"
+      verified ||
+        hasSavedTimestamps(values) ||
+        fieldIsHumanProtected("values.youtube.timestamps", aiMeta)
+        ? verified
+          ? "Verified recipe — chapters will be kept"
+          : "Existing saved chapters will be kept"
         : undefined,
     );
   }
@@ -143,9 +310,12 @@ export function previewYoutubeMetadataSync(input: {
       "Tags",
       currentTags || "None",
       video.tags.join(", "),
-      (Array.isArray(values.tags) && values.tags.length > 0) ||
+      verified ||
+        (Array.isArray(values.tags) && values.tags.length > 0) ||
         fieldIsHumanProtected("values.tags", aiMeta)
-        ? "Existing tags will be kept"
+        ? verified
+          ? "Verified recipe — tags will be kept"
+          : "Existing tags will be kept"
         : undefined,
     );
   }
@@ -157,11 +327,32 @@ export function applyYoutubeMetadataSync(input: {
   values: Record<string, unknown>;
   aiMeta: RecipeAiMeta | null;
   video: SyncedYoutubeVideo;
+  /**
+   * Required for verified recipes before any recipe-stored YouTube metadata is updated.
+   * Never clears verification. Never mutates editorial recipe content.
+   */
+  allowVerifiedRecipeUpdates?: boolean;
 }): Record<string, unknown> {
-  const linked = applyYoutubeVideoLinkToValues(input.values, input.video);
-  if (isRecipeAiVerified(input.aiMeta)) {
-    return linked;
+  const verified = isRecipeAiVerified(input.aiMeta);
+
+  // Verified recipes: never silently mutate recipe-stored fields.
+  if (verified && !input.allowVerifiedRecipeUpdates) {
+    return input.values;
   }
+
+  if (verified) {
+    // Explicit confirmation: refresh linked-video mirror fields only.
+    // Do not touch hero image, recipe tags, chapters, or any editorial content.
+    return applyYoutubeVideoLinkToValues(input.values, input.video, {
+      aiMeta: input.aiMeta,
+      applyHeroImage: false,
+    });
+  }
+
+  const linked = applyYoutubeVideoLinkToValues(input.values, input.video, {
+    aiMeta: input.aiMeta,
+    applyHeroImage: true,
+  });
 
   const chapters = parseYoutubeDescriptionChapters(input.video.description);
   const blob = parseRecipeYoutubeBlob(linked.youtube) ?? {};
@@ -186,6 +377,13 @@ export function applyYoutubeMetadataSync(input: {
   }
 
   return next;
+}
+
+/** Preview helper: whether applying refresh would mutate recipe-stored data. */
+export function metadataSyncWouldMutateRecipe(
+  fields: MetadataSyncField[],
+): boolean {
+  return fields.some((field) => !field.skipReason && field.current !== field.next);
 }
 
 export function syncedVideoToEditorPreview(video: SyncedYoutubeVideo) {

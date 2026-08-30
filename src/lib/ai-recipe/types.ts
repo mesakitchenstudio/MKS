@@ -43,6 +43,14 @@ export type RecipeAiMeta = {
   recipeTypeConfidence?: "HIGH" | "MEDIUM" | "LOW";
   /** Editor manually confirmed or changed the recipe type. */
   recipeTypeConfirmed?: boolean;
+  /**
+   * Provenance for Recipe.values.image (Hero image).
+   * youtube_thumbnail = inherited from linked YouTube video; may be replaced on Change video.
+   * manual_* = editor-owned; Sync / Change video must not overwrite.
+   */
+  heroImageSource?: "youtube_thumbnail" | "manual_upload" | "manual_url";
+  /** When heroImageSource is youtube_thumbnail, the video ID that supplied it. */
+  heroImageYoutubeVideoId?: string;
 };
 
 export type AiConfidentScalar<T> = {
@@ -103,10 +111,19 @@ export function parseRecipeAiMeta(raw: string | null | undefined): RecipeAiMeta 
       recipeTypeSource: parsed.recipeTypeSource,
       recipeTypeConfidence: parsed.recipeTypeConfidence,
       recipeTypeConfirmed: parsed.recipeTypeConfirmed,
+      heroImageSource:
+        parsed.heroImageSource === "youtube_thumbnail" ||
+        parsed.heroImageSource === "manual_upload" ||
+        parsed.heroImageSource === "manual_url"
+          ? parsed.heroImageSource
+          : undefined,
+      heroImageYoutubeVideoId: parsed.heroImageYoutubeVideoId
+        ? String(parsed.heroImageYoutubeVideoId)
+        : undefined,
     };
 
     if (!parsed.generatedByAI) {
-      if (parsed.recipeTypeSource || parsed.sourceVideoId) {
+      if (parsed.recipeTypeSource || parsed.sourceVideoId || parsed.heroImageSource) {
         return {
           generatedByAI: false,
           ...base,

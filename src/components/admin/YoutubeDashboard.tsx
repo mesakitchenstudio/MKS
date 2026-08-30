@@ -184,7 +184,7 @@ export function YoutubeDashboard({
       const result = await syncYoutubeAction();
       if (result.ok) {
         setSyncMessage(
-          `Synced ${result.videosSynced} videos${result.snapshotCreated ? " and recorded a snapshot" : ""}.`,
+          `Refreshed ${result.videosSynced} videos${result.snapshotCreated ? " and recorded a snapshot" : ""}. Recipe content was not changed.`,
         );
         router.refresh();
       } else {
@@ -324,14 +324,20 @@ export function YoutubeDashboard({
           </p>
         </div>
         {canSync ? (
-          <button
-            type="button"
-            className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-            disabled={pending}
-            onClick={onSync}
-          >
-            {pending ? "Syncing…" : "Sync YouTube"}
-          </button>
+          <div className="max-w-xs text-right">
+            <button
+              type="button"
+              className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+              disabled={pending}
+              onClick={onSync}
+            >
+              {pending ? "Refreshing…" : "Refresh YouTube data"}
+            </button>
+            <p className="mt-2 text-xs leading-snug text-muted">
+              Refreshes channel, video metadata, thumbnails and public statistics. Recipe content is
+              not changed.
+            </p>
+          </div>
         ) : null}
       </div>
 
@@ -350,9 +356,9 @@ export function YoutubeDashboard({
         <div className="rounded-sm border border-line bg-sand/30 p-6 text-sm text-muted">
           <p>No YouTube channel data yet.</p>
           {canSync ? (
-            <p className="mt-2">Use Sync YouTube to fetch Mesa Kitchen Studio channel metadata.</p>
+            <p className="mt-2">Use Refresh YouTube data to fetch Mesa Kitchen Studio channel metadata.</p>
           ) : (
-            <p className="mt-2">Ask an owner to run the first sync.</p>
+            <p className="mt-2">Ask an owner to run the first refresh.</p>
           )}
         </div>
       ) : (

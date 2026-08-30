@@ -13,6 +13,9 @@ import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import { YoutubeMetadataEditor } from "@/components/admin/YoutubeMetadataEditor";
 import { RecipeYoutubeConnection } from "@/components/admin/RecipeYoutubeConnection";
 import {
+  markHeroImageManual,
+} from "@/lib/youtube-data/recipe-link";
+import {
   RecipeEditorSectionNav,
   type RecipeEditorSectionLink,
 } from "@/components/admin/RecipeEditorSectionNav";
@@ -707,6 +710,11 @@ export function RecipeEditor({
     setValues((current) => {
       if (key === "youtube") {
         setAiMeta((meta) => noteHumanYoutubeMetadataChange(meta, current.youtube, value));
+      } else if (key === "image") {
+        setAiMeta((meta) => {
+          const noted = noteHumanEditorChange(meta, `values.${key}`, value);
+          return markHeroImageManual(noted, String(value ?? ""));
+        });
       } else {
         setAiMeta((meta) => noteHumanEditorChange(meta, `values.${key}`, value));
       }
@@ -1440,6 +1448,9 @@ export function RecipeEditor({
               aiMeta={aiMeta}
               onValuesChange={(next) => {
                 setValues(next);
+              }}
+              onAiMetaChange={(next) => {
+                setAiMeta(next);
               }}
             />
             <div className="mt-5 grid gap-5 md:grid-cols-2">

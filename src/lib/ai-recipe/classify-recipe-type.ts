@@ -224,6 +224,8 @@ export function buildYoutubeDraftAiMeta(input: {
   recipeTypeSource: "ai" | "manual";
   recipeTypeConfidence?: RecipeTypeConfidence;
   recipeTypeConfirmed?: boolean;
+  heroImageSource?: "youtube_thumbnail" | "manual_upload" | "manual_url";
+  heroImageYoutubeVideoId?: string;
 }) {
   const watchUrl = youtubeWatchUrl(input.videoId) || "";
   return {
@@ -240,5 +242,7 @@ export function buildYoutubeDraftAiMeta(input: {
     recipeTypeSource: input.recipeTypeSource,
     recipeTypeConfidence: input.recipeTypeConfidence,
     recipeTypeConfirmed: Boolean(input.recipeTypeConfirmed),
+    heroImageSource: input.heroImageSource,
+    heroImageYoutubeVideoId: input.heroImageYoutubeVideoId,
   };
 }

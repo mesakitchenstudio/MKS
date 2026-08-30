@@ -5,7 +5,7 @@ import {
   recipeMainVideoId,
   titlesDifferSignificantly,
 } from "./matching.ts";
-import { videoRowStatus } from "./health.ts";
+import { videoRowStatus, verifiedRecipeHasYoutubeMetadataDrift } from "./health.ts";
 import {
   computeViewsGained,
   formatViewsGainedDisplay,
@@ -146,6 +146,64 @@ describe("youtube-data health status", () => {
         hasRecipeChapters: false,
       }),
       "Missing chapters",
+    );
+  });
+
+  it("detects verified recipe YouTube metadata drift without mutating", () => {
+    const aiMeta = JSON.stringify({
+      generatedByAI: true,
+      sourceType: "youtube",
+      sourceUrl: "https://www.youtube.com/watch?v=abc12345678",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      model: "test",
+      schemaVersion: "1",
+      verificationStatus: "verified",
+      confidenceByPath: {},
+      summary: { verified: 1, inferred: 0, estimated: 0, unknown: 0 },
+    });
+    const values = JSON.stringify({
+      youtube: {
+        videoId: "abc12345678",
+        title: "Old video title",
+        duration: "3:00",
+        thumbnail: "https://i.ytimg.com/vi/abc12345678/hqdefault.jpg",
+      },
+    });
+    assert.equal(
+      verifiedRecipeHasYoutubeMetadataDrift({
+        aiMetaRaw: aiMeta,
+        recipeValuesRaw: values,
+        video: {
+          title: "Brand new video title about cookies",
+          durationDisplay: "5:00",
+          thumbnailUrl: "https://i.ytimg.com/vi/abc12345678/maxresdefault.jpg",
+          description: "",
+        },
+      }),
+      true,
+    );
+    assert.equal(
+      verifiedRecipeHasYoutubeMetadataDrift({
+        aiMetaRaw: JSON.stringify({
+          generatedByAI: true,
+          sourceType: "youtube",
+          sourceUrl: "",
+          generatedAt: "",
+          model: "",
+          schemaVersion: "",
+          verificationStatus: "unverified",
+          confidenceByPath: {},
+          summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
+        }),
+        recipeValuesRaw: values,
+        video: {
+          title: "Brand new video title about cookies",
+          durationDisplay: "5:00",
+          thumbnailUrl: "https://i.ytimg.com/vi/abc12345678/maxresdefault.jpg",
+          description: "",
+        },
+      }),
+      false,
     );
   });
 });

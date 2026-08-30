@@ -106,7 +106,7 @@ export async function classifyRecipeTypeForCreate(
     return {
       ok: false,
       code: "already_linked",
-      message: "This video is already linked to a recipe.",
+      message: `This YouTube video is already linked to “${existing.title}”.`,
       existingRecipe: recipe ?? { id: existing.id, title: existing.title, slug: "" },
     };
   }
@@ -230,11 +230,14 @@ async function createAndPopulateInner(input: {
   if (slugTaken) slug = `${slug}-${videoId.slice(0, 6).toLowerCase()}`;
 
   const values = applyYoutubeVideoLinkToValues({}, video);
+  const heroApplied = Boolean(String(values.image ?? "").trim());
   const seedMeta = buildYoutubeDraftAiMeta({
     videoId,
     recipeTypeSource: input.typeSource,
     recipeTypeConfidence: input.typeSource === "ai" ? input.typeConfidence : undefined,
     recipeTypeConfirmed: input.typeSource === "manual",
+    heroImageSource: heroApplied ? "youtube_thumbnail" : undefined,
+    heroImageYoutubeVideoId: heroApplied ? videoId : undefined,
   });
 
   let recipe: { id: string; title: string; slug: string };
@@ -412,12 +415,16 @@ async function populateDraftWithAi(input: {
     input.seedMeta as RecipeAiMeta,
   );
 
-  // Keep canonical YouTube link from synced video data.
+  // Keep canonical YouTube link and Hero thumbnail from synced video data.
   const video = await loadSyncedVideoForLink(input.videoId);
   const values = video
-    ? applyYoutubeVideoLinkToValues(merged.values, video)
+    ? applyYoutubeVideoLinkToValues(merged.values, video, { aiMeta: input.seedMeta })
     : merged.values;
 
+  const heroApplied = Boolean(
+    video?.thumbnailUrl &&
+      String(values.image ?? "").trim() === String(video.thumbnailUrl).trim(),
+  );
   const summary = emptyAiSummary();
   const confidenceByPath = {
     ...(generated.meta.confidenceByPath ?? {}),
@@ -439,6 +446,12 @@ async function populateDraftWithAi(input: {
     recipeTypeConfirmed: input.seedMeta.recipeTypeConfirmed,
     sourceVideoId: input.videoId,
     sourceUrl: watchUrl,
+    heroImageSource: heroApplied
+      ? input.seedMeta.heroImageSource || "youtube_thumbnail"
+      : input.seedMeta.heroImageSource,
+    heroImageYoutubeVideoId: heroApplied
+      ? input.videoId
+      : input.seedMeta.heroImageYoutubeVideoId,
   };
 
   await db.recipe.update({
