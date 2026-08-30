@@ -26,7 +26,7 @@ const secondaryBtn =
   "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
 
 const PROGRESS_MESSAGES = [
-  "Analyzing video and preparing recipe…",
+  "Analyzing video — this can take 1–3 minutes…",
   "Extracting ingredients…",
   "Building instructions…",
   "Matching Mesa recipe fields…",
@@ -91,8 +91,16 @@ export function AiRecipeAssistant({
         return;
       }
       onApply({ draft: data.draft, meta: data.meta, mergeMode });
-    } catch {
-      setError("Network error while contacting the AI assistant.");
+    } catch (error) {
+      const timedOut =
+        error instanceof TypeError ||
+        (error instanceof Error &&
+          /failed to fetch|network|timeout|aborted/i.test(error.message));
+      setError(
+        timedOut
+          ? "The request timed out while analyzing the video. Try again — the first successful run is cached for faster Regenerate."
+          : "Network error while contacting the AI assistant.",
+      );
     } finally {
       setBusy(false);
     }

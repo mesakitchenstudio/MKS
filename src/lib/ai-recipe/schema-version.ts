@@ -62,9 +62,9 @@ export function geminiModelCandidates(): string[] {
   const configured = process.env.GEMINI_MODEL?.trim();
   const candidates = [
     configured,
-    "gemini-3.7-flash",
-    "gemini-3.6-flash",
     "gemini-2.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
   ].filter((value): value is string => Boolean(value));
   return [...new Set(candidates)];
 }

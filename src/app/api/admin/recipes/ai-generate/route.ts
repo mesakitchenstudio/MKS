@@ -6,7 +6,7 @@ import { getAdminSession } from "@/lib/auth";
 import { connectionMeta } from "@/lib/request-meta";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const admin = await getAdminSession();
@@ -56,7 +56,9 @@ export async function POST(request: Request) {
           ? 400
           : result.code === "GEMINI_CONFIGURATION_ERROR" || result.code === "GEMINI_AUTH_FAILED"
             ? 503
-            : result.code === "rate_limit" || result.code === "GEMINI_RATE_LIMIT"
+            : result.code === "GEMINI_TIMEOUT"
+              ? 504
+              : result.code === "rate_limit" || result.code === "GEMINI_RATE_LIMIT"
               ? 429
               : 422;
       return NextResponse.json(
