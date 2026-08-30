@@ -1,3 +1,6 @@
+import {
+  AdminFlashStatus,
+} from "@/lib/admin-transient-feedback";
 import { notFound } from "next/navigation";
 import { SeriesEditor } from "@/components/admin/SeriesEditor";
 import { requireAccess } from "@/lib/auth";
@@ -6,6 +9,25 @@ import { getAdminSeries, listSeriesPickerCandidates } from "@/lib/series-admin";
 import { listImportableChannelPlaylists } from "@/lib/series-playlist";
 
 export const dynamic = "force-dynamic";
+
+export const SERIES_EDITOR_FLASH_PARAMS = [
+  "saved",
+  "error",
+  "imported",
+  "videos",
+  "linked",
+  "videoOnly",
+  "skipped",
+  "refreshed",
+  "added",
+  "removed",
+  "restored",
+  "reordered",
+  "playlistLinked",
+  "editorial",
+  "editorialError",
+  "editorialMessage",
+] as const;
 
 export default async function AdminSeriesEditPage({
   params,
@@ -26,6 +48,9 @@ export default async function AdminSeriesEditPage({
     restored?: string;
     reordered?: string;
     playlistLinked?: string;
+    editorial?: string;
+    editorialError?: string;
+    editorialMessage?: string;
   }>;
 }) {
   await requireAccess("content");
@@ -54,40 +79,71 @@ export default async function AdminSeriesEditPage({
     }
   }
 
+  const importedMessage = query.imported
+    ? `Playlist imported: ${query.videos || "0"} videos, ${query.linked || "0"} linked to Mesa recipes, ${query.videoOnly || "0"} video-only${
+        query.skipped && Number(query.skipped) > 0 ? `, ${query.skipped} unavailable/skipped` : ""
+      }.`
+    : "";
+
+  const refreshedMessage = query.refreshed
+    ? `Refreshed from YouTube: ${query.added || "0"} new, ${query.removed || "0"} marked removed${
+        query.restored && Number(query.restored) > 0 ? `, ${query.restored} restored` : ""
+      }${query.reordered === "1" ? ", order updated to match playlist" : ", Mesa order preserved"}.`
+    : "";
+
   return (
     <div className="space-y-4">
-      {query.saved ? (
-        <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
-          Series saved.
-        </p>
-      ) : null}
-      {query.imported ? (
-        <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
-          Playlist imported: {query.videos || "0"} videos, {query.linked || "0"} linked to Mesa
-          recipes, {query.videoOnly || "0"} video-only
-          {query.skipped && Number(query.skipped) > 0
-            ? `, ${query.skipped} unavailable/skipped`
-            : ""}
-          . Enrich Mesa editorial fields below, then publish.
-        </p>
-      ) : null}
-      {query.refreshed ? (
-        <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
-          Refreshed from YouTube: {query.added || "0"} new, {query.removed || "0"} marked removed
-          {query.restored && Number(query.restored) > 0 ? `, ${query.restored} restored` : ""}
-          {query.reordered === "1" ? ", order updated to match playlist" : ", Mesa order preserved"}.
-        </p>
-      ) : null}
-      {query.playlistLinked ? (
-        <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
-          Linked to YouTube playlist and membership synced.
-        </p>
-      ) : null}
-      {query.error ? (
-        <p className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-3 py-2 text-sm text-terracotta" role="alert">
-          {decodeURIComponent(query.error)}
-        </p>
-      ) : null}
+      <AdminFlashStatus
+        active={Boolean(query.saved)}
+        clearParams={SERIES_EDITOR_FLASH_PARAMS}
+        className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive"
+      >
+        Series saved.
+      </AdminFlashStatus>
+      <AdminFlashStatus
+        active={Boolean(importedMessage)}
+        clearParams={SERIES_EDITOR_FLASH_PARAMS}
+        className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive"
+      >
+        {importedMessage || "Playlist imported."}
+      </AdminFlashStatus>
+      <AdminFlashStatus
+        active={Boolean(query.editorial)}
+        clearParams={SERIES_EDITOR_FLASH_PARAMS}
+        className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive"
+      >
+        Mesa editorial AI draft generated — review before publishing.
+      </AdminFlashStatus>
+      <AdminFlashStatus
+        active={Boolean(query.editorialError)}
+        clearParams={SERIES_EDITOR_FLASH_PARAMS}
+        className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-3 py-2 text-sm text-terracotta"
+      >
+        {`Playlist imported successfully. AI editorial draft could not be generated${
+          query.editorialMessage ? `: ${decodeURIComponent(query.editorialMessage)}` : "."
+        } Use Generate Mesa editorial draft below to retry.`}
+      </AdminFlashStatus>
+      <AdminFlashStatus
+        active={Boolean(refreshedMessage)}
+        clearParams={SERIES_EDITOR_FLASH_PARAMS}
+        className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive"
+      >
+        {refreshedMessage || "Refreshed."}
+      </AdminFlashStatus>
+      <AdminFlashStatus
+        active={Boolean(query.playlistLinked)}
+        clearParams={SERIES_EDITOR_FLASH_PARAMS}
+        className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive"
+      >
+        Linked to YouTube playlist and membership synced.
+      </AdminFlashStatus>
+      <AdminFlashStatus
+        active={Boolean(query.error)}
+        clearParams={SERIES_EDITOR_FLASH_PARAMS}
+        className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-3 py-2 text-sm text-terracotta"
+      >
+        {query.error ? decodeURIComponent(query.error) : "Error"}
+      </AdminFlashStatus>
       <SeriesEditor
         series={series}
         candidates={candidates}

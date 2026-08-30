@@ -361,6 +361,10 @@ model Series {
   youtubePlaylistDescription  String       @default("")
   youtubePlaylistThumbnail    String       @default("")
   youtubePlaylistLastSyncedAt DateTime?
+  /// AI editorial provenance + generation metadata (JSON).
+  aiMeta                      String       @default("{}")
+  /// "" | auto_* | manual — manual heroes are never overwritten by AI/refresh.
+  heroImageSource             String       @default("")
   isPublished                 Boolean      @default(false)
   sortOrder                   Int          @default(0)
   createdAt                   DateTime     @default(now())

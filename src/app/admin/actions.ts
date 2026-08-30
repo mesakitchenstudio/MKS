@@ -955,11 +955,14 @@ export async function saveSeriesAction(formData: FormData) {
   const description = String(formData.get("description") || "").trim();
   const intro = String(formData.get("intro") || "").trim();
   const heroImage = String(formData.get("heroImage") || "").trim();
+  const heroImageSourceRaw = String(formData.get("heroImageSource") || "").trim();
   const seoTitle = String(formData.get("seoTitle") || "").trim();
   const seoDescription = String(formData.get("seoDescription") || "").trim();
   const followYoutubeOrder = String(formData.get("followYoutubeOrder") || "") === "1";
   const isPublished = String(formData.get("isPublished") || "") === "1";
   const sortOrder = Number(formData.get("sortOrder") || 0) || 0;
+  const aiMetaRaw = String(formData.get("aiMetaJson") || "").trim();
+  const featuredChosenByHuman = String(formData.get("featuredChosenByHuman") || "") === "1";
   const items = parseSeriesItemsJson(String(formData.get("itemsJson") || "[]")).filter(
     (item) => item.recipeId || item.youtubeVideoId,
   );
@@ -1006,6 +1009,39 @@ export async function saveSeriesAction(formData: FormData) {
 
     // Preserve playlist snapshot fields; only Mesa editorial + order mode are editable here.
     const isYoutube = existing.syncMode === "YOUTUBE" || Boolean(existing.youtubePlaylistId);
+    const previousHero = existing.heroImage.trim();
+    let heroImageSource = existing.heroImageSource || "";
+    if (heroImage && heroImage !== previousHero) {
+      // Treat any hero change from the editor as manual unless still empty.
+      heroImageSource = "manual";
+    } else if (!heroImage) {
+      heroImageSource = "";
+    } else if (heroImageSourceRaw === "manual" || heroImageSource === "manual") {
+      heroImageSource = "manual";
+    }
+
+    let aiMetaJson = existing.aiMeta || "{}";
+    if (aiMetaRaw) {
+      try {
+        const parsed = JSON.parse(aiMetaRaw) as Record<string, unknown>;
+        if (parsed && typeof parsed === "object") {
+          parsed.featuredChosenByHuman =
+            featuredChosenByHuman || Boolean(parsed.featuredChosenByHuman);
+          aiMetaJson = JSON.stringify(parsed);
+        }
+      } catch {
+        // keep existing
+      }
+    } else if (featuredChosenByHuman) {
+      try {
+        const parsed = JSON.parse(existing.aiMeta || "{}") as Record<string, unknown>;
+        parsed.featuredChosenByHuman = true;
+        aiMetaJson = JSON.stringify(parsed);
+      } catch {
+        // ignore
+      }
+    }
+
     await db.$transaction(async (tx) => {
       await tx.seriesItem.deleteMany({ where: { seriesId: id } });
       await tx.series.update({
@@ -1017,14 +1053,18 @@ export async function saveSeriesAction(formData: FormData) {
           description,
           intro,
           heroImage,
+          heroImageSource,
           seoTitle,
           seoDescription,
           followYoutubeOrder: isYoutube ? followYoutubeOrder : false,
+          aiMeta: aiMetaJson,
           // Never clear/overwrite YouTube playlist snapshots from this form.
           isPublished,
           sortOrder,
           items: {
             create: validItems.map((item) => ({
+              // Preserve stable IDs so AI provenance paths stay valid across saves.
+              ...(item.id ? { id: item.id } : {}),
               recipeId: item.recipeId,
               youtubeVideoId: item.youtubeVideoId,
               customTitle: item.customTitle,
@@ -1111,6 +1151,7 @@ export async function importYoutubePlaylistAction(formData: FormData) {
     const result = await importYoutubePlaylistAsSeries(playlistId);
     revalidatePath("/admin/series");
     revalidatePath("/series");
+
     const qs = new URLSearchParams({
       imported: "1",
       videos: String(result.videoCount),
@@ -1118,6 +1159,27 @@ export async function importYoutubePlaylistAction(formData: FormData) {
       videoOnly: String(result.videoOnlyCount),
       skipped: String(result.skippedUnavailable),
     });
+
+    // Best-effort AI editorial draft — import must succeed even if Gemini fails.
+    try {
+      const { generateSeriesEditorialDraft } = await import("@/lib/series-ai/generate");
+      const editorial = await generateSeriesEditorialDraft({
+        seriesId: result.seriesId,
+        mode: "fill_empty",
+      });
+      if (editorial.ok) qs.set("editorial", "1");
+      else {
+        qs.set("editorialError", "1");
+        qs.set("editorialMessage", (editorial.message || "AI draft failed").slice(0, 160));
+      }
+    } catch (error) {
+      qs.set("editorialError", "1");
+      qs.set(
+        "editorialMessage",
+        (error instanceof Error ? error.message : "AI draft failed").slice(0, 160),
+      );
+    }
+
     redirect(`/admin/series/${result.seriesId}?${qs.toString()}`);
   } catch (error) {
     if (isNextRedirect(error)) throw error;

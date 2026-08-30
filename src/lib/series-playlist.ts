@@ -430,6 +430,24 @@ export async function refreshSeriesFromYoutubePlaylist(seriesId: string): Promis
   };
 }
 
+export async function attachRecipeToSeriesItemsByVideoId(input: {
+  videoId: string;
+  recipeId: string;
+}) {
+  const videoId = input.videoId.trim();
+  const recipeId = input.recipeId.trim();
+  if (!videoId || !recipeId) return { updated: 0 };
+  const db = getDb();
+  const result = await db.seriesItem.updateMany({
+    where: {
+      youtubeVideoId: videoId,
+      recipeId: null,
+    },
+    data: { recipeId },
+  });
+  return { updated: result.count };
+}
+
 export async function deleteSeriesItemPermanently(seriesItemId: string) {
   const db = getDb();
   await db.seriesItem.delete({ where: { id: seriesItemId } });

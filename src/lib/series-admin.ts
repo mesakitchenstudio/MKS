@@ -5,6 +5,8 @@ import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { recipeMainVideoId } from "@/lib/youtube-data/matching";
 import { classifyYouTubeVideoFormat } from "@/lib/youtube-data/video-format";
 import { youtubeThumbnailUrl } from "@/lib/youtube";
+import type { SeriesAiMeta, SeriesHeroImageSource } from "@/lib/series-ai/types";
+import { parseSeriesAiMeta } from "@/lib/series-ai/types";
 
 export type AdminSeriesListRow = {
   id: string;
@@ -57,6 +59,8 @@ export type AdminSeriesDetail = {
   description: string;
   intro: string;
   heroImage: string;
+  heroImageSource: SeriesHeroImageSource | string;
+  heroSourceLabel: string;
   seoTitle: string;
   seoDescription: string;
   syncMode: "YOUTUBE" | "CUSTOM";
@@ -68,6 +72,7 @@ export type AdminSeriesDetail = {
   youtubePlaylistLastSyncedAt: string | null;
   isPublished: boolean;
   sortOrder: number;
+  aiMeta: SeriesAiMeta;
   items: AdminSeriesItemDraft[];
 };
 
@@ -165,6 +170,24 @@ export async function getAdminSeries(id: string): Promise<AdminSeriesDetail | nu
   });
   if (!row) return null;
 
+  const heroImageSource = row.heroImageSource || "";
+  const heroSourceLabel =
+    heroImageSource === "manual"
+      ? "Manual upload"
+      : heroImageSource === "auto_featured_recipe"
+        ? "Featured recipe"
+        : heroImageSource === "auto_featured_video"
+          ? "Featured video"
+          : heroImageSource === "auto_recipe"
+            ? "Linked recipe"
+            : heroImageSource === "auto_playlist"
+              ? "YouTube playlist thumbnail"
+              : heroImageSource === "auto_video"
+                ? "YouTube video thumbnail"
+                : row.heroImage
+                  ? "Existing image"
+                  : "None";
+
   return {
     id: row.id,
     slug: row.slug,
@@ -173,6 +196,8 @@ export async function getAdminSeries(id: string): Promise<AdminSeriesDetail | nu
     description: row.description,
     intro: row.intro,
     heroImage: row.heroImage,
+    heroImageSource,
+    heroSourceLabel,
     seoTitle: row.seoTitle,
     seoDescription: row.seoDescription,
     syncMode: row.syncMode === "YOUTUBE" ? "YOUTUBE" : "CUSTOM",
@@ -184,6 +209,7 @@ export async function getAdminSeries(id: string): Promise<AdminSeriesDetail | nu
     youtubePlaylistLastSyncedAt: row.youtubePlaylistLastSyncedAt?.toISOString() ?? null,
     isPublished: row.isPublished,
     sortOrder: row.sortOrder,
+    aiMeta: parseSeriesAiMeta(row.aiMeta),
     items: row.items.map((item, index) => {
       const values = item.recipe ? parseValues(item.recipe.values) : {};
       const image = typeof values.image === "string" ? values.image : "";

@@ -36,6 +36,8 @@ export default async function AdminSeriesNewPage({
           description: "",
           intro: "",
           heroImage: "",
+          heroImageSource: "",
+          heroSourceLabel: "",
           seoTitle: "",
           seoDescription: "",
           syncMode: "CUSTOM",
@@ -47,6 +49,11 @@ export default async function AdminSeriesNewPage({
           youtubePlaylistLastSyncedAt: null,
           isPublished: false,
           sortOrder: 0,
+          aiMeta: {
+            generatedByAI: false,
+            verificationStatus: "none",
+            fieldProvenance: {},
+          },
           items: [],
         }}
       />

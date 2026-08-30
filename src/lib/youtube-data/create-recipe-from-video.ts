@@ -333,6 +333,13 @@ async function createAndPopulateInner(input: {
     })),
   });
 
+  try {
+    const { attachRecipeToSeriesItemsByVideoId } = await import("@/lib/series-playlist");
+    await attachRecipeToSeriesItemsByVideoId({ videoId, recipeId: recipe.id });
+  } catch {
+    // Series link is best-effort; recipe creation still succeeded.
+  }
+
   return {
     ok: true,
     recipeId: recipe.id,
