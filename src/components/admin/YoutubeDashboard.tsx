@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { syncYoutubeAction } from "@/app/admin/actions";
+import {
+  disconnectYoutubeAnalyticsAction,
+  syncYoutubeAction,
+  syncYoutubeAnalyticsAction,
+} from "@/app/admin/actions";
 import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass, adminTableHeadClass } from "@/lib/admin-ui";
 import type { YouTubeVideoRowStatus } from "@/lib/youtube-data/types";
 import type { YouTubeVideoFormat } from "@/lib/youtube-data/video-format";
@@ -12,6 +16,8 @@ import {
   youtubeDashboardFilterQueryValue,
   type YoutubeDashboardVideoFilter,
 } from "@/lib/youtube-data/video-format";
+import type { AnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
+import { ANALYTICS_RANGE_DAYS } from "@/lib/youtube-analytics/ranges";
 
 type ChannelSummary = {
   channelId: string;
@@ -41,6 +47,40 @@ type VideoRow = {
   formatLabel: string;
   recipe: { id: string; slug: string; title: string } | null;
   status: YouTubeVideoRowStatus;
+  analytics?: {
+    periodViews: string;
+    watchTime: string;
+    averageViewPercentage: string;
+    subscribersGained: string;
+    hasData: boolean;
+  };
+};
+
+type AnalyticsConnection = {
+  connected: boolean;
+  status: string;
+  channelId: string;
+  channelTitle: string;
+  googleAccountEmail: string;
+  connectedAt: string | null;
+  lastSyncAt: string | null;
+  lastError: string;
+};
+
+type AnalyticsSummary = {
+  connection: AnalyticsConnection;
+  rangeDays: AnalyticsRangeDays;
+  channel: {
+    views: string;
+    watchTime: string;
+    averageViewDuration: string;
+    averageViewPercentage: string;
+    subscribersGained: string;
+    subscribersLost: string;
+    subscriberGrowth: string;
+    shares: string;
+    hasData: boolean;
+  };
 };
 
 type HealthIssue = {
@@ -127,9 +167,13 @@ export function YoutubeDashboard({
   videos: initialVideos,
   healthSummary,
   canSync,
+  canManageAnalytics = false,
   canCreateRecipes = false,
   recipeTypes = [],
   initialFilter = "all",
+  analytics,
+  analyticsNotice = "",
+  analyticsError = "",
 }: {
   channel: ChannelSummary | null;
   summary: {
@@ -144,14 +188,21 @@ export function YoutubeDashboard({
   videos: VideoRow[];
   healthSummary: HealthSummary;
   canSync: boolean;
+  canManageAnalytics?: boolean;
   canCreateRecipes?: boolean;
   recipeTypes?: RecipeTypeOption[];
   initialFilter?: YoutubeDashboardVideoFilter | string;
+  analytics: AnalyticsSummary;
+  analyticsNotice?: string;
+  analyticsError?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [analyticsPending, startAnalyticsTransition] = useTransition();
   const [syncMessage, setSyncMessage] = useState("");
   const [syncError, setSyncError] = useState("");
+  const [analyticsMessage, setAnalyticsMessage] = useState(analyticsNotice);
+  const [analyticsAlert, setAnalyticsAlert] = useState(analyticsError || analytics.connection.lastError);
   const [healthOpen, setHealthOpen] = useState(false);
   const [videos, setVideos] = useState(initialVideos);
   const [filter, setFilter] = useState<YoutubeDashboardVideoFilter>(() =>
@@ -169,11 +220,28 @@ export function YoutubeDashboard({
     setFilter(parseYoutubeDashboardFilter(initialFilter));
   }, [initialFilter]);
 
+  useEffect(() => {
+    setAnalyticsMessage(analyticsNotice);
+    setAnalyticsAlert(analyticsError || analytics.connection.lastError);
+  }, [analyticsNotice, analyticsError, analytics.connection.lastError]);
+
   function updateFilter(next: YoutubeDashboardVideoFilter) {
     setFilter(next);
+    const params = new URLSearchParams();
     const query = youtubeDashboardFilterQueryValue(next);
-    const url = query ? `/admin/youtube?filter=${query}` : "/admin/youtube";
-    router.replace(url, { scroll: false });
+    if (query) params.set("filter", query);
+    if (analytics.rangeDays !== 28) params.set("range", String(analytics.rangeDays));
+    const qs = params.toString();
+    router.replace(qs ? `/admin/youtube?${qs}` : "/admin/youtube", { scroll: false });
+  }
+
+  function updateRange(days: AnalyticsRangeDays) {
+    const params = new URLSearchParams();
+    const query = youtubeDashboardFilterQueryValue(filter);
+    if (query) params.set("filter", query);
+    if (days !== 28) params.set("range", String(days));
+    const qs = params.toString();
+    router.replace(qs ? `/admin/youtube?${qs}` : "/admin/youtube", { scroll: false });
   }
 
   const filteredVideos = useMemo(() => {
@@ -223,6 +291,39 @@ export function YoutubeDashboard({
         router.refresh();
       } else {
         setSyncError(result.error || "YouTube sync failed.");
+      }
+    });
+  }
+
+  function onRefreshAnalytics() {
+    setAnalyticsMessage("");
+    setAnalyticsAlert("");
+    startAnalyticsTransition(async () => {
+      const result = await syncYoutubeAnalyticsAction();
+      if (result.ok) {
+        setAnalyticsMessage(
+          `Analytics refreshed (${result.channelDays} channel days, ${result.videoDays} video days).`,
+        );
+        router.refresh();
+      } else {
+        setAnalyticsAlert(result.error || "YouTube Analytics refresh failed.");
+      }
+    });
+  }
+
+  function onDisconnectAnalytics() {
+    if (!window.confirm("Disconnect YouTube Analytics from Mesa? Public YouTube data sync will keep working.")) {
+      return;
+    }
+    setAnalyticsMessage("");
+    setAnalyticsAlert("");
+    startAnalyticsTransition(async () => {
+      const result = await disconnectYoutubeAnalyticsAction();
+      if (result.ok) {
+        setAnalyticsMessage("YouTube Analytics disconnected.");
+        router.refresh();
+      } else {
+        setAnalyticsAlert(result.error || "Could not disconnect Analytics.");
       }
     });
   }
@@ -385,6 +486,86 @@ export function YoutubeDashboard({
           {syncError}
         </p>
       ) : null}
+      {analyticsMessage ? (
+        <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
+          {analyticsMessage}
+        </p>
+      ) : null}
+      {analyticsAlert ? (
+        <p className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-3 py-2 text-sm text-terracotta" role="alert">
+          {analyticsAlert}
+        </p>
+      ) : null}
+
+      <section className="rounded-sm border border-line bg-paper px-4 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-serif text-lg text-ink">YouTube Analytics</h2>
+            {analytics.connection.connected ? (
+              <p className="mt-1 text-sm text-muted">
+                Connected as{" "}
+                <span className="font-semibold text-ink">
+                  {analytics.connection.channelTitle || "Mesa Kitchen Studio"}
+                </span>
+                {analytics.connection.googleAccountEmail
+                  ? ` (${analytics.connection.googleAccountEmail})`
+                  : null}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-muted">YouTube Analytics is not connected.</p>
+            )}
+            <p className="mt-1 text-xs text-muted">
+              Analytics uses OAuth and is separate from Refresh YouTube data (public metadata).
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {canManageAnalytics && !analytics.connection.connected ? (
+              <a
+                href="/api/admin/youtube/analytics/oauth/start"
+                className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+              >
+                Connect YouTube Analytics
+              </a>
+            ) : null}
+            {canManageAnalytics && analytics.connection.connected ? (
+              <>
+                <button
+                  type="button"
+                  className={`${secondaryBtn} ${adminFocusRing}`}
+                  disabled={analyticsPending}
+                  onClick={onRefreshAnalytics}
+                >
+                  {analyticsPending ? "Refreshing…" : "Refresh analytics"}
+                </button>
+                <button
+                  type="button"
+                  className={`${secondaryBtn} ${adminFocusRing}`}
+                  disabled={analyticsPending}
+                  onClick={onDisconnectAnalytics}
+                >
+                  Disconnect
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+        {analytics.connection.connected ? (
+          <div className="mt-4 flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1 text-xs">
+            {ANALYTICS_RANGE_DAYS.map((days) => (
+              <button
+                key={days}
+                type="button"
+                className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                  analytics.rangeDays === days ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                } ${adminFocusRing}`}
+                onClick={() => updateRange(days)}
+              >
+                Last {days} days
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       {!channel ? (
         <div className="rounded-sm border border-line bg-sand/30 p-6 text-sm text-muted">
@@ -397,25 +578,65 @@ export function YoutubeDashboard({
         </div>
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <SummaryCard
               label="Subscribers"
               value={channel.subscriberCount}
               note={
                 channel.hiddenSubscriberCount
                   ? "Public count may be hidden or rounded by YouTube."
-                  : "Public count (may be rounded by YouTube)."
+                  : "Public subscriber count."
               }
-              trend={formatTrend(channel.trendSubscribers7d, "subscribers / 7 days")}
             />
-            <SummaryCard label="Total channel views" value={channel.viewCount} trend={formatTrend(channel.trendViews7d, "views / 7 days")} />
-            <SummaryCard label="Public videos" value={channel.videoCount} />
-            <SummaryCard label="Last synced" value={channel.lastSyncedAt} note={channel.lastSyncStatus === "error" ? channel.lastSyncError : undefined} />
+            <SummaryCard
+              label="Subscriber growth"
+              value={analytics.connection.connected ? analytics.channel.subscriberGrowth : "—"}
+              note={
+                analytics.connection.connected
+                  ? `Analytics · last ${analytics.rangeDays} days`
+                  : "Connect Analytics to see growth."
+              }
+            />
+            <SummaryCard
+              label="Views"
+              value={analytics.connection.connected ? analytics.channel.views : "—"}
+              note={
+                analytics.connection.connected
+                  ? `Analytics · last ${analytics.rangeDays} days`
+                  : "Connect Analytics to see period views."
+              }
+            />
+            <SummaryCard
+              label="Watch time"
+              value={analytics.connection.connected ? analytics.channel.watchTime : "—"}
+              note={analytics.connection.connected ? "Estimated hours watched" : undefined}
+            />
+            <SummaryCard
+              label="Average view duration"
+              value={analytics.connection.connected ? analytics.channel.averageViewDuration : "—"}
+              note={analytics.connection.connected ? "mm:ss · Analytics" : undefined}
+            />
           </section>
 
-          {!channel.trendViews7d && !channel.trendSubscribers7d ? (
-            <p className="text-sm text-muted">Trend available after more snapshots are collected.</p>
+          {analytics.connection.connected ? (
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MiniStat label="Subscribers gained" value={analytics.channel.subscribersGained} />
+              <MiniStat label="Subscribers lost" value={analytics.channel.subscribersLost} />
+              <MiniStat label="Average percentage viewed" value={analytics.channel.averageViewPercentage} />
+              <MiniStat label="Shares" value={analytics.channel.shares} />
+            </section>
           ) : null}
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard label="Public channel views" value={channel.viewCount} trend={formatTrend(channel.trendViews7d, "views / 7 days")} />
+            <SummaryCard label="Public videos" value={channel.videoCount} />
+            <SummaryCard label="Last synced" value={channel.lastSyncedAt} note={channel.lastSyncStatus === "error" ? channel.lastSyncError : undefined} />
+            <SummaryCard
+              label="Public subscriber trend"
+              value={channel.trendSubscribers7d || "—"}
+              note="From public counter snapshots (7 days)"
+            />
+          </section>
 
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MiniStat label="Videos linked to recipes" value={String(summary.linkedVideos)} />
@@ -462,12 +683,21 @@ export function YoutubeDashboard({
             <thead>
               <tr className={adminTableHeadClass}>
                 <th className="px-4 py-3 font-medium">Video</th>
-                <th className="px-4 py-3 font-medium">Published</th>
+                <th className="hidden px-4 py-3 font-medium md:table-cell">Published</th>
                 <th className="px-4 py-3 font-medium">Format</th>
                 <th className="px-4 py-3 font-medium">Views</th>
-                <th className="px-4 py-3 font-medium">Likes</th>
-                <th className="px-4 py-3 font-medium">Comments</th>
-                <th className="px-4 py-3 font-medium">7-day views</th>
+                <th className="hidden px-4 py-3 font-medium lg:table-cell">Likes</th>
+                <th className="hidden px-4 py-3 font-medium xl:table-cell">Comments</th>
+                {analytics.connection.connected ? (
+                  <>
+                    <th className="px-4 py-3 font-medium">Period views</th>
+                    <th className="hidden px-4 py-3 font-medium lg:table-cell">Watch time</th>
+                    <th className="hidden px-4 py-3 font-medium xl:table-cell">Avg viewed %</th>
+                    <th className="hidden px-4 py-3 font-medium md:table-cell">Subs gained</th>
+                  </>
+                ) : (
+                  <th className="hidden px-4 py-3 font-medium md:table-cell">7-day views</th>
+                )}
                 <th className="px-4 py-3 font-medium">Recipe</th>
                 <th className="px-4 py-3 font-medium">Status</th>
               </tr>
@@ -475,7 +705,7 @@ export function YoutubeDashboard({
             <tbody>
               {filteredVideos.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-muted">
+                  <td colSpan={analytics.connection.connected ? 12 : 9} className="px-4 py-8 text-muted">
                     {videos.length === 0 ? "No synced videos yet." : "No videos match this filter."}
                   </td>
                 </tr>
@@ -493,8 +723,8 @@ export function YoutubeDashboard({
                     <tr key={video.videoId} className="border-t border-line/70">
                       <td className="px-4 py-3">
                         <Link
-                          href={`/admin/youtube/videos/${video.videoId}`}
-                          className={`flex min-w-[14rem] items-center gap-3 ${adminLinkClass}`}
+                          href={`/admin/youtube/videos/${video.videoId}?range=${analytics.rangeDays}`}
+                          className={`flex min-w-[12rem] items-center gap-3 ${adminLinkClass}`}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -505,12 +735,25 @@ export function YoutubeDashboard({
                           <span className="line-clamp-2 font-medium text-ink">{video.title}</span>
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-muted">{video.publishedAt}</td>
+                      <td className="hidden px-4 py-3 text-muted md:table-cell">{video.publishedAt}</td>
                       <td className="px-4 py-3 text-muted">{video.formatLabel}</td>
                       <td className="px-4 py-3">{video.viewCount}</td>
-                      <td className="px-4 py-3">{video.likeCount}</td>
-                      <td className="px-4 py-3">{video.commentCount}</td>
-                      <td className="px-4 py-3">{video.views7d}</td>
+                      <td className="hidden px-4 py-3 lg:table-cell">{video.likeCount}</td>
+                      <td className="hidden px-4 py-3 xl:table-cell">{video.commentCount}</td>
+                      {analytics.connection.connected ? (
+                        <>
+                          <td className="px-4 py-3">{video.analytics?.periodViews ?? "—"}</td>
+                          <td className="hidden px-4 py-3 lg:table-cell">{video.analytics?.watchTime ?? "—"}</td>
+                          <td className="hidden px-4 py-3 xl:table-cell">
+                            {video.analytics?.averageViewPercentage ?? "—"}
+                          </td>
+                          <td className="hidden px-4 py-3 md:table-cell">
+                            {video.analytics?.subscribersGained ?? "—"}
+                          </td>
+                        </>
+                      ) : (
+                        <td className="hidden px-4 py-3 md:table-cell">{video.views7d}</td>
+                      )}
                       <td className="px-4 py-3">
                         {video.recipe ? (
                           <Link

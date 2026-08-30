@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canAccess, canManageYoutubeSync, homeForRole } from "./admin-access";
+import { canAccess, canManageYoutubeAnalytics, canManageYoutubeSync, homeForRole } from "./admin-access";
 import {
   applyPersistedStaffRole,
   emailsConflictCaseInsensitive,
@@ -212,6 +212,9 @@ test("Owner has full admin access including staff", () => {
   assert.equal(canManageYoutubeSync("owner"), true);
   assert.equal(canManageYoutubeSync("editor"), false);
   assert.equal(canManageYoutubeSync("members"), false);
+  assert.equal(canManageYoutubeAnalytics("owner"), true);
+  assert.equal(canManageYoutubeAnalytics("editor"), false);
+  assert.equal(canManageYoutubeAnalytics("members"), false);
 });
 
 test("buildAdminNavSections hides unauthorized areas", async () => {

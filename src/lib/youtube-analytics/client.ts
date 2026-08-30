@@ -1,0 +1,186 @@
+import "server-only";
+import { YouTubeAnalyticsError } from "@/lib/youtube-analytics/errors";
+import { getAnalyticsAccessToken } from "@/lib/youtube-analytics/connection";
+
+export type AnalyticsMetricRow = {
+  day?: string;
+  video?: string;
+  views: number;
+  estimatedMinutesWatched: number;
+  averageViewDuration: number;
+  averageViewPercentage: number;
+  subscribersGained: number;
+  subscribersLost: number;
+  likes: number;
+  comments: number;
+  shares: number;
+};
+
+export type TrafficMetricRow = {
+  day: string;
+  dimensionValue: string;
+  views: number;
+  estimatedMinutesWatched: number;
+};
+
+const CHANNEL_METRICS = [
+  "views",
+  "estimatedMinutesWatched",
+  "averageViewDuration",
+  "averageViewPercentage",
+  "subscribersGained",
+  "subscribersLost",
+  "likes",
+  "comments",
+  "shares",
+].join(",");
+
+const VIDEO_METRICS = [
+  "views",
+  "estimatedMinutesWatched",
+  "averageViewDuration",
+  "averageViewPercentage",
+  "subscribersGained",
+  "likes",
+  "comments",
+  "shares",
+].join(",");
+
+function num(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function mapMetricRow(headers: string[], cells: unknown[]): AnalyticsMetricRow {
+  const get = (name: string) => {
+    const index = headers.indexOf(name);
+    return index >= 0 ? cells[index] : 0;
+  };
+  return {
+    day: headers.includes("day") ? String(get("day") ?? "") : undefined,
+    video: headers.includes("video") ? String(get("video") ?? "") : undefined,
+    views: num(get("views")),
+    estimatedMinutesWatched: num(get("estimatedMinutesWatched")),
+    averageViewDuration: num(get("averageViewDuration")),
+    averageViewPercentage: num(get("averageViewPercentage")),
+    subscribersGained: num(get("subscribersGained")),
+    subscribersLost: num(get("subscribersLost")),
+    likes: num(get("likes")),
+    comments: num(get("comments")),
+    shares: num(get("shares")),
+  };
+}
+
+async function fetchReports(input: {
+  accessToken: string;
+  channelId: string;
+  startDate: string;
+  endDate: string;
+  metrics: string;
+  dimensions: string;
+  filters?: string;
+}): Promise<{ headers: string[]; rows: unknown[][] }> {
+  const url = new URL("https://youtubeanalytics.googleapis.com/v2/reports");
+  url.searchParams.set("ids", `channel==${input.channelId}`);
+  url.searchParams.set("startDate", input.startDate);
+  url.searchParams.set("endDate", input.endDate);
+  url.searchParams.set("metrics", input.metrics);
+  url.searchParams.set("dimensions", input.dimensions);
+  if (input.filters) url.searchParams.set("filters", input.filters);
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${input.accessToken}` },
+  });
+  const json = (await response.json()) as {
+    columnHeaders?: Array<{ name?: string }>;
+    rows?: unknown[][];
+    error?: { code?: number; message?: string; errors?: Array<{ reason?: string }> };
+  };
+
+  if (response.status === 403 || response.status === 401) {
+    const reason = json.error?.errors?.[0]?.reason || "";
+    if (reason.includes("quota") || reason === "quotaExceeded" || reason === "dailyLimitExceeded") {
+      throw new YouTubeAnalyticsError("quota", "YouTube Analytics quota exceeded. Try again later.");
+    }
+    throw new YouTubeAnalyticsError(
+      "api_error",
+      "YouTube Analytics authorization failed. Disconnect and connect again if this continues.",
+      json.error?.message,
+    );
+  }
+
+  if (!response.ok) {
+    throw new YouTubeAnalyticsError(
+      "api_error",
+      "YouTube Analytics request failed.",
+      json.error?.message,
+    );
+  }
+
+  const headers = (json.columnHeaders || []).map((header) => String(header.name || ""));
+  return { headers, rows: Array.isArray(json.rows) ? json.rows : [] };
+}
+
+export async function fetchChannelDayMetrics(input: {
+  startDate: string;
+  endDate: string;
+}): Promise<AnalyticsMetricRow[]> {
+  const { accessToken, channelId } = await getAnalyticsAccessToken();
+  const { headers, rows } = await fetchReports({
+    accessToken,
+    channelId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    metrics: CHANNEL_METRICS,
+    dimensions: "day",
+  });
+  return rows.map((cells) => mapMetricRow(headers, cells));
+}
+
+export async function fetchVideoDayMetrics(input: {
+  startDate: string;
+  endDate: string;
+}): Promise<AnalyticsMetricRow[]> {
+  const { accessToken, channelId } = await getAnalyticsAccessToken();
+  const { headers, rows } = await fetchReports({
+    accessToken,
+    channelId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    metrics: VIDEO_METRICS,
+    dimensions: "day,video",
+  });
+  return rows.map((cells) => mapMetricRow(headers, cells));
+}
+
+export async function fetchChannelTrafficByDimension(input: {
+  startDate: string;
+  endDate: string;
+  dimension: "insightTrafficSourceType" | "insightTrafficSourceDetail" | "insightPlaybackLocationType";
+}): Promise<TrafficMetricRow[]> {
+  const { accessToken, channelId } = await getAnalyticsAccessToken();
+  try {
+    const { headers, rows } = await fetchReports({
+      accessToken,
+      channelId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      metrics: "views,estimatedMinutesWatched",
+      dimensions: `day,${input.dimension}`,
+    });
+    const dayIndex = headers.indexOf("day");
+    const dimIndex = headers.indexOf(input.dimension);
+    const viewsIndex = headers.indexOf("views");
+    const watchIndex = headers.indexOf("estimatedMinutesWatched");
+    return rows.map((cells) => ({
+      day: String(dayIndex >= 0 ? cells[dayIndex] : ""),
+      dimensionValue: String(dimIndex >= 0 ? cells[dimIndex] : ""),
+      views: num(viewsIndex >= 0 ? cells[viewsIndex] : 0),
+      estimatedMinutesWatched: num(watchIndex >= 0 ? cells[watchIndex] : 0),
+    }));
+  } catch (error) {
+    // Traffic dimensions are foundation-only; ignore soft failures during sync.
+    if (error instanceof YouTubeAnalyticsError && error.code === "quota") throw error;
+    return [];
+  }
+}

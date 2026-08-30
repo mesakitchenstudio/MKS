@@ -2,26 +2,31 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreateRecipeFromYoutubeVideo } from "@/components/admin/CreateRecipeFromYoutubeVideo";
-import { adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { canAccess } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { loadYoutubeVideoDetail } from "@/lib/youtube-data/dashboard";
 import { formatTimestampInput } from "@/lib/youtube-metadata-editor";
+import { ANALYTICS_RANGE_DAYS, parseAnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminYoutubeVideoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ videoId: string }>;
+  searchParams: Promise<{ range?: string }>;
 }) {
   const admin = await requireAccess("youtube");
   const canCreateRecipes = canAccess(admin.role, "content");
   const { videoId } = await params;
+  const { range } = await searchParams;
+  const rangeDays = parseAnalyticsRangeDays(range);
   const db = getDb();
   const [detail, recipeTypes] = await Promise.all([
-    loadYoutubeVideoDetail(videoId),
+    loadYoutubeVideoDetail(videoId, { analyticsRangeDays: rangeDays }),
     canCreateRecipes
       ? db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
       : Promise.resolve([] as { id: string; name: string }[]),
@@ -50,9 +55,9 @@ export default async function AdminYoutubeVideoPage({
           <Meta label="YouTube video ID" value={detail.videoId} mono />
           <Meta label="Published" value={detail.publishedAt} />
           <Meta label="Duration" value={detail.durationDisplay || "—"} />
-          <Meta label="Views" value={detail.viewCount} />
-          <Meta label="Likes" value={detail.likeCount} />
-          <Meta label="Comments" value={detail.commentCount} />
+          <Meta label="Public views" value={detail.viewCount} />
+          <Meta label="Public likes" value={detail.likeCount} />
+          <Meta label="Public comments" value={detail.commentCount} />
           <Meta label="Privacy" value={detail.privacyStatus || "—"} />
           <Meta label="Embeddable" value={detail.embeddable ? "Yes" : "No"} />
           <Meta
@@ -69,6 +74,51 @@ export default async function AdminYoutubeVideoPage({
           />
         </dl>
       </div>
+
+      <section className="rounded-sm border border-line bg-paper px-4 py-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-serif text-lg text-ink">YouTube Analytics</h2>
+            <p className="mt-1 text-xs text-muted">
+              OAuth Analytics metrics for the selected period — separate from public counter history.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1 text-xs">
+            {ANALYTICS_RANGE_DAYS.map((days) => (
+              <Link
+                key={days}
+                href={`/admin/youtube/videos/${detail.videoId}?range=${days}`}
+                className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                  detail.analytics.rangeDays === days ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                } ${adminFocusRing}`}
+              >
+                Last {days} days
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {!detail.analytics.connection.connected ? (
+          <p className="mt-4 text-sm text-muted">
+            YouTube Analytics is not connected. An owner can connect it from the YouTube dashboard.
+            Public metadata on this page still works.
+          </p>
+        ) : (
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <Meta label="Period views" value={detail.analytics.metrics.views} />
+            <Meta label="Watch time" value={detail.analytics.metrics.watchTime} />
+            <Meta label="Average view duration" value={detail.analytics.metrics.averageViewDuration} />
+            <Meta
+              label="Average percentage viewed"
+              value={detail.analytics.metrics.averageViewPercentage}
+            />
+            <Meta label="Subscribers gained" value={detail.analytics.metrics.subscribersGained} />
+            <Meta label="Subscribers lost" value={detail.analytics.metrics.subscribersLost} />
+            <Meta label="Shares" value={detail.analytics.metrics.shares} />
+            <Meta label="Likes (Analytics)" value={detail.analytics.metrics.likes} />
+          </dl>
+        )}
+      </section>
 
       {!detail.recipe && canCreateRecipes ? (
         <section className="rounded-sm border border-line bg-paper px-4 py-4">
@@ -102,7 +152,8 @@ export default async function AdminYoutubeVideoPage({
           <ul className="mt-3 space-y-1 text-sm">
             {detail.descriptionChapters.map((chapter) => (
               <li key={`${chapter.time}-${chapter.label}`}>
-                <span className="font-mono text-muted">{formatTimestampInput(chapter.time)}</span> {chapter.label}
+                <span className="font-mono text-muted">{formatTimestampInput(chapter.time)}</span>{" "}
+                {chapter.label}
               </li>
             ))}
           </ul>
@@ -117,9 +168,10 @@ export default async function AdminYoutubeVideoPage({
       </section>
 
       <section>
-        <h2 className="font-serif text-lg text-ink">Statistics history</h2>
+        <h2 className="font-serif text-lg text-ink">Public counter history</h2>
         <p className="mt-1 text-xs text-muted">
-          Public counter snapshots stored by Mesa — not YouTube Analytics.
+          PUBLIC COUNTER HISTORY — snapshots of public Data API view/like/comment counts stored by
+          Mesa. This is not YouTube Analytics.
         </p>
         <div className="mt-4 overflow-x-auto rounded-sm border border-line">
           <table className="min-w-full text-left text-sm">

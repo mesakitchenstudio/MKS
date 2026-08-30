@@ -40,6 +40,11 @@ export function canManageYoutubeSync(role: string) {
   return role === "owner";
 }
 
+/** Connect / disconnect / refresh YouTube Analytics OAuth is owner-only. */
+export function canManageYoutubeAnalytics(role: string) {
+  return role === "owner";
+}
+
 export function homeForRole(role: string) {
   if (role === "members") return "/admin/members";
   if (role === "editor" || role === "owner") return "/admin";

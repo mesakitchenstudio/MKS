@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
-import { homeForRole, isAccessLevel, canManageYoutubeSync } from "@/lib/admin-access";
+import { homeForRole, isAccessLevel, canManageYoutubeSync, canManageYoutubeAnalytics } from "@/lib/admin-access";
+
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
 import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -822,6 +823,29 @@ export async function syncYoutubeAction() {
 
   const result = await syncYoutubeChannel({ forceSnapshot: true });
   revalidatePath("/admin/youtube");
+  return result;
+}
+
+export async function disconnectYoutubeAnalyticsAction() {
+  const admin = await requireAccess("youtube");
+  if (!canManageYoutubeAnalytics(admin.role)) {
+    return { ok: false as const, error: "Only owners can disconnect YouTube Analytics." };
+  }
+  const { disconnectAnalyticsConnection } = await import("@/lib/youtube-analytics/connection");
+  await disconnectAnalyticsConnection();
+  revalidatePath("/admin/youtube");
+  return { ok: true as const };
+}
+
+export async function syncYoutubeAnalyticsAction() {
+  const admin = await requireAccess("youtube");
+  if (!canManageYoutubeAnalytics(admin.role)) {
+    return { ok: false as const, error: "Only owners can refresh YouTube Analytics." };
+  }
+  const { syncYoutubeAnalytics } = await import("@/lib/youtube-analytics/sync");
+  const result = await syncYoutubeAnalytics({ days: 90 });
+  revalidatePath("/admin/youtube");
+  revalidatePath("/admin/youtube", "layout");
   return result;
 }
 

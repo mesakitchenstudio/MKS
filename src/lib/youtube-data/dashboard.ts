@@ -13,6 +13,19 @@ import {
   youtubeVideoFormatLabel,
   type YouTubeVideoFormat,
 } from "@/lib/youtube-data/video-format";
+import { getAnalyticsConnectionPublic } from "@/lib/youtube-analytics/connection";
+import {
+  displayMetrics,
+  emptyAggregatedMetrics,
+  loadChannelAnalyticsAggregate,
+  loadVideoAnalyticsAggregate,
+  loadVideoAnalyticsAggregatesForIds,
+} from "@/lib/youtube-analytics/aggregate";
+import {
+  DEFAULT_ANALYTICS_RANGE_DAYS,
+  parseAnalyticsRangeDays,
+  type AnalyticsRangeDays,
+} from "@/lib/youtube-analytics/ranges";
 
 function formatCount(value: string) {
   try {
@@ -31,19 +44,40 @@ function parseTags(raw: string): string[] {
   }
 }
 
-export async function loadYoutubeAdminDashboard() {
+export async function loadYoutubeAdminDashboard(input?: {
+  analyticsRangeDays?: AnalyticsRangeDays | string | number;
+}) {
+  const analyticsRangeDays = parseAnalyticsRangeDays(
+    input?.analyticsRangeDays ?? DEFAULT_ANALYTICS_RANGE_DAYS,
+  );
   const db = getDb();
   const channel = await db.youTubeChannel.findFirst({ orderBy: { lastSyncedAt: "desc" } });
-  const [{ byVideoId, recipesWithVideo, recipesWithoutVideo, recipes }, videos] = await Promise.all([
-    buildRecipeVideoIndex({ includeDrafts: true }),
-    db.youTubeVideo.findMany({ orderBy: { publishedAt: "desc" }, take: 100 }),
-  ]);
+  const [{ byVideoId, recipesWithVideo, recipes }, videos, analyticsConnection] =
+    await Promise.all([
+      buildRecipeVideoIndex({ includeDrafts: true }),
+      db.youTubeVideo.findMany({ orderBy: { publishedAt: "desc" }, take: 100 }),
+      getAnalyticsConnectionPublic(),
+    ]);
 
   const recipeById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
 
   const trend = channel
     ? await getChannelTrendDeltas(channel.channelId, 7)
     : { views: null, subscribers: null };
+
+  const channelAnalytics = analyticsConnection.connected
+    ? await loadChannelAnalyticsAggregate(
+        analyticsConnection.channelId || channel?.channelId || "",
+        analyticsRangeDays,
+      )
+    : emptyAggregatedMetrics();
+
+  const videoAnalyticsMap = analyticsConnection.connected
+    ? await loadVideoAnalyticsAggregatesForIds(
+        videos.map((video) => video.videoId),
+        analyticsRangeDays,
+      )
+    : new Map();
 
   const formatCounts = { long: 0, shorts: 0, unknown: 0 };
 
@@ -61,6 +95,7 @@ export async function loadYoutubeAdminDashboard() {
         tags,
         durationSeconds: video.durationSeconds,
       });
+      const analytics = displayMetrics(videoAnalyticsMap.get(video.videoId) || emptyAggregatedMetrics());
 
       return {
         videoId: video.videoId,
@@ -83,6 +118,13 @@ export async function loadYoutubeAdminDashboard() {
           hasDescriptionChapters: descriptionChapters.length > 0,
           hasRecipeChapters,
         }),
+        analytics: {
+          periodViews: analytics.views,
+          watchTime: analytics.watchTime,
+          averageViewPercentage: analytics.averageViewPercentage,
+          subscribersGained: analytics.subscribersGained,
+          hasData: analytics.hasData,
+        },
       };
     }),
   );
@@ -96,6 +138,7 @@ export async function loadYoutubeAdminDashboard() {
   const linkedVideoIds = new Set(recipesWithVideo.map((row) => row.videoId));
   const videosWithoutRecipes = videos.filter((video) => !linkedVideoIds.has(video.videoId)).length;
   const publishedIndex = await buildRecipeVideoIndex({ includeDrafts: false });
+  const channelAnalyticsDisplay = displayMetrics(channelAnalytics);
 
   return {
     channel: channel
@@ -124,10 +167,21 @@ export async function loadYoutubeAdminDashboard() {
       unknownFormat: formatCounts.unknown,
     },
     videos: rows,
+    analytics: {
+      connection: analyticsConnection,
+      rangeDays: analyticsRangeDays,
+      channel: channelAnalyticsDisplay,
+    },
   };
 }
 
-export async function loadYoutubeVideoDetail(videoId: string) {
+export async function loadYoutubeVideoDetail(
+  videoId: string,
+  input?: { analyticsRangeDays?: AnalyticsRangeDays | string | number },
+) {
+  const analyticsRangeDays = parseAnalyticsRangeDays(
+    input?.analyticsRangeDays ?? DEFAULT_ANALYTICS_RANGE_DAYS,
+  );
   const db = getDb();
   const video = await db.youTubeVideo.findUnique({
     where: { videoId },
@@ -140,6 +194,7 @@ export async function loadYoutubeVideoDetail(videoId: string) {
   const { byVideoId } = await buildRecipeVideoIndex({ includeDrafts: true });
   const link = byVideoId.get(video.videoId);
   const descriptionChapters = parseYoutubeDescriptionChapters(video.description);
+  const analyticsConnection = await getAnalyticsConnectionPublic();
 
   const history = video.snapshots
     .slice()
@@ -160,6 +215,10 @@ export async function loadYoutubeVideoDetail(videoId: string) {
     })
     .reverse();
 
+  const analyticsMetrics = analyticsConnection.connected
+    ? displayMetrics(await loadVideoAnalyticsAggregate(video.videoId, analyticsRangeDays))
+    : displayMetrics(emptyAggregatedMetrics());
+
   return {
     videoId: video.videoId,
     title: video.title,
@@ -178,5 +237,10 @@ export async function loadYoutubeVideoDetail(videoId: string) {
       ? { id: link.recipeId, slug: link.recipeSlug, title: link.recipeTitle }
       : null,
     history,
+    analytics: {
+      connection: analyticsConnection,
+      rangeDays: analyticsRangeDays,
+      metrics: analyticsMetrics,
+    },
   };
 }

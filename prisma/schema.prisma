@@ -337,3 +337,87 @@ model YouTubeVideoSnapshot {
 
   @@index([videoId, recordedAt])
 }
+
+/// Owner OAuth connection for YouTube Analytics API (not NextAuth login).
+model YouTubeAnalyticsConnection {
+  id                 String   @id @default(cuid())
+  channelId          String   @default("")
+  channelTitle       String   @default("")
+  googleAccountEmail String   @default("")
+  /// AES-256-GCM sealed refresh token (base64 ciphertext).
+  refreshTokenEnc    String   @default("")
+  tokenIv            String   @default("")
+  tokenAuthTag       String   @default("")
+  scopes             String   @default("")
+  status             String   @default("disconnected")
+  connectedAt        DateTime?
+  connectedByAdminId String   @default("")
+  lastRefreshAt      DateTime?
+  lastSyncAt         DateTime?
+  lastError          String   @default("")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+/// Daily channel metrics from YouTube Analytics API.
+model YouTubeAnalyticsChannelDay {
+  id                       String   @id @default(cuid())
+  channelId                String
+  date                     DateTime
+  views                    Int      @default(0)
+  estimatedMinutesWatched  Int      @default(0)
+  averageViewDuration      Float    @default(0)
+  averageViewPercentage    Float    @default(0)
+  subscribersGained        Int      @default(0)
+  subscribersLost          Int      @default(0)
+  likes                    Int      @default(0)
+  comments                 Int      @default(0)
+  shares                   Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([channelId, date])
+  @@index([channelId, date])
+}
+
+/// Daily per-video metrics from YouTube Analytics API.
+model YouTubeAnalyticsVideoDay {
+  id                       String   @id @default(cuid())
+  videoId                  String
+  channelId                String   @default("")
+  date                     DateTime
+  views                    Int      @default(0)
+  estimatedMinutesWatched  Int      @default(0)
+  averageViewDuration      Float    @default(0)
+  averageViewPercentage    Float    @default(0)
+  subscribersGained        Int      @default(0)
+  subscribersLost          Int      @default(0)
+  likes                    Int      @default(0)
+  comments                 Int      @default(0)
+  shares                   Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([videoId, date])
+  @@index([videoId, date])
+  @@index([channelId, date])
+}
+
+/// Traffic-source / playback-location foundation (Phase 1 storage; UI later).
+model YouTubeAnalyticsTrafficDay {
+  id                       String   @id @default(cuid())
+  scope                    String
+  channelId                String   @default("")
+  videoId                  String   @default("")
+  date                     DateTime
+  dimension                String
+  dimensionValue           String   @default("")
+  views                    Int      @default(0)
+  estimatedMinutesWatched  Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([scope, channelId, videoId, date, dimension, dimensionValue])
+  @@index([channelId, date, dimension])
+  @@index([videoId, date, dimension])
+}
