@@ -10,7 +10,10 @@ import {
 import { runAiRecipeGeneration } from "@/lib/ai-recipe/generate";
 import { mergeAiDraftIntoEditor } from "@/lib/ai-recipe/normalize";
 import { emptyAiSummary, tallyConfidence, type RecipeAiMeta } from "@/lib/ai-recipe/types";
-import { applyYoutubeVideoLinkToValues } from "@/lib/youtube-data/recipe-link";
+import {
+  applyYoutubeVideoLinkToValues,
+  fillEmptyHeroImageFromYoutubeThumbnail,
+} from "@/lib/youtube-data/recipe-link";
 import {
   findRecipeIdLinkedToVideo,
   loadSyncedVideoForLink,
@@ -417,14 +420,17 @@ async function populateDraftWithAi(input: {
 
   // Keep canonical YouTube link and Hero thumbnail from synced video data.
   const video = await loadSyncedVideoForLink(input.videoId);
-  const values = video
+  let values = video
     ? applyYoutubeVideoLinkToValues(merged.values, video, { aiMeta: input.seedMeta })
     : merged.values;
 
-  const heroApplied = Boolean(
-    video?.thumbnailUrl &&
-      String(values.image ?? "").trim() === String(video.thumbnailUrl).trim(),
-  );
+  const withHero = fillEmptyHeroImageFromYoutubeThumbnail(values, input.seedMeta, {
+    syncedThumbnailUrl: video?.thumbnailUrl,
+    videoId: input.videoId,
+  });
+  values = withHero.values;
+
+  const heroApplied = Boolean(String(values.image ?? "").trim());
   const summary = emptyAiSummary();
   const confidenceByPath = {
     ...(generated.meta.confidenceByPath ?? {}),
@@ -447,10 +453,12 @@ async function populateDraftWithAi(input: {
     sourceVideoId: input.videoId,
     sourceUrl: watchUrl,
     heroImageSource: heroApplied
-      ? input.seedMeta.heroImageSource || "youtube_thumbnail"
+      ? withHero.aiMeta?.heroImageSource ||
+        input.seedMeta.heroImageSource ||
+        "youtube_thumbnail"
       : input.seedMeta.heroImageSource,
     heroImageYoutubeVideoId: heroApplied
-      ? input.videoId
+      ? withHero.aiMeta?.heroImageYoutubeVideoId || input.videoId
       : input.seedMeta.heroImageYoutubeVideoId,
   };
 

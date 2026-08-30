@@ -181,6 +181,7 @@ export function RecipeYoutubeConnection({
       const data = (await response.json()) as SyncedYoutubeVideo;
       if (!response.ok) return;
       const before = values;
+      const beforeImage = String(before.image ?? "").trim();
       const nextValues = applyYoutubeMetadataSync({
         values,
         aiMeta,
@@ -188,13 +189,17 @@ export function RecipeYoutubeConnection({
         allowVerifiedRecipeUpdates: verified ? verifiedConfirm : false,
       });
       onValuesChange(nextValues);
-      if (
+      const nextImage = String(nextValues.image ?? "").trim();
+      const filledEmptyHero =
+        !beforeImage &&
+        Boolean(nextImage) &&
+        nextImage === String(data.thumbnailUrl ?? "").trim();
+      const replacedInheritedHero =
         !verified &&
-        onAiMetaChange &&
         shouldApplyYoutubeThumbnailAsHero(before, aiMeta, data.thumbnailUrl) &&
-        String(data.thumbnailUrl ?? "").trim() &&
-        String(nextValues.image ?? "").trim() === String(data.thumbnailUrl).trim()
-      ) {
+        Boolean(nextImage) &&
+        nextImage === String(data.thumbnailUrl ?? "").trim();
+      if (onAiMetaChange && (filledEmptyHero || replacedInheritedHero)) {
         onAiMetaChange(markHeroImageFromYoutube(aiMeta, data.videoId));
       }
       setSyncPreviewOpen(false);

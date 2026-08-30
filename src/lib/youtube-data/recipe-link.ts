@@ -42,6 +42,16 @@ function currentHeroImage(values: Record<string, unknown>) {
   return String(values.image ?? "").trim();
 }
 
+/**
+ * Resolve the synced YouTube thumbnail already stored on the recipe
+ * (flat `youtube.thumbnail` or editor `youtube.preserved.thumbnail`).
+ * Prefer this over inventing maxresdefault URLs.
+ */
+export function resolveLinkedYoutubeThumbnailUrl(values: Record<string, unknown>): string {
+  const blob = parseRecipeYoutubeBlob(values.youtube);
+  return String(blob?.thumbnail ?? "").trim();
+}
+
 /** True when Hero image is empty or still the auto-inherited YouTube thumbnail. */
 export function shouldApplyYoutubeThumbnailAsHero(
   values: Record<string, unknown>,
@@ -59,8 +69,8 @@ export function shouldApplyYoutubeThumbnailAsHero(
 
   // Fallback when provenance is missing: treat image as inherited if it matches
   // the current YouTube blob thumbnail or the incoming video thumbnail.
-  const blob = parseRecipeYoutubeBlob(values.youtube);
-  if (blob?.thumbnail && current === String(blob.thumbnail).trim()) return true;
+  const linkedThumb = resolveLinkedYoutubeThumbnailUrl(values);
+  if (linkedThumb && current === linkedThumb) return true;
   if (nextThumbnailUrl && current === nextThumbnailUrl.trim()) return true;
 
   return false;
@@ -92,6 +102,39 @@ export function applyHeroImageFromYoutubeVideo(
   return {
     values: { ...values, image: thumbnailUrl },
     applied: true,
+  };
+}
+
+/**
+ * If Hero image is empty, copy the linked YouTube thumbnail into values.image.
+ * Never overwrites a non-empty hero (manual or otherwise). Does not invent URLs.
+ */
+export function fillEmptyHeroImageFromYoutubeThumbnail(
+  values: Record<string, unknown>,
+  aiMeta: RecipeAiMeta | null | undefined,
+  options?: { syncedThumbnailUrl?: string; videoId?: string },
+): {
+  values: Record<string, unknown>;
+  applied: boolean;
+  aiMeta: RecipeAiMeta | null | undefined;
+} {
+  if (currentHeroImage(values)) {
+    return { values, applied: false, aiMeta };
+  }
+
+  const thumbnailUrl =
+    String(options?.syncedThumbnailUrl ?? "").trim() || resolveLinkedYoutubeThumbnailUrl(values);
+  if (!thumbnailUrl) {
+    return { values, applied: false, aiMeta };
+  }
+
+  const videoId =
+    String(options?.videoId ?? "").trim() || recipeLinkedVideoId(values) || "";
+
+  return {
+    values: { ...values, image: thumbnailUrl },
+    applied: true,
+    aiMeta: videoId ? markHeroImageFromYoutube(aiMeta, videoId) : aiMeta,
   };
 }
 
@@ -266,7 +309,13 @@ export function previewYoutubeMetadataSync(input: {
 
   const heroCurrent = currentHeroImage(values);
   const heroNext = String(video.thumbnailUrl ?? "").trim();
-  if (heroNext && shouldApplyYoutubeThumbnailAsHero(values, aiMeta, heroNext) && heroCurrent !== heroNext) {
+  if (!heroCurrent && heroNext) {
+    addChange("image", "Hero image", "None", "YouTube thumbnail");
+  } else if (
+    heroNext &&
+    shouldApplyYoutubeThumbnailAsHero(values, aiMeta, heroNext) &&
+    heroCurrent !== heroNext
+  ) {
     addChange(
       "image",
       "Hero image",
@@ -342,11 +391,16 @@ export function applyYoutubeMetadataSync(input: {
 
   if (verified) {
     // Explicit confirmation: refresh linked-video mirror fields only.
-    // Do not touch hero image, recipe tags, chapters, or any editorial content.
-    return applyYoutubeVideoLinkToValues(input.values, input.video, {
+    // Do not touch custom hero, recipe tags, chapters, or editorial content.
+    // Empty hero may still be filled from the refreshed synced thumbnail.
+    const linked = applyYoutubeVideoLinkToValues(input.values, input.video, {
       aiMeta: input.aiMeta,
       applyHeroImage: false,
     });
+    return fillEmptyHeroImageFromYoutubeThumbnail(linked, input.aiMeta, {
+      syncedThumbnailUrl: input.video.thumbnailUrl,
+      videoId: input.video.videoId,
+    }).values;
   }
 
   const linked = applyYoutubeVideoLinkToValues(input.values, input.video, {
@@ -376,7 +430,11 @@ export function applyYoutubeMetadataSync(input: {
     next.tags = [...input.video.tags];
   }
 
-  return next;
+  // Safety: empty hero always picks up synced thumbnail when available.
+  return fillEmptyHeroImageFromYoutubeThumbnail(next, input.aiMeta, {
+    syncedThumbnailUrl: input.video.thumbnailUrl,
+    videoId: input.video.videoId,
+  }).values;
 }
 
 /** Preview helper: whether applying refresh would mutate recipe-stored data. */

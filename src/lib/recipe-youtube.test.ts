@@ -26,6 +26,21 @@ describe("recipe-youtube", () => {
     assert.equal(parsed?.relatedVideos?.[0]?.label, "Mexican");
   });
 
+  it("reads thumbnail and videoId from editor preserved bag", () => {
+    const parsed = parseRecipeYoutubeBlob({
+      duration: "5:38",
+      preserved: {
+        videoId: "67Laso4MggU",
+        thumbnail: "https://i.ytimg.com/vi/67Laso4MggU/maxresdefault.jpg",
+        title: "Bread",
+        url: "https://www.youtube.com/watch?v=67Laso4MggU",
+      },
+    });
+    assert.equal(parsed?.videoId, "67Laso4MggU");
+    assert.equal(parsed?.thumbnail, "https://i.ytimg.com/vi/67Laso4MggU/maxresdefault.jpg");
+    assert.equal(parsed?.title, "Bread");
+  });
+
   it("resolves main video from legacy youtubeUrl", () => {
     const resolved = resolveRecipeYoutube({
       slug: "test",

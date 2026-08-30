@@ -13,6 +13,7 @@ import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import { YoutubeMetadataEditor } from "@/components/admin/YoutubeMetadataEditor";
 import { RecipeYoutubeConnection } from "@/components/admin/RecipeYoutubeConnection";
 import {
+  fillEmptyHeroImageFromYoutubeThumbnail,
   markHeroImageManual,
 } from "@/lib/youtube-data/recipe-link";
 import {
@@ -797,6 +798,14 @@ export function RecipeEditor({
       aiMeta,
     );
 
+    // AI never invents hero images; fill empty Hero from linked YouTube thumbnail metadata.
+    const withHero = fillEmptyHeroImageFromYoutubeThumbnail(merged.values, {
+      ...payload.meta,
+      heroImageSource: aiMeta?.heroImageSource ?? payload.meta.heroImageSource,
+      heroImageYoutubeVideoId:
+        aiMeta?.heroImageYoutubeVideoId ?? payload.meta.heroImageYoutubeVideoId,
+    });
+
     const summary = emptyAiSummary();
     const confidenceByPath = {
       ...(aiMeta?.confidenceByPath ?? {}),
@@ -811,16 +820,25 @@ export function RecipeEditor({
     setSlugTouched(Boolean(merged.slug));
     setExcerpt(merged.excerpt);
     setCategoryIds(merged.categoryIds);
-    setValues(hydrateEditorValues(fields, merged.values));
+    setValues(hydrateEditorValues(fields, withHero.values));
     setAiMeta({
       ...payload.meta,
-      sourceVideoId: payload.meta.sourceVideoId,
+      sourceVideoId: payload.meta.sourceVideoId ?? aiMeta?.sourceVideoId,
       confidenceByPath,
       fieldProvenance: merged.fieldProvenance,
       summary,
       verificationStatus: "unverified",
       verifiedAt: undefined,
       verifiedBy: undefined,
+      recipeTypeSource: aiMeta?.recipeTypeSource ?? payload.meta.recipeTypeSource,
+      recipeTypeConfidence: aiMeta?.recipeTypeConfidence ?? payload.meta.recipeTypeConfidence,
+      recipeTypeConfirmed: aiMeta?.recipeTypeConfirmed ?? payload.meta.recipeTypeConfirmed,
+      heroImageSource:
+        withHero.aiMeta?.heroImageSource ?? aiMeta?.heroImageSource ?? payload.meta.heroImageSource,
+      heroImageYoutubeVideoId:
+        withHero.aiMeta?.heroImageYoutubeVideoId ??
+        aiMeta?.heroImageYoutubeVideoId ??
+        payload.meta.heroImageYoutubeVideoId,
     });
     setReviewCursor(0);
     setAdvancedOpen(true);
@@ -1447,7 +1465,7 @@ export function RecipeEditor({
               values={values}
               aiMeta={aiMeta}
               onValuesChange={(next) => {
-                setValues(next);
+                setValues(hydrateEditorValues(fields, next));
               }}
               onAiMetaChange={(next) => {
                 setAiMeta(next);

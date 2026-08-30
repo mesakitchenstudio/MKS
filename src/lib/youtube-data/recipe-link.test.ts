@@ -4,12 +4,15 @@ import {
   applyYoutubeMetadataSync,
   applyYoutubeVideoLinkToValues,
   clearYoutubeLinkFromValues,
+  fillEmptyHeroImageFromYoutubeThumbnail,
   previewYoutubeMetadataSync,
   recipeLinkedVideoId,
+  resolveLinkedYoutubeThumbnailUrl,
   shouldApplyYoutubeThumbnailAsHero,
   markHeroImageManual,
 } from "./recipe-link.ts";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
+import { mergeAiDraftIntoEditor } from "@/lib/ai-recipe/normalize.ts";
 
 const sampleVideo = {
   videoId: "67Laso4MggU",
@@ -24,19 +27,30 @@ const sampleVideo = {
   tags: ["bread"],
 };
 
-function verifiedMeta(overrides: Partial<RecipeAiMeta> = {}): RecipeAiMeta {
+const customHero = "https://example.com/custom-hero.jpg";
+
+function baseMeta(overrides: Partial<RecipeAiMeta> = {}): RecipeAiMeta {
   return {
-    generatedByAI: true,
+    generatedByAI: false,
     sourceType: "youtube",
     sourceUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
     generatedAt: "2026-01-01T00:00:00.000Z",
     model: "test",
     schemaVersion: "1",
-    verificationStatus: "verified",
+    verificationStatus: "none",
     confidenceByPath: {},
-    summary: { verified: 1, inferred: 0, estimated: 0, unknown: 0 },
+    summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
     ...overrides,
   };
+}
+
+function verifiedMeta(overrides: Partial<RecipeAiMeta> = {}): RecipeAiMeta {
+  return baseMeta({
+    generatedByAI: true,
+    verificationStatus: "verified",
+    summary: { verified: 1, inferred: 0, estimated: 0, unknown: 0 },
+    ...overrides,
+  });
 }
 
 describe("recipe-link", () => {
@@ -50,7 +64,7 @@ describe("recipe-link", () => {
     assert.equal(blob.title, "Homemade Bread Without an Oven? You Need to Try This!");
   });
 
-  it("populates empty Hero image from YouTube thumbnail on link", () => {
+  it("new YouTube recipe with empty hero gets thumbnail as hero", () => {
     const linked = applyYoutubeVideoLinkToValues({}, sampleVideo);
     assert.equal(linked.image, sampleVideo.thumbnailUrl);
   });
@@ -77,48 +91,27 @@ describe("recipe-link", () => {
       },
       sampleVideo,
       {
-        aiMeta: {
-          generatedByAI: false,
-          sourceType: "youtube",
-          sourceUrl: "",
-          generatedAt: "",
-          model: "",
-          schemaVersion: "",
-          verificationStatus: "none",
-          confidenceByPath: {},
-          summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
+        aiMeta: baseMeta({
           heroImageSource: "youtube_thumbnail",
           heroImageYoutubeVideoId: "OLDVIDEO1",
-        },
+        }),
       },
     );
     assert.equal(linked.image, sampleVideo.thumbnailUrl);
   });
 
   it("preserves manual Hero image when changing video", () => {
-    const custom = "https://example.com/custom-hero.jpg";
     const linked = applyYoutubeVideoLinkToValues(
       {
-        image: custom,
+        image: customHero,
         youtube: { videoId: "OLDVIDEO1", thumbnail: "https://i.ytimg.com/vi/OLDVIDEO1/hqdefault.jpg" },
       },
       sampleVideo,
       {
-        aiMeta: {
-          generatedByAI: false,
-          sourceType: "youtube",
-          sourceUrl: "",
-          generatedAt: "",
-          model: "",
-          schemaVersion: "",
-          verificationStatus: "none",
-          confidenceByPath: {},
-          summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
-          heroImageSource: "manual_url",
-        },
+        aiMeta: baseMeta({ heroImageSource: "manual_url" }),
       },
     );
-    assert.equal(linked.image, custom);
+    assert.equal(linked.image, customHero);
   });
 
   it("shouldApplyYoutubeThumbnailAsHero is false for manual uploads", () => {
@@ -131,6 +124,193 @@ describe("recipe-link", () => {
       ),
       false,
     );
+  });
+
+  it("resolves thumbnail from editor preserved.thumbnail", () => {
+    const values = {
+      image: "",
+      youtube: {
+        duration: "5:38",
+        preserved: {
+          videoId: sampleVideo.videoId,
+          thumbnail: sampleVideo.thumbnailUrl,
+          title: sampleVideo.title,
+          url: `https://www.youtube.com/watch?v=${sampleVideo.videoId}`,
+        },
+      },
+    };
+    assert.equal(resolveLinkedYoutubeThumbnailUrl(values), sampleVideo.thumbnailUrl);
+  });
+
+  it("existing linked recipe + empty hero fills from preserved thumbnail (Regenerate path)", () => {
+    const before = {
+      image: "",
+      intro: "AI intro",
+      youtubeUrl: `https://www.youtube.com/watch?v=${sampleVideo.videoId}`,
+      youtube: {
+        duration: "5:38",
+        preserved: {
+          videoId: sampleVideo.videoId,
+          thumbnail: sampleVideo.thumbnailUrl,
+          title: sampleVideo.title,
+        },
+      },
+    };
+    const fields = [
+      { key: "intro", label: "Intro", kind: "textarea" as const, required: false },
+      { key: "image", label: "Hero image", kind: "image" as const, required: true },
+      { key: "youtubeUrl", label: "YouTube URL", kind: "text" as const, required: false },
+      { key: "youtube", label: "YouTube", kind: "textarea" as const, required: false },
+    ];
+    const merged = mergeAiDraftIntoEditor(
+      {
+        title: "Bread",
+        slug: "bread",
+        excerpt: "",
+        featured: false,
+        seasonal: false,
+        categoryIds: [],
+        values: before,
+      },
+      {
+        title: "Bread",
+        slug: "bread",
+        excerpt: "Fresh",
+        categoryIds: [],
+        values: { intro: "Better intro", image: "" },
+        confidenceByPath: {},
+        summary: { verified: 0, inferred: 1, estimated: 0, unknown: 0 },
+        insufficientRecipeInformation: false,
+        insufficientReason: "",
+      },
+      fields,
+      "fill_empty",
+      baseMeta(),
+    );
+    assert.equal(String(merged.values.image ?? ""), "");
+    const filled = fillEmptyHeroImageFromYoutubeThumbnail(merged.values, baseMeta());
+    assert.equal(filled.applied, true);
+    assert.equal(filled.values.image, sampleVideo.thumbnailUrl);
+    assert.equal(filled.aiMeta?.heroImageSource, "youtube_thumbnail");
+    // Publish gate: required hero is satisfied after auto-fill.
+    assert.ok(String(filled.values.image ?? "").trim().length > 0);
+  });
+
+  it("existing custom hero + Regenerate leaves custom hero unchanged", () => {
+    const before = {
+      image: customHero,
+      youtube: {
+        preserved: {
+          videoId: sampleVideo.videoId,
+          thumbnail: sampleVideo.thumbnailUrl,
+        },
+      },
+    };
+    const fields = [
+      { key: "image", label: "Hero image", kind: "image" as const, required: true },
+      { key: "youtube", label: "YouTube", kind: "textarea" as const, required: false },
+    ];
+    const merged = mergeAiDraftIntoEditor(
+      {
+        title: "Bread",
+        slug: "bread",
+        excerpt: "",
+        featured: false,
+        seasonal: false,
+        categoryIds: [],
+        values: before,
+      },
+      {
+        title: "Bread",
+        slug: "bread",
+        excerpt: "",
+        categoryIds: [],
+        values: { image: "" },
+        confidenceByPath: {},
+        summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
+        insufficientRecipeInformation: false,
+        insufficientReason: "",
+      },
+      fields,
+      "replace_all_ai_fillable",
+      baseMeta({ heroImageSource: "manual_url" }),
+    );
+    assert.equal(merged.values.image, customHero);
+    const filled = fillEmptyHeroImageFromYoutubeThumbnail(
+      merged.values,
+      baseMeta({
+        heroImageSource: "manual_url",
+      }),
+    );
+    assert.equal(filled.applied, false);
+    assert.equal(filled.values.image, customHero);
+  });
+
+  it("existing linked recipe + empty hero + metadata refresh fills thumbnail", () => {
+    const values = {
+      image: "",
+      youtubeUrl: `https://www.youtube.com/watch?v=${sampleVideo.videoId}`,
+      youtube: {
+        videoId: sampleVideo.videoId,
+        title: "Old title",
+        duration: "1:00",
+        thumbnail: "",
+      },
+    };
+    const next = applyYoutubeMetadataSync({
+      values,
+      aiMeta: baseMeta(),
+      video: sampleVideo,
+    });
+    assert.equal(next.image, sampleVideo.thumbnailUrl);
+  });
+
+  it("existing custom hero + metadata refresh leaves custom hero unchanged", () => {
+    const values = {
+      image: customHero,
+      youtubeUrl: `https://www.youtube.com/watch?v=${sampleVideo.videoId}`,
+      youtube: {
+        videoId: sampleVideo.videoId,
+        thumbnail: "https://i.ytimg.com/vi/67Laso4MggU/hqdefault.jpg",
+      },
+    };
+    const next = applyYoutubeMetadataSync({
+      values,
+      aiMeta: baseMeta({ heroImageSource: "manual_url" }),
+      video: sampleVideo,
+    });
+    assert.equal(next.image, customHero);
+  });
+
+  it("YouTube thumbnail changes + custom hero exists → custom hero unchanged", () => {
+    const values = {
+      image: customHero,
+      youtubeUrl: `https://www.youtube.com/watch?v=${sampleVideo.videoId}`,
+      youtube: {
+        videoId: sampleVideo.videoId,
+        thumbnail: "https://i.ytimg.com/vi/67Laso4MggU/hqdefault.jpg",
+      },
+    };
+    const next = applyYoutubeMetadataSync({
+      values,
+      aiMeta: baseMeta({ heroImageSource: "manual_upload" }),
+      video: {
+        ...sampleVideo,
+        thumbnailUrl: "https://i.ytimg.com/vi/67Laso4MggU/maxresdefault.jpg",
+      },
+    });
+    assert.equal(next.image, customHero);
+  });
+
+  it("no YouTube thumbnail → hero remains empty", () => {
+    const linked = applyYoutubeVideoLinkToValues({}, { ...sampleVideo, thumbnailUrl: "" });
+    assert.equal(String(linked.image ?? ""), "");
+    const filled = fillEmptyHeroImageFromYoutubeThumbnail(
+      { image: "", youtube: { videoId: sampleVideo.videoId } },
+      baseMeta(),
+    );
+    assert.equal(filled.applied, false);
+    assert.equal(String(filled.values.image ?? ""), "");
   });
 
   it("does not silently mutate verified recipes without allowVerifiedRecipeUpdates", () => {
@@ -156,7 +336,7 @@ describe("recipe-link", () => {
     assert.deepEqual(next.tags, ["keep"]);
   });
 
-  it("with allowVerifiedRecipeUpdates refreshes link mirrors but not hero or chapters", () => {
+  it("with allowVerifiedRecipeUpdates refreshes link mirrors but not custom hero or chapters", () => {
     const values = {
       image: "https://example.com/custom.jpg",
       tags: ["keep"],
@@ -183,6 +363,26 @@ describe("recipe-link", () => {
     assert.equal(blob.duration, sampleVideo.durationDisplay);
     assert.equal(blob.thumbnail, sampleVideo.thumbnailUrl);
     assert.equal(blob.timestamps?.length, 1);
+  });
+
+  it("verified + empty hero + confirmed refresh fills hero from thumbnail", () => {
+    const values = {
+      image: "",
+      youtubeUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
+      youtube: {
+        videoId: "67Laso4MggU",
+        title: "Old title",
+        duration: "1:00",
+        thumbnail: "https://i.ytimg.com/vi/67Laso4MggU/hqdefault.jpg",
+      },
+    };
+    const next = applyYoutubeMetadataSync({
+      values,
+      aiMeta: verifiedMeta(),
+      video: sampleVideo,
+      allowVerifiedRecipeUpdates: true,
+    });
+    assert.equal(next.image, sampleVideo.thumbnailUrl);
   });
 
   it("previews metadata sync without overwriting saved chapters", () => {

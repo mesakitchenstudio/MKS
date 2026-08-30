@@ -87,11 +87,19 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
   }
   if (!value || typeof value !== "object") return null;
   const row = value as Record<string, unknown>;
+  // Editor state keeps videoId/title/thumbnail/url under `preserved`.
+  const preserved =
+    row.preserved && typeof row.preserved === "object" && !Array.isArray(row.preserved)
+      ? (row.preserved as Record<string, unknown>)
+      : {};
   const videoId =
     asString(row.videoId) ||
+    asString(preserved.videoId) ||
     (asString(row.url) ? youtubeVideoId(asString(row.url)) : null) ||
+    (asString(preserved.url) ? youtubeVideoId(asString(preserved.url)) : null) ||
     undefined;
-  if (!videoId && !asString(row.url)) {
+  const url = asString(row.url) || asString(preserved.url) || undefined;
+  if (!videoId && !url) {
     const timestamps = parseTimestamps(row.timestamps);
     const relatedVideos = parseRelatedVideos(row.relatedVideos);
     if (!timestamps.length && !relatedVideos.length && !asString(row.hook)) return null;
@@ -99,10 +107,10 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
 
   return {
     videoId,
-    title: asString(row.title) || undefined,
-    duration: asString(row.duration) || undefined,
-    thumbnail: asString(row.thumbnail) || undefined,
-    url: asString(row.url) || undefined,
+    title: asString(row.title) || asString(preserved.title) || undefined,
+    duration: asString(row.duration) || asString(preserved.duration) || undefined,
+    thumbnail: asString(row.thumbnail) || asString(preserved.thumbnail) || undefined,
+    url,
     hook: asString(row.hook) || asString(row.sectionDescription) || undefined,
     videoCtaDescription:
       asString(row.videoCtaDescription) || asString(row.ctaDescription) || undefined,
