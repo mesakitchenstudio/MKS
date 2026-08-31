@@ -471,16 +471,18 @@ export function RecipeReviews({
   }
 
   return (
-    <section id="recipe-comments" className="mt-8 scroll-mt-24 border-t border-line/80 pt-6">
-      <h2 className="font-serif text-2xl text-ink md:text-3xl">Ratings & comments</h2>
+    <section id="recipe-comments" className="mt-6 scroll-mt-24 border-t border-line/80 pt-4">
+      <h2 className="font-serif text-xl text-ink md:text-2xl">Ratings & comments</h2>
 
       {!data.reviews.length && !formOpen ? (
-        <div className="mt-4">
-          <p className="text-sm text-muted">No reviews yet.</p>
+        <div className="mt-2">
+          <p className="text-sm text-muted">
+            No reviews yet. Be the first to share how it turned out.
+          </p>
           <button
             type="button"
             onClick={() => setFormOpen(true)}
-            className="no-print mt-3 rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-terracotta hover:text-terracotta"
+            className="no-print mt-2 rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-terracotta hover:text-terracotta"
           >
             Leave a review
           </button>

@@ -135,7 +135,7 @@ function ContinuedCard({
   const videoHref = recipeSlug ? `/recipes/${recipeSlug}#watch-method` : watchUrl;
 
   return (
-    <section className="mt-8 border border-line bg-sand/40 px-4 py-5 sm:px-5">
+    <section className="mt-6 border border-line bg-sand/40 px-4 py-4 sm:px-5">
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
         {seriesSlug && seriesTitle ? (
           <>
@@ -151,16 +151,16 @@ function ContinuedCard({
           "Watch next"
         )}
       </p>
-      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start">
         {thumbnailUrl ? (
-          <div className="relative aspect-video w-full shrink-0 overflow-hidden border border-line bg-sand sm:w-44">
+          <div className="relative aspect-video w-full shrink-0 overflow-hidden border border-line bg-sand sm:w-40">
             <Image src={thumbnailUrl} alt="" fill sizes="(min-width: 640px) 11rem, 100vw" className="object-cover" />
           </div>
         ) : null}
         <div className="min-w-0 flex-1">
           <h3 className="font-serif text-xl leading-snug text-ink">{title}</h3>
           {durationDisplay ? <p className="mt-1 text-xs text-muted">{durationDisplay}</p> : null}
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-3 flex flex-wrap gap-3">
             {recipeSlug ? (
               <Link
                 href={`/recipes/${recipeSlug}`}

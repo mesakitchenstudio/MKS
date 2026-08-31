@@ -89,6 +89,8 @@ const PLACEMENT_LABELS: Record<string, string> = {
   end_of_recipe: "End of recipe",
   post_video_subscribe: "Post-video subscribe",
   post_recipe_subscribe: "Post-recipe subscribe",
+  watch_method_subscribe: "Watch method subscribe",
+  recipe_end_subscribe: "Recipe end subscribe",
   series_page: "Series page",
   other: "Other",
 };

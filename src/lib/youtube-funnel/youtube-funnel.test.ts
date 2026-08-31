@@ -50,6 +50,8 @@ describe("funnel-analytics", () => {
     assert.equal(mapSourceToPlacement("end_of_recipe"), "end_of_recipe");
     assert.equal(mapSourceToPlacement("post_video_subscribe"), "post_video_subscribe");
     assert.equal(mapSourceToPlacement("post_recipe_subscribe"), "post_recipe_subscribe");
+    assert.equal(mapSourceToPlacement("watch_method_subscribe"), "watch_method_subscribe");
+    assert.equal(mapSourceToPlacement("recipe_end_subscribe"), "recipe_end_subscribe");
     assert.equal(mapSourceToPlacement("series_page"), "series_page");
     assert.equal(mapSourceToPlacement("unknown"), "other");
   });

@@ -26,6 +26,8 @@ export type FunnelPlacement =
   | "subscribe"
   | "post_video_subscribe"
   | "post_recipe_subscribe"
+  | "watch_method_subscribe"
+  | "recipe_end_subscribe"
   | "end_of_recipe"
   | "series_page"
   | "other";
@@ -67,6 +69,8 @@ const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   end_of_recipe: "end_of_recipe",
   post_video_subscribe: "post_video_subscribe",
   post_recipe_subscribe: "post_recipe_subscribe",
+  watch_method_subscribe: "watch_method_subscribe",
+  recipe_end_subscribe: "recipe_end_subscribe",
   series_page: "series_page",
   series_page_footer: "series_page",
 };

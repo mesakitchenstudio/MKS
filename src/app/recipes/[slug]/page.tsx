@@ -13,7 +13,7 @@ import { RecipeReviews } from "@/components/RecipeReviews";
 import { RecipeSectionNav } from "@/components/RecipeSectionNav";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
 import { RecipeContinuedViewing } from "@/components/youtube/RecipeContinuedViewing";
-import { RecipeEndSubscribe } from "@/components/youtube/RecipeCompactSubscribe";
+import { RecipeFooterSubscribe } from "@/components/youtube/RecipeCompactSubscribe";
 import { RecipeVideoExperience } from "@/components/youtube/RecipeVideoExperience";
 import { RecipeWatchMethod } from "@/components/youtube/RecipeWatchMethod";
 import { site } from "@/data/site";
@@ -130,7 +130,7 @@ export default async function RecipePage({ params }: Props) {
 
       <RecipeCookingWorkspace recipe={recipe} youtube={youtube} />
 
-      <div className="mx-auto max-w-[75rem] px-4 pb-10 md:px-6">
+      <div className="mx-auto max-w-[75rem] px-4 pb-8 md:px-6">
         <RecipeLearnSection
           whyItWorks={recipe.whyItWorks}
           keyIngredients={recipe.keyIngredients}
@@ -184,24 +184,29 @@ export default async function RecipePage({ params }: Props) {
           defaultEmail={session?.user?.email ?? ""}
         />
 
-        <RecipeEndSubscribe recipeSlug={recipe.slug} recipeName={recipe.title} />
+        {!youtube ? (
+          <RecipeFooterSubscribe recipeSlug={recipe.slug} recipeName={recipe.title} />
+        ) : null}
 
         {recipe.categories.length ? (
-          <div className="mt-6 flex flex-wrap gap-2">
-            {recipe.categories.map((category) => (
-              <Link
-                key={category}
-                href={`/category/${category}`}
-                className="rounded-full border border-line/80 px-3 py-1 text-xs font-semibold capitalize text-muted transition-colors hover:border-terracotta hover:text-terracotta"
-              >
-                {category.replace(/-/g, " ")}
-              </Link>
+          <p className="mt-4 text-sm text-muted">
+            Filed under{" "}
+            {recipe.categories.map((category, index) => (
+              <span key={category}>
+                {index > 0 ? " · " : ""}
+                <Link
+                  href={`/category/${category}`}
+                  className="capitalize text-terracotta hover:underline"
+                >
+                  {category.replace(/-/g, " ")}
+                </Link>
+              </span>
             ))}
-          </div>
+          </p>
         ) : null}
       </div>
 
-      <CollectionRow title="More from the studio" recipes={related} uniformCards />
+      <CollectionRow title="More from the studio" recipes={related} compactDiscovery />
     </>
   );
 

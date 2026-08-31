@@ -6,7 +6,7 @@ import { useRecipeVideo } from "./RecipeVideoContext";
 import { RecipeVideoChapters } from "./RecipeVideoChapters";
 import { WatchNextPrompt } from "./WatchNextPrompt";
 import { YouTubeEmbedFacade } from "./YouTubeEmbedFacade";
-import { RecipeCompactSubscribe } from "./RecipeCompactSubscribe";
+import { WatchMethodSubscribe } from "./RecipeCompactSubscribe";
 
 export function RecipeWatchMethod() {
   const {
@@ -23,7 +23,6 @@ export function RecipeWatchMethod() {
     mainAnchorRef,
     expandWatchMethod,
     activate,
-    videoInteracted,
   } = useRecipeVideo();
 
   const [showWatchNext, setShowWatchNext] = useState(false);
@@ -38,11 +37,20 @@ export function RecipeWatchMethod() {
     activate({ source: "recipe_top_watch" });
   }
 
+  const subscribeCta = (
+    <WatchMethodSubscribe
+      recipeSlug={recipeSlug}
+      recipeName={recipeName}
+      videoId={youtube.videoId}
+      className={expanded ? "mt-4 border-t border-line/60 pt-4" : "mt-4"}
+    />
+  );
+
   return (
     <section
       ref={mainAnchorRef}
       id="watch-method"
-      className="mt-8 scroll-mt-24"
+      className="mt-6 scroll-mt-24"
       aria-label="Watch the method"
     >
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
@@ -66,19 +74,20 @@ export function RecipeWatchMethod() {
             >
               Watch step by step
             </button>
+            {subscribeCta}
           </div>
         </div>
       ) : (
-        <div className="mt-4">
+        <div className="mt-3">
           <p className="text-base leading-7 text-muted">{youtube.hook}</p>
 
-          {miniPlayer ? <div className="mt-4 aspect-video" aria-hidden /> : null}
+          {miniPlayer ? <div className="mt-3 aspect-video" aria-hidden /> : null}
 
           <div
             className={
               miniPlayer
                 ? "fixed bottom-20 right-4 z-[45] aspect-video w-[min(100vw-2rem,16rem)] overflow-hidden border border-line bg-sand shadow-[0_16px_40px_rgba(42,34,24,0.22)] sm:bottom-24 sm:right-6 sm:w-[17.5rem]"
-                : "mt-4 aspect-video overflow-hidden border border-line bg-sand"
+                : "mt-3 aspect-video overflow-hidden border border-line bg-sand"
             }
           >
             <YouTubeEmbedFacade
@@ -150,13 +159,7 @@ export function RecipeWatchMethod() {
             ) : null}
           </div>
 
-          {videoInteracted ? (
-            <RecipeCompactSubscribe
-              recipeSlug={recipeSlug}
-              recipeName={recipeName}
-              videoId={youtube.videoId}
-            />
-          ) : null}
+          {subscribeCta}
         </div>
       )}
     </section>

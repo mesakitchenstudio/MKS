@@ -48,7 +48,7 @@ export function RecipeLearnSection({
   if (!cards.length) return null;
 
   return (
-    <section id="recipe-learn" className="mt-8 scroll-mt-24">
+    <section id="recipe-learn" className="mt-6 scroll-mt-24">
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">Learn</p>
       <h2 className="mt-1 font-serif text-2xl text-ink md:text-3xl">Technique & context</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-3">

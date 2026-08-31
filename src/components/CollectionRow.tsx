@@ -12,6 +12,7 @@ export function CollectionRow({
   viewMoreLabel = "View more",
   recipes,
   uniformCards = false,
+  compactDiscovery = false,
 }: {
   title: string;
   description?: string;
@@ -20,19 +21,28 @@ export function CollectionRow({
   recipes: Recipe[];
   /** Consistent 4:3 cards for recipe-page related row. */
   uniformCards?: boolean;
+  /** Shorter end-of-page discovery cards on recipe pages. */
+  compactDiscovery?: boolean;
 }) {
   if (!recipes.length) return null;
 
   const gridClass =
     recipes.length >= 3
-      ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-      : "grid gap-6 sm:grid-cols-2";
+      ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      : "grid gap-4 sm:grid-cols-2";
+
+  const cardVariant = compactDiscovery ? "discovery" : "default";
+  const imageAspect = uniformCards && !compactDiscovery ? "4/3" : "5/4";
 
   return (
-    <section className="mx-auto max-w-[75rem] px-4 py-8 md:px-6">
-      <div className="mb-5 flex items-end justify-between gap-4">
+    <section className={`mx-auto max-w-[75rem] px-4 md:px-6 ${compactDiscovery ? "py-6" : "py-8"}`}>
+      <div className={`flex items-end justify-between gap-4 ${compactDiscovery ? "mb-4" : "mb-5"}`}>
         <div>
-          <h2 className="font-serif text-3xl text-ink md:text-4xl">{title}</h2>
+          <h2
+            className={`font-serif text-ink ${compactDiscovery ? "text-2xl" : "text-3xl md:text-4xl"}`}
+          >
+            {title}
+          </h2>
           {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
         </div>
         {href ? (
@@ -49,7 +59,8 @@ export function CollectionRow({
           <RecipeGridCard
             key={recipe.slug}
             recipe={recipe}
-            imageAspect={uniformCards ? "4/3" : "5/4"}
+            variant={cardVariant}
+            imageAspect={imageAspect}
           />
         ))}
       </div>
