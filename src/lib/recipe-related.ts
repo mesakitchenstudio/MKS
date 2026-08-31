@@ -66,7 +66,6 @@ export function scoreRelatedRecipe(
 
   const sharedTags = candidate.tags.filter((tag) => tags.has(tag.toLowerCase())).length;
   score += sharedTags * 10;
-  if (candidate.featured) score += 1;
   return score;
 }
 
@@ -85,9 +84,18 @@ export async function getRankedRelatedRecipes(
 
   const scored = all
     .filter((item) => !excluded.has(item.slug))
-    .map((item) => ({ item, score: scoreRelatedRecipe(recipe, item, seriesPeers) }))
+    .map((item) => ({
+      item,
+      score: scoreRelatedRecipe(recipe, item, seriesPeers),
+      featured: Boolean(item.featured),
+    }))
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title));
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        Number(b.featured) - Number(a.featured) ||
+        a.item.title.localeCompare(b.item.title),
+    );
 
   if (scored.length >= limit) {
     return scored.slice(0, limit).map((entry) => entry.item);

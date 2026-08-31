@@ -117,6 +117,18 @@ function StageAccordion({
   const panelId = `${stage.id}-panel`;
   const buttonId = `${stage.id}-button`;
 
+  function renderVideoHelp() {
+    if (!videoHelp || !youtube) return null;
+    return (
+      <StageVideoHelpLink
+        help={videoHelp}
+        stageName={stage.name}
+        youtube={youtube}
+        recipe={recipe}
+      />
+    );
+  }
+
   return (
     <div className="recipe-stage border-b border-line/80 py-1 last:border-b-0">
       <button
@@ -136,15 +148,9 @@ function StageAccordion({
       <h3 className="recipe-print-stage-title mb-2 hidden font-serif text-base text-ink print:block">
         {stage.name}
       </h3>
-      {videoHelp && youtube ? (
-        <div className="no-print pb-1 pl-0.5">
-          <StageVideoHelpLink
-            help={videoHelp}
-            stageName={stage.name}
-            youtube={youtube}
-            recipe={recipe}
-          />
-        </div>
+      {/* Keep helper visible while collapsed so cooks can find technique clips without expanding. */}
+      {!open && videoHelp && youtube ? (
+        <div className="no-print -mt-1 pb-2 pl-0.5">{renderVideoHelp()}</div>
       ) : null}
       <div
         id={panelId}
@@ -152,6 +158,9 @@ function StageAccordion({
         aria-labelledby={buttonId}
         className={`recipe-stage-panel ${open ? "block pb-4" : "hidden print:block"}`}
       >
+        {open && videoHelp && youtube ? (
+          <div className="no-print mb-3">{renderVideoHelp()}</div>
+        ) : null}
         <ol className="space-y-3">
           {stage.steps.map((step) => {
             const ts = youtube ? timestampForStep(youtube.timestamps, step.globalIndex) : undefined;
@@ -203,11 +212,14 @@ export function RecipeCookingWorkspace({
   const stages = useMemo(() => recipeInstructionStages(recipe), [recipe]);
   const stepCount = totalInstructionSteps(stages);
   const cookingContext = useMemo(() => planCookingContext(recipe, stages), [recipe, stages]);
+  const videoCtx = useRecipeVideoOptional();
+  const hasVideoCtx = Boolean(videoCtx);
   const initialChapters = useMemo(
     () => normalizeChapters(youtube?.timestamps),
     [youtube?.timestamps],
   );
-  const [chapters, setChapters] = useState(initialChapters);
+  const [localChapters, setLocalChapters] = useState(initialChapters);
+  const chapters = videoCtx?.chapters?.length ? videoCtx.chapters : localChapters;
   const stageVideoHelp = useMemo(
     () => selectStageVideoHelp(stages, chapters),
     [stages, chapters],
@@ -217,23 +229,23 @@ export function RecipeCookingWorkspace({
   );
 
   useEffect(() => {
-    setChapters(initialChapters);
+    setLocalChapters(initialChapters);
   }, [initialChapters]);
 
   useEffect(() => {
-    if (chapters.length || !youtube?.videoId) return;
+    if (hasVideoCtx || localChapters.length || !youtube?.videoId) return;
     let cancelled = false;
     fetch(`/api/youtube/chapters?videoId=${encodeURIComponent(youtube.videoId)}`)
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { timestamps?: RecipeYoutubeTimestamp[] } | null) => {
         if (cancelled || !data?.timestamps?.length) return;
-        setChapters(normalizeChapters(data.timestamps));
+        setLocalChapters(normalizeChapters(data.timestamps));
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [chapters.length, youtube?.videoId]);
+  }, [hasVideoCtx, localChapters.length, youtube?.videoId]);
 
   useEffect(() => {
     setOpenStages(Object.fromEntries(stages.map((stage, index) => [stage.id, index === 0])));

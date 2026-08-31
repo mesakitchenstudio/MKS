@@ -117,19 +117,16 @@ function buildLinkLabel(stageName: string, chapterLabel: string, time: number) {
   const chapter = chapterLabel.toLowerCase();
 
   if (/stretch|fold|incorporat/i.test(stage) || /stretch|fold/i.test(chapter)) {
-    return `Watch the stretch-and-fold technique · ${clock}`;
+    return `Watch the stretch-and-fold · ${clock}`;
   }
   if (/divid|pre.?shap/i.test(stage) || /divid|pre.?shap|portion/i.test(chapter)) {
     return `See how to divide & pre-shape · ${clock}`;
   }
   if (/shap|proof/i.test(stage) || /shap|proof|form/i.test(chapter)) {
-    if (/baguette/i.test(`${stageName} ${chapterLabel}`)) {
-      return `See how to shape the baguettes · ${clock}`;
-    }
-    return `See how to shape · ${clock}`;
+    return `Watch the shaping technique · ${clock}`;
   }
   if (/scor|steam|bak/i.test(stage) || /scor|steam|bak/i.test(chapter)) {
-    return `Watch scoring & baking · ${clock}`;
+    return `See scoring and steam · ${clock}`;
   }
 
   const short = shortenChapterLabel(chapterLabel);

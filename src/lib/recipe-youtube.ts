@@ -31,20 +31,23 @@ function parseTimestamps(value: unknown): RecipeYoutubeTimestamp[] {
     .map((item) => {
       const row = item as {
         label?: string;
+        title?: string;
+        name?: string;
         time?: unknown;
         seconds?: unknown;
         stepIndex?: unknown;
         instructionIndex?: unknown;
       };
+      const label = asString(row.label) || asString(row.title) || asString(row.name);
       const time =
         asNumber(row.time) ??
         asNumber(row.seconds) ??
         (typeof row.time === "string" ? parseTimestampInput(row.time) : null) ??
         (typeof row.seconds === "string" ? parseTimestampInput(row.seconds) : null);
-      if (!row.label || time == null || time < 0) return null;
+      if (!label || time == null || time < 0) return null;
       const stepIndex = asNumber(row.stepIndex) ?? asNumber(row.instructionIndex);
       return {
-        label: String(row.label),
+        label,
         time,
         ...(stepIndex != null ? { stepIndex } : {}),
       };
@@ -100,7 +103,7 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
     undefined;
   const url = asString(row.url) || asString(preserved.url) || undefined;
   if (!videoId && !url) {
-    const timestamps = parseTimestamps(row.timestamps);
+    const timestamps = parseTimestamps(row.timestamps ?? row.chapters);
     const relatedVideos = parseRelatedVideos(row.relatedVideos);
     if (!timestamps.length && !relatedVideos.length && !asString(row.hook)) return null;
   }
@@ -116,7 +119,7 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
       asString(row.videoCtaDescription) || asString(row.ctaDescription) || undefined,
     playlistUrl: asString(row.playlistUrl) || undefined,
     playlistLabel: asString(row.playlistLabel) || undefined,
-    timestamps: parseTimestamps(row.timestamps),
+    timestamps: parseTimestamps(row.timestamps ?? row.chapters),
     relatedVideos: parseRelatedVideos(row.relatedVideos ?? row.relatedYoutubeVideos),
   };
 }

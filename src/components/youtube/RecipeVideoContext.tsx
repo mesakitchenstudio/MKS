@@ -4,21 +4,30 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
+import type { RecipeYoutubeTimestamp, ResolvedRecipeYoutube } from "@/data/youtube-types";
 import type { WatchNextRecommendation } from "@/lib/youtube-data/watch-next-select";
 import type { VideoAnalyticsSource } from "@/lib/video-analytics";
 import { resetVideoMilestones, trackVideoEvent } from "@/lib/video-analytics";
+
+function normalizeChapters(timestamps: RecipeYoutubeTimestamp[] | undefined) {
+  return [...(timestamps ?? [])]
+    .filter((item) => item.label.trim() && item.time >= 0)
+    .sort((a, b) => a.time - b.time);
+}
 
 type RecipeVideoContextValue = {
   youtube: ResolvedRecipeYoutube;
   recipeSlug: string;
   recipeName: string;
   watchNext: WatchNextRecommendation | null;
+  /** Resolved chapter timestamps (DB and/or description fetch). */
+  chapters: RecipeYoutubeTimestamp[];
   active: boolean;
   playing: boolean;
   docked: boolean;
@@ -73,6 +82,31 @@ export function RecipeVideoProvider({
   const [scrollCardVisible, setScrollCardVisible] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [videoInteracted, setVideoInteracted] = useState(false);
+
+  const initialChapters = useMemo(
+    () => normalizeChapters(youtube.timestamps),
+    [youtube.timestamps],
+  );
+  const [chapters, setChapters] = useState(initialChapters);
+
+  useEffect(() => {
+    setChapters(initialChapters);
+  }, [initialChapters]);
+
+  useEffect(() => {
+    if (chapters.length || !youtube.videoId) return;
+    let cancelled = false;
+    fetch(`/api/youtube/chapters?videoId=${encodeURIComponent(youtube.videoId)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { timestamps?: RecipeYoutubeTimestamp[] } | null) => {
+        if (cancelled || !data?.timestamps?.length) return;
+        setChapters(normalizeChapters(data.timestamps));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [chapters.length, youtube.videoId]);
 
   const scrollToVideo = useCallback(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -199,6 +233,7 @@ export function RecipeVideoProvider({
       recipeSlug,
       recipeName,
       watchNext,
+      chapters,
       active,
       playing,
       docked,
@@ -225,6 +260,7 @@ export function RecipeVideoProvider({
       recipeSlug,
       recipeName,
       watchNext,
+      chapters,
       active,
       playing,
       docked,

@@ -71,12 +71,26 @@ test("scoreRelatedRecipe prefers same course over unrelated dessert", () => {
     course: "Dessert",
     categories: ["desserts"],
     tags: ["cake"],
+    featured: true,
   };
   const peers = new Set<string>();
   assert.ok(
     scoreRelatedRecipe(baseRecipe, bread, peers) > scoreRelatedRecipe(baseRecipe, cupcake, peers),
   );
   assert.equal(scoreRelatedRecipe(baseRecipe, cupcake, peers), 0);
+});
+
+test("featured flag alone does not create relatedness", () => {
+  const featuredDessert = {
+    ...baseRecipe,
+    slug: "cookies",
+    title: "Cookies",
+    course: "Dessert",
+    categories: ["desserts"],
+    tags: ["cookie"],
+    featured: true,
+  };
+  assert.equal(scoreRelatedRecipe(baseRecipe, featuredDessert, new Set()), 0);
 });
 
 test("scoreRelatedRecipe boosts overlapping method", () => {

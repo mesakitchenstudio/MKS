@@ -10,6 +10,7 @@ import { RecipeAtAGlanceFacts } from "@/components/RecipeAtAGlanceFacts";
 import { RecipePageHeroActions } from "@/components/RecipePageHeroActions";
 import { recipeContentShellClass } from "@/components/RecipeContentShell";
 import { resolveRecipeDishIdentity } from "@/lib/recipe-dish-identity";
+import { heroSeriesLinks } from "@/lib/recipe-hero-series";
 import type { Recipe } from "@/data/types";
 import type { ExtraField } from "@/lib/recipe-map";
 
@@ -35,6 +36,7 @@ export function RecipePageHero({
       .map((link) => link.itemTitle)
       .filter((value): value is string => Boolean(value?.trim())),
   });
+  const visibleSeries = heroSeriesLinks(seriesLinks, recipe.course, recipe.typeName);
 
   return (
     <header className={`${recipeContentShellClass} py-5 md:pt-6 md:pb-3 lg:pt-5 lg:pb-2`}>
@@ -43,9 +45,9 @@ export function RecipePageHero({
       </p>
       <div className="lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start lg:gap-10 xl:gap-12">
         <div className="min-w-0 order-1 lg:order-none">
-          {seriesLinks.length ? (
+          {visibleSeries.length ? (
             <div className="no-print mb-1.5">
-              <RecipeSeriesContext links={seriesLinks} />
+              <RecipeSeriesContext links={visibleSeries} />
             </div>
           ) : null}
 
