@@ -53,3 +53,16 @@ export function buildSeriesProvenanceSnapshot(
 export function seriesFieldIsEmpty(value: unknown): boolean {
   return !String(value ?? "").trim();
 }
+
+export function isSeriesAiVerified(meta: SeriesAiMeta | null | undefined): boolean {
+  return meta?.verificationStatus === "verified";
+}
+
+export function markSeriesAiVerified(meta: SeriesAiMeta): SeriesAiMeta {
+  if (!meta.generatedByAI) return meta;
+  return {
+    ...meta,
+    verificationStatus: "verified",
+    verifiedAt: new Date().toISOString(),
+  };
+}

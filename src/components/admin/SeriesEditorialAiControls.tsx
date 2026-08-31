@@ -15,16 +15,19 @@ export function SeriesEditorialAiControls({
   seriesId,
   aiMeta,
   disabled = false,
+  onMarkVerified,
 }: {
   seriesId: string;
   aiMeta: SeriesAiMeta;
   disabled?: boolean;
+  onMarkVerified?: () => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showRegenChoices, setShowRegenChoices] = useState(false);
   const hasDraft = Boolean(aiMeta.generatedByAI);
+  const unverified = hasDraft && aiMeta.verificationStatus !== "verified";
 
   async function run(mode: SeriesAiMergeMode) {
     setBusy(true);
@@ -140,6 +143,32 @@ export function SeriesEditorialAiControls({
         <p className="text-sm text-terracotta" role="status">
           Previous attempt: {aiMeta.lastError}
         </p>
+      ) : null}
+
+      {hasDraft ? (
+        <div className="rounded-sm border border-olive/25 bg-paper/80 px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                {unverified ? "AI draft generated — not verified" : "AI editorial — verified"}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {unverified
+                  ? "Review Mesa editorial fields below, then mark verified when ready to publish without a warning."
+                  : "Human review recorded. You can still publish or update this series normally."}
+              </p>
+            </div>
+            {unverified && onMarkVerified ? (
+              <button
+                type="button"
+                className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                onClick={onMarkVerified}
+              >
+                Mark Series verified
+              </button>
+            ) : null}
+          </div>
+        </div>
       ) : null}
     </div>
   );

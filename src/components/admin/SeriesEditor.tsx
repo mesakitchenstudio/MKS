@@ -26,7 +26,7 @@ import {
   adminSelectClass,
 } from "@/lib/admin-ui";
 import type { AdminSeriesDetail, AdminSeriesItemDraft, SeriesPickerCandidate } from "@/lib/series-admin";
-import { noteSeriesHumanEdit } from "@/lib/series-ai/provenance";
+import { noteSeriesHumanEdit, markSeriesAiVerified } from "@/lib/series-ai/provenance";
 import {
   itemCustomDescriptionPath,
   itemCustomTitlePath,
@@ -344,6 +344,10 @@ export function SeriesEditor({
     submitWithPublished(true);
   }
 
+  function markSeriesVerified() {
+    setAiMeta((current) => markSeriesAiVerified(current));
+  }
+
   async function onHeroUpload(file: File | null) {
     if (!file) return;
     setUploading(true);
@@ -395,6 +399,11 @@ export function SeriesEditor({
             {aiMeta.generatedByAI && aiMeta.verificationStatus !== "verified" ? (
               <span className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-terracotta">
                 AI draft — not verified
+              </span>
+            ) : null}
+            {aiMeta.generatedByAI && aiMeta.verificationStatus === "verified" ? (
+              <span className="rounded-sm border border-olive/30 bg-olive/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-olive">
+                AI editorial — verified
               </span>
             ) : null}
             {!isNew && isPublished ? (
@@ -516,7 +525,11 @@ export function SeriesEditor({
             Mesa editorial data
           </p>
           {!isNew ? (
-            <SeriesEditorialAiControls seriesId={series.id} aiMeta={aiMeta} />
+            <SeriesEditorialAiControls
+              seriesId={series.id}
+              aiMeta={aiMeta}
+              onMarkVerified={markSeriesVerified}
+            />
           ) : null}
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-1 text-sm">

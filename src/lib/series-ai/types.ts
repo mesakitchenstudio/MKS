@@ -20,6 +20,8 @@ export type SeriesAiMeta = {
   generatedAt?: string;
   model?: string;
   verificationStatus: "none" | "unverified" | "verified";
+  verifiedAt?: string;
+  verifiedBy?: string;
   draftStatus?: "complete" | "needs_review" | "partial" | "failed";
   mergeModeLastUsed?: SeriesAiMergeMode;
   fieldProvenance?: Record<string, SeriesAiFieldProvenance>;
@@ -70,6 +72,8 @@ export function parseSeriesAiMeta(raw: string | null | undefined): SeriesAiMeta 
           : parsed.verificationStatus === "unverified"
             ? "unverified"
             : "none",
+      verifiedAt: parsed.verifiedAt ? String(parsed.verifiedAt) : undefined,
+      verifiedBy: parsed.verifiedBy ? String(parsed.verifiedBy) : undefined,
       draftStatus:
         parsed.draftStatus === "complete" ||
         parsed.draftStatus === "needs_review" ||

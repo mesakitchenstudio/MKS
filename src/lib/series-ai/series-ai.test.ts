@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { selectSeriesHero, suggestFeaturedItemId, type SeriesAiContext } from "@/lib/series-ai/selection";
 import {
+  markSeriesAiVerified,
   noteSeriesHumanEdit,
   shouldApplySeriesAiField,
 } from "@/lib/series-ai/provenance";
@@ -209,5 +210,36 @@ describe("series AI provenance", () => {
       }),
       true,
     );
+  });
+});
+
+describe("series AI verification", () => {
+  it("marks generated series AI as verified with timestamp", () => {
+    const meta = {
+      ...emptySeriesAiMeta(),
+      generatedByAI: true,
+      verificationStatus: "unverified" as const,
+    };
+    const verified = markSeriesAiVerified(meta);
+    assert.equal(verified.verificationStatus, "verified");
+    assert.ok(verified.verifiedAt);
+  });
+
+  it("does not reset verification when a human edits an AI field", () => {
+    const meta = markSeriesAiVerified({
+      ...emptySeriesAiMeta(),
+      generatedByAI: true,
+      verificationStatus: "unverified",
+      fieldProvenance: {
+        description: {
+          aiGenerated: true,
+          aiGeneratedValue: "AI copy",
+          humanModifiedAfterGeneration: false,
+        },
+      },
+    });
+    const edited = noteSeriesHumanEdit(meta, "description", "Editor copy");
+    assert.equal(edited.verificationStatus, "verified");
+    assert.equal(edited.fieldProvenance?.description?.humanModifiedAfterGeneration, true);
   });
 });
