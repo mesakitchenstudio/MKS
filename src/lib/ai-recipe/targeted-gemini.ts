@@ -11,6 +11,7 @@ import {
   fieldAiResponseSchemaHint,
   normalizeFieldAiResponse,
   type FieldAiIntent,
+  type RecipeAiFieldDef,
 } from "@/lib/ai-recipe/field-ai-registry";
 import { defaultGeminiModel, geminiModelCandidates, type SchemaCategory } from "@/lib/ai-recipe/schema-version";
 import type { RecipeAiVideoContext } from "@/lib/ai-recipe/types";
@@ -33,7 +34,7 @@ export type TargetedGeminiFailure = {
  * Never attaches a YouTube video URI.
  */
 export async function generateTargetedRecipeFields(input: {
-  fields: { key: string; label: string; kind: string; path: string }[];
+  fields: { key: string; label: string; kind: string; path: string; def?: RecipeAiFieldDef | null }[];
   current: {
     title: string;
     excerpt: string;
@@ -62,6 +63,7 @@ export async function generateTargetedRecipeFields(input: {
       const currentValue = input.currentValuesByPath?.[field.path];
       const context = buildTargetedFieldContext({
         path: field.path,
+        def: field.def,
         current: input.current,
         videoContext: input.videoContext,
         categories: input.categories,
@@ -70,7 +72,7 @@ export async function generateTargetedRecipeFields(input: {
       });
       return [
         `Field: ${field.path} (${field.label}, kind=${field.kind})`,
-        `Output schema: ${fieldAiResponseSchemaHint(field.path)}`,
+        `Output schema: ${fieldAiResponseSchemaHint(field.def ?? null, field.path)}`,
         `Context: ${JSON.stringify(context)}`,
       ].join("\n");
     })
@@ -79,6 +81,7 @@ export async function generateTargetedRecipeFields(input: {
   const prompt = [
     "You fill Mesa Kitchen Studio recipe metadata fields using existing recipe context only.",
     "Return ONLY JSON: { \"fields\": { \"<path>\": <value>, ... } }.",
+    "Use exact path keys like title, excerpt, values.cuisine, values.holiday, values.nutrition.",
     "Only include requested paths. Do not invent ingredients, instructions, or categories outside taxonomy.",
     "Never claim VERIFIED FROM VIDEO — use editorial inference quality.",
     intent === "improve"
@@ -144,6 +147,7 @@ export async function generateTargetedRecipeFields(input: {
         const normalized = normalizeFieldAiResponse({
           path: field.path,
           raw,
+          def: field.def,
           allowedCategoryIds,
         });
         if (normalized == null) continue;

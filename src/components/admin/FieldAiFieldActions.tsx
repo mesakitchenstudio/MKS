@@ -5,11 +5,13 @@ import {
   fieldPathHasContent,
   resolveFieldAiActionLabel,
   type FieldAiIntent,
+  type FieldAiStrategy,
 } from "@/lib/ai-recipe/field-ai-registry";
 
 export function FieldAiFieldActions({
   path,
   kind,
+  strategy,
   value,
   excerpt,
   categoryIds,
@@ -19,6 +21,7 @@ export function FieldAiFieldActions({
 }: {
   path: string;
   kind?: string;
+  strategy?: FieldAiStrategy;
   value?: unknown;
   excerpt?: string;
   categoryIds?: string[];
@@ -27,7 +30,7 @@ export function FieldAiFieldActions({
   onAction: (intent: FieldAiIntent) => void;
 }) {
   const hasContent = fieldPathHasContent({ path, kind, value, excerpt, categoryIds });
-  const label = resolveFieldAiActionLabel({ path, hasContent, intent: "generate" });
+  const label = resolveFieldAiActionLabel({ path, kind, strategy, hasContent, intent: "generate" });
 
   return (
     <FieldAiActionButton

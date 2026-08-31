@@ -40,7 +40,8 @@ import {
 import { mergeTargetedFillIntoEditor, extractTargetedFieldValue } from "@/lib/ai-recipe/targeted-merge";
 import {
   fieldPathHasContent,
-  isFieldAiPath,
+  getRecipeFieldAiDef,
+  isRecipeFieldAiSupported,
   type FieldAiIntent,
 } from "@/lib/ai-recipe/field-ai-registry";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
@@ -118,8 +119,8 @@ const MEDIA_PRIMARY_KEYS = ["image", "imageAlt", "youtubeUrl"] as const;
 
 const ADVANCED_KEYS = ["floatingYoutubeUrl", "youtube", "nutrition"] as const;
 
-/** Keys excluded from per-field AI (protected or structural). */
-const FIELD_AI_EXCLUDED_KEYS = new Set(["ingredients", "instructions", "image", "youtube", "youtubeUrl", "floatingYoutubeUrl"]);
+/** Keys with dedicated AI UI (tags use TagsChipEditor). */
+const FIELD_AI_UI_EXCLUDED = new Set(["tags"]);
 
 const ALL_GROUPED = new Set<string>([
   ...DETAILS_KEYS,
@@ -989,6 +990,7 @@ export function RecipeEditor({
   }
 
   function applyTargetedFill(payload: AiTargetedFillApplyPayload) {
+    if (payload.title !== undefined) setTitle(payload.title);
     setExcerpt(payload.excerpt);
     if (payload.categoryIds) setCategoryIds(payload.categoryIds);
     setValues(hydrateEditorValues(fields, payload.values));
@@ -996,9 +998,17 @@ export function RecipeEditor({
   }
 
   function currentFieldValue(path: string, key: string): unknown {
+    if (path === "title") return title;
     if (path === "excerpt") return excerpt;
     if (path === "categoryIds") return categoryIds;
     return values[key];
+  }
+
+  function fieldLabelForPath(path: string, key: string): string {
+    if (path === "title") return "Title";
+    if (path === "excerpt") return "Excerpt";
+    if (path === "categoryIds") return "Categories";
+    return fields.find((field) => field.key === key)?.label ?? key;
   }
 
   function clearFieldSuggestion(path: string) {
@@ -1029,7 +1039,14 @@ export function RecipeEditor({
     });
     if (key === "tags") setTagOptimizeBusy(true);
 
-    const kind = fields.find((field) => field.key === key)?.kind;
+    const kind =
+      path === "title"
+        ? "text"
+        : path === "excerpt"
+          ? "textarea"
+          : path === "categoryIds"
+            ? "categories"
+            : fields.find((field) => field.key === key)?.kind;
     const currentValue = currentFieldValue(path, key);
     const hasContent = fieldPathHasContent({
       path,
@@ -1063,6 +1080,7 @@ export function RecipeEditor({
         error?: string;
         requestedPaths?: string[];
         draft?: {
+          title?: string;
           excerpt: string;
           categoryIds?: string[];
           values: Record<string, unknown>;
@@ -1072,7 +1090,15 @@ export function RecipeEditor({
       if (!response.ok || !data.ok || !data.draft) {
         setFieldAiNotice((current) => ({
           ...current,
-          [path]: data.error || "Could not generate this field. Try again.",
+          [path]: data.error || `Could not generate ${fieldLabelForPath(path, key)}. Try again.`,
+        }));
+        return;
+      }
+
+      if (!data.requestedPaths?.length) {
+        setFieldAiNotice((current) => ({
+          ...current,
+          [path]: `Could not generate ${fieldLabelForPath(path, key)}. Try again.`,
         }));
         return;
       }
@@ -1080,7 +1106,7 @@ export function RecipeEditor({
       const merged = mergeTargetedFillIntoEditor({
         current: { title, slug, excerpt, categoryIds, values },
         draft: data.draft,
-        requestedPaths: data.requestedPaths?.length ? data.requestedPaths : [path],
+        requestedPaths: data.requestedPaths,
         confidenceByPath: data.confidenceByPath ?? {},
         aiMeta,
       });
@@ -1102,7 +1128,13 @@ export function RecipeEditor({
           [path]: {
             currentValue: categoryIds,
             suggestion: newIds,
-            pending: merged,
+            pending: {
+              title: merged.title,
+              excerpt: merged.excerpt,
+              categoryIds: merged.categoryIds,
+              values: merged.values,
+              aiMeta: merged.aiMeta,
+            },
           },
         }));
         return;
@@ -1113,10 +1145,22 @@ export function RecipeEditor({
           ? (suggestionValue as unknown[]).map((tag) => String(tag ?? "").trim()).filter(Boolean)
           : [];
         if (hasContent) {
-          tagOptimizePendingRef.current = merged;
+          tagOptimizePendingRef.current = {
+            title: merged.title,
+            excerpt: merged.excerpt,
+            categoryIds: merged.categoryIds,
+            values: merged.values,
+            aiMeta: merged.aiMeta,
+          };
           setTagOptimizeProposal(tags);
         } else {
-          applyTargetedFill(merged);
+          applyTargetedFill({
+            title: merged.title,
+            excerpt: merged.excerpt,
+            categoryIds: merged.categoryIds,
+            values: merged.values,
+            aiMeta: merged.aiMeta,
+          });
           setFieldAiNotice((current) => ({
             ...current,
             [path]: "AI SUGGESTION — REVIEW",
@@ -1131,13 +1175,25 @@ export function RecipeEditor({
           [path]: {
             currentValue,
             suggestion: suggestionValue,
-            pending: merged,
+            pending: {
+              title: merged.title,
+              excerpt: merged.excerpt,
+              categoryIds: merged.categoryIds,
+              values: merged.values,
+              aiMeta: merged.aiMeta,
+            },
           },
         }));
         return;
       }
 
-      applyTargetedFill(merged);
+      applyTargetedFill({
+        title: merged.title,
+        excerpt: merged.excerpt,
+        categoryIds: merged.categoryIds,
+        values: merged.values,
+        aiMeta: merged.aiMeta,
+      });
       setFieldAiNotice((current) => ({
         ...current,
         [path]: "AI SUGGESTION — REVIEW",
@@ -1306,11 +1362,16 @@ export function RecipeEditor({
     const displayHelp =
       field.key === "imageAlt"
         ? "Describe the hero image for accessibility. Write what a sighted reader needs to understand the photo."
-        : field.helpText;
+        : field.key === "nutrition"
+          ? "AI estimates are per serving from ingredients and yield. Mark as verified only after review."
+          : field.helpText;
 
     const fieldPath = `values.${field.key}`;
+    const fieldDef = getRecipeFieldAiDef(fieldPath, fields);
     const showFieldAi =
-      isFieldAiPath(fieldPath) && !FIELD_AI_EXCLUDED_KEYS.has(field.key) && field.kind !== "tags";
+      Boolean(fieldDef) &&
+      isRecipeFieldAiSupported(fieldPath, fields) &&
+      !FIELD_AI_UI_EXCLUDED.has(field.key);
 
     function clearFieldError() {
       if (fieldErrors[field.key]) {
@@ -1341,6 +1402,7 @@ export function RecipeEditor({
               <FieldAiFieldActions
                 path={fieldPath}
                 kind={field.kind}
+                strategy={fieldDef?.strategy}
                 value={values[field.key]}
                 busy={fieldAiBusy === fieldPath}
                 onAction={(intent) => void runFieldAi(fieldPath, field.key, intent)}
@@ -1674,8 +1736,18 @@ export function RecipeEditor({
           <div className="grid gap-4 md:grid-cols-2">
             <label id="recipe-field-title" className="grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
               <span className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-sm font-semibold text-ink">
-                  Title<span className="text-terracotta"> *</span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-ink">
+                    Title<span className="text-terracotta"> *</span>
+                  </span>
+                  <FieldAiFieldActions
+                    path="title"
+                    kind="text"
+                    strategy="gemini_semantic"
+                    value={title}
+                    busy={fieldAiBusy === "title"}
+                    onAction={(intent) => void runFieldAi("title", "title", intent)}
+                  />
                 </span>
                 <AiConfidenceBadge
                   confidence={aiMeta?.confidenceByPath.title?.confidence}
@@ -1703,6 +1775,31 @@ export function RecipeEditor({
                 <span className={fieldErrorClass} role="alert">
                   {fieldErrors.title}
                 </span>
+              ) : null}
+              {fieldSuggestions.title ? (
+                <FieldAiSuggestionPanel
+                  currentValue={fieldSuggestions.title.currentValue}
+                  suggestion={fieldSuggestions.title.suggestion}
+                  busy={fieldAiBusy === "title"}
+                  onUseSuggestion={() => applyFieldSuggestion("title")}
+                  onTryAnother={() => void runFieldAi("title", "title", "alternative")}
+                  onKeepCurrent={() => clearFieldSuggestion("title")}
+                />
+              ) : null}
+              {fieldAiBusy === "title" && !fieldSuggestions.title ? (
+                <p className="text-xs text-muted" role="status">
+                  Generating suggestion…
+                </p>
+              ) : null}
+              {fieldAiNotice.title ? (
+                <p
+                  className={`text-xs font-semibold ${
+                    fieldAiNotice.title === "AI SUGGESTION — REVIEW" ? "text-olive" : "text-terracotta"
+                  }`}
+                  role="status"
+                >
+                  {fieldAiNotice.title}
+                </p>
               ) : null}
             </label>
             <label id="recipe-field-slug" className="grid gap-1.5" style={scrollTargetStyle}>

@@ -31,6 +31,7 @@ export type AiGenerateApplyPayload = {
 };
 
 export type AiTargetedFillApplyPayload = {
+  title?: string;
   excerpt: string;
   categoryIds?: string[];
   values: Record<string, unknown>;
@@ -121,6 +122,7 @@ export function AiRecipeAssistant({
   const [destructiveReplaceOpen, setDestructiveReplaceOpen] = useState(false);
   const [pendingReplaceMode, setPendingReplaceMode] = useState<AiMergeMode | null>(null);
   const [fillPreviewOpen, setFillPreviewOpen] = useState(false);
+  const [selectedFillPaths, setSelectedFillPaths] = useState<string[]>([]);
   const [showLongRunningHint, setShowLongRunningHint] = useState(false);
 
   const currentVideoId = useMemo(
@@ -274,6 +276,12 @@ export function AiRecipeAssistant({
     setApplyDialog("regenerate");
   }
 
+  useEffect(() => {
+    if (fillPreviewOpen) {
+      setSelectedFillPaths(missingFields.map((field) => field.path));
+    }
+  }, [fillPreviewOpen, missingFields]);
+
   async function runFillMissing() {
     setFillBusy(true);
     setError("");
@@ -293,6 +301,7 @@ export function AiRecipeAssistant({
           recipeId,
           youtubeUrl: effectiveUrl || undefined,
           mode: "missing",
+          fields: selectedFillPaths.length ? selectedFillPaths : undefined,
           current: {
             ...current,
             categoryIds: current.categoryIds ?? [],
@@ -410,17 +419,36 @@ export function AiRecipeAssistant({
           {fillPreviewOpen && missingFields.length ? (
             <div className="mt-3 rounded-sm border border-olive/25 bg-olive/5 px-3 py-3">
               <p className="text-sm font-semibold text-ink">
-                Fill {missingFields.length} missing field{missingFields.length === 1 ? "" : "s"}
+                Fill {selectedFillPaths.length || missingFields.length} missing field
+                {(selectedFillPaths.length || missingFields.length) === 1 ? "" : "s"}
               </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
-                {missingFields.map((field) => (
-                  <li key={field.path}>{field.label}</li>
-                ))}
+              <ul className="mt-2 space-y-1.5 text-sm text-muted">
+                {missingFields.map((field) => {
+                  const checked = selectedFillPaths.includes(field.path);
+                  return (
+                    <li key={field.path}>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            setSelectedFillPaths((current) =>
+                              event.target.checked
+                                ? [...current, field.path]
+                                : current.filter((path) => path !== field.path),
+                            );
+                          }}
+                        />
+                        {field.label}
+                      </label>
+                    </li>
+                  );
+                })}
               </ul>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={anyBusy || disabled}
+                  disabled={anyBusy || disabled || selectedFillPaths.length === 0}
                   onClick={() => void runFillMissing()}
                   className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
                 >

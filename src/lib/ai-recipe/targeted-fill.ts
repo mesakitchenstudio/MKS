@@ -2,7 +2,6 @@ import { CORE_VALUE_KEYS } from "@/lib/fields";
 import { getDb } from "@/lib/db";
 import {
   computeRecipeSchemaVersion,
-  isAiFillableFieldKey,
   type SchemaCategory,
   type SchemaField,
   type SchemaRecipeType,
@@ -14,11 +13,14 @@ import {
   PROTECTED_AI_FILL_KEYS,
   type MissingAiField,
 } from "@/lib/ai-recipe/missing-fields";
-import { isFieldAiPath } from "@/lib/ai-recipe/field-ai-registry";
-import type { FieldAiIntent } from "@/lib/ai-recipe/field-ai-registry";
+import {
+  buildRecipeAiFieldRegistry,
+  confidenceForFieldDef,
+  sourceNoteForFieldDef,
+  type FieldAiIntent,
+} from "@/lib/ai-recipe/field-ai-registry";
 import { generateTargetedRecipeFields } from "@/lib/ai-recipe/targeted-gemini";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
-import { emptyAiSummary, tallyConfidence } from "@/lib/ai-recipe/types";
 import { youtubeVideoId } from "@/lib/youtube";
 import { normalizeYouTubeForGemini } from "@/lib/ai-recipe/youtube-url";
 
@@ -112,8 +114,10 @@ function resolveRequestedFields(input: {
   aiMeta: RecipeAiMeta | null;
   allowRepopulate?: boolean;
 }): MissingAiField[] {
+  const registry = buildRecipeAiFieldRegistry(input.typeFields);
+
   if (input.mode === "missing") {
-    return listMissingAiFillableFields({
+    let missing = listMissingAiFillableFields({
       fields: input.typeFields,
       title: input.current.title,
       slug: input.current.slug,
@@ -122,86 +126,60 @@ function resolveRequestedFields(input: {
       values: input.current.values,
       aiMeta: input.aiMeta,
     }).missing;
+    if (input.fields?.length) {
+      const allowed = new Set(input.fields.map((path) => String(path).trim()).filter(Boolean));
+      missing = missing.filter((row) => allowed.has(row.path));
+    }
+    return missing;
   }
 
   const requested = (input.fields ?? []).map((item) => String(item).trim()).filter(Boolean);
   const out: MissingAiField[] = [];
 
   for (const token of requested) {
-    if (token === "categoryIds") {
-      if (
-        !isFieldEligibleForTargetedFill({
-          path: "categoryIds",
-          key: "categoryIds",
-          kind: "categories",
-          value: input.current.categoryIds ?? [],
-          aiMeta: input.aiMeta,
-          allowRepopulate: input.allowRepopulate,
-        })
-      ) {
-        continue;
-      }
-      out.push({
-        path: "categoryIds",
-        key: "categoryIds",
-        label: "Categories",
-        kind: "categories",
-        reason: "empty",
-        section: "basics",
-      });
-      continue;
-    }
+    const path =
+      token === "title" || token === "excerpt" || token === "categoryIds"
+        ? token
+        : token.startsWith("values.")
+          ? token
+          : `values.${token}`;
 
-    if (token === "excerpt" || token === "title" || token === "slug") {
-      if (token !== "excerpt") continue;
-      if (
-        !isFieldEligibleForTargetedFill({
-          path: "excerpt",
-          key: "excerpt",
-          kind: "textarea",
-          value: input.current.excerpt,
-          aiMeta: input.aiMeta,
-          allowRepopulate: input.allowRepopulate,
-        })
-      ) {
-        continue;
-      }
-      out.push({
-        path: "excerpt",
-        key: "excerpt",
-        label: "Excerpt",
-        kind: "textarea",
-        reason: "empty",
-        section: "basics",
-      });
-      continue;
-    }
+    const def = registry.get(path);
+    if (!def || def.strategy === "none" || def.strategy === "source_owned") continue;
 
-    const key = token.startsWith("values.") ? token.slice("values.".length) : token;
-    const path = token.startsWith("values.") ? token : `values.${key}`;
-    if (!isFieldAiPath(path)) continue;
-    if (PROTECTED_AI_FILL_KEYS.has(key) || !isAiFillableFieldKey(key)) continue;
-    const field = input.typeFields.find((row) => row.key === key);
-    if (!field) continue;
+    const value =
+      path === "title"
+        ? input.current.title
+        : path === "excerpt"
+          ? input.current.excerpt
+          : path === "categoryIds"
+            ? input.current.categoryIds ?? []
+            : input.current.values[def.key];
+
     if (
       !isFieldEligibleForTargetedFill({
         path,
-        key,
-        kind: field.kind,
-        value: input.current.values[key],
+        key: def.key,
+        kind: def.kind,
+        value,
+        title: input.current.title,
+        excerpt: input.current.excerpt,
+        categoryIds: input.current.categoryIds,
         aiMeta: input.aiMeta,
         allowRepopulate: input.allowRepopulate,
       })
     ) {
       continue;
     }
+
     out.push({
-      path,
-      key,
-      label: field.label,
-      kind: field.kind,
+      path: def.path,
+      key: def.key,
+      label: def.label,
+      kind: def.kind,
       reason: "empty",
-      section: "details",
+      section: def.section,
+      strategy: def.strategy,
     });
   }
 
@@ -211,7 +189,9 @@ function resolveRequestedFields(input: {
 function pickCacheHints(draft: NormalizedAiDraft, paths: MissingAiField[]) {
   const hints: Record<string, unknown> = {};
   for (const row of paths) {
-    if (row.path === "excerpt" && draft.excerpt) hints.excerpt = draft.excerpt;
+    if (row.path === "title" && draft.title) hints.title = draft.title;
+    else if (row.path === "excerpt" && draft.excerpt) hints.excerpt = draft.excerpt;
+    else if (row.path === "categoryIds" && draft.categoryIds.length) hints.categoryIds = draft.categoryIds;
     else if (row.key in draft.values) hints[row.path] = draft.values[row.key];
   }
   return hints;
@@ -221,36 +201,53 @@ function applyReturnedFields(input: {
   current: TargetedFillRequest["current"];
   requested: MissingAiField[];
   returned: Record<string, unknown>;
+  registry: Map<string, import("@/lib/ai-recipe/field-ai-registry").RecipeAiFieldDef>;
 }): {
   draft: TargetedFillSuccess["draft"];
   confidenceByPath: RecipeAiMeta["confidenceByPath"];
 } {
   const confidenceByPath: RecipeAiMeta["confidenceByPath"] = {};
-  const summary = emptyAiSummary();
   const nextValues = { ...input.current.values };
+  let title = input.current.title;
   let excerpt = input.current.excerpt;
   let categoryIds = [...(input.current.categoryIds ?? [])];
 
   const allowed = new Set(input.requested.map((row) => row.path));
 
   for (const [rawPath, value] of Object.entries(input.returned)) {
-    const path = rawPath.startsWith("values.") || rawPath === "excerpt" || rawPath === "categoryIds"
-      ? rawPath
-      : `values.${rawPath}`;
+    const path =
+      rawPath === "title" ||
+      rawPath === "excerpt" ||
+      rawPath === "categoryIds" ||
+      rawPath.startsWith("values.")
+        ? rawPath
+        : `values.${rawPath}`;
     if (!allowed.has(path) && !allowed.has(rawPath)) continue;
 
     const target = input.requested.find((row) => row.path === path || row.key === rawPath);
     if (!target) continue;
+
+    const def = input.registry.get(target.path);
+
+    if (target.path === "title") {
+      const text = typeof value === "string" ? value : String((value as { value?: unknown })?.value ?? "");
+      if (!text.trim()) continue;
+      title = text.trim();
+      confidenceByPath.title = {
+        confidence: confidenceForFieldDef(def ?? null),
+        sourceNote: sourceNoteForFieldDef(def ?? null),
+      };
+      continue;
+    }
 
     if (target.path === "excerpt") {
       const text = typeof value === "string" ? value : String((value as { value?: unknown })?.value ?? "");
       if (!text.trim()) continue;
       excerpt = text.trim();
       confidenceByPath.excerpt = {
-        confidence: "HIGH_CONFIDENCE_INFERENCE",
-        sourceNote: "Targeted AI fill",
+        confidence: confidenceForFieldDef(def ?? null),
+        sourceNote: sourceNoteForFieldDef(def ?? null),
       };
-      tallyConfidence("HIGH_CONFIDENCE_INFERENCE", summary);
       continue;
     }
 
@@ -260,24 +257,22 @@ function applyReturnedFields(input: {
       const existing = new Set(categoryIds);
       categoryIds = [...categoryIds, ...ids.filter((id) => !existing.has(id))];
       confidenceByPath.categoryIds = {
-        confidence: "HIGH_CONFIDENCE_INFERENCE",
-        sourceNote: "Targeted AI fill",
+        confidence: confidenceForFieldDef(def ?? null),
+        sourceNote: sourceNoteForFieldDef(def ?? null),
       };
-      tallyConfidence("HIGH_CONFIDENCE_INFERENCE", summary);
       continue;
     }
 
     nextValues[target.key] = value;
     confidenceByPath[target.path] = {
-      confidence: "HIGH_CONFIDENCE_INFERENCE",
-      sourceNote: "Targeted AI fill",
+      confidence: confidenceForFieldDef(def ?? null),
+      sourceNote: sourceNoteForFieldDef(def ?? null),
     };
-    tallyConfidence("HIGH_CONFIDENCE_INFERENCE", summary);
   }
 
   return {
     draft: {
-      title: input.current.title,
+      title,
       slug: input.current.slug,
       excerpt,
       categoryIds,
@@ -327,6 +322,7 @@ export async function runTargetedRecipeFill(
   });
 
   const aiMeta = input.aiMeta ?? null;
+  const registry = buildRecipeAiFieldRegistry(selectedType.fields);
   const requested = resolveRequestedFields({
     mode: input.mode,
     fields: input.fields,
@@ -401,6 +397,7 @@ export async function runTargetedRecipeFill(
       current: input.current,
       requested,
       returned: cacheHints,
+      registry,
     });
     const filledPaths = Object.keys(fromCache.confidenceByPath);
     if (filledPaths.length === requested.length) {
@@ -427,13 +424,17 @@ export async function runTargetedRecipeFill(
 
   const currentValuesByPath: Record<string, unknown> = {};
   for (const row of requested) {
-    if (row.path === "excerpt") currentValuesByPath.excerpt = input.current.excerpt;
+    if (row.path === "title") currentValuesByPath.title = input.current.title;
+    else if (row.path === "excerpt") currentValuesByPath.excerpt = input.current.excerpt;
     else if (row.path === "categoryIds") currentValuesByPath.categoryIds = input.current.categoryIds ?? [];
     else currentValuesByPath[row.path] = input.current.values[row.key];
   }
 
   const generated = await generateTargetedRecipeFields({
-    fields: requested,
+    fields: requested.map((row) => ({
+      ...row,
+      def: registry.get(row.path) ?? null,
+    })),
     current: {
       title: input.current.title,
       excerpt: input.current.excerpt,
@@ -470,6 +471,7 @@ export async function runTargetedRecipeFill(
     current: input.current,
     requested,
     returned: generated.fields,
+    registry,
   });
 
   console.info("[ai-fill]", {

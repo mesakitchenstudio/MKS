@@ -50,6 +50,7 @@ test("mergeTargetedFillIntoEditor only updates requested paths", () => {
   });
 
   assert.equal(result.excerpt, "Crispy baguettes at home.");
+  assert.equal(result.title, "Bread");
   assert.equal(result.values.cuisine, "French");
   assert.equal(result.values.intro, "Keep me");
   assert.deepEqual(result.values.ingredients, [

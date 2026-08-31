@@ -13,6 +13,7 @@ export function mergeTargetedFillIntoEditor(input: {
     values: Record<string, unknown>;
   };
   draft: {
+    title?: string;
     excerpt: string;
     categoryIds?: string[];
     values: Record<string, unknown>;
@@ -21,6 +22,7 @@ export function mergeTargetedFillIntoEditor(input: {
   confidenceByPath: RecipeAiMeta["confidenceByPath"];
   aiMeta: RecipeAiMeta | null;
 }): {
+  title: string;
   excerpt: string;
   categoryIds: string[];
   values: Record<string, unknown>;
@@ -28,8 +30,13 @@ export function mergeTargetedFillIntoEditor(input: {
 } {
   const allowed = new Set(input.requestedPaths);
   const nextValues = { ...input.current.values };
+  let title = input.current.title;
   let excerpt = input.current.excerpt;
   let categoryIds = [...(input.current.categoryIds ?? [])];
+
+  if (allowed.has("title") && input.draft.title?.trim()) {
+    title = input.draft.title.trim();
+  }
 
   if (allowed.has("excerpt") && input.draft.excerpt.trim()) {
     excerpt = input.draft.excerpt;
@@ -50,7 +57,7 @@ export function mergeTargetedFillIntoEditor(input: {
   }
 
   if (!input.aiMeta) {
-    return { excerpt, categoryIds, values: nextValues, aiMeta: null };
+    return { title, excerpt, categoryIds, values: nextValues, aiMeta: null };
   }
 
   const confidenceByPath = { ...input.aiMeta.confidenceByPath };
@@ -66,13 +73,15 @@ export function mergeTargetedFillIntoEditor(input: {
   const fieldProvenance = { ...(input.aiMeta.fieldProvenance ?? {}) };
   for (const path of allowed) {
     const value =
-      path === "excerpt"
-        ? excerpt
-        : path === "categoryIds"
-          ? categoryIds
-          : path.startsWith("values.")
-            ? nextValues[path.slice(7)]
-            : undefined;
+      path === "title"
+        ? title
+        : path === "excerpt"
+          ? excerpt
+          : path === "categoryIds"
+            ? categoryIds
+            : path.startsWith("values.")
+              ? nextValues[path.slice(7)]
+              : undefined;
     fieldProvenance[path] = {
       aiGenerated: true,
       aiGeneratedValue: value,
@@ -81,6 +90,7 @@ export function mergeTargetedFillIntoEditor(input: {
   }
 
   return {
+    title,
     excerpt,
     categoryIds,
     values: nextValues,
@@ -96,8 +106,9 @@ export function mergeTargetedFillIntoEditor(input: {
 /** Extract a single field value from a targeted fill draft for suggestion preview. */
 export function extractTargetedFieldValue(input: {
   path: string;
-  draft: { excerpt: string; categoryIds?: string[]; values: Record<string, unknown> };
+  draft: { title?: string; excerpt: string; categoryIds?: string[]; values: Record<string, unknown> };
 }): unknown {
+  if (input.path === "title") return input.draft.title ?? "";
   if (input.path === "excerpt") return input.draft.excerpt;
   if (input.path === "categoryIds") return input.draft.categoryIds ?? [];
   if (input.path.startsWith("values.")) {

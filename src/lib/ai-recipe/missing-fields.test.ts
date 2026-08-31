@@ -78,16 +78,17 @@ test("listMissingAiFillableFields includes UNKNOWN confidence as needs_input", (
   assert.equal(cuisine?.reason, "needs_input");
 });
 
-test("listMissingAiFillableFields skips VERIFIED and human-modified fields", () => {
+test("listMissingAiFillableFields skips human-modified and populated verified fields", () => {
   const result = listMissingAiFillableFields({
     fields,
     title: "Bread",
     slug: "bread",
-    excerpt: "",
-    values: { cuisine: "", notes: "" },
+    excerpt: "Verified excerpt still here",
+    values: { cuisine: "French", notes: "" },
     aiMeta: meta({
       confidenceByPath: {
         excerpt: { confidence: "VERIFIED", sourceNote: "From video" },
+        "values.cuisine": { confidence: "VERIFIED", sourceNote: "From video" },
       },
       fieldProvenance: {
         "values.notes": {
@@ -101,8 +102,27 @@ test("listMissingAiFillableFields skips VERIFIED and human-modified fields", () 
 
   const keys = result.missing.map((row) => row.key);
   assert.ok(!keys.includes("excerpt"));
+  assert.ok(!keys.includes("cuisine"));
   assert.ok(!keys.includes("notes"));
-  assert.ok(keys.includes("cuisine"));
+});
+
+test("listMissingAiFillableFields includes cleared verified fields when empty", () => {
+  const result = listMissingAiFillableFields({
+    fields,
+    title: "Bread",
+    slug: "bread",
+    excerpt: "",
+    values: { cuisine: "", notes: "" },
+    aiMeta: meta({
+      confidenceByPath: {
+        excerpt: { confidence: "VERIFIED", sourceNote: "From video" },
+        "values.holiday": { confidence: "VERIFIED", sourceNote: "From video" },
+      },
+    }),
+  });
+
+  const paths = result.missing.map((row) => row.path);
+  assert.ok(paths.includes("excerpt"));
 });
 
 test("listMissingAiFillableFields includes empty categories", () => {
@@ -119,7 +139,20 @@ test("listMissingAiFillableFields includes empty categories", () => {
   assert.ok(result.missing.some((row) => row.path === "categoryIds"));
 });
 
-test("isFieldEligibleForTargetedFill blocks protected and verified paths", () => {
+test("isFieldEligibleForTargetedFill allows empty title with allowRepopulate", () => {
+  assert.equal(
+    isFieldEligibleForTargetedFill({
+      path: "title",
+      key: "title",
+      kind: "text",
+      value: "",
+      allowRepopulate: true,
+    }),
+    true,
+  );
+});
+
+test("isFieldEligibleForTargetedFill blocks protected and populated verified paths", () => {
   assert.equal(
     isFieldEligibleForTargetedFill({
       path: "values.ingredients",
@@ -141,7 +174,6 @@ test("isFieldEligibleForTargetedFill blocks protected and verified paths", () =>
           "values.cuisine": { confidence: "VERIFIED", sourceNote: "Video" },
         },
       }),
-      allowRepopulate: true,
     }),
     false,
   );
@@ -151,6 +183,11 @@ test("isFieldEligibleForTargetedFill blocks protected and verified paths", () =>
       key: "cuisine",
       kind: "text",
       value: "French",
+      aiMeta: meta({
+        confidenceByPath: {
+          "values.cuisine": { confidence: "VERIFIED", sourceNote: "Video" },
+        },
+      }),
       allowRepopulate: true,
     }),
     true,

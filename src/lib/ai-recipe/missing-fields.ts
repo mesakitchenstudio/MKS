@@ -1,8 +1,12 @@
-import { fieldValueHasContent } from "@/lib/field-content";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
-import { isAiFillableFieldKey, type SchemaField } from "@/lib/ai-recipe/schema-version";
+import {
+  buildRecipeAiFieldRegistry,
+  recipeFieldIsEmpty,
+  type RecipeAiFieldDef,
+} from "@/lib/ai-recipe/field-ai-registry";
+import type { SchemaField } from "@/lib/ai-recipe/schema-version";
 
-/** Keys that Fill missing / field AI must never touch by default. */
+/** Keys excluded from automatic Fill missing (structural / source-owned). */
 export const PROTECTED_AI_FILL_KEYS = new Set([
   "ingredients",
   "instructions",
@@ -15,15 +19,13 @@ export const PROTECTED_AI_FILL_KEYS = new Set([
 export type MissingAiFieldReason = "empty" | "needs_input";
 
 export type MissingAiField = {
-  /** Absolute path used in confidence/provenance (e.g. excerpt, values.cuisine). */
   path: string;
-  /** Field key or scalar name. */
   key: string;
   label: string;
   kind: string;
   reason: MissingAiFieldReason;
-  /** Section hint for tab badges. */
-  section?: "basics" | "details" | "content" | "media" | "advanced";
+  section?: RecipeAiFieldDef["section"];
+  strategy?: RecipeAiFieldDef["strategy"];
 };
 
 export type MissingAiFieldsResult = {
@@ -35,53 +37,6 @@ export type MissingAiFieldsResult = {
     estimated: number;
   };
 };
-
-const BASICS_KEYS = new Set(["excerpt"]);
-const DETAILS_KEYS = new Set([
-  "difficulty",
-  "prepMinutes",
-  "bakeMinutes",
-  "cookMinutes",
-  "restMinutes",
-  "utensils",
-  "servings",
-  "servingsUnit",
-  "course",
-  "method",
-  "holiday",
-  "cuisine",
-  "dishName",
-  "tags",
-]);
-const CONTENT_KEYS = new Set([
-  "intro",
-  "whyItWorks",
-  "keyIngredients",
-  "tips",
-  "faqs",
-  "notes",
-  "ingredients",
-  "instructions",
-]);
-const MEDIA_KEYS = new Set(["imageAlt", "image", "youtubeUrl", "floatingYoutubeUrl", "youtube"]);
-const ADVANCED_KEYS = new Set(["nutrition"]);
-
-function sectionForKey(key: string): MissingAiField["section"] {
-  if (BASICS_KEYS.has(key)) return "basics";
-  if (DETAILS_KEYS.has(key)) return "details";
-  if (CONTENT_KEYS.has(key)) return "content";
-  if (MEDIA_KEYS.has(key)) return "media";
-  if (ADVANCED_KEYS.has(key)) return "advanced";
-  return "details";
-}
-
-function isEmptyForKind(kind: string | undefined, value: unknown): boolean {
-  if (kind === "categories") {
-    return !Array.isArray(value) || value.length === 0;
-  }
-  if (!kind) return !String(value ?? "").trim();
-  return !fieldValueHasContent(value, kind);
-}
 
 function confidenceAt(meta: RecipeAiMeta | null | undefined, path: string) {
   return meta?.confidenceByPath?.[path]?.confidence;
@@ -95,9 +50,63 @@ function isVerifiedPath(meta: RecipeAiMeta | null | undefined, path: string): bo
   return confidenceAt(meta, path) === "VERIFIED";
 }
 
+function valueForPath(input: {
+  path: string;
+  key: string;
+  title: string;
+  excerpt: string;
+  categoryIds?: string[];
+  values: Record<string, unknown>;
+}): unknown {
+  if (input.path === "title") return input.title;
+  if (input.path === "excerpt") return input.excerpt;
+  if (input.path === "categoryIds") return input.categoryIds ?? [];
+  return input.values[input.key];
+}
+
+function pushIfMissing(
+  missing: MissingAiField[],
+  input: {
+    def: RecipeAiFieldDef;
+    value: unknown;
+    meta: RecipeAiMeta | null;
+    title: string;
+    excerpt: string;
+    categoryIds?: string[];
+  },
+) {
+  const { def, meta } = input;
+  if (def.strategy === "none" || def.strategy === "source_owned") return;
+  if (PROTECTED_AI_FILL_KEYS.has(def.key)) return;
+  if (isHumanLocked(meta, def.path)) return;
+
+  const empty = recipeFieldIsEmpty({
+    path: def.path,
+    kind: def.kind,
+    value: input.value,
+    title: input.title,
+    excerpt: input.excerpt,
+    categoryIds: input.categoryIds,
+  });
+  const needsInput = confidenceAt(meta, def.path) === "UNKNOWN";
+
+  if (!empty && !needsInput) return;
+  if (!empty && isVerifiedPath(meta, def.path)) return;
+
+  missing.push({
+    path: def.path,
+    key: def.key,
+    label: def.label,
+    kind: def.kind,
+    reason: empty ? "empty" : "needs_input",
+    section: def.section,
+    strategy: def.strategy,
+  });
+}
+
 /**
  * Canonical list of AI-fillable fields that are empty or marked Needs input (UNKNOWN).
- * Used by Fill missing fields, tab badges, and field-level eligibility checks.
+ * Driven by the central recipe AI field registry.
  */
 export function listMissingAiFillableFields(input: {
   fields: SchemaField[];
@@ -110,54 +119,24 @@ export function listMissingAiFillableFields(input: {
 }): MissingAiFieldsResult {
   const meta = input.aiMeta ?? null;
   const missing: MissingAiField[] = [];
+  const registry = buildRecipeAiFieldRegistry(input.fields);
 
-  // Excerpt is fillable when empty or UNKNOWN; never when verified/human-locked/populated non-UNKNOWN.
-  pushScalarMissing(missing, {
-    path: "excerpt",
-    key: "excerpt",
-    label: "Excerpt",
-    kind: "textarea",
-    value: input.excerpt,
-    meta,
-    section: "basics",
-  });
-
-  if (
-    !isHumanLocked(meta, "categoryIds") &&
-    !isVerifiedPath(meta, "categoryIds") &&
-    !(input.categoryIds ?? []).length
-  ) {
-    missing.push({
-      path: "categoryIds",
-      key: "categoryIds",
-      label: "Categories",
-      kind: "categories",
-      reason: "empty",
-      section: "basics",
-    });
-  }
-
-  for (const field of input.fields) {
-    if (!isAiFillableFieldKey(field.key)) continue;
-    if (PROTECTED_AI_FILL_KEYS.has(field.key)) continue;
-
-    const path = `values.${field.key}`;
-    if (isHumanLocked(meta, path) || isVerifiedPath(meta, path)) continue;
-
-    const value = input.values[field.key];
-    const empty = isEmptyForKind(field.kind, value);
-    const confidence = confidenceAt(meta, path);
-    const needsInput = confidence === "UNKNOWN";
-
-    if (!empty && !needsInput) continue;
-
-    missing.push({
-      path,
-      key: field.key,
-      label: field.label,
-      kind: field.kind,
-      reason: empty ? "empty" : "needs_input",
-      section: sectionForKey(field.key),
+  for (const def of registry.values()) {
+    if (def.key === "slug") continue;
+    pushIfMissing(missing, {
+      def,
+      value: valueForPath({
+        path: def.path,
+        key: def.key,
+        title: input.title,
+        excerpt: input.excerpt,
+        categoryIds: input.categoryIds,
+        values: input.values,
+      }),
+      meta,
+      title: input.title,
+      excerpt: input.excerpt,
+      categoryIds: input.categoryIds,
     });
   }
 
@@ -173,53 +152,37 @@ export function listMissingAiFillableFields(input: {
   };
 }
 
-function pushScalarMissing(
-  missing: MissingAiField[],
-  input: {
-    path: string;
-    key: string;
-    label: string;
-    kind: string;
-    value: string;
-    meta: RecipeAiMeta | null;
-    section: MissingAiField["section"];
-  },
-) {
-  if (isHumanLocked(input.meta, input.path) || isVerifiedPath(input.meta, input.path)) return;
-  const empty = !String(input.value ?? "").trim();
-  const needsInput = confidenceAt(input.meta, input.path) === "UNKNOWN";
-  if (!empty && !needsInput) return;
-  missing.push({
-    path: input.path,
-    key: input.key,
-    label: input.label,
-    kind: input.kind,
-    reason: empty ? "empty" : "needs_input",
-    section: input.section,
-  });
-}
-
 /** True when a specific field path is eligible for targeted Fill / Generate. */
 export function isFieldEligibleForTargetedFill(input: {
   path: string;
   key: string;
   kind?: string;
   value: unknown;
+  title?: string;
+  excerpt?: string;
+  categoryIds?: string[];
   aiMeta?: RecipeAiMeta | null;
-  /** When true, allow regenerating a populated field (explicit field action). */
   allowRepopulate?: boolean;
 }): boolean {
   const meta = input.aiMeta ?? null;
+  if (input.key === "slug") return false;
   if (PROTECTED_AI_FILL_KEYS.has(input.key)) return false;
-  if (input.path === "title" || input.key === "title") return false;
-  if (input.path === "slug" || input.key === "slug") return false;
-  if (isHumanLocked(meta, input.path) || isVerifiedPath(meta, input.path)) return false;
+  if (isHumanLocked(meta, input.path)) return false;
 
+  const empty = recipeFieldIsEmpty({
+    path: input.path,
+    kind: input.kind,
+    value: input.value,
+    title: input.title,
+    excerpt: input.excerpt,
+    categoryIds: input.categoryIds,
+  });
+
+  if (empty) return true;
   if (input.allowRepopulate) return true;
-
-  const empty = isEmptyForKind(input.kind, input.value);
-  const needsInput = confidenceAt(meta, input.path) === "UNKNOWN";
-  return empty || needsInput;
+  if (confidenceAt(meta, input.path) === "UNKNOWN") return true;
+  if (isVerifiedPath(meta, input.path)) return false;
+  return false;
 }
 
 export function countMissingBySection(missing: MissingAiField[]) {
