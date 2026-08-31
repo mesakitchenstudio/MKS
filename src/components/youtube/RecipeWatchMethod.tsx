@@ -155,7 +155,6 @@ export function RecipeWatchMethod() {
               recipeSlug={recipeSlug}
               recipeName={recipeName}
               videoId={youtube.videoId}
-              variant="post_video"
             />
           ) : null}
         </div>
