@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
-import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
+import type { RecipeYoutubeTimestamp, ResolvedRecipeYoutube } from "@/data/youtube-types";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
 import { recipeContentShellClass } from "@/components/RecipeContentShell";
 import { scaleAmount } from "@/lib/culinary-format";
@@ -180,6 +180,12 @@ function StageAccordion({
   );
 }
 
+function normalizeChapters(timestamps: RecipeYoutubeTimestamp[] | undefined) {
+  return [...(timestamps ?? [])]
+    .filter((item) => item.label.trim() && item.time >= 0)
+    .sort((a, b) => a.time - b.time);
+}
+
 export function RecipeCookingWorkspace({
   recipe,
   youtube = null,
@@ -192,13 +198,37 @@ export function RecipeCookingWorkspace({
   const stages = useMemo(() => recipeInstructionStages(recipe), [recipe]);
   const stepCount = totalInstructionSteps(stages);
   const cookingContext = useMemo(() => planCookingContext(recipe, stages), [recipe, stages]);
+  const initialChapters = useMemo(
+    () => normalizeChapters(youtube?.timestamps),
+    [youtube?.timestamps],
+  );
+  const [chapters, setChapters] = useState(initialChapters);
   const stageVideoHelp = useMemo(
-    () => selectStageVideoHelp(stages, youtube?.timestamps),
-    [stages, youtube?.timestamps],
+    () => selectStageVideoHelp(stages, chapters),
+    [stages, chapters],
   );
   const [openStages, setOpenStages] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(stages.map((stage, index) => [stage.id, index === 0])),
   );
+
+  useEffect(() => {
+    setChapters(initialChapters);
+  }, [initialChapters]);
+
+  useEffect(() => {
+    if (chapters.length || !youtube?.videoId) return;
+    let cancelled = false;
+    fetch(`/api/youtube/chapters?videoId=${encodeURIComponent(youtube.videoId)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { timestamps?: RecipeYoutubeTimestamp[] } | null) => {
+        if (cancelled || !data?.timestamps?.length) return;
+        setChapters(normalizeChapters(data.timestamps));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [chapters.length, youtube?.videoId]);
 
   useEffect(() => {
     setOpenStages(Object.fromEntries(stages.map((stage, index) => [stage.id, index === 0])));
@@ -208,8 +238,13 @@ export function RecipeCookingWorkspace({
   const showNutrition = nutritionHasPublicContent(recipe.nutrition);
   const utensils = recipe.utensils?.filter(Boolean) ?? [];
   const multiStage = stages.length > 1;
+  const allExpanded = multiStage && stages.every((stage) => openStages[stage.id]);
 
-  function expandAllStages() {
+  function toggleExpandCollapseAll() {
+    if (allExpanded) {
+      setOpenStages(Object.fromEntries(stages.map((stage) => [stage.id, false])));
+      return;
+    }
     setOpenStages(Object.fromEntries(stages.map((stage) => [stage.id, true])));
   }
 
@@ -238,10 +273,11 @@ export function RecipeCookingWorkspace({
             {multiStage ? (
               <button
                 type="button"
-                onClick={expandAllStages}
+                onClick={toggleExpandCollapseAll}
+                aria-expanded={allExpanded}
                 className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-muted hover:text-terracotta"
               >
-                Expand all
+                {allExpanded ? "Collapse all" : "Expand all"}
               </button>
             ) : null}
           </div>

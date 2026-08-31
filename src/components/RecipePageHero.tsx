@@ -26,7 +26,15 @@ export function RecipePageHero({
   reviewData: RecipeReviewData;
   videoDuration?: string;
 }) {
-  const dishIdentity = resolveRecipeDishIdentity(recipe);
+  const dishIdentity = resolveRecipeDishIdentity({
+    title: recipe.title,
+    course: recipe.course,
+    dishName: recipe.dishName,
+    typeName: recipe.typeName,
+    seriesItemTitles: seriesLinks
+      .map((link) => link.itemTitle)
+      .filter((value): value is string => Boolean(value?.trim())),
+  });
 
   return (
     <header className={`${recipeContentShellClass} py-5 md:pt-6 md:pb-3 lg:pt-5 lg:pb-2`}>

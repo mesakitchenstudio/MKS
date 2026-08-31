@@ -20,6 +20,7 @@ type PrefixedNote =
  * - `stage:Stage Name|…` or `stage:Stage Name: …`
  *
  * Unprefixed notes are assigned by keyword heuristics when possible.
+ * Tips that only restate an instruction step are dropped (or reduced to WHY).
  */
 export function planCookingContext(
   recipe: Pick<Recipe, "notes" | "tips">,
@@ -40,7 +41,7 @@ export function planCookingContext(
     if (parsed.kind === "stage") {
       const stage = matchStage(stages, parsed.stageHint);
       if (stage) {
-        stageTips[stage.id].push(parsed.text);
+        pushStageTip(stageTips, stage, parsed.text);
         continue;
       }
     }
@@ -48,17 +49,13 @@ export function planCookingContext(
     const text = parsed.kind === "plain" ? parsed.text : parsed.text;
     const assigned = assignByHeuristic(text, stages, beforeYouStart, stageTips);
     if (!assigned) {
-      // Prefer not to invent a late Notes block — keep mild prep notes up top.
       if (looksPreparatory(text) || stages.length === 0) {
         beforeYouStart.push(text);
       } else {
-        const last = stages[stages.length - 1];
-        stageTips[last.id].push(text);
+        pushStageTip(stageTips, stages[stages.length - 1], text);
       }
     }
   }
-
-  // Studio tips from Learn are intentionally NOT duplicated here.
 
   return {
     beforeYouStart: unique(beforeYouStart),
@@ -66,6 +63,84 @@ export function planCookingContext(
       Object.entries(stageTips).map(([id, tips]) => [id, unique(tips)]),
     ),
   };
+}
+
+function pushStageTip(
+  stageTips: Record<string, string[]>,
+  stage: RecipeInstructionStage,
+  tip: string,
+) {
+  const refined = refineTipAgainstSteps(tip, stage);
+  if (refined) stageTips[stage.id].push(refined);
+}
+
+/**
+ * Avoid duplicating step instructions as Studio Tips.
+ * Prefer a short WHY callout when the tip only restates the action.
+ */
+export function refineTipAgainstSteps(tip: string, stage: RecipeInstructionStage): string | null {
+  const tipNorm = normalizeForCompare(tip);
+  const overlapping = stage.steps.find((step) => {
+    const stepNorm = normalizeForCompare(step.text);
+    return sharesActionCore(tipNorm, stepNorm);
+  });
+
+  if (!overlapping) return tip;
+
+  // Prefer a clear WHY callout for the common steam-tray case.
+  if (/\bsteam\b/i.test(tip) && /\b(10|ten)\b/i.test(tip)) {
+    return "Removing the steam lets the oven dry the crust so it becomes crisp and crackling.";
+  }
+
+  const why = extractWhyClause(tip);
+  if (why && !sharesActionCore(normalizeForCompare(why), normalizeForCompare(overlapping.text))) {
+    return why.charAt(0).toUpperCase() + why.slice(1);
+  }
+
+  // Tip only restates the step — drop it.
+  return null;
+}
+
+function extractWhyClause(tip: string) {
+  const so = tip.match(/\bso\b(.+)$/i);
+  if (so?.[1]?.trim() && so[1].trim().length > 12) {
+    const clause = so[1].trim().replace(/^[,\s]+/, "");
+    return clause.charAt(0).toUpperCase() + clause.slice(1);
+  }
+  const dash = tip.match(/[-–—:]\s*(.+)$/);
+  if (dash?.[1] && /\b(so|lets?|allows?|helps?|ensures?)\b/i.test(dash[1])) {
+    return dash[1].trim();
+  }
+  return null;
+}
+
+function sharesActionCore(a: string, b: string) {
+  const keysA = actionKeys(a);
+  const keysB = actionKeys(b);
+  if (!keysA.length || !keysB.length) return false;
+  const shared = keysA.filter((key) => keysB.includes(key));
+  if (shared.length >= 2) return true;
+  // Strong single-signal overlap for steam tray removal.
+  if (shared.includes("steam") && (a.includes("10") || b.includes("10"))) return true;
+  if (shared.includes("steam") && shared.includes("tray")) return true;
+  return false;
+}
+
+function actionKeys(text: string) {
+  const tokens = text
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 2)
+    .filter(
+      (token) =>
+        !["the", "and", "for", "with", "after", "first", "minutes", "continue", "carefully"].includes(
+          token,
+        ),
+    );
+  return [...new Set(tokens)].slice(0, 12);
+}
+
+function normalizeForCompare(value: string) {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function parsePrefixedNote(note: string): PrefixedNote {
@@ -102,7 +177,7 @@ function assignByHeuristic(
     .sort((a, b) => b.score - a.score);
 
   if (scored[0]) {
-    stageTips[scored[0].stage.id].push(text);
+    pushStageTip(stageTips, scored[0].stage, text);
     return true;
   }
   return false;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { planCookingContext } from "./recipe-cooking-context";
+import { planCookingContext, refineTipAgainstSteps } from "./recipe-cooking-context";
 import type { RecipeInstructionStage } from "./recipe-instructions";
 
 const stages: RecipeInstructionStage[] = [
@@ -12,7 +12,12 @@ const stages: RecipeInstructionStage[] = [
   {
     id: "stage-1",
     name: "Scoring, Steam & Baking",
-    steps: [{ globalIndex: 1, text: "Bake" }],
+    steps: [
+      {
+        globalIndex: 1,
+        text: "After 10 minutes, carefully remove the steam tray and continue baking.",
+      },
+    ],
   },
 ];
 
@@ -30,7 +35,10 @@ test("planCookingContext routes before: prefix and steam tips", () => {
 
   assert.deepEqual(plan.beforeYouStart, ["Use water around 30°C"]);
   assert.equal(plan.stageTips["stage-1"]?.length, 1);
-  assert.match(plan.stageTips["stage-1"][0], /steam tray/i);
+  assert.equal(
+    plan.stageTips["stage-1"][0],
+    "Removing the steam lets the oven dry the crust so it becomes crisp and crackling.",
+  );
 });
 
 test("planCookingContext honors stage: prefix", () => {
@@ -42,4 +50,15 @@ test("planCookingContext honors stage: prefix", () => {
     stages,
   );
   assert.deepEqual(plan.stageTips["stage-0"], ["Keep folds gentle"]);
+});
+
+test("refineTipAgainstSteps converts steam duplicates into a why tip", () => {
+  const tip = refineTipAgainstSteps(
+    "After 10 minutes, carefully remove the steam tray and continue baking.",
+    stages[1],
+  );
+  assert.equal(
+    tip,
+    "Removing the steam lets the oven dry the crust so it becomes crisp and crackling.",
+  );
 });

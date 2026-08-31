@@ -4,15 +4,27 @@ import type { Recipe } from "@/data/types";
  * Public dish identity shown under the course eyebrow when the H1 is a
  * topic/SEO title (common for YouTube-linked recipes).
  *
- * Prefers optional `dishName` from recipe values JSON (no schema change).
- * Falls back to type name when the title looks like a how-to topic.
+ * Prefer explicit short dish fields. Never use image alt / captions.
+ * If nothing trustworthy is available, return null and omit the line.
  */
 export function resolveRecipeDishIdentity(
-  recipe: Pick<Recipe, "title" | "course" | "dishName" | "typeName" | "imageAlt">,
+  recipe: Pick<Recipe, "title" | "course" | "dishName" | "typeName"> & {
+    seriesItemTitles?: string[];
+  },
 ): string | null {
   const title = recipe.title.trim();
+
   const dishName = recipe.dishName?.trim() || "";
-  if (dishName && !sameLabel(dishName, title)) return dishName;
+  if (dishName && !sameLabel(dishName, title) && isTrustworthyDishLabel(dishName)) {
+    return dishName;
+  }
+
+  for (const candidate of recipe.seriesItemTitles ?? []) {
+    const value = candidate.trim();
+    if (value && !sameLabel(value, title) && isTrustworthyDishLabel(value)) {
+      return value;
+    }
+  }
 
   if (!looksLikeTopicTitle(title)) return null;
 
@@ -21,23 +33,31 @@ export function resolveRecipeDishIdentity(
     typeName &&
     !sameLabel(typeName, title) &&
     !sameLabel(typeName, recipe.course) &&
-    !isGenericTypeLabel(typeName, recipe.course)
+    !isGenericTypeLabel(typeName, recipe.course) &&
+    isTrustworthyDishLabel(typeName)
   ) {
     return typeName;
   }
 
-  const alt = recipe.imageAlt?.trim() || "";
-  if (
-    alt &&
-    !sameLabel(alt, title) &&
-    alt.length <= 72 &&
-    !looksLikeTopicTitle(alt) &&
-    !/^photo|image|picture of/i.test(alt)
-  ) {
-    return alt;
-  }
-
   return null;
+}
+
+/** Reject image-alt sentences and other non-name strings. */
+export function isTrustworthyDishLabel(value: string) {
+  const text = value.trim();
+  if (!text) return false;
+  if (/[.!?]/.test(text)) return false;
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 8) return false;
+  if (
+    /\b(resting|lined|basket|photograph|photo|image|picture|caption|sitting|placed|arranged|wooden|marble|counter)\b/i.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  if (/^(a|an|the)\s+\w+\s+\w+\s+\w+/i.test(text) && words.length >= 6) return false;
+  return true;
 }
 
 function sameLabel(a: string, b: string) {

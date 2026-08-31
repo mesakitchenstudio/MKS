@@ -282,10 +282,13 @@ export async function getSeriesLinksForRecipe(recipeId: string): Promise<RecipeS
         break;
       }
     }
+    const current = index >= 0 ? ordered[index] : null;
+    const itemTitle = current?.customTitle.trim() || null;
     links.push({
       slug: row.series.slug,
       title: row.series.title,
       shortTitle: row.series.shortTitle,
+      itemTitle,
       nextItem,
     });
   }

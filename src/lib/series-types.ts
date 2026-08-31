@@ -51,6 +51,8 @@ export type RecipeSeriesLink = {
   slug: string;
   title: string;
   shortTitle: string;
+  /** Series-item display title for the current recipe when it differs from the page H1. */
+  itemTitle?: string | null;
   nextItem: {
     recipeSlug: string | null;
     title: string;

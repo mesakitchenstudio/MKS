@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveRecipeDishIdentity, looksLikeTopicTitle } from "./recipe-dish-identity";
+import {
+  isTrustworthyDishLabel,
+  looksLikeTopicTitle,
+  resolveRecipeDishIdentity,
+} from "./recipe-dish-identity";
 
 test("looksLikeTopicTitle detects how-to headlines", () => {
   assert.equal(
@@ -10,6 +14,30 @@ test("looksLikeTopicTitle detects how-to headlines", () => {
   assert.equal(looksLikeTopicTitle("Herb Focaccia"), false);
 });
 
+test("isTrustworthyDishLabel rejects image-alt sentences", () => {
+  assert.equal(
+    isTrustworthyDishLabel(
+      "Four golden crispy French baguettes resting in a cloth-lined basket",
+    ),
+    false,
+  );
+  assert.equal(isTrustworthyDishLabel("Crusty French Baguettes"), true);
+});
+
+test("resolveRecipeDishIdentity never uses image-alt-like text", () => {
+  assert.equal(
+    resolveRecipeDishIdentity({
+      title: "Why Your Homemade Bread Isn't Crusty (And How to Fix It)",
+      course: "Breads",
+      typeName: "Bread",
+      seriesItemTitles: [
+        "Four golden crispy French baguettes resting in a cloth-lined basket",
+      ],
+    }),
+    null,
+  );
+});
+
 test("resolveRecipeDishIdentity prefers dishName", () => {
   assert.equal(
     resolveRecipeDishIdentity({
@@ -17,19 +45,18 @@ test("resolveRecipeDishIdentity prefers dishName", () => {
       course: "Breads",
       dishName: "Crusty French Baguettes",
       typeName: "Bread",
-      imageAlt: "Baguettes",
     }),
     "Crusty French Baguettes",
   );
 });
 
-test("resolveRecipeDishIdentity falls back to typeName for topic titles", () => {
+test("resolveRecipeDishIdentity uses series item title when trustworthy", () => {
   assert.equal(
     resolveRecipeDishIdentity({
-      title: "Why Your Homemade Bread Isn't Crusty?",
+      title: "Why Your Homemade Bread Isn't Crusty (And How to Fix It)",
       course: "Breads",
-      typeName: "French Baguettes",
-      imageAlt: "Why Your Homemade Bread Isn't Crusty?",
+      typeName: "Bread",
+      seriesItemTitles: ["French Baguettes"],
     }),
     "French Baguettes",
   );
@@ -41,7 +68,6 @@ test("resolveRecipeDishIdentity skips when title is already the dish", () => {
       title: "Herb Focaccia",
       course: "Bread",
       typeName: "Bread",
-      imageAlt: "Herb Focaccia",
     }),
     null,
   );
