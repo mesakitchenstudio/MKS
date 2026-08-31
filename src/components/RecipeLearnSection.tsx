@@ -7,7 +7,7 @@ function ChevronDown({ open }: { open: boolean }) {
     <svg
       aria-hidden
       viewBox="0 0 20 20"
-      className={`mt-0.5 h-4 w-4 shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`}
+      className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`}
       fill="currentColor"
     >
       <path
@@ -28,95 +28,116 @@ export function RecipeLearnSection({
   keyIngredients: { name: string; note: string }[];
   tips: string[];
 }) {
-  const cards = [
-    whyItWorks.trim()
-      ? { id: "learn-why", title: "Why this works", body: whyItWorks, kind: "text" as const }
-      : null,
-    keyIngredients.length
-      ? { id: "learn-keys", title: "Key ingredients", body: keyIngredients, kind: "keys" as const }
-      : null,
-    tips.length
-      ? { id: "learn-tips", title: "Studio tips", body: tips, kind: "tips" as const }
-      : null,
-  ].filter(Boolean) as Array<{
-    id: string;
-    title: string;
-    body: string | { name: string; note: string }[] | string[];
-    kind: "text" | "keys" | "tips";
-  }>;
+  const hasWhy = Boolean(whyItWorks.trim());
+  const hasKeys = keyIngredients.length > 0;
+  const hasTips = tips.length > 0;
 
-  if (!cards.length) return null;
+  if (!hasWhy && !hasKeys && !hasTips) return null;
 
-  return (
-    <section id="recipe-learn" className="mt-6 scroll-mt-24">
-      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">Learn</p>
-      <h2 className="mt-1 font-serif text-2xl text-ink md:text-3xl">Technique & context</h2>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {cards.map((card) => (
-          <LearnCard key={card.id} card={card} />
-        ))}
-      </div>
-    </section>
-  );
+  const summaryParts: string[] = [];
+  if (hasWhy) summaryParts.push("Why it works");
+  if (hasKeys) {
+    summaryParts.push(
+      `${keyIngredients.length} key ingredient${keyIngredients.length === 1 ? "" : "s"}`,
+    );
+  }
+  if (hasTips) {
+    summaryParts.push(`${tips.length} studio tip${tips.length === 1 ? "" : "s"}`);
+  }
+
+  return <RecipeLearnAccordion whyItWorks={whyItWorks} keyIngredients={keyIngredients} tips={tips} summaryParts={summaryParts} hasWhy={hasWhy} hasKeys={hasKeys} hasTips={hasTips} />;
 }
 
-function LearnCard({
-  card,
+function RecipeLearnAccordion({
+  whyItWorks,
+  keyIngredients,
+  tips,
+  summaryParts,
+  hasWhy,
+  hasKeys,
+  hasTips,
 }: {
-  card: {
-    id: string;
-    title: string;
-    body: string | { name: string; note: string }[] | string[];
-    kind: "text" | "keys" | "tips";
-  };
+  whyItWorks: string;
+  keyIngredients: { name: string; note: string }[];
+  tips: string[];
+  summaryParts: string[];
+  hasWhy: boolean;
+  hasKeys: boolean;
+  hasTips: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const panelId = `${card.id}-panel`;
-  const preview =
-    card.kind === "text"
-      ? String(card.body).slice(0, 120)
-      : card.kind === "keys"
-        ? `${(card.body as { name: string }[]).length} highlights`
-        : `${(card.body as string[]).length} tips`;
+  const panelId = "recipe-learn-panel";
 
   return (
-    <article className="bg-cream/30 px-4 py-4">
+    <section
+      id="recipe-learn"
+      className="mt-6 scroll-mt-24 border border-line/80 bg-sand/30"
+    >
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
-        className="no-print flex w-full items-start justify-between gap-3 rounded-sm text-left transition-colors hover:bg-cream/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+        className="no-print flex w-full items-start justify-between gap-4 px-4 py-4 text-left transition-colors hover:bg-cream/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-terracotta sm:px-5"
       >
-        <div className="min-w-0">
-          <h3 className="font-serif text-lg text-ink">{card.title}</h3>
-          {!open ? <p className="mt-1 line-clamp-2 text-sm text-muted">{preview}…</p> : null}
+        <div className="min-w-0 flex-1">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">Learn</p>
+          <h2 className="mt-1 font-serif text-xl text-ink md:text-2xl">Technique & context</h2>
+          {!open ? (
+            <>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                Understand why the recipe works, the ingredients that matter, and Mesa&apos;s
+                practical tips.
+              </p>
+              <p className="mt-2 text-sm font-medium text-ink/80">{summaryParts.join(" · ")}</p>
+            </>
+          ) : null}
         </div>
-        <ChevronDown open={open} />
+        <span className="flex shrink-0 items-center gap-2 pt-1 text-sm font-semibold text-muted">
+          <span className="hidden sm:inline">{open ? "Collapse" : "Expand"}</span>
+          <ChevronDown open={open} />
+        </span>
       </button>
+
       <div
         id={panelId}
-        className={`text-sm leading-7 text-ink/90 ${open ? "mt-2 block" : "hidden print:block"}`}
+        className={`border-t border-line/60 px-4 pb-5 pt-4 sm:px-5 ${open ? "block" : "hidden print:block"}`}
       >
-        {card.kind === "text" ? <p>{card.body as string}</p> : null}
-        {card.kind === "keys" ? (
-          <dl className="space-y-3">
-            {(card.body as { name: string; note: string }[]).map((item) => (
-              <div key={item.name}>
-                <dt className="font-semibold">{item.name}</dt>
-                <dd className="text-muted">{item.note}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-        {card.kind === "tips" ? (
-          <ul className="space-y-2">
-            {(card.body as string[]).map((tip) => (
-              <li key={tip}>{tip}</li>
-            ))}
-          </ul>
-        ) : null}
+        <div className="grid gap-6 md:grid-cols-3 md:gap-5">
+          {hasWhy ? (
+            <div>
+              <h3 className="font-serif text-lg text-ink">Why this works</h3>
+              <p className="mt-2 text-sm leading-7 text-ink/90">{whyItWorks}</p>
+            </div>
+          ) : null}
+          {hasKeys ? (
+            <div>
+              <h3 className="font-serif text-lg text-ink">Key ingredients</h3>
+              <dl className="mt-2 space-y-3">
+                {keyIngredients.map((item) => (
+                  <div key={item.name}>
+                    <dt className="text-sm font-semibold text-ink">{item.name}</dt>
+                    <dd className="text-sm leading-6 text-muted">{item.note}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ) : null}
+          {hasTips ? (
+            <div>
+              <h3 className="font-serif text-lg text-ink">Studio tips</h3>
+              <ul className="mt-2 space-y-2 text-sm leading-6 text-ink/90">
+                {tips.map((tip) => (
+                  <li key={tip} className="flex gap-2">
+                    <span className="text-terracotta">•</span>
+                    <span>{tip}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
       </div>
-    </article>
+    </section>
   );
 }

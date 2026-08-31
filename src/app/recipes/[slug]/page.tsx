@@ -139,6 +139,16 @@ export default async function RecipePage({ params }: Props) {
 
         {youtube ? <RecipeWatchMethod /> : null}
 
+        {youtube || seriesLinks.length ? (
+          <RecipeContinuedViewing
+            watchNext={watchNext}
+            seriesLinks={seriesLinks}
+            recipeSlug={recipe.slug}
+            recipeName={recipe.title}
+            sourceVideoId={youtube?.videoId}
+          />
+        ) : null}
+
         {recipe.faqs.length ? (
           <section id="faqs" className="mt-10 scroll-mt-24">
             <h2 className="font-serif text-2xl text-ink">Frequently asked</h2>
@@ -164,16 +174,6 @@ export default async function RecipePage({ params }: Props) {
               </div>
             ))}
           </section>
-        ) : null}
-
-        {youtube || seriesLinks.length ? (
-          <RecipeContinuedViewing
-            watchNext={watchNext}
-            seriesLinks={seriesLinks}
-            recipeSlug={recipe.slug}
-            recipeName={recipe.title}
-            sourceVideoId={youtube?.videoId}
-          />
         ) : null}
 
         <RecipeReviews

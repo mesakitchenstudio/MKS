@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
 import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
-import { RecipeCookMode } from "@/components/RecipeCookMode";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
-import { trackEvent } from "@/lib/analytics";
 import { scaleAmount } from "@/lib/culinary-format";
 import { nutritionHasPublicContent } from "@/lib/field-content";
 import {
@@ -112,7 +110,6 @@ export function RecipeCookingWorkspace({
   youtube?: ResolvedRecipeYoutube | null;
 }) {
   const [servings, setServings] = useState(recipe.servings);
-  const [cookModeOpen, setCookModeOpen] = useState(false);
   const factor = servings / recipe.servings;
   const stages = useMemo(() => recipeInstructionStages(recipe), [recipe]);
   const stepCount = totalInstructionSteps(stages);
@@ -137,17 +134,8 @@ export function RecipeCookingWorkspace({
     setOpenStages((current) => ({ ...current, [id]: !current[id] }));
   }
 
-  function openCookMode() {
-    trackEvent("recipe_cook_mode_start", {
-      recipe_slug: recipe.slug,
-      recipe_title: recipe.title,
-    });
-    setCookModeOpen(true);
-  }
-
   return (
-    <>
-      <section
+    <section
         id="recipe-cooking"
         className="recipe-cooking-workspace scroll-mt-24 bg-paper px-4 py-6 md:px-6 md:py-7"
       >
@@ -172,14 +160,6 @@ export function RecipeCookingWorkspace({
                   Expand all
                 </button>
               ) : null}
-              <button
-                type="button"
-                onClick={openCookMode}
-                aria-label="Open cook mode — guided step-by-step view"
-                className="rounded-full border border-olive px-4 py-2 text-sm font-semibold text-olive hover:bg-olive/5"
-              >
-                Cook mode
-              </button>
             </div>
           </div>
 
@@ -262,14 +242,21 @@ export function RecipeCookingWorkspace({
           </div>
 
           {recipe.notes.length ? (
-            <div className="mt-8 border-t border-line/80 pt-5">
-              <h3 className="font-serif text-lg text-ink">Notes</h3>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-muted">
+            <aside className="mt-6 border border-line/80 bg-cream/50 px-4 py-4 md:px-5">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+                Recipe notes
+              </p>
+              <h3 className="mt-1 font-serif text-lg text-ink">Notes</h3>
+              <p className="mt-1 text-sm text-muted">Useful details before you start.</p>
+              <ul className="mt-3 space-y-2">
                 {recipe.notes.map((note) => (
-                  <li key={note}>{note}</li>
+                  <li key={note} className="flex gap-2.5 text-sm leading-6 text-ink/90">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-terracotta" aria-hidden />
+                    <span>{note}</span>
+                  </li>
                 ))}
               </ul>
-            </div>
+            </aside>
           ) : null}
 
           {showNutrition ? (
@@ -283,17 +270,6 @@ export function RecipeCookingWorkspace({
           ) : null}
         </div>
       </section>
-
-      {cookModeOpen ? (
-        <RecipeCookMode
-          recipe={recipe}
-          stages={stages}
-          servings={servings}
-          factor={factor}
-          onClose={() => setCookModeOpen(false)}
-        />
-      ) : null}
-    </>
   );
 }
 

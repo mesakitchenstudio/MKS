@@ -140,6 +140,7 @@ export function RecipeVideoProvider({
 
   const onCloseFloating = useCallback(() => {
     setFloatingDismissed(true);
+    setDocked(true);
     trackVideoEvent("recipe_floating_video_close", {
       recipeSlug,
       recipeName,

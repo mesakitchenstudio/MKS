@@ -7,6 +7,9 @@ import { useRecipeVideo } from "./RecipeVideoContext";
 const SCROLL_SHOW_RATIO = 0.5;
 const AUTO_HIDE_MS = 60_000;
 
+const closeButtonClass =
+  "no-print absolute -right-1 -top-1 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-paper text-lg font-semibold leading-none text-ink shadow-md transition-colors hover:bg-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+
 export function FloatingRecipeVideo() {
   const {
     youtube,
@@ -179,40 +182,26 @@ export function FloatingRecipeVideo() {
     !playing &&
     !floatingDismissed &&
     !footerVisible;
-  const showMiniChrome = playing && !docked && !floatingDismissed && !footerVisible;
 
-  if (!showScrollCard && !showMiniChrome) return null;
-
-  if (showScrollCard) {
-    return (
-      <ScrollCard
-        recipeName={recipeName}
-        youtube={youtube}
-        onClose={onCloseFloating}
-        onPlay={() => {
-          trackVideoEvent("recipe_floating_video_play", {
-            recipeSlug,
-            recipeName,
-            videoId: youtube.videoId,
-            videoTitle: youtube.title,
-            source: "floating_card",
-          });
-          activate({ source: "floating_card" });
-          scrollToVideo();
-        }}
-      />
-    );
-  }
+  if (!showScrollCard) return null;
 
   return (
-    <button
-      type="button"
-      aria-label="Close mini player"
-      onClick={onCloseFloating}
-      className="no-print fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-[46] flex h-7 w-7 items-center justify-center rounded-full border border-line bg-paper text-sm font-semibold text-ink shadow-md hover:bg-cream sm:bottom-[calc(6.5rem+env(safe-area-inset-bottom))] sm:right-6"
-    >
-      ×
-    </button>
+    <ScrollCard
+      recipeName={recipeName}
+      youtube={youtube}
+      onClose={onCloseFloating}
+      onPlay={() => {
+        trackVideoEvent("recipe_floating_video_play", {
+          recipeSlug,
+          recipeName,
+          videoId: youtube.videoId,
+          videoTitle: youtube.title,
+          source: "floating_card",
+        });
+        activate({ source: "floating_card" });
+        scrollToVideo();
+      }}
+    />
   );
 }
 
@@ -234,11 +223,12 @@ function ScrollCard({
     >
       <button
         type="button"
-        aria-label="Close video suggestion"
+        aria-label="Close video"
+        title="Close video"
         onClick={onClose}
-        className="absolute -left-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border border-line bg-paper text-xs font-semibold text-ink shadow-md hover:bg-cream"
+        className={closeButtonClass}
       >
-        ×
+        <span aria-hidden>×</span>
       </button>
       <button
         type="button"

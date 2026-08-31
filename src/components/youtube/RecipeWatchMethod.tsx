@@ -6,7 +6,10 @@ import { useRecipeVideo } from "./RecipeVideoContext";
 import { RecipeVideoChapters } from "./RecipeVideoChapters";
 import { WatchNextPrompt } from "./WatchNextPrompt";
 import { YouTubeEmbedFacade } from "./YouTubeEmbedFacade";
-import { WatchMethodSubscribe } from "./RecipeCompactSubscribe";
+import {
+  WatchMethodSubscribeInline,
+  WatchMethodSubscribeStage,
+} from "./RecipeCompactSubscribe";
 
 export function RecipeWatchMethod() {
   const {
@@ -18,15 +21,18 @@ export function RecipeWatchMethod() {
     playing,
     docked,
     expanded,
+    floatingDismissed,
     startSeconds,
     onPlayStart,
     mainAnchorRef,
     expandWatchMethod,
     activate,
+    onCloseFloating,
   } = useRecipeVideo();
 
   const [showWatchNext, setShowWatchNext] = useState(false);
-  const miniPlayer = playing && !docked && expanded;
+  const miniPlayer = playing && !docked && expanded && !floatingDismissed;
+  const showSubscribeStage = expanded && active;
 
   function openExpanded() {
     expandWatchMethod({ source: "recipe_top_watch" });
@@ -36,15 +42,6 @@ export function RecipeWatchMethod() {
     expandWatchMethod({ source: "recipe_top_watch", scroll: false });
     activate({ source: "recipe_top_watch" });
   }
-
-  const subscribeCta = (
-    <WatchMethodSubscribe
-      recipeSlug={recipeSlug}
-      recipeName={recipeName}
-      videoId={youtube.videoId}
-      className={expanded ? "mt-4 border-t border-line/60 pt-4" : "mt-4"}
-    />
-  );
 
   return (
     <section
@@ -74,7 +71,12 @@ export function RecipeWatchMethod() {
             >
               Watch step by step
             </button>
-            {subscribeCta}
+            <WatchMethodSubscribeInline
+              recipeSlug={recipeSlug}
+              recipeName={recipeName}
+              videoId={youtube.videoId}
+              className="mt-4"
+            />
           </div>
         </div>
       ) : (
@@ -87,9 +89,20 @@ export function RecipeWatchMethod() {
             className={
               miniPlayer
                 ? "fixed bottom-20 right-4 z-[45] aspect-video w-[min(100vw-2rem,16rem)] overflow-hidden border border-line bg-sand shadow-[0_16px_40px_rgba(42,34,24,0.22)] sm:bottom-24 sm:right-6 sm:w-[17.5rem]"
-                : "mt-3 aspect-video overflow-hidden border border-line bg-sand"
+                : "relative mt-3 aspect-video overflow-hidden border border-line bg-sand"
             }
           >
+            {miniPlayer ? (
+              <button
+                type="button"
+                aria-label="Close video"
+                title="Close video"
+                onClick={onCloseFloating}
+                className={`no-print absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-paper/95 text-lg font-semibold leading-none text-ink shadow-md transition-colors hover:bg-cream ${"focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"}`}
+              >
+                <span aria-hidden>×</span>
+              </button>
+            ) : null}
             <YouTubeEmbedFacade
               key={active ? `${youtube.videoId}-${startSeconds}` : youtube.videoId}
               videoId={youtube.videoId}
@@ -159,7 +172,20 @@ export function RecipeWatchMethod() {
             ) : null}
           </div>
 
-          {subscribeCta}
+          {showSubscribeStage ? (
+            <WatchMethodSubscribeStage
+              recipeSlug={recipeSlug}
+              recipeName={recipeName}
+              videoId={youtube.videoId}
+            />
+          ) : (
+            <WatchMethodSubscribeInline
+              recipeSlug={recipeSlug}
+              recipeName={recipeName}
+              videoId={youtube.videoId}
+              className="mt-4 border-t border-line/60 pt-4"
+            />
+          )}
         </div>
       )}
     </section>
