@@ -36,8 +36,11 @@ export function VideoTimestampLink({
           chapterLabel: label,
         });
         if (ctx) {
-          ctx.activate({ start: time, source: "instruction_timestamp" });
-          ctx.scrollToVideo();
+          ctx.expandWatchMethod({
+            start: time,
+            source: "instruction_timestamp",
+            scroll: false,
+          });
           return;
         }
         const url = youtubeWatchUrlAt(videoId, time);

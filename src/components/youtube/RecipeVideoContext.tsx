@@ -32,8 +32,15 @@ type RecipeVideoContextValue = {
   setFloatingDismissed: (value: boolean) => void;
   setExpanded: (value: boolean) => void;
   activate: (options?: { start?: number; source?: VideoAnalyticsSource }) => void;
-  expandWatchMethod: (options?: { source?: VideoAnalyticsSource; scroll?: boolean }) => void;
+  expandWatchMethod: (options?: {
+    source?: VideoAnalyticsSource;
+    scroll?: boolean;
+    start?: number;
+    load?: boolean;
+    trigger?: HTMLElement | null;
+  }) => void;
   collapseWatchMethod: () => void;
+  takeLastTrigger: () => HTMLElement | null;
   scrollToVideo: () => void;
   onPlayStart: () => void;
   onCloseFloating: () => void;
@@ -56,6 +63,7 @@ export function RecipeVideoProvider({
   children: ReactNode;
 }) {
   const mainAnchorRef = useRef<HTMLDivElement>(null);
+  const lastTriggerRef = useRef<HTMLElement | null>(null);
   const expandedRef = useRef(false);
   const [active, setActive] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -75,11 +83,26 @@ export function RecipeVideoProvider({
   }, []);
 
   const expandWatchMethod = useCallback(
-    (options?: { source?: VideoAnalyticsSource; scroll?: boolean }) => {
+    (options?: {
+      source?: VideoAnalyticsSource;
+      scroll?: boolean;
+      start?: number;
+      load?: boolean;
+      trigger?: HTMLElement | null;
+    }) => {
+      if (options?.trigger) {
+        lastTriggerRef.current = options.trigger;
+      }
       const firstExpand = !expandedRef.current;
       expandedRef.current = true;
       setExpanded(true);
       setVideoInteracted(true);
+      if (options?.start !== undefined) {
+        setStartSeconds(options.start);
+        setActive(true);
+      } else if (options?.load) {
+        setActive(true);
+      }
       if (firstExpand) {
         trackVideoEvent("recipe_video_expand", {
           recipeSlug,
@@ -95,8 +118,9 @@ export function RecipeVideoProvider({
         videoId: youtube.videoId,
         videoTitle: youtube.title,
         source: options?.source ?? "recipe_top_watch",
+        timestamp: options?.start || undefined,
       });
-      if (options?.scroll !== false) {
+      if (options?.scroll) {
         const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         mainAnchorRef.current?.scrollIntoView({
           behavior: prefersReducedMotion ? "auto" : "smooth",
@@ -113,6 +137,12 @@ export function RecipeVideoProvider({
     setPlaying(false);
     setDocked(true);
     setStartSeconds(0);
+  }, []);
+
+  const takeLastTrigger = useCallback(() => {
+    const trigger = lastTriggerRef.current;
+    lastTriggerRef.current = null;
+    return trigger;
   }, []);
 
   const activate = useCallback(
@@ -181,6 +211,7 @@ export function RecipeVideoProvider({
       activate,
       expandWatchMethod,
       collapseWatchMethod,
+      takeLastTrigger,
       scrollToVideo,
       onPlayStart,
       onCloseFloating,
@@ -202,6 +233,7 @@ export function RecipeVideoProvider({
       activate,
       expandWatchMethod,
       collapseWatchMethod,
+      takeLastTrigger,
       scrollToVideo,
       onPlayStart,
       onCloseFloating,

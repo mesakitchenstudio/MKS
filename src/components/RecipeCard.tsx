@@ -243,7 +243,7 @@ export function RecipeCookingWorkspace({
           </div>
 
           {recipe.notes.length ? (
-            <aside className="mt-6 border border-line/80 bg-cream/50 px-4 py-4 md:px-5">
+            <aside className="mt-5 border border-line/80 bg-cream/50 px-4 py-3 md:px-5">
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
                 Recipe notes
               </p>

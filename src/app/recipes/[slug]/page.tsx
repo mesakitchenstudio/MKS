@@ -131,7 +131,7 @@ export default async function RecipePage({ params }: Props) {
 
       <RecipeCookingWorkspace recipe={recipe} youtube={youtube} />
 
-      <RecipeContentShell className="pb-8">
+      <RecipeContentShell className="pb-6">
         <RecipeLearnSection
           whyItWorks={recipe.whyItWorks}
           keyIngredients={recipe.keyIngredients}
@@ -151,7 +151,7 @@ export default async function RecipePage({ params }: Props) {
         ) : null}
 
         {recipe.faqs.length ? (
-          <section id="faqs" className="mt-10 scroll-mt-24">
+          <section id="faqs" className="mt-8 scroll-mt-24">
             <h2 className="font-serif text-2xl text-ink">Frequently asked</h2>
             <div className="mt-4 space-y-5">
               {recipe.faqs.map((faq) => (

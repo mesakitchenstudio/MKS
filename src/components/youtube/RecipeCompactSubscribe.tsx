@@ -2,89 +2,87 @@
 
 import { site } from "@/data/site";
 import { trackEvent } from "@/lib/analytics";
+import { trackVideoEvent } from "@/lib/video-analytics";
 
 const subscribeUrl = `${site.social.youtube}?sub_confirmation=1`;
 
 const linkFocus =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
-/** Compact left-aligned subscribe hint in collapsed Watch the method. */
-export function WatchMethodSubscribeInline({
+/** YouTube actions below the video modal player. */
+export function WatchMethodModalActions({
+  watchUrl,
   recipeSlug,
   recipeName,
   videoId,
-  className = "",
+  videoTitle,
+  playlistUrl,
+  playlistLabel,
+  onWatchYouTube,
 }: {
-  recipeSlug?: string;
-  recipeName?: string;
-  videoId?: string;
-  className?: string;
+  watchUrl: string;
+  recipeSlug: string;
+  recipeName: string;
+  videoId: string;
+  videoTitle: string;
+  playlistUrl?: string;
+  playlistLabel?: string;
+  onWatchYouTube?: () => void;
 }) {
   return (
-    <div className={`no-print ${className}`}>
-      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-        Like learning this way?
+    <div className="no-print mt-4 border-t border-line/60 pt-4">
+      <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-4">
+        <a
+          href={watchUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={onWatchYouTube}
+          className={`text-sm font-semibold text-muted hover:text-terracotta hover:underline ${linkFocus}`}
+        >
+          Watch on YouTube ↗
+        </a>
+        <a
+          href={subscribeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Subscribe to Mesa Kitchen Studio on YouTube"
+          onClick={() =>
+            trackEvent("recipe_youtube_subscribe_click", {
+              recipe_slug: recipeSlug,
+              recipe_title: recipeName,
+              video_id: videoId,
+              source: "watch_method_subscribe",
+            })
+          }
+          className={`inline-flex min-h-11 items-center justify-center rounded-sm bg-olive px-5 py-2.5 text-sm font-semibold text-paper hover:bg-olive-dark ${linkFocus}`}
+        >
+          Subscribe on YouTube
+        </a>
+      </div>
+      <p className="mt-3 text-center text-sm text-muted">
+        New recipes and kitchen techniques every week.
       </p>
-      <p className="mt-1 text-sm leading-6 text-muted">
-        Get new Mesa recipes and cooking techniques every week.
-      </p>
-      <a
-        href={subscribeUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Subscribe to Mesa Kitchen Studio on YouTube"
-        onClick={() =>
-          trackEvent("recipe_youtube_subscribe_click", {
-            recipe_slug: recipeSlug,
-            recipe_title: recipeName,
-            video_id: videoId,
-            source: "watch_method_subscribe",
-          })
-        }
-        className={`mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-olive hover:text-terracotta hover:underline ${linkFocus}`}
-      >
-        Subscribe on YouTube →
-      </a>
-    </div>
-  );
-}
-
-/** Centered conversion stage below the expanded video embed. */
-export function WatchMethodSubscribeStage({
-  recipeSlug,
-  recipeName,
-  videoId,
-}: {
-  recipeSlug?: string;
-  recipeName?: string;
-  videoId?: string;
-}) {
-  return (
-    <div className="no-print mt-6 px-2 text-center sm:px-4">
-      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-        Keep cooking with Mesa
-      </p>
-      <p className="mt-2 font-serif text-xl text-ink">More recipes, every week</p>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-        Watch new recipes and kitchen techniques from Mesa Kitchen Studio.
-      </p>
-      <a
-        href={subscribeUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Subscribe to Mesa Kitchen Studio on YouTube"
-        onClick={() =>
-          trackEvent("recipe_youtube_subscribe_click", {
-            recipe_slug: recipeSlug,
-            recipe_title: recipeName,
-            video_id: videoId,
-            source: "watch_method_subscribe",
-          })
-        }
-        className={`mt-4 inline-flex min-h-11 w-full max-w-xs items-center justify-center rounded-sm bg-olive px-6 py-2.5 text-sm font-semibold text-paper hover:bg-olive-dark sm:w-auto ${linkFocus}`}
-      >
-        Subscribe on YouTube
-      </a>
+      {playlistUrl && playlistLabel ? (
+        <p className="mt-2 text-center">
+          <a
+            href={playlistUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() =>
+              trackVideoEvent("recipe_youtube_playlist_click", {
+                recipeSlug,
+                recipeName,
+                videoId,
+                videoTitle,
+                source: "main_embed",
+              })
+            }
+            className={`text-xs font-semibold text-muted hover:text-olive hover:underline ${linkFocus}`}
+          >
+            View more {playlistLabel} →
+          </a>
+        </p>
+      ) : null}
     </div>
   );
 }

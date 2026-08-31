@@ -13,7 +13,7 @@ function normalizeChapters(timestamps: RecipeYoutubeTimestamp[] | undefined) {
 }
 
 export function RecipeVideoChapters() {
-  const { youtube, recipeSlug, recipeName, activate, scrollToVideo } = useRecipeVideo();
+  const { youtube, recipeSlug, recipeName, expandWatchMethod } = useRecipeVideo();
   const initialChapters = useMemo(
     () => normalizeChapters(youtube.timestamps),
     [youtube.timestamps],
@@ -65,8 +65,7 @@ export function RecipeVideoChapters() {
                   chapterLabel: chapter.label,
                   chapterIndex: index,
                 });
-                activate({ start: chapter.time, source: "main_embed" });
-                scrollToVideo();
+                expandWatchMethod({ start: chapter.time, source: "main_embed", scroll: false });
               }}
             >
               <span className="shrink-0 tabular-nums text-xs font-semibold uppercase tracking-wide text-muted">

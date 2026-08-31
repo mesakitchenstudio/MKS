@@ -1,5 +1,6 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { useRecipeVideoOptional } from "@/components/youtube/RecipeVideoContext";
 import { trackEvent } from "@/lib/analytics";
 
@@ -21,9 +22,13 @@ export function RecipePageHeroActions({
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function watchMethod() {
+  function watchMethod(event: MouseEvent<HTMLButtonElement>) {
     if (video) {
-      video.expandWatchMethod({ source: "recipe_top_watch" });
+      video.expandWatchMethod({
+        source: "recipe_top_watch",
+        scroll: false,
+        trigger: event.currentTarget,
+      });
       return;
     }
     document.getElementById("watch-method")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -43,7 +48,7 @@ export function RecipePageHeroActions({
         <button
           type="button"
           onClick={watchMethod}
-          aria-label="Watch the method — expand video"
+          aria-label="Watch the method — open video"
           className="no-print rounded-full border border-olive px-4 py-2.5 text-sm font-semibold text-olive hover:bg-olive/5"
         >
           Watch the method

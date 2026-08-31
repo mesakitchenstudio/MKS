@@ -16,13 +16,12 @@ export function FloatingRecipeVideo() {
     recipeSlug,
     recipeName,
     playing,
-    docked,
+    expanded,
     floatingDismissed,
     scrollCardVisible,
     setScrollCardVisible,
     setDocked,
-    activate,
-    scrollToVideo,
+    expandWatchMethod,
     onCloseFloating,
     mainAnchorRef,
   } = useRecipeVideo();
@@ -177,6 +176,7 @@ export function FloatingRecipeVideo() {
     allowPrePlayCard &&
     recipeCardPassed &&
     !mainVideoVisible &&
+    !expanded &&
     scrollCardVisible &&
     !scrollCardExpired &&
     !playing &&
@@ -198,8 +198,7 @@ export function FloatingRecipeVideo() {
           videoTitle: youtube.title,
           source: "floating_card",
         });
-        activate({ source: "floating_card" });
-        scrollToVideo();
+        expandWatchMethod({ source: "floating_card", scroll: false, load: true });
       }}
     />
   );

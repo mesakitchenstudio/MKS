@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
 import type { WatchNextRecommendation } from "@/lib/youtube-data/watch-next-select";
 import { FloatingRecipeVideo } from "./FloatingRecipeVideo";
+import { RecipeVideoModal } from "./RecipeVideoModal";
 import { RecipeVideoProvider } from "./RecipeVideoContext";
 
 export function RecipeVideoExperience({
@@ -27,6 +28,7 @@ export function RecipeVideoExperience({
       watchNext={watchNext}
     >
       {children}
+      <RecipeVideoModal />
       <FloatingRecipeVideo />
     </RecipeVideoProvider>
   );

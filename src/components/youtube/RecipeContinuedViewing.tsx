@@ -6,6 +6,9 @@ import type { WatchNextRecommendation } from "@/lib/youtube-data/watch-next-sele
 import type { RecipeSeriesLink } from "@/lib/series-types";
 import { trackVideoEvent } from "@/lib/video-analytics";
 
+const linkFocus =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+
 function sameDestination(
   watchNext: WatchNextRecommendation | null,
   seriesLink: RecipeSeriesLink | null,
@@ -33,10 +36,11 @@ export function RecipeContinuedViewing({
 
   if (merged && watchNext && primarySeries) {
     return (
-      <ContinuedCard
+      <ContinuedStrip
         seriesSlug={primarySeries.slug}
         seriesTitle={primarySeries.shortTitle || primarySeries.title}
         title={watchNext.title}
+        subtitle={watchNext.recipeTitle}
         thumbnailUrl={watchNext.thumbnailUrl}
         durationDisplay={watchNext.durationDisplay}
         recipeSlug={watchNext.recipeSlug}
@@ -52,7 +56,7 @@ export function RecipeContinuedViewing({
 
   if (seriesNext?.recipeSlug) {
     return (
-      <ContinuedCard
+      <ContinuedStrip
         seriesSlug={primarySeries!.slug}
         seriesTitle={primarySeries!.shortTitle || primarySeries!.title}
         title={seriesNext.title}
@@ -75,8 +79,9 @@ export function RecipeContinuedViewing({
 
   if (watchNext) {
     return (
-      <ContinuedCard
+      <ContinuedStrip
         title={watchNext.title}
+        subtitle={watchNext.recipeTitle}
         thumbnailUrl={watchNext.thumbnailUrl}
         durationDisplay={watchNext.durationDisplay}
         recipeSlug={watchNext.recipeSlug}
@@ -93,10 +98,11 @@ export function RecipeContinuedViewing({
   return null;
 }
 
-function ContinuedCard({
+function ContinuedStrip({
   seriesSlug,
   seriesTitle,
   title,
+  subtitle,
   thumbnailUrl,
   durationDisplay,
   recipeSlug,
@@ -110,6 +116,7 @@ function ContinuedCard({
   seriesSlug?: string;
   seriesTitle?: string;
   title: string;
+  subtitle?: string;
   thumbnailUrl?: string;
   durationDisplay?: string;
   recipeSlug?: string | null;
@@ -135,15 +142,12 @@ function ContinuedCard({
   const videoHref = recipeSlug ? `/recipes/${recipeSlug}#watch-method` : watchUrl;
 
   return (
-    <section className="mt-6 border border-line bg-sand/40 px-4 py-4 sm:px-5">
+    <section className="mt-5 scroll-mt-24 border-t border-line/70 pt-4">
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
         {seriesSlug && seriesTitle ? (
           <>
             Next in{" "}
-            <Link
-              href={`/series/${seriesSlug}`}
-              className="text-terracotta hover:underline"
-            >
+            <Link href={`/series/${seriesSlug}`} className={`text-terracotta hover:underline ${linkFocus}`}>
               {seriesTitle}
             </Link>
           </>
@@ -153,21 +157,24 @@ function ContinuedCard({
       </p>
       <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start">
         {thumbnailUrl ? (
-          <div className="relative aspect-video w-full shrink-0 overflow-hidden border border-line bg-sand sm:w-40">
-            <Image src={thumbnailUrl} alt="" fill sizes="(min-width: 640px) 11rem, 100vw" className="object-cover" />
+          <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-sand sm:w-28">
+            <Image src={thumbnailUrl} alt="" fill sizes="7rem" className="object-cover" />
           </div>
         ) : null}
         <div className="min-w-0 flex-1">
-          <h3 className="font-serif text-xl leading-snug text-ink">{title}</h3>
-          {durationDisplay ? <p className="mt-1 text-xs text-muted">{durationDisplay}</p> : null}
-          <div className="mt-3 flex flex-wrap gap-3">
+          <h3 className="font-serif text-lg leading-snug text-ink">{title}</h3>
+          {durationDisplay ? <p className="mt-0.5 text-xs text-muted">{durationDisplay}</p> : null}
+          {subtitle && subtitle !== title ? (
+            <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{subtitle}</p>
+          ) : null}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold">
             {recipeSlug ? (
               <Link
                 href={`/recipes/${recipeSlug}`}
                 onClick={trackClick}
-                className="inline-flex min-h-11 items-center justify-center rounded-sm bg-olive px-4 py-2.5 text-sm font-semibold text-paper hover:bg-olive-dark"
+                className={`text-olive hover:text-terracotta hover:underline ${linkFocus}`}
               >
-                View recipe
+                View recipe →
               </Link>
             ) : null}
             {videoHref ? (
@@ -175,7 +182,7 @@ function ContinuedCard({
                 <Link
                   href={videoHref}
                   onClick={trackClick}
-                  className="inline-flex min-h-11 items-center justify-center rounded-sm border border-line bg-paper px-4 py-2.5 text-sm font-semibold text-ink hover:border-olive hover:text-olive"
+                  className={`text-muted hover:text-terracotta hover:underline ${linkFocus}`}
                 >
                   Watch video
                 </Link>
@@ -185,7 +192,7 @@ function ContinuedCard({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={trackClick}
-                  className="inline-flex min-h-11 items-center justify-center rounded-sm border border-line bg-paper px-4 py-2.5 text-sm font-semibold text-ink hover:border-olive hover:text-olive"
+                  className={`text-muted hover:text-terracotta hover:underline ${linkFocus}`}
                 >
                   Watch video
                 </a>

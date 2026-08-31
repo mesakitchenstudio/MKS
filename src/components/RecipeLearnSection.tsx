@@ -35,7 +35,6 @@ export function RecipeLearnSection({
   if (!hasWhy && !hasKeys && !hasTips) return null;
 
   const summaryParts: string[] = [];
-  if (hasWhy) summaryParts.push("Why it works");
   if (hasKeys) {
     summaryParts.push(
       `${keyIngredients.length} key ingredient${keyIngredients.length === 1 ? "" : "s"}`,
@@ -45,7 +44,17 @@ export function RecipeLearnSection({
     summaryParts.push(`${tips.length} studio tip${tips.length === 1 ? "" : "s"}`);
   }
 
-  return <RecipeLearnAccordion whyItWorks={whyItWorks} keyIngredients={keyIngredients} tips={tips} summaryParts={summaryParts} hasWhy={hasWhy} hasKeys={hasKeys} hasTips={hasTips} />;
+  return (
+    <RecipeLearnAccordion
+      whyItWorks={whyItWorks}
+      keyIngredients={keyIngredients}
+      tips={tips}
+      summaryParts={summaryParts}
+      hasWhy={hasWhy}
+      hasKeys={hasKeys}
+      hasTips={hasTips}
+    />
+  );
 }
 
 function RecipeLearnAccordion({
@@ -69,49 +78,49 @@ function RecipeLearnAccordion({
   const panelId = "recipe-learn-panel";
 
   return (
-    <section
-      id="recipe-learn"
-      className="mt-6 scroll-mt-24 border border-line/80 bg-sand/30"
-    >
+    <section id="recipe-learn" className="mt-5 scroll-mt-24 border-t border-line/70 pt-4">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
-        className="no-print flex w-full items-start justify-between gap-4 px-4 py-4 text-left transition-colors hover:bg-cream/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-terracotta sm:px-5"
+        className="no-print flex w-full items-start justify-between gap-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
       >
         <div className="min-w-0 flex-1">
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">Learn</p>
-          <h2 className="mt-1 font-serif text-xl text-ink md:text-2xl">Technique & context</h2>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">Learn</p>
+          <h2 className="mt-1 font-serif text-xl text-ink">Technique & context</h2>
           {!open ? (
             <>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                Understand why the recipe works, the ingredients that matter, and Mesa&apos;s
-                practical tips.
+                Why this recipe works, which ingredients matter, and the studio techniques worth
+                knowing.
               </p>
-              <p className="mt-2 text-sm font-medium text-ink/80">{summaryParts.join(" · ")}</p>
+              {summaryParts.length ? (
+                <p className="mt-2 text-sm font-medium text-ink/80">{summaryParts.join(" · ")}</p>
+              ) : null}
             </>
           ) : null}
         </div>
-        <span className="flex shrink-0 items-center gap-2 pt-1 text-sm font-semibold text-muted">
+        <span className="flex shrink-0 items-center gap-1.5 pt-1 text-sm font-semibold text-muted">
           <span className="hidden sm:inline">{open ? "Collapse" : "Expand"}</span>
+          <span className="sm:hidden">{open ? "↑" : "↓"}</span>
           <ChevronDown open={open} />
         </span>
       </button>
 
       <div
         id={panelId}
-        className={`border-t border-line/60 px-4 pb-5 pt-4 sm:px-5 ${open ? "block" : "hidden print:block"}`}
+        className={`border-t border-line/60 pt-4 ${open ? "mt-3 block" : "hidden print:block"}`}
       >
-        <div className="grid gap-6 md:grid-cols-3 md:gap-5">
+        <div className="grid gap-6 md:grid-cols-3 md:gap-8 md:divide-x md:divide-line/60">
           {hasWhy ? (
-            <div>
+            <div className="md:pr-6">
               <h3 className="font-serif text-lg text-ink">Why this works</h3>
               <p className="mt-2 text-sm leading-7 text-ink/90">{whyItWorks}</p>
             </div>
           ) : null}
           {hasKeys ? (
-            <div>
+            <div className={hasWhy ? "md:px-6" : "md:pr-6"}>
               <h3 className="font-serif text-lg text-ink">Key ingredients</h3>
               <dl className="mt-2 space-y-3">
                 {keyIngredients.map((item) => (
@@ -124,7 +133,7 @@ function RecipeLearnAccordion({
             </div>
           ) : null}
           {hasTips ? (
-            <div>
+            <div className={hasWhy || hasKeys ? "md:pl-6" : ""}>
               <h3 className="font-serif text-lg text-ink">Studio tips</h3>
               <ul className="mt-2 space-y-2 text-sm leading-6 text-ink/90">
                 {tips.map((tip) => (
