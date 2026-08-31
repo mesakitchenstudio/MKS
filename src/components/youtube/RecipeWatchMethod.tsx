@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { trackVideoEvent } from "@/lib/video-analytics";
+import { RecipeVideoChapters } from "./RecipeVideoChapters";
 import { useRecipeVideo } from "./RecipeVideoContext";
 
 const focusRing =
@@ -72,6 +73,8 @@ export function RecipeWatchMethod() {
           </div>
         </div>
       </div>
+
+      <RecipeVideoChapters placement="recipe_video_chapters" />
     </section>
   );
 }

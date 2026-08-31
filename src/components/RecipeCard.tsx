@@ -69,7 +69,7 @@ function StageVideoHelpLink({
           recipeName: recipe.title,
           videoId: youtube.videoId,
           videoTitle: youtube.title,
-          source: "stage_video_help",
+          source: "instruction_context",
           timestamp: help.time,
           chapterLabel: help.chapterLabel,
           stageName,
@@ -77,7 +77,7 @@ function StageVideoHelpLink({
         if (ctx) {
           ctx.expandWatchMethod({
             start: help.time,
-            source: "stage_video_help",
+            source: "instruction_context",
             scroll: false,
           });
           return;

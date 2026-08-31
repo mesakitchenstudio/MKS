@@ -154,7 +154,7 @@ export function RecipeVideoModal() {
             />
           ) : null}
 
-          <RecipeVideoChapters />
+          <RecipeVideoChapters placement="video_modal" collapsible />
 
           <WatchMethodModalActions
             watchUrl={youtube.watchUrl}

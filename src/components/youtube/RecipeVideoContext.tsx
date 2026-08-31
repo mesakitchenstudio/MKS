@@ -87,26 +87,27 @@ export function RecipeVideoProvider({
     () => normalizeChapters(youtube.timestamps),
     [youtube.timestamps],
   );
-  const [chapters, setChapters] = useState(initialChapters);
+  const [fetchedChapters, setFetchedChapters] = useState<RecipeYoutubeTimestamp[] | null>(null);
+  const chapters = useMemo(() => {
+    if (initialChapters.length) return initialChapters;
+    if (fetchedChapters?.length) return fetchedChapters;
+    return [];
+  }, [fetchedChapters, initialChapters]);
 
   useEffect(() => {
-    setChapters(initialChapters);
-  }, [initialChapters]);
-
-  useEffect(() => {
-    if (chapters.length || !youtube.videoId) return;
+    if (initialChapters.length || !youtube.videoId) return;
     let cancelled = false;
     fetch(`/api/youtube/chapters?videoId=${encodeURIComponent(youtube.videoId)}`)
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { timestamps?: RecipeYoutubeTimestamp[] } | null) => {
         if (cancelled || !data?.timestamps?.length) return;
-        setChapters(normalizeChapters(data.timestamps));
+        setFetchedChapters(normalizeChapters(data.timestamps));
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [chapters.length, youtube.videoId]);
+  }, [initialChapters.length, youtube.videoId]);
 
   const scrollToVideo = useCallback(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
