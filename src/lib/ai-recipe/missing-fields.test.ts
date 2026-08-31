@@ -105,6 +105,20 @@ test("listMissingAiFillableFields skips VERIFIED and human-modified fields", () 
   assert.ok(keys.includes("cuisine"));
 });
 
+test("listMissingAiFillableFields includes empty categories", () => {
+  const result = listMissingAiFillableFields({
+    fields,
+    title: "Bread",
+    slug: "bread",
+    excerpt: "Short blurb",
+    categoryIds: [],
+    values: { cuisine: "French", notes: "Done", imageAlt: "alt" },
+    aiMeta: meta(),
+  });
+
+  assert.ok(result.missing.some((row) => row.path === "categoryIds"));
+});
+
 test("isFieldEligibleForTargetedFill blocks protected and verified paths", () => {
   assert.equal(
     isFieldEligibleForTargetedFill({

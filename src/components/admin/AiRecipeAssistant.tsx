@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin-ui";
 import { youtubeVideoId } from "@/lib/youtube";
 import { mergeTargetedFillIntoEditor } from "@/lib/ai-recipe/targeted-merge";
+import type { MissingAiField } from "@/lib/ai-recipe/missing-fields";
 
 type DraftPayload = {
   typeId: string;
@@ -31,6 +32,7 @@ export type AiGenerateApplyPayload = {
 
 export type AiTargetedFillApplyPayload = {
   excerpt: string;
+  categoryIds?: string[];
   values: Record<string, unknown>;
   aiMeta: RecipeAiMeta | null;
 };
@@ -76,6 +78,7 @@ export function AiRecipeAssistant({
   aiMeta,
   current,
   missingCount,
+  missingFields = [],
   onApply,
   onTargetedFill,
   onReviewEstimated,
@@ -94,9 +97,11 @@ export function AiRecipeAssistant({
     title: string;
     slug: string;
     excerpt: string;
+    categoryIds?: string[];
     values: Record<string, unknown>;
   };
   missingCount: number;
+  missingFields?: MissingAiField[];
   onApply: (payload: AiGenerateApplyPayload) => void;
   onTargetedFill: (payload: AiTargetedFillApplyPayload) => void;
   onReviewEstimated?: () => void;
@@ -115,6 +120,7 @@ export function AiRecipeAssistant({
   const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);
   const [destructiveReplaceOpen, setDestructiveReplaceOpen] = useState(false);
   const [pendingReplaceMode, setPendingReplaceMode] = useState<AiMergeMode | null>(null);
+  const [fillPreviewOpen, setFillPreviewOpen] = useState(false);
   const [showLongRunningHint, setShowLongRunningHint] = useState(false);
 
   const currentVideoId = useMemo(
@@ -272,6 +278,7 @@ export function AiRecipeAssistant({
     setFillBusy(true);
     setError("");
     setFillMessage("");
+    setFillPreviewOpen(false);
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), FILL_TIMEOUT_MS);
     try {
@@ -286,7 +293,10 @@ export function AiRecipeAssistant({
           recipeId,
           youtubeUrl: effectiveUrl || undefined,
           mode: "missing",
-          current,
+          current: {
+            ...current,
+            categoryIds: current.categoryIds ?? [],
+          },
           aiMeta,
         }),
         signal: controller.signal,
@@ -310,7 +320,10 @@ export function AiRecipeAssistant({
         return;
       }
       const merged = mergeTargetedFillIntoEditor({
-        current,
+        current: {
+          ...current,
+          categoryIds: current.categoryIds ?? [],
+        },
         draft: data.draft,
         requestedPaths: data.requestedPaths,
         confidenceByPath: data.confidenceByPath ?? {},
@@ -372,11 +385,15 @@ export function AiRecipeAssistant({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={anyBusy || disabled || !typeId}
-              onClick={() => void runFillMissing()}
+              disabled={anyBusy || disabled || !typeId || missingCount === 0}
+              onClick={() => setFillPreviewOpen((open) => !open)}
               className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              {fillBusy ? "Filling missing fields…" : "Fill missing fields"}
+              {fillBusy
+                ? "Filling missing fields…"
+                : missingCount > 0
+                  ? `✦ Fill ${missingCount} missing field${missingCount === 1 ? "" : "s"}`
+                  : "Fill missing fields"}
             </button>
             {!hasSuccessfulGeneration || isNewSourceVideo ? (
               <button
@@ -389,6 +406,39 @@ export function AiRecipeAssistant({
               </button>
             ) : null}
           </div>
+
+          {fillPreviewOpen && missingFields.length ? (
+            <div className="mt-3 rounded-sm border border-olive/25 bg-olive/5 px-3 py-3">
+              <p className="text-sm font-semibold text-ink">
+                Fill {missingFields.length} missing field{missingFields.length === 1 ? "" : "s"}
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
+                {missingFields.map((field) => (
+                  <li key={field.path}>{field.label}</li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={anyBusy || disabled}
+                  onClick={() => void runFillMissing()}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                >
+                  Confirm fill
+                </button>
+                <button
+                  type="button"
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                  onClick={() => setFillPreviewOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                Level 2 — uses existing recipe context only. Populated fields are not replaced.
+              </p>
+            </div>
+          ) : null}
 
           {aiMeta?.generatedByAI ? (
             <div className="mt-3 flex flex-wrap gap-2">

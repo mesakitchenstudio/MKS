@@ -12,8 +12,10 @@ export function TagsChipEditor({
   onOptimize,
   optimizeBusy,
   optimizeProposal,
+  optimizeLabel = "✦ Suggest tags",
   onApplyOptimize,
   onDismissOptimize,
+  onTryAnotherOptimize,
 }: {
   value: string[];
   onChange: (next: string[]) => void;
@@ -21,8 +23,10 @@ export function TagsChipEditor({
   onOptimize?: () => void;
   optimizeBusy?: boolean;
   optimizeProposal?: string[] | null;
+  optimizeLabel?: string;
   onApplyOptimize?: () => void;
   onDismissOptimize?: () => void;
+  onTryAnotherOptimize?: () => void;
 }) {
   const inputId = useId();
   const [draft, setDraft] = useState("");
@@ -125,7 +129,7 @@ export function TagsChipEditor({
             disabled={disabled || optimizeBusy}
             onClick={onOptimize}
           >
-            {optimizeBusy ? "Optimizing…" : "✦ Optimize tags"}
+            {optimizeBusy ? "Generating…" : optimizeLabel}
           </button>
         ) : null}
       </div>
@@ -151,14 +155,24 @@ export function TagsChipEditor({
               className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
               onClick={onApplyOptimize}
             >
-              Apply suggested tags
+              Use suggestion
             </button>
+            {onTryAnotherOptimize ? (
+              <button
+                type="button"
+                className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
+                disabled={optimizeBusy}
+                onClick={onTryAnotherOptimize}
+              >
+                Try another
+              </button>
+            ) : null}
             <button
               type="button"
               className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
               onClick={onDismissOptimize}
             >
-              Keep current tags
+              Keep current
             </button>
           </div>
         </div>

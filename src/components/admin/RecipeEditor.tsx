@@ -10,7 +10,8 @@ import {
   type AiTargetedFillApplyPayload,
 } from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
-import { FieldAiActionButton } from "@/components/admin/FieldAiActionButton";
+import { FieldAiFieldActions } from "@/components/admin/FieldAiFieldActions";
+import { FieldAiSuggestionPanel } from "@/components/admin/FieldAiSuggestionPanel";
 import { TagsChipEditor } from "@/components/admin/TagsChipEditor";
 import { YoutubeMetadataEditor } from "@/components/admin/YoutubeMetadataEditor";
 import { RecipeYoutubeConnection } from "@/components/admin/RecipeYoutubeConnection";
@@ -36,7 +37,12 @@ import {
   editorHasContent,
   mergeAiDraftIntoEditor,
 } from "@/lib/ai-recipe/normalize";
-import { mergeTargetedFillIntoEditor } from "@/lib/ai-recipe/targeted-merge";
+import { mergeTargetedFillIntoEditor, extractTargetedFieldValue } from "@/lib/ai-recipe/targeted-merge";
+import {
+  fieldPathHasContent,
+  isFieldAiPath,
+  type FieldAiIntent,
+} from "@/lib/ai-recipe/field-ai-registry";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
 import { EditorStatusBadge } from "@/components/admin/EditorStatusBadge";
 import {
@@ -112,8 +118,8 @@ const MEDIA_PRIMARY_KEYS = ["image", "imageAlt", "youtubeUrl"] as const;
 
 const ADVANCED_KEYS = ["floatingYoutubeUrl", "youtube", "nutrition"] as const;
 
-/** Field keys that show a per-field ✦ Generate / Optimize control. */
-const FIELD_AI_KEYS = new Set(["cuisine", "holiday", "notes", "imageAlt", "tags"]);
+/** Keys excluded from per-field AI (protected or structural). */
+const FIELD_AI_EXCLUDED_KEYS = new Set(["ingredients", "instructions", "image", "youtube", "youtubeUrl", "floatingYoutubeUrl"]);
 
 const ALL_GROUPED = new Set<string>([
   ...DETAILS_KEYS,
@@ -478,6 +484,16 @@ export function RecipeEditor({
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [fieldAiBusy, setFieldAiBusy] = useState<string | null>(null);
   const [fieldAiNotice, setFieldAiNotice] = useState<Record<string, string>>({});
+  const [fieldSuggestions, setFieldSuggestions] = useState<
+    Record<
+      string,
+      {
+        currentValue: unknown;
+        suggestion: unknown;
+        pending: AiTargetedFillApplyPayload;
+      }
+    >
+  >({});
   const [tagOptimizeProposal, setTagOptimizeProposal] = useState<string[] | null>(null);
   const [tagOptimizeBusy, setTagOptimizeBusy] = useState(false);
   const tagOptimizePendingRef = useRef<AiTargetedFillApplyPayload | null>(null);
@@ -542,10 +558,11 @@ export function RecipeEditor({
         title,
         slug,
         excerpt,
+        categoryIds,
         values,
         aiMeta,
       }),
-    [aiMeta, excerpt, fields, slug, title, values],
+    [aiMeta, categoryIds, excerpt, fields, slug, title, values],
   );
   const missingBySection = useMemo(
     () => countMissingBySection(missingFields.missing),
@@ -973,11 +990,37 @@ export function RecipeEditor({
 
   function applyTargetedFill(payload: AiTargetedFillApplyPayload) {
     setExcerpt(payload.excerpt);
+    if (payload.categoryIds) setCategoryIds(payload.categoryIds);
     setValues(hydrateEditorValues(fields, payload.values));
     setAiMeta(payload.aiMeta);
   }
 
-  async function runFieldAi(path: string, key: string, allowRepopulate = true) {
+  function currentFieldValue(path: string, key: string): unknown {
+    if (path === "excerpt") return excerpt;
+    if (path === "categoryIds") return categoryIds;
+    return values[key];
+  }
+
+  function clearFieldSuggestion(path: string) {
+    setFieldSuggestions((current) => {
+      const next = { ...current };
+      delete next[path];
+      return next;
+    });
+  }
+
+  function applyFieldSuggestion(path: string) {
+    const suggestion = fieldSuggestions[path];
+    if (!suggestion) return;
+    applyTargetedFill(suggestion.pending);
+    clearFieldSuggestion(path);
+    setFieldAiNotice((current) => ({
+      ...current,
+      [path]: "AI SUGGESTION — REVIEW",
+    }));
+  }
+
+  async function runFieldAi(path: string, key: string, intent: FieldAiIntent = "generate") {
     setFieldAiBusy(path);
     setFieldAiNotice((current) => {
       const next = { ...current };
@@ -985,6 +1028,18 @@ export function RecipeEditor({
       return next;
     });
     if (key === "tags") setTagOptimizeBusy(true);
+
+    const kind = fields.find((field) => field.key === key)?.kind;
+    const currentValue = currentFieldValue(path, key);
+    const hasContent = fieldPathHasContent({
+      path,
+      kind,
+      value: currentValue,
+      excerpt,
+      categoryIds,
+    });
+    const effectiveIntent: FieldAiIntent =
+      intent === "generate" && hasContent ? "improve" : intent;
 
     try {
       const youtubeUrl = String(values.youtubeUrl ?? "").trim();
@@ -997,8 +1052,9 @@ export function RecipeEditor({
           youtubeUrl: youtubeUrl || undefined,
           mode: "fields",
           fields: [path],
-          allowRepopulate,
-          current: { title, slug, excerpt, values },
+          allowRepopulate: true,
+          fieldIntent: effectiveIntent,
+          current: { title, slug, excerpt, categoryIds, values },
           aiMeta,
         }),
       });
@@ -1006,34 +1062,77 @@ export function RecipeEditor({
         ok?: boolean;
         error?: string;
         requestedPaths?: string[];
-        draft?: { excerpt: string; values: Record<string, unknown> };
+        draft?: {
+          excerpt: string;
+          categoryIds?: string[];
+          values: Record<string, unknown>;
+        };
         confidenceByPath?: RecipeAiMeta["confidenceByPath"];
       };
       if (!response.ok || !data.ok || !data.draft) {
         setFieldAiNotice((current) => ({
           ...current,
-          [path]: data.error || "AI could not generate a suggestion.",
+          [path]: data.error || "Could not generate this field. Try again.",
         }));
         return;
       }
 
       const merged = mergeTargetedFillIntoEditor({
-        current: { title, slug, excerpt, values },
+        current: { title, slug, excerpt, categoryIds, values },
         draft: data.draft,
         requestedPaths: data.requestedPaths?.length ? data.requestedPaths : [path],
         confidenceByPath: data.confidenceByPath ?? {},
         aiMeta,
       });
 
-      if (key === "tags") {
-        const tags = Array.isArray(merged.values.tags)
-          ? (merged.values.tags as unknown[]).map((tag) => String(tag ?? "").trim()).filter(Boolean)
-          : [];
-        tagOptimizePendingRef.current = merged;
-        setTagOptimizeProposal(tags);
-        setFieldAiNotice((current) => ({
+      const suggestionValue = extractTargetedFieldValue({ path, draft: merged });
+
+      if (path === "categoryIds" && hasContent) {
+        const mergedIds = merged.categoryIds ?? [];
+        const newIds = mergedIds.filter((id) => !categoryIds.includes(id));
+        if (!newIds.length) {
+          setFieldAiNotice((current) => ({
+            ...current,
+            [path]: "No additional categories suggested.",
+          }));
+          return;
+        }
+        setFieldSuggestions((current) => ({
           ...current,
-          [path]: "AI SUGGESTION — REVIEW",
+          [path]: {
+            currentValue: categoryIds,
+            suggestion: newIds,
+            pending: merged,
+          },
+        }));
+        return;
+      }
+
+      if (key === "tags") {
+        const tags = Array.isArray(suggestionValue)
+          ? (suggestionValue as unknown[]).map((tag) => String(tag ?? "").trim()).filter(Boolean)
+          : [];
+        if (hasContent) {
+          tagOptimizePendingRef.current = merged;
+          setTagOptimizeProposal(tags);
+        } else {
+          applyTargetedFill(merged);
+          setFieldAiNotice((current) => ({
+            ...current,
+            [path]: "AI SUGGESTION — REVIEW",
+          }));
+        }
+        return;
+      }
+
+      if (hasContent && (effectiveIntent === "improve" || effectiveIntent === "alternative")) {
+        setFieldSuggestions((current) => ({
+          ...current,
+          [path]: {
+            currentValue,
+            suggestion: suggestionValue,
+            pending: merged,
+          },
         }));
         return;
       }
@@ -1046,7 +1145,7 @@ export function RecipeEditor({
     } catch {
       setFieldAiNotice((current) => ({
         ...current,
-        [path]: "AI could not generate a suggestion.",
+        [path]: "Could not generate this field. Try again.",
       }));
     } finally {
       setFieldAiBusy(null);
@@ -1211,7 +1310,7 @@ export function RecipeEditor({
 
     const fieldPath = `values.${field.key}`;
     const showFieldAi =
-      FIELD_AI_KEYS.has(field.key) && field.key !== "tags" && field.kind !== "tags";
+      isFieldAiPath(fieldPath) && !FIELD_AI_EXCLUDED_KEYS.has(field.key) && field.kind !== "tags";
 
     function clearFieldError() {
       if (fieldErrors[field.key]) {
@@ -1239,9 +1338,12 @@ export function RecipeEditor({
           sourceNote={aiMeta?.confidenceByPath[`values.${field.key}`]?.sourceNote}
           aiAction={
             showFieldAi ? (
-              <FieldAiActionButton
+              <FieldAiFieldActions
+                path={fieldPath}
+                kind={field.kind}
+                value={values[field.key]}
                 busy={fieldAiBusy === fieldPath}
-                onClick={() => void runFieldAi(fieldPath, field.key)}
+                onAction={(intent) => void runFieldAi(fieldPath, field.key, intent)}
               />
             ) : undefined
           }
@@ -1272,9 +1374,20 @@ export function RecipeEditor({
               setField(field.key, next);
               clearFieldError();
             }}
-            onOptimize={() => void runFieldAi("values.tags", "tags")}
+            onOptimize={() =>
+              void runFieldAi(
+                "values.tags",
+                "tags",
+                tagOptimizeProposal || (Array.isArray(values.tags) && values.tags.length)
+                  ? "improve"
+                  : "generate",
+              )
+            }
             optimizeBusy={tagOptimizeBusy || fieldAiBusy === "values.tags"}
             optimizeProposal={tagOptimizeProposal}
+            optimizeLabel={
+              Array.isArray(values.tags) && values.tags.length ? "✦ Improve tags" : "✦ Suggest tags"
+            }
             onApplyOptimize={() => {
               if (tagOptimizePendingRef.current) {
                 applyTargetedFill(tagOptimizePendingRef.current);
@@ -1288,6 +1401,7 @@ export function RecipeEditor({
               tagOptimizePendingRef.current = null;
               setTagOptimizeProposal(null);
             }}
+            onTryAnotherOptimize={() => void runFieldAi("values.tags", "tags", "alternative")}
           />
         ) : (
           <KindInput
@@ -1304,6 +1418,21 @@ export function RecipeEditor({
             invalid={Boolean(fieldErrors[field.key])}
           />
         )}
+        {fieldAiBusy === fieldPath && !fieldSuggestions[fieldPath] ? (
+          <p className="mt-1.5 text-xs text-muted" role="status">
+            Generating suggestion…
+          </p>
+        ) : null}
+        {fieldSuggestions[fieldPath] ? (
+          <FieldAiSuggestionPanel
+            currentValue={fieldSuggestions[fieldPath].currentValue}
+            suggestion={fieldSuggestions[fieldPath].suggestion}
+            busy={fieldAiBusy === fieldPath}
+            onUseSuggestion={() => applyFieldSuggestion(fieldPath)}
+            onTryAnother={() => void runFieldAi(fieldPath, field.key, "alternative")}
+            onKeepCurrent={() => clearFieldSuggestion(fieldPath)}
+          />
+        ) : null}
         {fieldAiNotice[fieldPath] ? (
           <p
             className={`mt-1.5 text-xs font-semibold ${
@@ -1491,8 +1620,9 @@ export function RecipeEditor({
           onYoutubeUrlChange={(url) => setField("youtubeUrl", url)}
           linkedVideoId={youtubeVideoId(String(values.youtubeUrl ?? ""))}
           aiMeta={aiMeta}
-          current={{ title, slug, excerpt, values }}
+          current={{ title, slug, excerpt, categoryIds, values }}
           missingCount={missingFields.counts.missing}
+          missingFields={missingFields.missing}
           onApply={applyAiDraft}
           onTargetedFill={applyTargetedFill}
           onReviewEstimated={reviewEstimatedFields}
@@ -1597,9 +1727,13 @@ export function RecipeEditor({
               <span className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-ink">Excerpt</span>
-                  <FieldAiActionButton
+                  <FieldAiFieldActions
+                    path="excerpt"
+                    kind="textarea"
+                    excerpt={excerpt}
+                    value={excerpt}
                     busy={fieldAiBusy === "excerpt"}
-                    onClick={() => void runFieldAi("excerpt", "excerpt")}
+                    onAction={(intent) => void runFieldAi("excerpt", "excerpt", intent)}
                   />
                 </span>
                 <AiConfidenceBadge
@@ -1614,6 +1748,16 @@ export function RecipeEditor({
                 rows={3}
                 className={adminInputClass}
               />
+              {fieldSuggestions.excerpt ? (
+                <FieldAiSuggestionPanel
+                  currentValue={fieldSuggestions.excerpt.currentValue}
+                  suggestion={fieldSuggestions.excerpt.suggestion}
+                  busy={fieldAiBusy === "excerpt"}
+                  onUseSuggestion={() => applyFieldSuggestion("excerpt")}
+                  onTryAnother={() => void runFieldAi("excerpt", "excerpt", "alternative")}
+                  onKeepCurrent={() => clearFieldSuggestion("excerpt")}
+                />
+              ) : null}
               {fieldAiNotice.excerpt ? (
                 <p
                   className={`text-xs font-semibold ${
@@ -1656,7 +1800,22 @@ export function RecipeEditor({
                 </label>
               </div>
               <div className="mt-5">
-                <p className="mb-3 text-sm font-semibold text-ink">Categories</p>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-ink">Categories</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <FieldAiFieldActions
+                      path="categoryIds"
+                      categoryIds={categoryIds}
+                      value={categoryIds}
+                      busy={fieldAiBusy === "categoryIds"}
+                      onAction={(intent) => void runFieldAi("categoryIds", "categoryIds", intent)}
+                    />
+                    <AiConfidenceBadge
+                      confidence={aiMeta?.confidenceByPath.categoryIds?.confidence}
+                      sourceNote={aiMeta?.confidenceByPath.categoryIds?.sourceNote}
+                    />
+                  </div>
+                </div>
                 <div className="grid gap-4">
                   {categoryGroups.map((group) => (
                     <div key={group.group}>
@@ -1688,6 +1847,33 @@ export function RecipeEditor({
                     </div>
                   ))}
                 </div>
+                {fieldSuggestions.categoryIds ? (
+                  <FieldAiSuggestionPanel
+                    currentValue={categoryIds
+                      .map((id) => categories.find((category) => category.id === id)?.name ?? id)
+                      .join(", ")}
+                    suggestion={(fieldSuggestions.categoryIds.suggestion as string[])
+                      .map((id) => categories.find((category) => category.id === id)?.name ?? id)
+                      .join(", ")}
+                    suggestionLabel="Suggested categories"
+                    busy={fieldAiBusy === "categoryIds"}
+                    onUseSuggestion={() => applyFieldSuggestion("categoryIds")}
+                    onTryAnother={() => void runFieldAi("categoryIds", "categoryIds", "alternative")}
+                    onKeepCurrent={() => clearFieldSuggestion("categoryIds")}
+                  />
+                ) : null}
+                {fieldAiNotice.categoryIds ? (
+                  <p
+                    className={`mt-2 text-xs font-semibold ${
+                      fieldAiNotice.categoryIds === "AI SUGGESTION — REVIEW"
+                        ? "text-olive"
+                        : "text-terracotta"
+                    }`}
+                    role="status"
+                  >
+                    {fieldAiNotice.categoryIds}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>

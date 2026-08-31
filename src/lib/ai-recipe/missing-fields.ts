@@ -76,6 +76,9 @@ function sectionForKey(key: string): MissingAiField["section"] {
 }
 
 function isEmptyForKind(kind: string | undefined, value: unknown): boolean {
+  if (kind === "categories") {
+    return !Array.isArray(value) || value.length === 0;
+  }
   if (!kind) return !String(value ?? "").trim();
   return !fieldValueHasContent(value, kind);
 }
@@ -101,6 +104,7 @@ export function listMissingAiFillableFields(input: {
   title: string;
   slug: string;
   excerpt: string;
+  categoryIds?: string[];
   values: Record<string, unknown>;
   aiMeta?: RecipeAiMeta | null;
 }): MissingAiFieldsResult {
@@ -117,6 +121,21 @@ export function listMissingAiFillableFields(input: {
     meta,
     section: "basics",
   });
+
+  if (
+    !isHumanLocked(meta, "categoryIds") &&
+    !isVerifiedPath(meta, "categoryIds") &&
+    !(input.categoryIds ?? []).length
+  ) {
+    missing.push({
+      path: "categoryIds",
+      key: "categoryIds",
+      label: "Categories",
+      kind: "categories",
+      reason: "empty",
+      section: "basics",
+    });
+  }
 
   for (const field of input.fields) {
     if (!isAiFillableFieldKey(field.key)) continue;

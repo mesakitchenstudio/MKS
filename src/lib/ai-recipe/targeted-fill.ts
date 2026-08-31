@@ -14,6 +14,8 @@ import {
   PROTECTED_AI_FILL_KEYS,
   type MissingAiField,
 } from "@/lib/ai-recipe/missing-fields";
+import { isFieldAiPath } from "@/lib/ai-recipe/field-ai-registry";
+import type { FieldAiIntent } from "@/lib/ai-recipe/field-ai-registry";
 import { generateTargetedRecipeFields } from "@/lib/ai-recipe/targeted-gemini";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { emptyAiSummary, tallyConfidence } from "@/lib/ai-recipe/types";
@@ -33,11 +35,14 @@ export type TargetedFillRequest = {
     title: string;
     slug: string;
     excerpt: string;
+    categoryIds?: string[];
     values: Record<string, unknown>;
   };
   aiMeta?: RecipeAiMeta | null;
   /** Explicit field regenerate (populated ok). */
   allowRepopulate?: boolean;
+  /** generate | improve | alternative for single-field requests. */
+  fieldIntent?: FieldAiIntent;
 };
 
 export type TargetedFillSuccess = {
@@ -50,6 +55,7 @@ export type TargetedFillSuccess = {
     title: string;
     slug: string;
     excerpt: string;
+    categoryIds?: string[];
     values: Record<string, unknown>;
   };
   confidenceByPath: RecipeAiMeta["confidenceByPath"];
@@ -112,6 +118,7 @@ function resolveRequestedFields(input: {
       title: input.current.title,
       slug: input.current.slug,
       excerpt: input.current.excerpt,
+      categoryIds: input.current.categoryIds,
       values: input.current.values,
       aiMeta: input.aiMeta,
     }).missing;
@@ -121,6 +128,30 @@ function resolveRequestedFields(input: {
   const out: MissingAiField[] = [];
 
   for (const token of requested) {
+    if (token === "categoryIds") {
+      if (
+        !isFieldEligibleForTargetedFill({
+          path: "categoryIds",
+          key: "categoryIds",
+          kind: "categories",
+          value: input.current.categoryIds ?? [],
+          aiMeta: input.aiMeta,
+          allowRepopulate: input.allowRepopulate,
+        })
+      ) {
+        continue;
+      }
+      out.push({
+        path: "categoryIds",
+        key: "categoryIds",
+        label: "Categories",
+        kind: "categories",
+        reason: "empty",
+        section: "basics",
+      });
+      continue;
+    }
+
     if (token === "excerpt" || token === "title" || token === "slug") {
       if (token !== "excerpt") continue;
       if (
@@ -147,7 +178,8 @@ function resolveRequestedFields(input: {
     }
 
     const key = token.startsWith("values.") ? token.slice("values.".length) : token;
-    const path = `values.${key}`;
+    const path = token.startsWith("values.") ? token : `values.${key}`;
+    if (!isFieldAiPath(path)) continue;
     if (PROTECTED_AI_FILL_KEYS.has(key) || !isAiFillableFieldKey(key)) continue;
     const field = input.typeFields.find((row) => row.key === key);
     if (!field) continue;
@@ -197,11 +229,14 @@ function applyReturnedFields(input: {
   const summary = emptyAiSummary();
   const nextValues = { ...input.current.values };
   let excerpt = input.current.excerpt;
+  let categoryIds = [...(input.current.categoryIds ?? [])];
 
   const allowed = new Set(input.requested.map((row) => row.path));
 
   for (const [rawPath, value] of Object.entries(input.returned)) {
-    const path = rawPath.startsWith("values.") || rawPath === "excerpt" ? rawPath : `values.${rawPath}`;
+    const path = rawPath.startsWith("values.") || rawPath === "excerpt" || rawPath === "categoryIds"
+      ? rawPath
+      : `values.${rawPath}`;
     if (!allowed.has(path) && !allowed.has(rawPath)) continue;
 
     const target = input.requested.find((row) => row.path === path || row.key === rawPath);
@@ -212,6 +247,19 @@ function applyReturnedFields(input: {
       if (!text.trim()) continue;
       excerpt = text.trim();
       confidenceByPath.excerpt = {
+        confidence: "HIGH_CONFIDENCE_INFERENCE",
+        sourceNote: "Targeted AI fill",
+      };
+      tallyConfidence("HIGH_CONFIDENCE_INFERENCE", summary);
+      continue;
+    }
+
+    if (target.path === "categoryIds") {
+      const ids = Array.isArray(value) ? value.map((id) => String(id)) : [];
+      if (!ids.length) continue;
+      const existing = new Set(categoryIds);
+      categoryIds = [...categoryIds, ...ids.filter((id) => !existing.has(id))];
+      confidenceByPath.categoryIds = {
         confidence: "HIGH_CONFIDENCE_INFERENCE",
         sourceNote: "Targeted AI fill",
       };
@@ -232,6 +280,7 @@ function applyReturnedFields(input: {
       title: input.current.title,
       slug: input.current.slug,
       excerpt,
+      categoryIds,
       values: nextValues,
     },
     confidenceByPath,
@@ -298,6 +347,7 @@ export async function runTargetedRecipeFill(
         title: input.current.title,
         slug: input.current.slug,
         excerpt: input.current.excerpt,
+        categoryIds: input.current.categoryIds ?? [],
         values: { ...input.current.values },
       },
       confidenceByPath: {},
@@ -375,11 +425,26 @@ export async function runTargetedRecipeFill(
     }
   }
 
+  const currentValuesByPath: Record<string, unknown> = {};
+  for (const row of requested) {
+    if (row.path === "excerpt") currentValuesByPath.excerpt = input.current.excerpt;
+    else if (row.path === "categoryIds") currentValuesByPath.categoryIds = input.current.categoryIds ?? [];
+    else currentValuesByPath[row.path] = input.current.values[row.key];
+  }
+
   const generated = await generateTargetedRecipeFields({
     fields: requested,
-    current: input.current,
+    current: {
+      title: input.current.title,
+      excerpt: input.current.excerpt,
+      categoryIds: input.current.categoryIds,
+      values: input.current.values,
+    },
     videoContext: aiMeta?.videoContext,
     cacheHints,
+    categories: schemaCategories,
+    fieldIntent: input.fieldIntent,
+    currentValuesByPath,
   });
 
   if (!generated.ok) {

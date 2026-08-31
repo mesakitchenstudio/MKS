@@ -39,9 +39,11 @@ export async function POST(request: Request) {
       title?: string;
       slug?: string;
       excerpt?: string;
+      categoryIds?: string[];
       values?: Record<string, unknown>;
     };
     aiMeta?: RecipeAiMeta | null;
+    fieldIntent?: "generate" | "improve" | "alternative";
   };
 
   try {
@@ -62,6 +64,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const fieldIntent =
+    body.fieldIntent === "improve" || body.fieldIntent === "alternative"
+      ? body.fieldIntent
+      : "generate";
+
   try {
     const result = await runTargetedRecipeFill({
       typeId,
@@ -70,10 +77,14 @@ export async function POST(request: Request) {
       mode,
       fields: body.fields,
       allowRepopulate: Boolean(body.allowRepopulate),
+      fieldIntent: mode === "fields" ? fieldIntent : undefined,
       current: {
         title: String(body.current?.title ?? ""),
         slug: String(body.current?.slug ?? ""),
         excerpt: String(body.current?.excerpt ?? ""),
+        categoryIds: Array.isArray(body.current?.categoryIds)
+          ? body.current.categoryIds.map((id) => String(id))
+          : [],
         values: body.current?.values && typeof body.current.values === "object" ? body.current.values : {},
       },
       aiMeta: body.aiMeta ?? null,

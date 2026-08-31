@@ -5,7 +5,14 @@ import {
   mapGeminiException,
   type AiGeminiError,
 } from "@/lib/ai-recipe/errors";
-import { defaultGeminiModel, geminiModelCandidates } from "@/lib/ai-recipe/schema-version";
+import {
+  buildTargetedFieldContext,
+  dedupeSuggestedTags,
+  fieldAiResponseSchemaHint,
+  normalizeFieldAiResponse,
+  type FieldAiIntent,
+} from "@/lib/ai-recipe/field-ai-registry";
+import { defaultGeminiModel, geminiModelCandidates, type SchemaCategory } from "@/lib/ai-recipe/schema-version";
 import type { RecipeAiVideoContext } from "@/lib/ai-recipe/types";
 
 const TARGETED_TIMEOUT_MS = 45_000;
@@ -30,10 +37,14 @@ export async function generateTargetedRecipeFields(input: {
   current: {
     title: string;
     excerpt: string;
+    categoryIds?: string[];
     values: Record<string, unknown>;
   };
   videoContext?: RecipeAiVideoContext | null;
   cacheHints?: Record<string, unknown> | null;
+  categories?: SchemaCategory[];
+  fieldIntent?: FieldAiIntent;
+  currentValuesByPath?: Record<string, unknown>;
 }): Promise<TargetedGeminiSuccess | TargetedGeminiFailure> {
   const ai = getGeminiClient();
   if (!ai) {
@@ -43,57 +54,43 @@ export async function generateTargetedRecipeFields(input: {
     };
   }
 
-  const fieldList = input.fields
-    .map((field) => `- ${field.path} (${field.label}, kind=${field.kind})`)
-    .join("\n");
+  const intent = input.fieldIntent ?? "generate";
+  const allowedCategoryIds = new Set((input.categories ?? []).map((category) => category.id));
 
-  const contextBlock = [
-    input.videoContext?.dishContext ? `Dish: ${input.videoContext.dishContext}` : "",
-    input.videoContext?.semanticSummary ? `Summary:\n${input.videoContext.semanticSummary}` : "",
-    input.videoContext?.ingredientEvidence?.length
-      ? `Ingredient evidence:\n${input.videoContext.ingredientEvidence.slice(0, 20).join("\n")}`
-      : "",
-    input.videoContext?.instructionStageEvidence?.length
-      ? `Stages:\n${input.videoContext.instructionStageEvidence
-          .map((stage) => `- ${stage.title}${stage.notes ? `: ${stage.notes}` : ""}`)
-          .join("\n")}`
-      : "",
-    input.videoContext?.timingNotes ? `Timing: ${input.videoContext.timingNotes}` : "",
-    input.videoContext?.videoDuration ? `Video duration: ${input.videoContext.videoDuration}` : "",
-  ]
-    .filter(Boolean)
+  const fieldInstructions = input.fields
+    .map((field) => {
+      const currentValue = input.currentValuesByPath?.[field.path];
+      const context = buildTargetedFieldContext({
+        path: field.path,
+        current: input.current,
+        videoContext: input.videoContext,
+        categories: input.categories,
+        currentValue,
+        intent,
+      });
+      return [
+        `Field: ${field.path} (${field.label}, kind=${field.kind})`,
+        `Output schema: ${fieldAiResponseSchemaHint(field.path)}`,
+        `Context: ${JSON.stringify(context)}`,
+      ].join("\n");
+    })
     .join("\n\n");
 
-  const currentSnapshot = {
-    title: input.current.title,
-    excerpt: input.current.excerpt,
-    cuisine: input.current.values.cuisine,
-    holiday: input.current.values.holiday,
-    notes: input.current.values.notes,
-    intro: truncate(input.current.values.intro, 400),
-    tags: input.current.values.tags,
-    imageAlt: input.current.values.imageAlt,
-    faqs: input.current.values.faqs,
-    keyIngredients: input.current.values.keyIngredients,
-  };
-
   const prompt = [
-    "You fill missing Mesa Kitchen Studio recipe metadata fields.",
-    "Return ONLY a JSON object: { \"fields\": { \"<path>\": <value>, ... } }.",
-    "Only include the requested paths. Do not invent ingredients or instructions.",
-    "If a field cannot be determined reliably, omit it (do not invent confident nonsense).",
-    "For tags (values.tags), return a compact string[] of useful editorial tags (max 12), deduped.",
-    "For namedNotes/faqs, return [{ name, note }] arrays.",
-    "Prefer HIGH_CONFIDENCE_INFERENCE quality; never claim VERIFIED FROM VIDEO.",
+    "You fill Mesa Kitchen Studio recipe metadata fields using existing recipe context only.",
+    "Return ONLY JSON: { \"fields\": { \"<path>\": <value>, ... } }.",
+    "Only include requested paths. Do not invent ingredients, instructions, or categories outside taxonomy.",
+    "Never claim VERIFIED FROM VIDEO — use editorial inference quality.",
+    intent === "improve"
+      ? "Improve the current value: clearer, more useful, still accurate."
+      : intent === "alternative"
+        ? "Offer a meaningfully different alternative to the current value."
+        : "Generate content for empty fields only.",
     "",
     "Requested fields:",
-    fieldList,
-    "",
-    "Current recipe snapshot:",
-    JSON.stringify(currentSnapshot),
-    contextBlock ? `\nCached video analysis:\n${contextBlock}` : "",
+    fieldInstructions,
     input.cacheHints && Object.keys(input.cacheHints).length
-      ? `\nCached draft hints:\n${JSON.stringify(input.cacheHints).slice(0, 4000)}`
+      ? `\nCached draft hints:\n${JSON.stringify(input.cacheHints).slice(0, 3000)}`
       : "",
   ]
     .filter(Boolean)
@@ -136,10 +133,32 @@ export async function generateTargetedRecipeFields(input: {
         continue;
       }
       const parsed = JSON.parse(jsonText) as { fields?: Record<string, unknown> };
-      const fields =
+      const rawFields =
         parsed.fields && typeof parsed.fields === "object" && !Array.isArray(parsed.fields)
           ? parsed.fields
           : (parsed as Record<string, unknown>);
+
+      const fields: Record<string, unknown> = {};
+      for (const field of input.fields) {
+        const raw = rawFields[field.path] ?? rawFields[field.key];
+        const normalized = normalizeFieldAiResponse({
+          path: field.path,
+          raw,
+          allowedCategoryIds,
+        });
+        if (normalized == null) continue;
+        if (field.path === "values.tags" && Array.isArray(normalized)) {
+          fields[field.path] = dedupeSuggestedTags(normalized.map((tag) => String(tag)));
+        } else {
+          fields[field.path] = normalized;
+        }
+      }
+
+      if (!Object.keys(fields).length) {
+        lastError = buildAiGeminiError("RECIPE_SCHEMA_EMPTY", "recipe_schema");
+        continue;
+      }
+
       return { ok: true, model, fields };
     } catch (error) {
       lastError = mapGeminiException(error, "recipe_schema");
@@ -153,11 +172,6 @@ export async function generateTargetedRecipeFields(input: {
     ok: false,
     error: lastError || buildAiGeminiError("GEMINI_UNKNOWN_ERROR", "unknown"),
   };
-}
-
-function truncate(value: unknown, max: number) {
-  const text = String(value ?? "");
-  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 export function targetedGeminiDefaultModel() {

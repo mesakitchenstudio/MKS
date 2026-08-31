@@ -26,6 +26,7 @@ test("mergeTargetedFillIntoEditor only updates requested paths", () => {
       title: "Bread",
       slug: "bread",
       excerpt: "",
+      categoryIds: [],
       values: {
         cuisine: "",
         intro: "Keep me",
@@ -64,12 +65,37 @@ test("mergeTargetedFillIntoEditor no-ops safely when draft empty for path", () =
       title: "Bread",
       slug: "bread",
       excerpt: "Existing",
+      categoryIds: ["cat-1"],
       values: { cuisine: "French" },
     },
-    draft: { excerpt: "", values: {} },
+    draft: { excerpt: "", categoryIds: [], values: {} },
     requestedPaths: ["excerpt"],
     confidenceByPath: {},
     aiMeta: meta(),
   });
   assert.equal(result.excerpt, "Existing");
+  assert.deepEqual(result.categoryIds, ["cat-1"]);
+});
+
+test("mergeTargetedFillIntoEditor merges category suggestions without removing manual picks", () => {
+  const result = mergeTargetedFillIntoEditor({
+    current: {
+      title: "Bread",
+      slug: "bread",
+      excerpt: "",
+      categoryIds: ["cat-breads"],
+      values: {},
+    },
+    draft: {
+      excerpt: "",
+      categoryIds: ["cat-breads", "cat-oven"],
+      values: {},
+    },
+    requestedPaths: ["categoryIds"],
+    confidenceByPath: {
+      categoryIds: { confidence: "HIGH_CONFIDENCE_INFERENCE", sourceNote: "Targeted AI fill" },
+    },
+    aiMeta: meta(),
+  });
+  assert.deepEqual(result.categoryIds, ["cat-breads", "cat-oven"]);
 });
