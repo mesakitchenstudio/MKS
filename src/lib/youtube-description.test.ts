@@ -28,18 +28,40 @@ test("parseYoutubeDescriptionChapters reads timestamp lines from description", (
   assert.equal(chapters[3].confidence, "VERIFIED");
 });
 
-test("parseYoutubeDescriptionChapters accepts bracketed and dashed chapter lines", () => {
+test("parseYoutubeDescriptionChapters accepts hour-length and padded timestamps", () => {
   const chapters = parseYoutubeDescriptionChapters(`
-[0:00] Introduction
-(0:42) Mixing the dough
-1:35 - Stretch and fold
-3:10: Shaping
+00:00 Title
+01:22 Second
+1:02:15 Hour chapter
 `.trim());
-  assert.equal(chapters.length, 4);
-  assert.equal(chapters[0].label, "Introduction");
-  assert.equal(chapters[1].time, 42);
-  assert.equal(chapters[2].time, 95);
-  assert.equal(chapters[3].label, "Shaping");
+  assert.equal(chapters.length, 3);
+  assert.equal(chapters[0].time, 0);
+  assert.equal(chapters[1].time, 82);
+  assert.equal(chapters[2].time, 3735);
+  assert.equal(chapters[2].label, "Hour chapter");
+});
+
+test("parseYoutubeDescriptionChapters ignores malformed timestamps and mid-line times", () => {
+  const chapters = parseYoutubeDescriptionChapters(`
+0:00 Good
+not a chapter
+99:99 Bad time
+See 1:00 later in the line
+1:ab:00 Also bad
+2:00 Keep
+`.trim());
+  assert.equal(chapters.length, 2);
+  assert.equal(chapters[0].label, "Good");
+  assert.equal(chapters[1].label, "Keep");
+});
+
+test("parseYoutubeDescriptionChapters dedupes exact duplicate timestamps", () => {
+  const chapters = parseYoutubeDescriptionChapters(`
+0:00 Intro
+0:00 Intro
+1:00 Mix
+`.trim());
+  assert.equal(chapters.length, 2);
 });
 
 test("enrichYoutubeBlobFromDescription fills missing timestamps from description", () => {

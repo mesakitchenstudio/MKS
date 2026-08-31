@@ -8,6 +8,7 @@ import {
   applyYoutubeMetadataSync,
   applyYoutubeVideoLinkToValues,
   clearYoutubeLinkFromValues,
+  markChaptersSyncedFromYoutube,
   markHeroImageFromYoutube,
   metadataSyncWouldMutateRecipe,
   previewYoutubeMetadataSync,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/youtube-data/recipe-link";
 import { isRecipeAiVerified } from "@/lib/ai-recipe/field-tracking";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
+import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { YoutubeVideoSelector } from "@/components/admin/YoutubeVideoSelector";
 
 type LinkedVideoPreview = {
@@ -129,12 +131,20 @@ export function RecipeYoutubeConnection({
     };
     const nextValues = applyYoutubeVideoLinkToValues(values, video, { aiMeta });
     onValuesChange(nextValues);
-    if (
-      onAiMetaChange &&
-      shouldApplyYoutubeThumbnailAsHero(values, aiMeta, video.thumbnailUrl) &&
-      String(video.thumbnailUrl ?? "").trim()
-    ) {
-      onAiMetaChange(markHeroImageFromYoutube(aiMeta, video.videoId));
+    if (onAiMetaChange) {
+      let nextMeta = aiMeta;
+      if (
+        shouldApplyYoutubeThumbnailAsHero(values, aiMeta, video.thumbnailUrl) &&
+        String(video.thumbnailUrl ?? "").trim()
+      ) {
+        nextMeta = markHeroImageFromYoutube(nextMeta, video.videoId);
+      }
+      const chapterCount = parseRecipeYoutubeBlob(nextValues.youtube)?.timestamps?.length ?? 0;
+      const beforeCount = parseRecipeYoutubeBlob(values.youtube)?.timestamps?.length ?? 0;
+      if (chapterCount > 0 && chapterCount !== beforeCount) {
+        nextMeta = markChaptersSyncedFromYoutube(nextMeta, chapterCount);
+      }
+      if (nextMeta !== aiMeta) onAiMetaChange(nextMeta);
     }
     setSelectorOpen(false);
     setPendingVideoId(null);
@@ -182,6 +192,7 @@ export function RecipeYoutubeConnection({
       if (!response.ok) return;
       const before = values;
       const beforeImage = String(before.image ?? "").trim();
+      const beforeTimestamps = parseRecipeYoutubeBlob(before.youtube)?.timestamps ?? [];
       const nextValues = applyYoutubeMetadataSync({
         values,
         aiMeta,
@@ -199,8 +210,19 @@ export function RecipeYoutubeConnection({
         shouldApplyYoutubeThumbnailAsHero(before, aiMeta, data.thumbnailUrl) &&
         Boolean(nextImage) &&
         nextImage === String(data.thumbnailUrl ?? "").trim();
-      if (onAiMetaChange && (filledEmptyHero || replacedInheritedHero)) {
-        onAiMetaChange(markHeroImageFromYoutube(aiMeta, data.videoId));
+      const afterTimestamps = parseRecipeYoutubeBlob(nextValues.youtube)?.timestamps ?? [];
+      const chaptersSynced =
+        afterTimestamps.length > 0 &&
+        JSON.stringify(beforeTimestamps) !== JSON.stringify(afterTimestamps);
+      if (onAiMetaChange) {
+        let nextMeta = aiMeta;
+        if (filledEmptyHero || replacedInheritedHero) {
+          nextMeta = markHeroImageFromYoutube(nextMeta, data.videoId);
+        }
+        if (chaptersSynced) {
+          nextMeta = markChaptersSyncedFromYoutube(nextMeta, afterTimestamps.length);
+        }
+        if (nextMeta !== aiMeta) onAiMetaChange(nextMeta);
       }
       setSyncPreviewOpen(false);
       setVerifiedConfirm(false);

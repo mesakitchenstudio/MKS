@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   canReplaceFieldOnRegenerate,
+  mergeYoutubeMetadataValues,
   noteHumanEditorChange,
   shouldApplyDraftField,
 } from "./field-tracking";
@@ -109,4 +110,24 @@ test("replace_previous_ai skips verified recipe fields", () => {
     verificationStatus: "verified",
   };
   assert.equal(canReplaceFieldOnRegenerate("values.prepMinutes", meta), false);
+});
+
+test("replace_all_ai_fillable does not wipe existing YouTube chapters with empty Gemini draft", () => {
+  const current = {
+    duration: "7:39",
+    timestamps: [
+      { time: 0, label: "Intro" },
+      { time: 42, label: "Mix" },
+    ],
+  };
+  const draft = { duration: "7:39" };
+  const merged = mergeYoutubeMetadataValues({
+    current,
+    draft,
+    mode: "replace_all_ai_fillable",
+    meta: baseMeta,
+  });
+  const timestamps = (merged?.timestamps as { label?: string }[] | undefined) ?? [];
+  assert.equal(timestamps.length, 2);
+  assert.equal(timestamps[0]?.label, "Intro");
 });

@@ -336,7 +336,7 @@ describe("recipe-link", () => {
     assert.deepEqual(next.tags, ["keep"]);
   });
 
-  it("with allowVerifiedRecipeUpdates refreshes link mirrors but not custom hero or chapters", () => {
+  it("with allowVerifiedRecipeUpdates refreshes link mirrors and YouTube chapters but not custom hero or editorial", () => {
     const values = {
       image: "https://example.com/custom.jpg",
       tags: ["keep"],
@@ -359,10 +359,43 @@ describe("recipe-link", () => {
     assert.equal(next.image, "https://example.com/custom.jpg");
     assert.equal(next.intro, "Editorial intro");
     assert.deepEqual(next.tags, ["keep"]);
-    const blob = next.youtube as { duration?: string; thumbnail?: string; timestamps?: unknown[] };
+    const blob = next.youtube as {
+      duration?: string;
+      thumbnail?: string;
+      timestamps?: { time: number; label: string }[];
+    };
     assert.equal(blob.duration, sampleVideo.durationDisplay);
     assert.equal(blob.thumbnail, sampleVideo.thumbnailUrl);
     assert.equal(blob.timestamps?.length, 1);
+    assert.equal(blob.timestamps?.[0]?.label, "Intro");
+  });
+
+  it("preserves human-edited chapters on metadata refresh", () => {
+    const values = {
+      youtubeUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
+      youtube: {
+        videoId: "67Laso4MggU",
+        timestamps: [{ time: 0, label: "Manual chapter", stepIndex: 0 }],
+      },
+    };
+    const next = applyYoutubeMetadataSync({
+      values,
+      aiMeta: baseMeta({
+        fieldProvenance: {
+          "values.youtube.timestamps": {
+            aiGenerated: false,
+            aiGeneratedValue: null,
+            humanModifiedAfterGeneration: true,
+          },
+        },
+      }),
+      video: {
+        ...sampleVideo,
+        description: "0:00 Intro\n1:00 Mix the dough",
+      },
+    });
+    const blob = next.youtube as { timestamps?: { label: string }[] };
+    assert.equal(blob.timestamps?.[0]?.label, "Manual chapter");
   });
 
   it("verified + empty hero + confirmed refresh fills hero from thumbnail", () => {
@@ -385,7 +418,63 @@ describe("recipe-link", () => {
     assert.equal(next.image, sampleVideo.thumbnailUrl);
   });
 
-  it("previews metadata sync without overwriting saved chapters", () => {
+  it("imports description chapters when linking a video with empty timestamps", () => {
+    const next = applyYoutubeVideoLinkToValues(
+      {},
+      {
+        ...sampleVideo,
+        description: "0:00 Intro\n0:42 Mixing\n1:35 Stretch and fold",
+      },
+    );
+    const blob = next.youtube as { timestamps?: { time: number; label: string }[] };
+    assert.equal(blob.timestamps?.length, 3);
+    assert.equal(blob.timestamps?.[1]?.label, "Mixing");
+    assert.equal(blob.timestamps?.[1]?.time, 42);
+  });
+
+  it("refreshes empty timestamps from YouTube description chapters", () => {
+    const next = applyYoutubeMetadataSync({
+      values: {
+        ingredients: [{ name: "Dough", items: ["flour"] }],
+        youtubeUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
+        youtube: {
+          videoId: "67Laso4MggU",
+          duration: "5:38",
+          timestamps: [],
+        },
+      },
+      aiMeta: baseMeta(),
+      video: {
+        ...sampleVideo,
+        description: "0:00 Intro\n1:00 Mix\n2:00 Bake",
+      },
+    });
+    const blob = next.youtube as { timestamps?: { label: string }[] };
+    assert.equal(blob.timestamps?.length, 3);
+    assert.deepEqual(next.ingredients, [{ name: "Dough", items: ["flour"] }]);
+  });
+
+  it("updates previously synced chapters when YouTube description changes", () => {
+    const next = applyYoutubeMetadataSync({
+      values: {
+        youtubeUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
+        youtube: {
+          videoId: "67Laso4MggU",
+          timestamps: [{ time: 0, label: "Old intro" }],
+        },
+      },
+      aiMeta: baseMeta(),
+      video: {
+        ...sampleVideo,
+        description: "0:00 New intro\n1:30 New mix",
+      },
+    });
+    const blob = next.youtube as { timestamps?: { label: string }[] };
+    assert.equal(blob.timestamps?.length, 2);
+    assert.equal(blob.timestamps?.[0]?.label, "New intro");
+  });
+
+  it("previews metadata sync chapter updates unless human-locked", () => {
     const preview = previewYoutubeMetadataSync({
       values: {
         youtubeUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
@@ -400,7 +489,33 @@ describe("recipe-link", () => {
       },
     });
     const chapters = preview.find((row) => row.key === "youtube.timestamps");
-    assert.ok(chapters?.skipReason?.includes("saved chapters"));
+    assert.equal(chapters?.skipReason, undefined);
+    assert.ok(chapters?.next.includes("2 chapter"));
+  });
+
+  it("previews keeping human-edited chapters", () => {
+    const preview = previewYoutubeMetadataSync({
+      values: {
+        youtubeUrl: "https://www.youtube.com/watch?v=67Laso4MggU",
+        youtube: { timestamps: [{ time: 0, label: "Saved", stepIndex: 0 }] },
+      },
+      aiMeta: baseMeta({
+        fieldProvenance: {
+          "values.youtube.timestamps": {
+            aiGenerated: false,
+            aiGeneratedValue: null,
+            humanModifiedAfterGeneration: true,
+          },
+        },
+      }),
+      video: {
+        ...sampleVideo,
+        description: "0:00 Intro\n1:00 Mix",
+        tags: [],
+      },
+    });
+    const chapters = preview.find((row) => row.key === "youtube.timestamps");
+    assert.ok(chapters?.skipReason?.includes("Human-edited"));
   });
 
   it("does not invent a Hero image when thumbnail is missing", () => {

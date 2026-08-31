@@ -226,6 +226,19 @@ export function YoutubeMetadataEditor({
           sourceNote={confidenceAt(confidenceByPath, "values.youtube.timestamps")?.sourceNote}
         />
 
+        {(() => {
+          const chapterSourceNote =
+            confidenceAt(confidenceByPath, "values.youtube.timestamps")?.sourceNote ?? "";
+          const syncedFromYoutube =
+            /youtube description|synced from youtube/i.test(chapterSourceNote) ||
+            (/from youtube/i.test(chapterSourceNote) && state.timestamps.length > 0);
+          return syncedFromYoutube && state.timestamps.length ? (
+            <p className="mb-3 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
+              Synced from YouTube
+            </p>
+          ) : null;
+        })()}
+
         {state.timestamps.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[32rem] border-collapse text-sm">

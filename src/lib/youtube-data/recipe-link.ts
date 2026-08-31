@@ -219,17 +219,29 @@ export function applyYoutubeVideoLinkToValues(
     options?.applyHeroImage !== false &&
     shouldApplyYoutubeThumbnailAsHero(values, options?.aiMeta, video.thumbnailUrl);
 
+  const youtubeBlob: Record<string, unknown> = {
+    ...existing,
+    videoId: video.videoId,
+    title: video.title,
+    duration: video.durationDisplay,
+    thumbnail: video.thumbnailUrl,
+    url: watchUrl,
+  };
+
+  // Import description chapters into the recipe mirror when missing / not human-locked.
+  const descriptionChapters = parseYoutubeDescriptionChapters(video.description);
+  if (
+    descriptionChapters.length &&
+    !chaptersAreHumanLocked(options?.aiMeta) &&
+    !(existing.timestamps?.length ?? 0)
+  ) {
+    youtubeBlob.timestamps = aiChaptersToTimestamps(descriptionChapters);
+  }
+
   const next: Record<string, unknown> = {
     ...values,
     youtubeUrl: watchUrl,
-    youtube: {
-      ...existing,
-      videoId: video.videoId,
-      title: video.title,
-      duration: video.durationDisplay,
-      thumbnail: video.thumbnailUrl,
-      url: watchUrl,
-    },
+    youtube: youtubeBlob,
   };
 
   const thumbnailUrl = String(video.thumbnailUrl ?? "").trim();
@@ -254,9 +266,27 @@ function fieldIsHumanProtected(path: string, aiMeta: RecipeAiMeta | null | undef
   return Boolean(provenance?.humanModifiedAfterGeneration);
 }
 
-function hasSavedTimestamps(values: Record<string, unknown>): boolean {
-  const blob = parseRecipeYoutubeBlob(values.youtube);
-  return Boolean(blob?.timestamps?.length);
+function chaptersAreHumanLocked(aiMeta: RecipeAiMeta | null | undefined): boolean {
+  return Boolean(
+    aiMeta?.fieldProvenance?.["values.youtube.timestamps"]?.humanModifiedAfterGeneration,
+  );
+}
+
+export function markChaptersSyncedFromYoutube(
+  aiMeta: RecipeAiMeta | null | undefined,
+  chapterCount: number,
+): RecipeAiMeta | null {
+  if (!aiMeta || chapterCount <= 0) return aiMeta ?? null;
+  return {
+    ...aiMeta,
+    confidenceByPath: {
+      ...aiMeta.confidenceByPath,
+      "values.youtube.timestamps": {
+        confidence: "VERIFIED",
+        sourceNote: "Synced from YouTube description",
+      },
+    },
+  };
 }
 
 export function previewYoutubeMetadataSync(input: {
@@ -335,18 +365,13 @@ export function previewYoutubeMetadataSync(input: {
 
   if (chapters.length) {
     const currentCount = blob?.timestamps?.length ?? 0;
+    const humanLocked = chaptersAreHumanLocked(aiMeta);
     addChange(
       "youtube.timestamps",
       "Chapters",
       currentCount ? `${currentCount} saved chapter(s)` : "None",
       `${chapters.length} chapter(s) from YouTube description`,
-      verified ||
-        hasSavedTimestamps(values) ||
-        fieldIsHumanProtected("values.youtube.timestamps", aiMeta)
-        ? verified
-          ? "Verified recipe — chapters will be kept"
-          : "Existing saved chapters will be kept"
-        : undefined,
+      humanLocked ? "Human-edited chapters will be kept" : undefined,
     );
   }
 
@@ -391,13 +416,15 @@ export function applyYoutubeMetadataSync(input: {
 
   if (verified) {
     // Explicit confirmation: refresh linked-video mirror fields only.
-    // Do not touch custom hero, recipe tags, chapters, or editorial content.
+    // Do not touch custom hero, recipe tags, or editorial content.
+    // YouTube description chapters are YouTube-owned and refresh unless human-locked.
     // Empty hero may still be filled from the refreshed synced thumbnail.
     const linked = applyYoutubeVideoLinkToValues(input.values, input.video, {
       aiMeta: input.aiMeta,
       applyHeroImage: false,
     });
-    return fillEmptyHeroImageFromYoutubeThumbnail(linked, input.aiMeta, {
+    const withChapters = applySyncedDescriptionChaptersToValues(linked, input.video, input.aiMeta);
+    return fillEmptyHeroImageFromYoutubeThumbnail(withChapters, input.aiMeta, {
       syncedThumbnailUrl: input.video.thumbnailUrl,
       videoId: input.video.videoId,
     }).values;
@@ -408,19 +435,8 @@ export function applyYoutubeMetadataSync(input: {
     applyHeroImage: true,
   });
 
-  const chapters = parseYoutubeDescriptionChapters(input.video.description);
-  const blob = parseRecipeYoutubeBlob(linked.youtube) ?? {};
-  const nextBlob = { ...blob };
-
-  if (
-    chapters.length &&
-    !hasSavedTimestamps(linked) &&
-    !fieldIsHumanProtected("values.youtube.timestamps", input.aiMeta)
-  ) {
-    nextBlob.timestamps = aiChaptersToTimestamps(chapters);
-  }
-
-  const next: Record<string, unknown> = { ...linked, youtube: nextBlob };
+  const withChapters = applySyncedDescriptionChaptersToValues(linked, input.video, input.aiMeta);
+  const next: Record<string, unknown> = { ...withChapters };
 
   if (
     input.video.tags.length &&
@@ -435,6 +451,33 @@ export function applyYoutubeMetadataSync(input: {
     syncedThumbnailUrl: input.video.thumbnailUrl,
     videoId: input.video.videoId,
   }).values;
+}
+
+/**
+ * Copy parsed YouTube description chapters into values.youtube.timestamps.
+ * Skips when the editor has marked chapters as human-modified.
+ * Does not clear existing chapters when the description currently has none.
+ */
+export function applySyncedDescriptionChaptersToValues(
+  values: Record<string, unknown>,
+  video: SyncedYoutubeVideo,
+  aiMeta?: RecipeAiMeta | null,
+): Record<string, unknown> {
+  if (chaptersAreHumanLocked(aiMeta)) {
+    return values;
+  }
+
+  const chapters = parseYoutubeDescriptionChapters(video.description);
+  if (!chapters.length) return values;
+
+  const blob = parseRecipeYoutubeBlob(values.youtube) ?? {};
+  return {
+    ...values,
+    youtube: {
+      ...blob,
+      timestamps: aiChaptersToTimestamps(chapters),
+    },
+  };
 }
 
 /** Preview helper: whether applying refresh would mutate recipe-stored data. */

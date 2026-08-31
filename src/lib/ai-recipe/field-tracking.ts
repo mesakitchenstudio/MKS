@@ -193,6 +193,12 @@ export function mergeYoutubeMetadataValues(input: {
     "values.youtube.timestamps",
     !current.timestamps.some((row) => row.label.trim() || row.timeInput.trim()),
     () => {
+      const draftHasChapters = draft.timestamps.some(
+        (row) => row.label.trim() || row.timeInput.trim(),
+      );
+      // YouTube-owned / already-synced chapters must not be wiped or replaced by Gemini.
+      if (!draftHasChapters) return;
+      if (current.timestamps.some((row) => row.label.trim() || row.timeInput.trim())) return;
       next.timestamps = draft.timestamps.map((row) => ({ ...row }));
     },
   );
