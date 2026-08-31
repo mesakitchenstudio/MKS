@@ -33,6 +33,7 @@ type RecipeVideoContextValue = {
   setExpanded: (value: boolean) => void;
   activate: (options?: { start?: number; source?: VideoAnalyticsSource }) => void;
   expandWatchMethod: (options?: { source?: VideoAnalyticsSource; scroll?: boolean }) => void;
+  collapseWatchMethod: () => void;
   scrollToVideo: () => void;
   onPlayStart: () => void;
   onCloseFloating: () => void;
@@ -106,6 +107,14 @@ export function RecipeVideoProvider({
     [recipeName, recipeSlug, youtube.title, youtube.videoId],
   );
 
+  const collapseWatchMethod = useCallback(() => {
+    setExpanded(false);
+    setActive(false);
+    setPlaying(false);
+    setDocked(true);
+    setStartSeconds(0);
+  }, []);
+
   const activate = useCallback(
     (options?: { start?: number; source?: VideoAnalyticsSource }) => {
       const start = options?.start ?? 0;
@@ -125,6 +134,7 @@ export function RecipeVideoProvider({
   );
 
   const onPlayStart = useCallback(() => {
+    setActive(true);
     setPlaying(true);
     setDocked(true);
     setVideoInteracted(true);
@@ -170,6 +180,7 @@ export function RecipeVideoProvider({
       setExpanded,
       activate,
       expandWatchMethod,
+      collapseWatchMethod,
       scrollToVideo,
       onPlayStart,
       onCloseFloating,
@@ -190,6 +201,7 @@ export function RecipeVideoProvider({
       scrollCardVisible,
       activate,
       expandWatchMethod,
+      collapseWatchMethod,
       scrollToVideo,
       onPlayStart,
       onCloseFloating,

@@ -49,7 +49,7 @@ export function WatchMethodSubscribeInline({
   );
 }
 
-/** Centered conversion stage below the loaded video embed. */
+/** Centered conversion stage below the expanded video embed. */
 export function WatchMethodSubscribeStage({
   recipeSlug,
   recipeName,
@@ -60,13 +60,13 @@ export function WatchMethodSubscribeStage({
   videoId?: string;
 }) {
   return (
-    <div className="no-print mx-auto mt-6 max-w-xl px-2 py-2 text-center sm:px-4 sm:py-3">
+    <div className="no-print mt-6 px-2 text-center sm:px-4">
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-        Like learning this way?
+        Keep cooking with Mesa
       </p>
-      <p className="mt-2 font-serif text-xl text-ink">Cook with Mesa every week.</p>
-      <p className="mt-2 text-sm leading-6 text-muted">
-        New recipes, techniques and step-by-step videos.
+      <p className="mt-2 font-serif text-xl text-ink">More recipes, every week</p>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+        Watch new recipes and kitchen techniques from Mesa Kitchen Studio.
       </p>
       <a
         href={subscribeUrl}
@@ -81,11 +81,10 @@ export function WatchMethodSubscribeStage({
             source: "watch_method_subscribe",
           })
         }
-        className={`mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-sm bg-olive px-6 py-2.5 text-sm font-semibold text-paper hover:bg-olive-dark sm:w-auto ${linkFocus}`}
+        className={`mt-4 inline-flex min-h-11 w-full max-w-xs items-center justify-center rounded-sm bg-olive px-6 py-2.5 text-sm font-semibold text-paper hover:bg-olive-dark sm:w-auto ${linkFocus}`}
       >
-        Subscribe on YouTube →
+        Subscribe on YouTube
       </a>
-      <p className="mt-2 text-xs text-muted">Opens YouTube&apos;s subscription confirmation.</p>
     </div>
   );
 }
