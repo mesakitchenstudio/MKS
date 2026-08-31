@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Recipe } from "@/data/types";
+import { recipeContentShellClass } from "@/components/RecipeContentShell";
 import { RecipeGridCard } from "./RecipeGridCard";
 
 const linkFocus =
@@ -35,7 +36,7 @@ export function CollectionRow({
   const imageAspect = uniformCards && !compactDiscovery ? "4/3" : "5/4";
 
   return (
-    <section className={`mx-auto max-w-[75rem] px-4 md:px-6 ${compactDiscovery ? "py-6" : "py-8"}`}>
+    <section className={`${recipeContentShellClass} ${compactDiscovery ? "py-6" : "py-8"}`}>
       <div className={`flex items-end justify-between gap-4 ${compactDiscovery ? "mb-4" : "mb-5"}`}>
         <div>
           <h2

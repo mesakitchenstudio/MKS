@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { CollectionRow } from "@/components/CollectionRow";
 import { JsonLd } from "@/components/JsonLd";
+import { RecipeContentShell } from "@/components/RecipeContentShell";
 import { RecipeCookingWorkspace } from "@/components/RecipeCard";
 import { RecipeLearnSection } from "@/components/RecipeLearnSection";
 import { RecipePageHero } from "@/components/RecipePageHero";
@@ -130,7 +131,7 @@ export default async function RecipePage({ params }: Props) {
 
       <RecipeCookingWorkspace recipe={recipe} youtube={youtube} />
 
-      <div className="mx-auto max-w-[75rem] px-4 pb-8 md:px-6">
+      <RecipeContentShell className="pb-8">
         <RecipeLearnSection
           whyItWorks={recipe.whyItWorks}
           keyIngredients={recipe.keyIngredients}
@@ -204,7 +205,7 @@ export default async function RecipePage({ params }: Props) {
             ))}
           </p>
         ) : null}
-      </div>
+      </RecipeContentShell>
 
       <CollectionRow title="More from the studio" recipes={related} compactDiscovery />
     </>

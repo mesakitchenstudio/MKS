@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
 import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
+import { recipeContentShellClass } from "@/components/RecipeContentShell";
 import { scaleAmount } from "@/lib/culinary-format";
 import { nutritionHasPublicContent } from "@/lib/field-content";
 import {
@@ -137,9 +138,9 @@ export function RecipeCookingWorkspace({
   return (
     <section
         id="recipe-cooking"
-        className="recipe-cooking-workspace scroll-mt-24 bg-paper px-4 py-6 md:px-6 md:py-7"
+        className="recipe-cooking-workspace scroll-mt-24 bg-paper py-6 md:py-7"
       >
-        <div className="mx-auto max-w-[75rem]">
+        <div className={recipeContentShellClass}>
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line/80 pb-4">
             <div>
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">

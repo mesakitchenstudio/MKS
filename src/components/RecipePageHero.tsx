@@ -8,6 +8,7 @@ import { RecipeSeriesContext } from "@/components/series/RecipeSeriesContext";
 import { ShareButtons } from "@/components/ShareButtons";
 import { RecipeAtAGlanceFacts } from "@/components/RecipeAtAGlanceFacts";
 import { RecipePageHeroActions } from "@/components/RecipePageHeroActions";
+import { recipeContentShellClass } from "@/components/RecipeContentShell";
 import type { Recipe } from "@/data/types";
 import type { ExtraField } from "@/lib/recipe-map";
 
@@ -23,7 +24,7 @@ export function RecipePageHero({
   reviewData: RecipeReviewData;
 }) {
   return (
-    <header className="mx-auto max-w-[75rem] px-4 py-6 md:px-6 md:py-8">
+    <header className={`${recipeContentShellClass} py-6 md:py-8`}>
       <div className="lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start lg:gap-10 xl:gap-12">
         <div className="min-w-0 order-1 lg:order-none">
           {seriesLinks.length ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { recipeContentShellClass } from "@/components/RecipeContentShell";
 
 const LINKS = [
   { id: "recipe-cooking", label: "Recipe" },
@@ -51,7 +52,7 @@ export function RecipeSectionNav({ hasVideo, hasLearn }: { hasVideo: boolean; ha
       aria-label="Recipe sections"
       className="no-print sticky top-[4.5rem] z-30 border-b border-line/70 bg-[var(--cream)]/95 py-2 backdrop-blur-sm"
     >
-      <ul className="mx-auto flex max-w-[75rem] flex-wrap gap-x-4 gap-y-1 px-4 text-sm md:px-6">
+      <ul className={`flex flex-wrap gap-x-4 gap-y-1 text-sm ${recipeContentShellClass}`}>
         {items.map((item) => {
           const active = activeId === item.id;
           return (
