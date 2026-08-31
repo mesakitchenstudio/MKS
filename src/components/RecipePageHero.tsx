@@ -24,7 +24,7 @@ export function RecipePageHero({
   reviewData: RecipeReviewData;
 }) {
   return (
-    <header className={`${recipeContentShellClass} py-6 md:py-8`}>
+    <header className={`${recipeContentShellClass} py-6 md:pt-7 md:pb-4 lg:pt-6 lg:pb-2`}>
       <p className="recipe-print-brand mb-2 hidden text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-ink print:block">
         Mesa Kitchen Studio
       </p>
