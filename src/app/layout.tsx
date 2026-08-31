@@ -6,9 +6,8 @@ import { AnalyticsScripts } from "@/components/AnalyticsScripts";
 import { FunnelAnalyticsBridge } from "@/components/FunnelAnalyticsBridge";
 import { JsonLd } from "@/components/JsonLd";
 import { PublicChrome } from "@/components/PublicChrome";
-import { SiteFooter } from "@/components/SiteFooter";
-import { SiteHeader } from "@/components/SiteHeader";
 import { site } from "@/data/site";
+import { getAdminSession } from "@/lib/auth";
 import { isSitePrivate } from "@/lib/flags";
 import { getAllRecipes } from "@/lib/recipes";
 import { recipeSearchHaystack } from "@/lib/recipe-utils";
@@ -100,7 +99,10 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const privateMode = isSitePrivate();
+  const sitePrivate = isSitePrivate();
+  // Staff with a valid admin session unlock public chrome while Coming Soon stays on for visitors.
+  const staffPreview = sitePrivate && Boolean(await getAdminSession());
+  const privateMode = sitePrivate && !staffPreview;
   const recipes = privateMode
     ? []
     : (await getAllRecipes()).map((recipe) => ({
@@ -130,9 +132,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <FunnelAnalyticsBridge />
           <PublicChrome
             hideTools={privateMode}
+            showChrome={!privateMode}
+            showStaffPreviewBanner={staffPreview}
             recipes={recipes}
-            header={privateMode ? null : <SiteHeader />}
-            footer={privateMode ? null : <SiteFooter />}
           >
             <main
               id="main-content"

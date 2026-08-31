@@ -34,7 +34,7 @@ async function resolveReplyViewer(): Promise<RecipeReviewViewer> {
  * Client-supplied identity fields are ignored.
  */
 export async function POST(request: Request, context: RouteContext) {
-  if (isBlockedApiWhilePrivate(new URL(request.url).pathname)) {
+  if (isBlockedApiWhilePrivate(new URL(request.url).pathname, request.headers.get("cookie"))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

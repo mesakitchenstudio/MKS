@@ -2,31 +2,39 @@
 
 import { usePathname } from "next/navigation";
 import { RecipeFloatTools } from "./RecipeFloatTools";
+import { SiteFooter } from "./SiteFooter";
+import { SiteHeader } from "./SiteHeader";
+import { StaffPreviewBanner } from "./StaffPreviewBanner";
 import type { OverlayRecipe } from "./SearchOverlay";
 
 export function PublicChrome({
-  header,
-  footer,
   children,
   hideTools = false,
+  showChrome = true,
+  showStaffPreviewBanner = false,
   recipes = [],
 }: {
-  header: React.ReactNode;
-  footer: React.ReactNode;
   children: React.ReactNode;
   hideTools?: boolean;
+  /** When false (coming-soon / private mode), omit public header and footer. */
+  showChrome?: boolean;
+  /** SITE_PRIVATE + valid admin session browsing the public site. */
+  showStaffPreviewBanner?: boolean;
   recipes?: OverlayRecipe[];
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
+
+  // Admin has its own shell — never mount public header/footer/tools there.
   if (pathname.startsWith("/admin")) {
-    return <>{children}</>;
+    return children;
   }
 
   return (
     <>
-      {header}
+      {showStaffPreviewBanner ? <StaffPreviewBanner /> : null}
+      {showChrome ? <SiteHeader /> : null}
       {children}
-      {footer}
+      {showChrome ? <SiteFooter /> : null}
       {hideTools ? null : <RecipeFloatTools recipes={recipes} />}
     </>
   );

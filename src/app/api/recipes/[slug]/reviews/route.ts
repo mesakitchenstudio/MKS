@@ -24,7 +24,7 @@ async function resolveViewer() {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  if (isBlockedApiWhilePrivate(new URL(request.url).pathname)) {
+  if (isBlockedApiWhilePrivate(new URL(request.url).pathname, request.headers.get("cookie"))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const { slug } = await context.params;
@@ -33,7 +33,7 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  if (isBlockedApiWhilePrivate(new URL(request.url).pathname)) {
+  if (isBlockedApiWhilePrivate(new URL(request.url).pathname, request.headers.get("cookie"))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const { slug } = await context.params;

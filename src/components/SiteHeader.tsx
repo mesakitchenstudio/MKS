@@ -68,10 +68,15 @@ export function SiteHeader() {
                             {column.label}
                           </p>
                           <ul className="space-y-2">
-                            {column.slugs.map((slug) => {
-                              const category = categories.find((item) => item.slug === slug);
-                              if (!category) return null;
-                              return (
+                            {column.slugs
+                              .map((slug) => {
+                                const category = categories.find((item) => item.slug === slug);
+                                return category ? { slug, category } : null;
+                              })
+                              .filter((row): row is { slug: string; category: (typeof categories)[number] } =>
+                                Boolean(row),
+                              )
+                              .map(({ slug, category }) => (
                                 <li key={slug}>
                                   <Link
                                     href={`/category/${slug}`}
@@ -81,8 +86,7 @@ export function SiteHeader() {
                                     {category.name}
                                   </Link>
                                 </li>
-                              );
-                            })}
+                              ))}
                           </ul>
                         </div>
                       ))}
@@ -192,17 +196,21 @@ export function SiteHeader() {
                   {column.label}
                 </p>
                 <ul className="space-y-1.5">
-                  {column.slugs.map((slug) => {
-                    const category = categories.find((item) => item.slug === slug);
-                    if (!category) return null;
-                    return (
+                  {column.slugs
+                    .map((slug) => {
+                      const category = categories.find((item) => item.slug === slug);
+                      return category ? { slug, category } : null;
+                    })
+                    .filter((row): row is { slug: string; category: (typeof categories)[number] } =>
+                      Boolean(row),
+                    )
+                    .map(({ slug, category }) => (
                       <li key={slug}>
                         <Link href={`/category/${slug}`} onClick={closeMenus} className="text-sm text-ink/80">
                           {category.name}
                         </Link>
                       </li>
-                    );
-                  })}
+                    ))}
                 </ul>
               </div>
             ))}

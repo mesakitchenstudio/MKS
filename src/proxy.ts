@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isSitePrivate } from "@/lib/flags";
-import { isBlockedApiWhilePrivate } from "@/lib/site-gate";
+import {
+  isBlockedApiWhilePrivate,
+  shouldGatePublicRequest,
+} from "@/lib/site-gate";
 
 /** Keep brand icons reachable while the public site is gated. */
 const PUBLIC_WHILE_PRIVATE = [
@@ -18,13 +21,19 @@ const PUBLIC_WHILE_PRIVATE = [
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const cookieHeader = request.headers.get("cookie");
 
-  // Recipe/content APIs stay blocked while private.
-  if (isBlockedApiWhilePrivate(pathname)) {
+  // Recipe/content APIs stay blocked while private (unless staff preview).
+  if (isBlockedApiWhilePrivate(pathname, cookieHeader)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   if (!isSitePrivate()) {
+    return NextResponse.next();
+  }
+
+  // Staff with a valid admin session may browse the full public site.
+  if (!shouldGatePublicRequest(cookieHeader)) {
     return NextResponse.next();
   }
 
