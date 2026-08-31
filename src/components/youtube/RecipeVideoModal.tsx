@@ -107,23 +107,22 @@ export function RecipeVideoModal() {
         className="relative flex max-h-[100dvh] w-full max-w-4xl flex-col overflow-y-auto bg-paper shadow-[0_24px_64px_rgba(16,12,8,0.35)] sm:my-auto sm:max-h-[calc(100vh-2rem)] sm:rounded-sm sm:border sm:border-line/80"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <button
-          ref={closeRef}
-          type="button"
-          onClick={closeModal}
-          aria-label="Close recipe video"
-          className={`absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-line/80 bg-paper/95 text-xl font-semibold leading-none text-ink shadow-md transition-colors hover:bg-cream sm:right-3 sm:top-3 ${focusRing}`}
-        >
-          <span aria-hidden>×</span>
-        </button>
-
-        <div className="px-4 pb-2 pt-3 sm:px-5 sm:pt-4">
-          <p id={titleId} className="pr-12 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-            Watch the method
-          </p>
-          {youtube.hook ? (
-            <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted sm:text-sm">{youtube.hook}</p>
-          ) : null}
+        <div className="flex items-start gap-2 px-4 pb-2 pt-3 sm:gap-3 sm:px-5 sm:pt-4">
+          <div className="min-w-0 flex-1">
+            <p id={titleId} className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+              Watch the method
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-muted sm:text-sm">See this recipe step by step.</p>
+          </div>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={closeModal}
+            aria-label="Close recipe video"
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line/80 bg-paper text-xl font-semibold leading-none text-ink shadow-sm transition-colors hover:bg-cream ${focusRing}`}
+          >
+            <span aria-hidden>×</span>
+          </button>
         </div>
 
         <div className="px-4 pb-4 sm:px-5 sm:pb-5">
