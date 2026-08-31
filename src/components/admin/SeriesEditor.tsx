@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   deleteSeriesAction,
   keepRemovedSeriesItemAction,
@@ -12,6 +12,7 @@ import {
   saveSeriesAction,
 } from "@/app/admin/actions";
 import { CreateRecipeFromYoutubeVideo } from "@/components/admin/CreateRecipeFromYoutubeVideo";
+import { EditorStatusBadge } from "@/components/admin/EditorStatusBadge";
 import {
   SeriesAiFieldBadge,
   SeriesEditorialAiControls,
@@ -21,6 +22,7 @@ import {
   adminInputClass,
   adminLinkClass,
   adminPrimaryButtonClass,
+  adminSecondaryButtonClass,
   adminSelectClass,
 } from "@/lib/admin-ui";
 import type { AdminSeriesDetail, AdminSeriesItemDraft, SeriesPickerCandidate } from "@/lib/series-admin";
@@ -38,6 +40,36 @@ import { youtubePlaylistUrl } from "@/lib/youtube";
 const secondaryBtn =
   "inline-flex h-9 items-center justify-center rounded-sm border border-line bg-paper px-3 text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
+function seriesFormSnapshot(data: {
+  title: string;
+  slug: string;
+  shortTitle: string;
+  description: string;
+  intro: string;
+  heroImage: string;
+  heroImageSource: string;
+  seoTitle: string;
+  seoDescription: string;
+  followYoutubeOrder: boolean;
+  sortOrder: string;
+  items: AdminSeriesItemDraft[];
+  aiMeta: SeriesAiMeta;
+  featuredChosenByHuman: boolean;
+}) {
+  return JSON.stringify(data);
+}
+
+function validateSeriesForPublish(title: string, slug: string, isNew: boolean): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (!title.trim()) {
+    errors.title = "Title is required before publishing.";
+  }
+  if (isNew && !slug.trim()) {
+    errors.slug = "Slug is required before publishing.";
+  }
+  return errors;
+}
+
 function formatSyncedAt(iso: string | null) {
   if (!iso) return "Never";
   try {
@@ -53,13 +85,19 @@ export function SeriesEditor({
   recipeTypes = [],
   linkablePlaylists = [],
   isNew = false,
+  saved = false,
 }: {
   series: AdminSeriesDetail;
   candidates: SeriesPickerCandidate[];
   recipeTypes?: { id: string; name: string }[];
   linkablePlaylists?: { playlistId: string; title: string; videoCount: number }[];
   isNew?: boolean;
+  saved?: boolean;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const isPublishedRef = useRef<HTMLInputElement>(null);
+  const moveToDraftCancelRef = useRef<HTMLButtonElement>(null);
+  const moveToDraftTitleId = useId();
   const isYoutube = series.syncMode === "YOUTUBE" || Boolean(series.youtubePlaylistId);
   const [title, setTitle] = useState(series.title);
   const [slug, setSlug] = useState(series.slug);
@@ -84,6 +122,77 @@ export function SeriesEditor({
   const [linkFilter, setLinkFilter] = useState("all");
   const [uploading, setUploading] = useState(false);
   const [linkPlaylistId, setLinkPlaylistId] = useState("");
+  const [moveToDraftOpen, setMoveToDraftOpen] = useState(false);
+  const [publishAiWarningOpen, setPublishAiWarningOpen] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [publishAlert, setPublishAlert] = useState("");
+
+  const baselineSnapshot = useMemo(
+    () =>
+      seriesFormSnapshot({
+        title: series.title,
+        slug: series.slug,
+        shortTitle: series.shortTitle,
+        description: series.description,
+        intro: series.intro,
+        heroImage: series.heroImage,
+        heroImageSource: series.heroImageSource || "",
+        seoTitle: series.seoTitle,
+        seoDescription: series.seoDescription,
+        followYoutubeOrder: series.followYoutubeOrder,
+        sortOrder: String(series.sortOrder),
+        items: series.items,
+        aiMeta: series.aiMeta,
+        featuredChosenByHuman: Boolean(series.aiMeta.featuredChosenByHuman),
+      }),
+    [series],
+  );
+
+  const isDirty = useMemo(
+    () =>
+      seriesFormSnapshot({
+        title,
+        slug,
+        shortTitle,
+        description,
+        intro,
+        heroImage,
+        heroImageSource,
+        seoTitle,
+        seoDescription,
+        followYoutubeOrder,
+        sortOrder,
+        items,
+        aiMeta,
+        featuredChosenByHuman,
+      }) !== baselineSnapshot,
+    [
+      aiMeta,
+      baselineSnapshot,
+      description,
+      featuredChosenByHuman,
+      followYoutubeOrder,
+      heroImage,
+      heroImageSource,
+      intro,
+      items,
+      seoDescription,
+      seoTitle,
+      shortTitle,
+      slug,
+      sortOrder,
+      title,
+    ],
+  );
+
+  const draftActionLabel = isPublished ? "Move to draft" : "Save draft";
+  const publishButtonLabel = isPublished ? "Update published series" : "Publish";
+  const pageTitle = title.trim() || (isNew ? "New custom series" : "Edit series");
+
+  useEffect(() => {
+    if (!moveToDraftOpen) return;
+    moveToDraftCancelRef.current?.focus();
+  }, [moveToDraftOpen]);
 
   useEffect(() => {
     setTitle(series.title);
@@ -183,6 +292,58 @@ export function SeriesEditor({
     setItems((current) => current.map((item, i) => ({ ...item, featured: i === index })));
   }
 
+  function submitWithPublished(nextPublished: boolean) {
+    setIsPublished(nextPublished);
+    if (isPublishedRef.current) isPublishedRef.current.value = nextPublished ? "1" : "0";
+    formRef.current?.requestSubmit();
+  }
+
+  function proceedSaveDraft() {
+    setFieldErrors({});
+    setPublishAlert("");
+    setMoveToDraftOpen(false);
+    submitWithPublished(false);
+  }
+
+  function attemptSaveDraft() {
+    if (!title.trim()) {
+      setFieldErrors({ title: "Title is required to save a draft." });
+      setPublishAlert("");
+      return;
+    }
+    if (isPublished) {
+      setMoveToDraftOpen(true);
+      return;
+    }
+    proceedSaveDraft();
+  }
+
+  function attemptPublish() {
+    const errors = validateSeriesForPublish(title, slug, isNew);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const count = Object.keys(errors).length;
+      setPublishAlert(
+        count === 1
+          ? "1 issue must be resolved before publishing."
+          : `${count} issues must be resolved before publishing.`,
+      );
+      return;
+    }
+    setFieldErrors({});
+    setPublishAlert("");
+    if (aiMeta.generatedByAI && aiMeta.verificationStatus !== "verified") {
+      setPublishAiWarningOpen(true);
+      return;
+    }
+    submitWithPublished(true);
+  }
+
+  function proceedPublishAnyway() {
+    setPublishAiWarningOpen(false);
+    submitWithPublished(true);
+  }
+
   async function onHeroUpload(file: File | null) {
     if (!file) return;
     setUploading(true);
@@ -205,7 +366,65 @@ export function SeriesEditor({
 
   return (
     <div className="space-y-8">
-      <form action={saveSeriesAction} className="space-y-8">
+      <div className="sticky top-0 z-50 -mx-5 mb-2 border-b border-line bg-[var(--cream)] px-5 py-3 md:-mx-6 md:px-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <Link
+              href="/admin/series"
+              className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
+            >
+              ← Series
+            </Link>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h1 className="font-serif text-2xl leading-tight text-ink md:text-[1.75rem]">
+                {isNew ? "New custom series" : pageTitle}
+              </h1>
+            </div>
+            <p className="mt-1 text-sm text-muted">
+              {isYoutube
+                ? "YouTube playlist supplies membership/order; Mesa owns editorial SEO and CTAs."
+                : "Mesa-only collection — recipes and videos you curate by hand."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {saved ? <span className="text-sm text-olive">Saved.</span> : null}
+            {isDirty && !saved ? (
+              <span className="text-xs font-semibold text-muted">Unsaved changes</span>
+            ) : null}
+            <EditorStatusBadge published={isPublished} />
+            {aiMeta.generatedByAI && aiMeta.verificationStatus !== "verified" ? (
+              <span className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-terracotta">
+                AI draft — not verified
+              </span>
+            ) : null}
+            {!isNew && isPublished ? (
+              <Link
+                href={`/series/${series.slug}`}
+                className={`${secondaryBtn} ${adminFocusRing}`}
+                target="_blank"
+              >
+                Preview
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              onClick={attemptSaveDraft}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+            >
+              {draftActionLabel}
+            </button>
+            <button
+              type="button"
+              onClick={attemptPublish}
+              className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+            >
+              {publishButtonLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <form ref={formRef} action={saveSeriesAction} className="space-y-8">
         {!isNew ? <input type="hidden" name="id" value={series.id} /> : null}
         <input type="hidden" name="seriesId" value={series.id} />
         <input type="hidden" name="itemsJson" value={JSON.stringify(items)} />
@@ -213,27 +432,16 @@ export function SeriesEditor({
         <input type="hidden" name="heroImageSource" value={heroImageSource} />
         <input type="hidden" name="aiMetaJson" value={serializeSeriesAiMeta(aiMeta)} />
         <input type="hidden" name="featuredChosenByHuman" value={featuredChosenByHuman ? "1" : "0"} />
+        <input ref={isPublishedRef} type="hidden" name="isPublished" value={isPublished ? "1" : "0"} />
 
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-3xl text-ink">{isNew ? "New custom series" : "Edit series"}</h1>
-            <p className="mt-1 text-sm text-muted">
-              {isYoutube
-                ? "YouTube playlist supplies membership/order; Mesa owns editorial SEO and CTAs."
-                : "Mesa-only collection — recipes and videos you curate by hand."}
-            </p>
+        {publishAlert ? (
+          <div
+            className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-4 py-3"
+            role="alert"
+          >
+            <p className="text-sm font-semibold text-terracotta">{publishAlert}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {!isNew && series.isPublished ? (
-              <Link href={`/series/${series.slug}`} className={`${secondaryBtn} ${adminFocusRing}`} target="_blank">
-                Preview
-              </Link>
-            ) : null}
-            <button type="submit" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
-              Save series
-            </button>
-          </div>
-        </div>
+        ) : null}
 
         {isYoutube && !isNew ? (
           <section className="space-y-3 rounded-sm border border-olive/30 bg-olive/5 p-4">
@@ -324,9 +532,19 @@ export function SeriesEditor({
                   setTitle(e.target.value);
                   markScalarEdit("title", e.target.value);
                   if (isNew) setSlug(slugify(e.target.value));
+                  if (fieldErrors.title) {
+                    setFieldErrors((current) => {
+                      const next = { ...current };
+                      delete next.title;
+                      return next;
+                    });
+                  }
                 }}
                 required
               />
+              {fieldErrors.title ? (
+                <p className="text-xs font-semibold text-terracotta">{fieldErrors.title}</p>
+              ) : null}
             </label>
             <label className="grid gap-1 text-sm">
               <span className="font-semibold">Slug</span>
@@ -334,10 +552,22 @@ export function SeriesEditor({
                 className={adminInputClass}
                 name="slug"
                 value={slug}
-                onChange={(e) => setSlug(slugify(e.target.value))}
+                onChange={(e) => {
+                  setSlug(slugify(e.target.value));
+                  if (fieldErrors.slug) {
+                    setFieldErrors((current) => {
+                      const next = { ...current };
+                      delete next.slug;
+                      return next;
+                    });
+                  }
+                }}
                 disabled={!isNew}
                 required={isNew}
               />
+              {fieldErrors.slug ? (
+                <p className="text-xs font-semibold text-terracotta">{fieldErrors.slug}</p>
+              ) : null}
               {!isNew ? <span className="text-xs text-muted">Slug is locked after create.</span> : null}
             </label>
             <label className="grid gap-1 text-sm">
@@ -455,15 +685,6 @@ export function SeriesEditor({
               />
               <p className="text-xs text-muted">{RECIPE_HERO_IMAGE_HELP}</p>
             </div>
-            <label className="flex items-center gap-2 text-sm font-semibold md:col-span-2">
-              <input
-                type="checkbox"
-                checked={isPublished}
-                onChange={(e) => setIsPublished(e.target.checked)}
-              />
-              Published
-              <input type="hidden" name="isPublished" value={isPublished ? "1" : "0"} />
-            </label>
           </div>
         </section>
 
@@ -681,6 +902,87 @@ export function SeriesEditor({
           </div>
         </section>
       </form>
+
+      {moveToDraftOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 px-4"
+          role="presentation"
+          onClick={() => setMoveToDraftOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={moveToDraftTitleId}
+            className="w-full max-w-md border border-line bg-paper p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id={moveToDraftTitleId} className="font-serif text-2xl text-ink">
+              Move to draft?
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              This saves your edits and removes{" "}
+              <span className="font-semibold text-ink">{pageTitle}</span> from the public site until
+              you publish again.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                ref={moveToDraftCancelRef}
+                type="button"
+                onClick={() => setMoveToDraftOpen(false)}
+                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={proceedSaveDraft}
+                className={`rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark ${adminFocusRing}`}
+              >
+                Move to draft
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {publishAiWarningOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 px-4"
+          role="presentation"
+          onClick={() => setPublishAiWarningOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="series-ai-publish-warning-title"
+            className="w-full max-w-md border border-line bg-paper p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="series-ai-publish-warning-title" className="font-serif text-2xl text-ink">
+              Publish without verification?
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              This series contains AI-generated editorial copy that has not been marked verified.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPublishAiWarningOpen(false)}
+                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={proceedPublishAnyway}
+                className={`rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark ${adminFocusRing}`}
+              >
+                Publish anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {!isYoutube && !isNew && linkablePlaylists.length > 0 ? (
         <section className="space-y-3 rounded-sm border border-line bg-cream/40 p-4">

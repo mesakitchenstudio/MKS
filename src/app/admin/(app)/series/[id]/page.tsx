@@ -149,6 +149,7 @@ export default async function AdminSeriesEditPage({
         candidates={candidates}
         recipeTypes={recipeTypes}
         linkablePlaylists={linkablePlaylists}
+        saved={Boolean(query.saved)}
       />
     </div>
   );

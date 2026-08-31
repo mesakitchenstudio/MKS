@@ -31,10 +31,12 @@ import {
   mergeAiDraftIntoEditor,
 } from "@/lib/ai-recipe/normalize";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
+import { EditorStatusBadge } from "@/components/admin/EditorStatusBadge";
 import {
   adminFocusRing,
   adminInputClass,
   adminPrimaryButtonClass,
+  adminSecondaryButtonClass,
 } from "@/lib/admin-ui";
 import { ADMIN_IMAGE_FORMAT_HELP, RECIPE_HERO_IMAGE_HELP } from "@/lib/admin-upload";
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
@@ -110,9 +112,6 @@ const ALL_GROUPED = new Set<string>([
   ...RECIPE_MEDIA_KEYS,
   "cookMinutes",
 ]);
-
-const editorSecondaryBtn =
-  "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
 const compactInputClass =
   "h-9 w-full rounded-sm border border-line bg-paper px-3 text-sm text-ink outline-none transition-[color,box-shadow,border-color] duration-150 motion-reduce:transition-none placeholder:text-muted focus:border-olive focus:ring-2 focus:ring-olive/15 focus-visible:border-olive focus-visible:ring-2 focus-visible:ring-olive/15";
@@ -415,19 +414,6 @@ function FieldLabel({
 
 function normalizeStatus(status: string) {
   return status.toLowerCase();
-}
-
-function RecipeStatusBadge({ status }: { status: string }) {
-  const published = normalizeStatus(status) === "published";
-  return (
-    <span className="inline-flex items-center gap-2 text-sm text-muted">
-      <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${published ? "bg-olive" : "bg-terracotta/75"}`}
-        aria-hidden
-      />
-      {published ? "Published" : "Draft"}
-    </span>
-  );
 }
 
 export function RecipeEditor({
@@ -1111,7 +1097,7 @@ export function RecipeEditor({
               {isDirty && !saved ? (
                 <span className="text-xs font-semibold text-muted">Unsaved changes</span>
               ) : null}
-              <RecipeStatusBadge status={status} />
+              <EditorStatusBadge published={isPublished} />
               {aiMeta?.generatedByAI && aiMeta.verificationStatus !== "verified" ? (
                 <span className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-terracotta">
                   AI draft — not verified
@@ -1128,7 +1114,7 @@ export function RecipeEditor({
               <button
                 type="button"
                 onClick={attemptSaveDraft}
-                className={`${editorSecondaryBtn} ${adminFocusRing}`}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
               >
                 {draftActionLabel}
               </button>
@@ -1542,7 +1528,7 @@ export function RecipeEditor({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3 border-t border-line pt-6">
-          <button type="button" onClick={attemptSaveDraft} className={`${editorSecondaryBtn} ${adminFocusRing}`}>
+          <button type="button" onClick={attemptSaveDraft} className={`${adminSecondaryButtonClass} ${adminFocusRing}`}>
             {draftActionLabel}
           </button>
           <button type="button" onClick={attemptPublish} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
