@@ -23,7 +23,7 @@ import { getAdminSession } from "@/lib/auth";
 import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
 import { resolveRecipeYoutube, resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
 import { recipeTocItems } from "@/lib/recipe-sections";
-import { fieldValueHasContent } from "@/lib/field-content";
+import { fieldValueHasContent, formatPublicExtraFieldValue } from "@/lib/field-content";
 import { readerExtraLabel, visibleExtras } from "@/lib/recipe-timing";
 import { recipeJsonLd } from "@/lib/schema";
 import { formatGmtDisplay } from "@/lib/datetime";
@@ -219,7 +219,7 @@ export default async function RecipePage({ params }: Props) {
                 className="mt-10 scroll-mt-24 first:mt-0"
               >
                 <h2 className="font-serif text-3xl">{readerExtraLabel(field.label, field.key)}</h2>
-                <ExtraValue kind={field.kind} value={field.value} />
+                <ExtraValue keyName={field.key} kind={field.kind} value={field.value} />
               </div>
             ))}
           </section>
@@ -289,7 +289,15 @@ export default async function RecipePage({ params }: Props) {
   );
 }
 
-function ExtraValue({ kind, value }: { kind: string; value: unknown }) {
+function ExtraValue({
+  keyName,
+  kind,
+  value,
+}: {
+  keyName: string;
+  kind: string;
+  value: unknown;
+}) {
   if (value == null || value === "") return null;
   if (kind === "boolean") return <p className="mt-4 text-muted">{value ? "Yes" : "No"}</p>;
   if (kind === "image" && typeof value === "string") {
@@ -308,5 +316,9 @@ function ExtraValue({ kind, value }: { kind: string; value: unknown }) {
       </ul>
     );
   }
-  return <p className="mt-4 leading-7 text-muted">{String(value)}</p>;
+  return (
+    <p className="mt-4 leading-7 text-muted">
+      {formatPublicExtraFieldValue({ key: keyName, kind, value })}
+    </p>
+  );
 }

@@ -1,5 +1,45 @@
 import type { Nutrition } from "@/data/types";
+import { formatTime } from "@/lib/recipe-utils";
 import { youtubeMetadataEditorHasContent } from "@/lib/youtube-metadata-editor";
+
+/** Field kinds that store a duration in minutes (see `minutes` in FIELD_KINDS). */
+export function isMinutesDurationField(kind: string): boolean {
+  return kind === "minutes";
+}
+
+/**
+ * Type-specific number fields whose key ends with "Hours" store decimal hours
+ * (e.g. riseHours = 4.5 → 4 h 30 min). Matches seeded fields like riseHours, chillHours.
+ */
+export function isHoursDurationField(key: string, kind: string): boolean {
+  if (kind === "hours") return true;
+  return kind === "number" && /Hours$/.test(key);
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+/** Human-readable public display for type-specific extra fields. */
+export function formatPublicExtraFieldValue(input: {
+  key: string;
+  kind: string;
+  value: unknown;
+}): string {
+  const { key, kind, value } = input;
+  if (isMinutesDurationField(kind)) {
+    const n = asFiniteNumber(value);
+    return n == null ? String(value ?? "") : formatTime(Math.round(n));
+  }
+  if (isHoursDurationField(key, kind)) {
+    const hours = asFiniteNumber(value);
+    if (hours == null) return String(value ?? "");
+    return formatTime(Math.round(hours * 60));
+  }
+  return String(value ?? "");
+}
 
 function isYoutubeMetadataEditorState(value: unknown): value is import("@/lib/youtube-metadata-editor").YoutubeMetadataEditorState {
   return Boolean(value && typeof value === "object" && "preserved" in (value as object));
