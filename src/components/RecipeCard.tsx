@@ -1,233 +1,284 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
 import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
-import { RecipeOverview } from "@/components/RecipeOverview";
+import { RecipeCookMode } from "@/components/RecipeCookMode";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
 import { trackEvent } from "@/lib/analytics";
 import { scaleAmount } from "@/lib/culinary-format";
 import { nutritionHasPublicContent } from "@/lib/field-content";
+import {
+  recipeInstructionStages,
+  totalInstructionSteps,
+  type RecipeInstructionStage,
+} from "@/lib/recipe-instructions";
 import { timestampForStep } from "@/lib/recipe-youtube";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 
-export function RecipeCard({
+function StageAccordion({
+  stage,
+  stageIndex,
+  open,
+  onToggle,
+  youtube,
+  recipe,
+}: {
+  stage: RecipeInstructionStage;
+  stageIndex: number;
+  open: boolean;
+  onToggle: () => void;
+  youtube: ResolvedRecipeYoutube | null;
+  recipe: Recipe;
+}) {
+  const panelId = `${stage.id}-panel`;
+  const buttonId = `${stage.id}-button`;
+
+  return (
+    <div className="recipe-stage border-b border-line/80 py-1 last:border-b-0">
+      <button
+        id={buttonId}
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+        className="no-print flex w-full items-center justify-between gap-3 py-3 text-left"
+      >
+        <span className="font-serif text-lg text-ink">{stage.name}</span>
+        <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+          {open ? `${stage.steps.length} steps` : `Open · ${stage.steps.length} steps`}
+        </span>
+      </button>
+      <div
+        id={panelId}
+        role="region"
+        aria-labelledby={buttonId}
+        className={`recipe-stage-panel ${open ? "block pb-4" : "hidden print:block"}`}
+      >
+        <ol className="space-y-3">
+          {stage.steps.map((step) => {
+            const ts = youtube ? timestampForStep(youtube.timestamps, step.globalIndex) : undefined;
+            return (
+              <li key={step.globalIndex} className="flex gap-3 text-sm leading-7">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-terracotta text-xs font-semibold text-paper">
+                  {step.globalIndex + 1}
+                </span>
+                <span>
+                  {step.text}
+                  {ts && youtube ? (
+                    <VideoTimestampLink
+                      label={ts.label}
+                      time={ts.time}
+                      videoId={youtube.videoId}
+                      recipeSlug={recipe.slug}
+                      recipeName={recipe.title}
+                      videoTitle={youtube.title}
+                    />
+                  ) : null}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      {stageIndex === 0 ? null : null}
+    </div>
+  );
+}
+
+export function RecipeCookingWorkspace({
   recipe,
   youtube = null,
-  showOverview = true,
 }: {
   recipe: Recipe;
   youtube?: ResolvedRecipeYoutube | null;
-  showOverview?: boolean;
 }) {
   const [servings, setServings] = useState(recipe.servings);
+  const [cookModeOpen, setCookModeOpen] = useState(false);
   const factor = servings / recipe.servings;
+  const stages = useMemo(() => recipeInstructionStages(recipe), [recipe]);
+  const stepCount = totalInstructionSteps(stages);
+  const [openStages, setOpenStages] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(stages.map((stage, index) => [stage.id, index === 0])),
+  );
+
+  useEffect(() => {
+    setOpenStages(Object.fromEntries(stages.map((stage, index) => [stage.id, index === 0])));
+  }, [recipe.slug, stages]);
 
   const total = totalMinutes(recipe);
   const showNutrition = nutritionHasPublicContent(recipe.nutrition);
-  const nutritionNote = useMemo(
-    () =>
-      `About ${recipe.nutrition.calories} calories per ${recipe.servingsUnit.replace(/s$/, "")}. Values are estimates.`,
-    [recipe.nutrition.calories, recipe.servingsUnit],
-  );
+  const utensils = recipe.utensils?.filter(Boolean) ?? [];
+  const multiStage = stages.length > 1;
 
-  const instructionGroups = recipe.instructions.filter(
-    (group) => group.steps.some((step) => step.trim()),
-  );
+  function expandAllStages() {
+    setOpenStages(Object.fromEntries(stages.map((stage) => [stage.id, true])));
+  }
+
+  function toggleStage(id: string) {
+    setOpenStages((current) => ({ ...current, [id]: !current[id] }));
+  }
+
+  function openCookMode() {
+    trackEvent("recipe_cook_mode_start", {
+      recipe_slug: recipe.slug,
+      recipe_title: recipe.title,
+    });
+    setCookModeOpen(true);
+  }
 
   return (
-    <section
-      id="recipe-card"
-      className="scroll-mt-24 border border-line bg-paper p-5 shadow-[0_12px_40px_rgba(42,34,24,0.06)] md:p-7"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line pb-4">
-        <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">
-            Recipe
-          </p>
-          <h2 className="mt-1 font-serif text-2xl text-ink md:text-3xl">{recipe.title}</h2>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            trackEvent("recipe_print", {
-              recipe_slug: recipe.slug,
-              recipe_title: recipe.title,
-            });
-            window.print();
-          }}
-          className="no-print rounded-full border border-line px-4 py-2 text-sm font-semibold hover:border-terracotta hover:text-terracotta"
-        >
-          Print
-        </button>
-      </div>
-
-      {showOverview ? <RecipeOverview recipe={recipe} /> : null}
-
-      <dl className="mt-4 grid grid-cols-2 gap-4 border-b border-line pb-4 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-[0.65rem] uppercase tracking-[0.12em] text-muted">Total</dt>
-          <dd className="mt-1 font-semibold">{formatTime(total)}</dd>
-        </div>
-        <div>
-          <dt className="text-[0.65rem] uppercase tracking-[0.12em] text-muted">Yield</dt>
-          <dd className="mt-1 flex items-center gap-2 font-semibold">
-            <button
-              type="button"
-              aria-label="Decrease servings"
-              onClick={() =>
-                setServings((value) => {
-                  const next = Math.max(1, value - 1);
-                  trackEvent("recipe_servings_change", {
-                    recipe_slug: recipe.slug,
-                    recipe_title: recipe.title,
-                    direction: "decrease",
-                    servings: next,
-                  });
-                  return next;
-                })
-              }
-              className="no-print inline-flex h-7 w-7 items-center justify-center rounded-full border border-line"
-            >
-              −
-            </button>
-            <span>
-              {servings} {recipe.servingsUnit}
-            </span>
-            <button
-              type="button"
-              aria-label="Increase servings"
-              onClick={() =>
-                setServings((value) => {
-                  const next = value + 1;
-                  trackEvent("recipe_servings_change", {
-                    recipe_slug: recipe.slug,
-                    recipe_title: recipe.title,
-                    direction: "increase",
-                    servings: next,
-                  });
-                  return next;
-                })
-              }
-              className="no-print inline-flex h-7 w-7 items-center justify-center rounded-full border border-line"
-            >
-              +
-            </button>
-          </dd>
-        </div>
-      </dl>
-
-      <div className="mt-6 grid gap-8 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:items-start md:gap-10">
-        <div className="md:sticky md:top-24 md:self-start">
-          <h3 className="font-serif text-xl text-ink md:text-2xl">Ingredients</h3>
-          {recipe.ingredients.map((group) => (
-            <div key={group.name ?? "main"} className="mt-4">
-              {group.name ? (
-                <p className="mb-2 text-sm font-semibold text-olive">{group.name}</p>
+    <>
+      <section
+        id="recipe-cooking"
+        className="recipe-cooking-workspace scroll-mt-24 bg-paper px-4 py-6 md:px-6 md:py-8"
+      >
+        <div className="mx-auto max-w-[75rem]">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line/80 pb-4">
+            <div>
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">
+                Cook this recipe
+              </p>
+              <h2 className="mt-1 font-serif text-2xl text-ink md:text-3xl">Ingredients & steps</h2>
+              <p className="mt-1 text-sm text-muted">
+                {stepCount} steps{multiStage ? ` · ${stages.length} stages` : ""} · {formatTime(total)} total
+              </p>
+            </div>
+            <div className="no-print flex flex-wrap gap-2">
+              {multiStage ? (
+                <button
+                  type="button"
+                  onClick={expandAllStages}
+                  className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-muted hover:text-terracotta"
+                >
+                  Expand all
+                </button>
               ) : null}
-              <ul className="space-y-2">
-                {group.items.map((item) => (
-                  <li key={item.item} className="flex gap-3 text-sm leading-6">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-terracotta" />
-                    <span>
-                      <strong className="font-semibold">
-                        {scaleAmount(item.amount, factor)}
-                        {item.grams ? ` (${Math.round(item.grams * factor)}g)` : ""}
-                      </strong>{" "}
-                      {item.item}
-                      {item.notes ? (
-                        <span className="text-muted">, {item.notes}</span>
-                      ) : null}
-                    </span>
-                  </li>
+              <button
+                type="button"
+                onClick={openCookMode}
+                className="rounded-full border border-olive px-4 py-2 text-sm font-semibold text-olive hover:bg-olive/5"
+              >
+                Cook mode
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-start">
+            <div className="recipe-ingredients-panel lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-2">
+              <h3 className="font-serif text-xl text-ink">Ingredients</h3>
+              <div className="mt-2 flex items-center gap-2 text-sm font-semibold">
+                <button
+                  type="button"
+                  aria-label="Decrease servings"
+                  onClick={() => setServings((value) => Math.max(1, value - 1))}
+                  className="no-print inline-flex h-7 w-7 items-center justify-center rounded-full border border-line"
+                >
+                  −
+                </button>
+                <span>
+                  {servings} {recipe.servingsUnit}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Increase servings"
+                  onClick={() => setServings((value) => value + 1)}
+                  className="no-print inline-flex h-7 w-7 items-center justify-center rounded-full border border-line"
+                >
+                  +
+                </button>
+              </div>
+
+              {recipe.ingredients.map((group) => (
+                <div key={group.name ?? "main"} className="mt-4">
+                  {group.name ? <p className="mb-2 text-sm font-semibold text-olive">{group.name}</p> : null}
+                  <ul className="space-y-2">
+                    {group.items.map((item) => (
+                      <li key={item.item} className="flex gap-3 text-sm leading-6">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-terracotta" />
+                        <span>
+                          <strong className="font-semibold">
+                            {scaleAmount(item.amount, factor)}
+                            {item.grams ? ` (${Math.round(item.grams * factor)}g)` : ""}
+                          </strong>{" "}
+                          {item.item}
+                          {item.notes ? <span className="text-muted">, {item.notes}</span> : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+
+              {utensils.length ? (
+                <div className="mt-5">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">Utensils</p>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {utensils.map((item) => (
+                      <li key={item} className="rounded-full border border-line/80 px-2.5 py-1 text-xs text-ink">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <h3 className="font-serif text-xl text-ink">Instructions</h3>
+              <div className="mt-3">
+                {stages.map((stage, index) => (
+                  <StageAccordion
+                    key={stage.id}
+                    stage={stage}
+                    stageIndex={index}
+                    open={Boolean(openStages[stage.id])}
+                    onToggle={() => toggleStage(stage.id)}
+                    youtube={youtube}
+                    recipe={recipe}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {recipe.notes.length ? (
+            <div className="mt-8 border-t border-line/80 pt-5">
+              <h3 className="font-serif text-lg text-ink">Notes</h3>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-muted">
+                {recipe.notes.map((note) => (
+                  <li key={note}>{note}</li>
                 ))}
               </ul>
             </div>
-          ))}
-        </div>
+          ) : null}
 
-        <div>
-          <h3 className="font-serif text-xl text-ink md:text-2xl">Instructions</h3>
-          {instructionGroups.map((group, groupIndex) => {
-            const stepOffset = instructionGroups
-              .slice(0, groupIndex)
-              .reduce((sum, item) => sum + item.steps.length, 0);
-            const namedGroup = Boolean(group.name?.trim());
-
-            return (
-              <div
-                key={group.name ?? `steps-${groupIndex}`}
-                className={
-                  namedGroup
-                    ? "mt-5 border border-line/80 bg-cream/20 p-4 md:p-5"
-                    : "mt-4"
-                }
-              >
-                {namedGroup ? (
-                  <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-line/70 pb-3">
-                    <p className="font-serif text-lg text-ink">{group.name}</p>
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                      {group.steps.length} {group.steps.length === 1 ? "step" : "steps"}
-                    </p>
-                  </div>
-                ) : null}
-                <ol className={namedGroup ? "space-y-4" : "mt-4 space-y-4"}>
-                  {group.steps.map((step, index) => {
-                    const globalIndex = stepOffset + index;
-                    const ts = youtube
-                      ? timestampForStep(youtube.timestamps, globalIndex)
-                      : undefined;
-                    return (
-                      <li key={`${globalIndex}-${step}`} className="flex gap-3 text-sm leading-7">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-terracotta text-xs font-semibold text-paper">
-                          {globalIndex + 1}
-                        </span>
-                        <span>
-                          {step}
-                          {ts && youtube ? (
-                            <VideoTimestampLink
-                              label={ts.label}
-                              time={ts.time}
-                              videoId={youtube.videoId}
-                              recipeSlug={recipe.slug}
-                              recipeName={recipe.title}
-                              videoTitle={youtube.title}
-                            />
-                          ) : null}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </div>
-            );
-          })}
+          {showNutrition ? (
+            <div className="mt-6 border-t border-line/80 pt-4 text-sm text-muted">
+              <p className="font-semibold text-ink">Nutrition (estimate)</p>
+              <p className="mt-1">
+                {recipe.nutrition.calories} kcal · {recipe.nutrition.carbs}g carbs · {recipe.nutrition.protein}g
+                protein · {recipe.nutrition.fat}g fat
+              </p>
+            </div>
+          ) : null}
         </div>
-      </div>
+      </section>
 
-      {recipe.notes.length ? (
-        <div className="mt-8 border-t border-line pt-5">
-          <h3 className="font-serif text-xl">Notes</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-muted">
-            {recipe.notes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </div>
+      {cookModeOpen ? (
+        <RecipeCookMode
+          recipe={recipe}
+          stages={stages}
+          servings={servings}
+          factor={factor}
+          onClose={() => setCookModeOpen(false)}
+        />
       ) : null}
-
-      {showNutrition ? (
-        <div className="mt-6 border-t border-line pt-5 text-sm text-muted">
-          <p className="font-semibold text-ink">Nutrition</p>
-          <p className="mt-1">
-            {recipe.nutrition.calories} kcal · {recipe.nutrition.carbs}g carbs ·{" "}
-            {recipe.nutrition.protein}g protein · {recipe.nutrition.fat}g fat
-            {recipe.nutrition.fiber ? ` · ${recipe.nutrition.fiber}g fiber` : ""}
-            {recipe.nutrition.sugar ? ` · ${recipe.nutrition.sugar}g sugar` : ""}
-          </p>
-          <p className="mt-1 text-xs">{nutritionNote}</p>
-        </div>
-      ) : null}
-    </section>
+    </>
   );
+}
+
+/** @deprecated Use RecipeCookingWorkspace */
+export function RecipeCard(props: Parameters<typeof RecipeCookingWorkspace>[0]) {
+  return <RecipeCookingWorkspace {...props} />;
 }

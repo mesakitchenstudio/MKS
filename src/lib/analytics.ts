@@ -2,6 +2,7 @@
 
 export type AnalyticsEvent =
   | "recipe_video_cta_click"
+  | "recipe_video_expand"
   | "recipe_video_play"
   | "recipe_video_25_percent"
   | "recipe_video_50_percent"
@@ -17,6 +18,8 @@ export type AnalyticsEvent =
   | "recipe_youtube_playlist_click"
   | "videos_page_video_click"
   | "recipe_jump_to_recipe"
+  | "recipe_start_cooking_click"
+  | "recipe_cook_mode_start"
   | "recipe_print"
   | "recipe_share"
   | "recipe_copy_link"

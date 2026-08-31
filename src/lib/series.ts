@@ -292,6 +292,39 @@ export async function getSeriesLinksForRecipe(recipeId: string): Promise<RecipeS
   return links;
 }
 
+/** Published recipe slugs that share a Series with this recipe (excluding self). */
+export async function getSeriesPeerRecipeSlugs(recipeSlug: string): Promise<string[]> {
+  const db = getDb();
+  const recipe = await db.recipe.findFirst({
+    where: { slug: recipeSlug, status: "published" },
+    select: { id: true },
+  });
+  if (!recipe) return [];
+
+  const memberships = await db.seriesItem.findMany({
+    where: { recipeId: recipe.id, removedFromPlaylist: false, series: { isPublished: true } },
+    select: { seriesId: true },
+  });
+  const seriesIds = [...new Set(memberships.map((row) => row.seriesId))];
+  if (!seriesIds.length) return [];
+
+  const peers = await db.seriesItem.findMany({
+    where: {
+      seriesId: { in: seriesIds },
+      removedFromPlaylist: false,
+      NOT: { recipeId: recipe.id },
+      recipe: { status: "published" },
+    },
+    select: { recipe: { select: { slug: true } } },
+  });
+
+  return [
+    ...new Set(
+      peers.map((row) => row.recipe?.slug).filter((slug): slug is string => Boolean(slug)),
+    ),
+  ];
+}
+
 /**
  * Prefer the next Series item with a usable YouTube video (and optional recipe page).
  */

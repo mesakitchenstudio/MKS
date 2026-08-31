@@ -56,9 +56,18 @@ body {
     color: black;
   }
 
-  #recipe-card {
+  .recipe-cooking-workspace,
+  #recipe-cooking {
     break-inside: avoid;
     box-shadow: none !important;
-    border: 1px solid #ccc;
+  }
+
+  .recipe-stage-panel,
+  .recipe-stage-panel.hidden {
+    display: block !important;
+  }
+
+  .recipe-stage button[aria-expanded] {
+    display: none !important;
   }
 }

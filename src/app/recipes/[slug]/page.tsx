@@ -6,33 +6,28 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { CollectionRow } from "@/components/CollectionRow";
 import { JsonLd } from "@/components/JsonLd";
-import { RecipeAtAGlance } from "@/components/RecipeAtAGlance";
-import { RecipeCard } from "@/components/RecipeCard";
-import { RecipeHeroActions } from "@/components/RecipeHeroActions";
-import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
-import { RecipeRatingSummary } from "@/components/RecipeRatingSummary";
+import { RecipeCookingWorkspace } from "@/components/RecipeCard";
+import { RecipeLearnSection } from "@/components/RecipeLearnSection";
+import { RecipePageHero } from "@/components/RecipePageHero";
 import { RecipeReviews } from "@/components/RecipeReviews";
-import { RecipeTableOfContents } from "@/components/RecipeTableOfContents";
-import { ShareButtons } from "@/components/ShareButtons";
+import { RecipeSectionNav } from "@/components/RecipeSectionNav";
+import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
 import { RecipeContinuedViewing } from "@/components/youtube/RecipeContinuedViewing";
-import { RecipeMainEmbed } from "@/components/youtube/RecipeMainEmbed";
+import { RecipeCompactSubscribe } from "@/components/youtube/RecipeCompactSubscribe";
 import { RecipeVideoExperience } from "@/components/youtube/RecipeVideoExperience";
-import { RecipeVideoTeaser } from "@/components/youtube/RecipeVideoTeaser";
-import { RelatedYouTubeVideos } from "@/components/youtube/RelatedYouTubeVideos";
-import { YouTubeSubscribeCTA } from "@/components/youtube/YouTubeSubscribeCTA";
-import { RecipeSeriesContext } from "@/components/series/RecipeSeriesContext";
+import { RecipeWatchMethod } from "@/components/youtube/RecipeWatchMethod";
 import { site } from "@/data/site";
 import { getAdminSession } from "@/lib/auth";
 import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
 import { resolveRecipeYoutube, resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
-import { recipeTocItems } from "@/lib/recipe-sections";
 import { fieldValueHasContent, formatPublicExtraFieldValue } from "@/lib/field-content";
-import { readerExtraLabel, visibleExtras } from "@/lib/recipe-timing";
+import { publicExtrasForPage, readerExtraLabel } from "@/lib/recipe-timing";
+import { getRankedRelatedRecipes } from "@/lib/recipe-related";
 import { recipeJsonLd } from "@/lib/schema";
 import { formatGmtDisplay } from "@/lib/datetime";
-import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
+import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
 import { getWatchNextRecommendation } from "@/lib/youtube-data/watch-next";
-import { getSeriesLinksForRecipeSlug } from "@/lib/series";
+import { getSeriesLinksForRecipeSlug, getSeriesPeerRecipeSlugs } from "@/lib/series";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -53,9 +48,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: recipe.title,
     description: recipe.excerpt,
-    alternates: {
-      canonical: `/recipes/${recipe.slug}`,
-    },
+    alternates: { canonical: `/recipes/${recipe.slug}` },
     openGraph: {
       title: `${recipe.title} | ${site.name}`,
       description: recipe.excerpt,
@@ -78,12 +71,13 @@ export default async function RecipePage({ params }: Props) {
   const recipe = await getRecipeBySlug(slug);
   if (!recipe) notFound();
 
-  const [related, session, admin, seriesLinks] = await Promise.all([
-    getRelatedRecipes(recipe),
+  const [seriesLinks, seriesPeerSlugs, session, admin] = await Promise.all([
+    getSeriesLinksForRecipeSlug(recipe.slug),
+    getSeriesPeerRecipeSlugs(recipe.slug),
     auth(),
     getAdminSession(),
-    getSeriesLinksForRecipeSlug(recipe.slug),
   ]);
+
   const canStaffReply =
     Boolean(admin && canManageRecipeReviewReplies(admin.role)) ||
     Boolean(session?.staffRole && canManageRecipeReviewReplies(session.staffRole));
@@ -92,11 +86,17 @@ export default async function RecipePage({ params }: Props) {
     email: session?.user?.email ?? null,
     userId: session?.user?.id ?? null,
   });
-  const toc = recipeTocItems(recipe);
-  const visibleExtrasList = visibleExtras(recipe).filter((field) =>
+
+  const related = await getRankedRelatedRecipes(recipe, { seriesPeerSlugs, limit: 3 });
+  const visibleExtrasList = publicExtrasForPage(recipe).filter((field) =>
     fieldValueHasContent(field.value, field.kind),
   );
   const updated = formatGmtDisplay(recipe.updatedAt);
+  const hasLearn =
+    Boolean(recipe.whyItWorks.trim()) ||
+    recipe.keyIngredients.length > 0 ||
+    recipe.tips.length > 0;
+
   const baseYoutube = resolveRecipeYoutube(recipe);
   if (baseYoutube && !(baseYoutube.timestamps?.length ?? 0)) {
     await connection();
@@ -113,99 +113,29 @@ export default async function RecipePage({ params }: Props) {
 
   const article = (
     <>
-      <div className="mx-auto max-w-3xl px-4 py-8 md:px-6 md:py-10">
-        {seriesLinks.length ? (
-          <div className="mb-3">
-            <RecipeSeriesContext links={seriesLinks} />
-          </div>
-        ) : null}
+      <RecipePageHero
+        recipe={recipe}
+        seriesLinks={seriesLinks}
+        updated={updated}
+        reviewData={reviewData}
+      />
 
-        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-          {recipe.course} · {recipe.cuisine}
-        </p>
+      <RecipeSectionNav hasVideo={Boolean(youtube)} hasLearn={hasLearn} />
 
-        <h1 className="mt-2 font-serif text-4xl leading-tight text-ink md:text-5xl">{recipe.title}</h1>
-        <RecipeRatingSummary slug={recipe.slug} initial={reviewData.stats} />
+      <RecipeCookingWorkspace recipe={recipe} youtube={youtube} />
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-          <p className="text-sm text-muted">Updated {updated}</p>
-          <ShareButtons title={recipe.title} slug={recipe.slug} />
-        </div>
+      <div className="mx-auto max-w-[75rem] px-4 pb-10 md:px-6">
+        <RecipeLearnSection
+          whyItWorks={recipe.whyItWorks}
+          keyIngredients={recipe.keyIngredients}
+          tips={recipe.tips}
+        />
 
-        {recipe.excerpt ? (
-          <p className="mt-5 text-lg leading-8 text-ink/90">{recipe.excerpt}</p>
-        ) : null}
-
-        <figure className="mt-6 overflow-hidden border border-line bg-sand">
-          <div className="relative aspect-video w-full">
-            <Image
-              src={recipe.image}
-              alt={recipe.imageAlt}
-              fill
-              priority
-              sizes="(min-width: 768px) 48rem, 100vw"
-              className="object-cover"
-            />
-          </div>
-        </figure>
-
-        <RecipeAtAGlance recipe={recipe} />
-        <RecipeHeroActions slug={recipe.slug} title={recipe.title} />
-        {youtube ? <RecipeVideoTeaser /> : null}
-
-        {recipe.intro ? (
-          <div className="prose-mesa mt-6 text-base leading-7 text-ink/90">
-            <p>{recipe.intro}</p>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mx-auto max-w-4xl px-4 md:px-6">
-        <RecipeCard recipe={recipe} youtube={youtube} showOverview={false} />
-      </div>
-
-      <div className="mx-auto max-w-3xl px-4 pb-10 md:px-6">
-        <RecipeTableOfContents items={toc} />
-
-        {recipe.whyItWorks ? (
-          <section id="why-this-works" className="mt-8 scroll-mt-24">
-            <h2 className="font-serif text-2xl md:text-3xl">Why this works</h2>
-            <p className="mt-3 leading-7 text-ink/90">{recipe.whyItWorks}</p>
-          </section>
-        ) : null}
-
-        {recipe.keyIngredients.length ? (
-          <section id="key-ingredients" className="mt-8 scroll-mt-24">
-            <h2 className="font-serif text-2xl md:text-3xl">Key ingredients</h2>
-            <dl className="mt-4 space-y-4">
-              {recipe.keyIngredients.map((item) => (
-                <div key={item.name} className="border-l-2 border-terracotta/70 pl-4">
-                  <dt className="font-semibold">{item.name}</dt>
-                  <dd className="mt-1 text-sm leading-6 text-muted">{item.note}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ) : null}
-
-        {recipe.tips.length ? (
-          <section id="studio-tips" className="mt-8 scroll-mt-24">
-            <h2 className="font-serif text-2xl md:text-3xl">Studio tips</h2>
-            <ul className="mt-4 space-y-2">
-              {recipe.tips.map((tip) => (
-                <li key={tip} className="leading-7 text-ink/90">
-                  {tip}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {youtube ? <RecipeMainEmbed /> : null}
+        {youtube ? <RecipeWatchMethod /> : null}
 
         {recipe.faqs.length ? (
-          <section id="faqs" className="mt-8 scroll-mt-24">
-            <h2 className="font-serif text-2xl md:text-3xl">Frequently asked</h2>
+          <section id="faqs" className="mt-10 scroll-mt-24">
+            <h2 className="font-serif text-2xl text-ink">Frequently asked</h2>
             <div className="mt-4 space-y-5">
               {recipe.faqs.map((faq) => (
                 <div key={faq.question}>
@@ -220,12 +150,8 @@ export default async function RecipePage({ params }: Props) {
         {visibleExtrasList.length ? (
           <section className="mt-8">
             {visibleExtrasList.map((field) => (
-              <div
-                key={field.key}
-                id={`extra-${field.key}`}
-                className="mt-8 scroll-mt-24 first:mt-0"
-              >
-                <h2 className="font-serif text-2xl md:text-3xl">
+              <div key={field.key} id={`extra-${field.key}`} className="mt-8 scroll-mt-24 first:mt-0">
+                <h2 className="font-serif text-2xl text-ink">
                   {readerExtraLabel(field.label, field.key)}
                 </h2>
                 <ExtraValue keyName={field.key} kind={field.kind} value={field.value} />
@@ -252,20 +178,11 @@ export default async function RecipePage({ params }: Props) {
           defaultEmail={session?.user?.email ?? ""}
         />
 
-        {youtube?.relatedVideos?.length ? (
-          <RelatedYouTubeVideos
-            videos={youtube.relatedVideos}
-            recipeSlug={recipe.slug}
-            recipeName={recipe.title}
-            sourceVideoId={youtube.videoId}
-          />
-        ) : null}
-
         {!youtube ? (
-          <YouTubeSubscribeCTA
+          <RecipeCompactSubscribe
             recipeSlug={recipe.slug}
             recipeName={recipe.title}
-            placement="end_of_recipe"
+            variant="end"
           />
         ) : null}
 

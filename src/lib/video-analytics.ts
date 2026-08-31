@@ -37,6 +37,7 @@ export type VideoAnalyticsPayload = {
 
 type VideoAnalyticsEvent =
   | "recipe_video_cta_click"
+  | "recipe_video_expand"
   | "recipe_video_play"
   | "recipe_video_25_percent"
   | "recipe_video_50_percent"

@@ -33,7 +33,7 @@ export function FloatingRecipeVideo() {
   const [mainVideoVisible, setMainVideoVisible] = useState(false);
 
   useEffect(() => {
-    const mainVideo = document.getElementById("studio-video");
+    const mainVideo = document.getElementById("watch-method");
     if (!mainVideo) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -46,7 +46,7 @@ export function FloatingRecipeVideo() {
   }, []);
 
   useEffect(() => {
-    const recipeCard = document.getElementById("recipe-card");
+    const recipeCard = document.getElementById("recipe-cooking");
     if (!recipeCard) {
       setRecipeCardPassed(true);
       return;

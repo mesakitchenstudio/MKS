@@ -52,3 +52,21 @@ export function visibleExtras(recipe: RecipeWithExtras): ExtraField[] {
     return true;
   });
 }
+
+export function publicExtrasForPage(recipe: RecipeWithExtras): ExtraField[] {
+  return visibleExtras(recipe).filter((field) => {
+    if (field.key === "riseHours" && shouldHideRiseHoursExtra(recipe)) return false;
+    const key = field.key.toLowerCase();
+    if (
+      key.includes("proof") ||
+      key.includes("rise") ||
+      key.includes("rest") ||
+      key.includes("ferment")
+    ) {
+      if (field.kind === "minutes" || field.kind === "number" || key.endsWith("hours")) {
+        return false;
+      }
+    }
+    return true;
+  });
+}

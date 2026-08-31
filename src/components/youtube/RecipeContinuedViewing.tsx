@@ -129,7 +129,7 @@ function ContinuedCard({
     });
   }
 
-  const videoHref = recipeSlug ? `/recipes/${recipeSlug}#studio-video` : watchUrl;
+  const videoHref = recipeSlug ? `/recipes/${recipeSlug}#watch-method` : watchUrl;
 
   return (
     <section className="mt-10 border border-line bg-sand/40 px-4 py-5 sm:px-5">

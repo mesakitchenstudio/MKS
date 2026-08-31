@@ -335,6 +335,7 @@ export function RecipeReviews({
   const [loaded, setLoaded] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const threadSigRef = useRef(recipeReviewThreadSignature(data));
 
   const knownIdentity = Boolean(
@@ -461,6 +462,7 @@ export function RecipeReviews({
       setSubmitted(true);
       setComment("");
       setRating(0);
+      setFormOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your review.");
     } finally {
@@ -469,9 +471,25 @@ export function RecipeReviews({
   }
 
   return (
-    <section id="recipe-comments" className="mt-16 scroll-mt-24 border-t border-line pt-12 md:mt-20 md:pt-14">
-      <form onSubmit={onSubmit} id="leave-comment" className="space-y-5 pb-12 md:pb-14">
-        <h3 className="font-serif text-3xl text-ink md:text-[2rem]">Leave a comment</h3>
+    <section id="recipe-comments" className="mt-10 scroll-mt-24 border-t border-line/80 pt-8">
+      <h2 className="font-serif text-2xl text-ink md:text-3xl">Ratings & comments</h2>
+
+      {!data.reviews.length && !formOpen ? (
+        <div className="mt-4">
+          <p className="text-sm text-muted">No reviews yet.</p>
+          <button
+            type="button"
+            onClick={() => setFormOpen(true)}
+            className="no-print mt-3 rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-terracotta hover:text-terracotta"
+          >
+            Leave a review
+          </button>
+        </div>
+      ) : null}
+
+      {formOpen ? (
+        <form onSubmit={onSubmit} id="leave-comment" className="mt-5 space-y-5 pb-8">
+          <h3 className="font-serif text-xl text-ink">Leave a review</h3>
         {knownIdentity ? (
           <p className="text-sm text-muted">
             Commenting as{" "}
@@ -541,54 +559,55 @@ export function RecipeReviews({
         >
           {submitting ? "Posting…" : "Post comment"}
         </button>
-      </form>
+        </form>
+      ) : null}
 
-      <div className="border-t border-line pt-12 md:pt-14">
-        <h2 className="font-serif text-4xl tracking-tight text-ink md:text-[2.75rem]">
-          Comments
-        </h2>
+      {data.reviews.length ? (
+        <div className="mt-6">
+          {!formOpen ? (
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className="no-print mb-6 rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-terracotta hover:text-terracotta"
+            >
+              Leave a review
+            </button>
+          ) : null}
 
-        <div className="mt-4 md:mt-[1.125rem]" aria-live="polite" aria-atomic="false">
-          {data.reviews.length ? (
-            <>
-              <ul>
-                {visibleReviews.map((review) => (
-                  <ReviewItem
-                    key={review.id}
-                    review={review}
-                    slug={slug}
-                    canReply={replyable.has(review.id)}
-                    replyOpen={activeReplyId === review.id}
-                    signedInAs={signedInAs}
-                    onToggleReply={() =>
-                      setActiveReplyId((current) =>
-                        current === review.id ? null : review.id,
-                      )
-                    }
-                    onCancelReply={() => setActiveReplyId(null)}
-                    onDataChange={applyReviewData}
-                  />
-                ))}
-              </ul>
-              {hasMoreComments && !showAllComments ? (
-                <div className="flex justify-center border-t border-line/80 pt-10">
-                  <button
-                    type="button"
-                    onClick={() => setShowAllComments(true)}
-                    className="rounded-sm border border-line bg-transparent px-6 py-2.5 text-sm font-semibold text-olive hover:border-olive hover:bg-paper"
-                  >
-                    Show more comments
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : loaded ? (
-            <p className="text-sm text-muted">Be the first to rate and review {title}.</p>
-          ) : (
-            <p className="text-sm text-muted">Loading comments…</p>
-          )}
+        <div aria-live="polite" aria-atomic="false">
+          <ul>
+            {visibleReviews.map((review) => (
+              <ReviewItem
+                key={review.id}
+                review={review}
+                slug={slug}
+                canReply={replyable.has(review.id)}
+                replyOpen={activeReplyId === review.id}
+                signedInAs={signedInAs}
+                onToggleReply={() =>
+                  setActiveReplyId((current) => (current === review.id ? null : review.id))
+                }
+                onCancelReply={() => setActiveReplyId(null)}
+                onDataChange={applyReviewData}
+              />
+            ))}
+          </ul>
+          {hasMoreComments && !showAllComments ? (
+            <div className="flex justify-center border-t border-line/80 pt-8">
+              <button
+                type="button"
+                onClick={() => setShowAllComments(true)}
+                className="rounded-sm border border-line bg-transparent px-6 py-2.5 text-sm font-semibold text-olive hover:border-olive hover:bg-paper"
+              >
+                Show more comments
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
+      ) : !loaded ? (
+        <p className="mt-4 text-sm text-muted">Loading comments…</p>
+      ) : null}
     </section>
   );
 }
