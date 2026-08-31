@@ -30,18 +30,18 @@ export function RecipeWatchMethod() {
         Watch the method
       </p>
 
-      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start">
-        <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-sand sm:w-[17.5rem]">
+      <div className="mt-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <div className="relative aspect-video w-full shrink-0 overflow-hidden border border-line/60 bg-sand sm:w-[16rem]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={youtube.thumbnail} alt="" className="h-full w-full object-cover" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 sm:py-0.5">
           <p className="font-serif text-lg leading-snug text-ink">{youtube.title}</p>
-          {youtube.duration ? <p className="mt-1 text-sm text-muted">{youtube.duration}</p> : null}
+          {youtube.duration ? <p className="mt-0.5 text-sm text-muted">{youtube.duration}</p> : null}
           {youtube.hook ? (
-            <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{youtube.hook}</p>
+            <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-muted">{youtube.hook}</p>
           ) : null}
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
             <button
               ref={watchButtonRef}
               type="button"

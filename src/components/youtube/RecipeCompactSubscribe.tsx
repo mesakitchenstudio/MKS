@@ -30,17 +30,8 @@ export function WatchMethodModalActions({
   onWatchYouTube?: () => void;
 }) {
   return (
-    <div className="no-print mt-4 border-t border-line/60 pt-4">
-      <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-4">
-        <a
-          href={watchUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={onWatchYouTube}
-          className={`text-sm font-semibold text-muted hover:text-terracotta hover:underline ${linkFocus}`}
-        >
-          Watch on YouTube ↗
-        </a>
+    <div className="no-print mt-3 border-t border-line/60 pt-3">
+      <div className="flex flex-col items-center gap-2.5 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-3">
         <a
           href={subscribeUrl}
           target="_blank"
@@ -58,8 +49,17 @@ export function WatchMethodModalActions({
         >
           Subscribe on YouTube
         </a>
+        <a
+          href={watchUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={onWatchYouTube}
+          className={`text-sm font-semibold text-muted hover:text-terracotta hover:underline ${linkFocus}`}
+        >
+          Watch on YouTube ↗
+        </a>
       </div>
-      <p className="mt-3 text-center text-sm text-muted">
+      <p className="mt-2 text-center text-xs leading-5 text-muted sm:text-sm">
         New recipes and kitchen techniques every week.
       </p>
       {playlistUrl && playlistLabel ? (

@@ -110,19 +110,25 @@ function RecipeLearnAccordion({
 
       <div
         id={panelId}
-        className={`border-t border-line/60 pt-4 ${open ? "mt-3 block" : "hidden print:block"}`}
+        className={`border-t border-line/60 pt-3 ${open ? "mt-3 block" : "hidden print:block"}`}
       >
-        <div className="grid gap-6 md:grid-cols-3 md:gap-8 md:divide-x md:divide-line/60">
+        <div className="grid gap-5 md:grid-cols-3 md:gap-6 md:divide-x md:divide-line/50">
           {hasWhy ? (
-            <div className="md:pr-6">
-              <h3 className="font-serif text-lg text-ink">Why this works</h3>
-              <p className="mt-2 text-sm leading-7 text-ink/90">{whyItWorks}</p>
+            <div className="border-b border-line/40 pb-5 md:border-b-0 md:pb-0 md:pr-5">
+              <h3 className="border-b border-line/40 pb-2 font-serif text-base text-ink md:text-lg">
+                Why this works
+              </h3>
+              <p className="mt-2.5 text-sm leading-7 text-ink/90">{whyItWorks}</p>
             </div>
           ) : null}
           {hasKeys ? (
-            <div className={hasWhy ? "md:px-6" : "md:pr-6"}>
-              <h3 className="font-serif text-lg text-ink">Key ingredients</h3>
-              <dl className="mt-2 space-y-3">
+            <div
+              className={`border-b border-line/40 pb-5 md:border-b-0 md:pb-0 ${hasWhy ? "md:px-5" : "md:pr-5"}`}
+            >
+              <h3 className="border-b border-line/40 pb-2 font-serif text-base text-ink md:text-lg">
+                Key ingredients
+              </h3>
+              <dl className="mt-2.5 space-y-2.5">
                 {keyIngredients.map((item) => (
                   <div key={item.name}>
                     <dt className="text-sm font-semibold text-ink">{item.name}</dt>
@@ -133,9 +139,11 @@ function RecipeLearnAccordion({
             </div>
           ) : null}
           {hasTips ? (
-            <div className={hasWhy || hasKeys ? "md:pl-6" : ""}>
-              <h3 className="font-serif text-lg text-ink">Studio tips</h3>
-              <ul className="mt-2 space-y-2 text-sm leading-6 text-ink/90">
+            <div className={hasWhy || hasKeys ? "md:pl-5" : ""}>
+              <h3 className="border-b border-line/40 pb-2 font-serif text-base text-ink md:text-lg">
+                Studio tips
+              </h3>
+              <ul className="mt-2.5 space-y-2 text-sm leading-6 text-ink/90">
                 {tips.map((tip) => (
                   <li key={tip} className="flex gap-2">
                     <span className="text-terracotta">•</span>

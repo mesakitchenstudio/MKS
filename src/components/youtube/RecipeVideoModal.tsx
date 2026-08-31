@@ -29,6 +29,7 @@ export function RecipeVideoModal() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const scrollYRef = useRef(0);
   const [showWatchNext, setShowWatchNext] = useState(false);
 
   const closeModal = useCallback(() => {
@@ -39,11 +40,20 @@ export function RecipeVideoModal() {
   useEffect(() => {
     if (!expanded) return;
 
+    scrollYRef.current = window.scrollY;
     previousFocus.current = takeLastTrigger() ?? (document.activeElement as HTMLElement | null);
-    closeRef.current?.focus();
 
     const previousOverflow = document.body.style.overflow;
+    const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousWidth = document.body.style.width;
+
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollYRef.current}px`;
+    document.body.style.width = "100%";
+
+    requestAnimationFrame(() => closeRef.current?.focus());
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -72,6 +82,10 @@ export function RecipeVideoModal() {
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
+      document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.width = previousWidth;
+      window.scrollTo(0, scrollYRef.current);
       previousFocus.current?.focus?.();
     };
   }, [closeModal, expanded, takeLastTrigger]);
@@ -103,16 +117,16 @@ export function RecipeVideoModal() {
           <span aria-hidden>×</span>
         </button>
 
-        <div className="border-b border-line/60 px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-          <p id={titleId} className="pr-12 font-serif text-lg text-ink sm:text-xl">
+        <div className="px-4 pb-2 pt-3 sm:px-5 sm:pt-4">
+          <p id={titleId} className="pr-12 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
             Watch the method
           </p>
           {youtube.hook ? (
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">{youtube.hook}</p>
+            <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted sm:text-sm">{youtube.hook}</p>
           ) : null}
         </div>
 
-        <div className="px-4 py-4 sm:px-5">
+        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
           <div className="relative aspect-video overflow-hidden bg-ink">
             <YouTubeEmbedFacade
               key={active ? `${youtube.videoId}-${startSeconds}` : `${youtube.videoId}-poster`}

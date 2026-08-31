@@ -44,7 +44,7 @@ export function RecipeVideoChapters() {
   if (!chapters.length) return null;
 
   return (
-    <div className="mt-4">
+    <div className="mt-3">
       <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
         Watch by step
       </h3>
