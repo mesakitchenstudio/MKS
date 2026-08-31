@@ -64,18 +64,16 @@ export function RecipePageHero({
         </div>
 
         <figure className="recipe-hero-figure no-print order-2 mt-5 lg:order-none lg:mt-0">
-          <div className="rounded-[2px] border border-line bg-paper p-2 shadow-[0_1px_0_rgba(42,34,24,0.045)] sm:p-2.5">
-            <div className="rounded-[1px] border border-line/70 p-px">
-              <div className="relative aspect-video w-full overflow-hidden bg-sand lg:aspect-[5/4]">
-                <Image
-                  src={recipe.image}
-                  alt={recipe.imageAlt}
-                  fill
-                  priority
-                  sizes="(min-width: 1024px) 42vw, 100vw"
-                  className="object-cover"
-                />
-              </div>
+          <div className="border border-line bg-paper p-1">
+            <div className="relative aspect-video w-full overflow-hidden bg-sand lg:aspect-[5/4]">
+              <Image
+                src={recipe.image}
+                alt={recipe.imageAlt}
+                fill
+                priority
+                sizes="(min-width: 1024px) 42vw, 100vw"
+                className="object-cover"
+              />
             </div>
           </div>
         </figure>
