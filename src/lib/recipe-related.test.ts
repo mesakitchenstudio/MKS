@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { getContinuedViewingRecipeSlug, scoreRelatedRecipe } from "./recipe-related";
+import { getContinuedViewingRecipeSlug, rankRelatedRecipesFromPool, scoreRelatedRecipe } from "./recipe-related";
 import type { RecipeSeriesLink } from "@/lib/series-types";
 import type { WatchNextRecommendation } from "@/lib/youtube-data/watch-next-select";
 import type { Recipe } from "@/data/types";
@@ -116,4 +116,53 @@ test("scoreRelatedRecipe boosts overlapping method", () => {
     scoreRelatedRecipe(source, withMethod, peers) >
       scoreRelatedRecipe(source, otherMethod, peers),
   );
+});
+
+test("rankRelatedRecipesFromPool fills to three after related matches", () => {
+  const focaccia = {
+    ...baseRecipe,
+    slug: "herb-focaccia",
+    title: "Herb Focaccia",
+    course: "Bread",
+    categories: ["breads"],
+  };
+  const cookies = {
+    ...baseRecipe,
+    slug: "cookies",
+    title: "Cookies",
+    course: "Dessert",
+    categories: ["desserts"],
+    tags: ["cookie"],
+  };
+  const soup = {
+    ...baseRecipe,
+    slug: "soup",
+    title: "Tomato Soup",
+    course: "Soup",
+    categories: ["soups"],
+    tags: [],
+  };
+  const ranked = rankRelatedRecipesFromPool(baseRecipe, [baseRecipe, focaccia, cookies, soup], {
+    limit: 3,
+  });
+  assert.equal(ranked.length, 3);
+  assert.equal(ranked[0]?.slug, "herb-focaccia");
+  assert.deepEqual(
+    ranked.map((item) => item.slug).sort(),
+    ["cookies", "herb-focaccia", "soup"],
+  );
+  assert.ok(!ranked.some((item) => item.slug === "baguette"));
+});
+
+test("rankRelatedRecipesFromPool does not invent cards when pool is too small", () => {
+  const focaccia = {
+    ...baseRecipe,
+    slug: "herb-focaccia",
+    title: "Herb Focaccia",
+    course: "Bread",
+    categories: ["breads"],
+  };
+  const ranked = rankRelatedRecipesFromPool(baseRecipe, [baseRecipe, focaccia], { limit: 3 });
+  assert.equal(ranked.length, 1);
+  assert.equal(ranked[0]?.slug, "herb-focaccia");
 });

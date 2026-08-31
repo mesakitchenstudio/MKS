@@ -69,18 +69,19 @@ export function scoreRelatedRecipe(
   return score;
 }
 
-export async function getRankedRelatedRecipes(
+export function rankRelatedRecipesFromPool(
   recipe: Recipe,
+  pool: Recipe[],
   options: {
     limit?: number;
     seriesPeerSlugs?: string[];
     excludeSlugs?: string[];
   } = {},
-): Promise<PublicRecipe[]> {
+): Recipe[] {
   const limit = options.limit ?? 3;
   const seriesPeers = new Set(options.seriesPeerSlugs ?? []);
   const excluded = new Set([recipe.slug, ...(options.excludeSlugs ?? [])]);
-  const all = await getAllRecipes();
+  const all = pool;
 
   const scored = all
     .filter((item) => !excluded.has(item.slug))
@@ -127,12 +128,33 @@ export async function getRankedRelatedRecipes(
 
   const related = [...scored.map((entry) => entry.item), ...softFallback];
 
-  // Only use general fallback when there is truly nothing related.
-  if (related.length > 0) {
+  if (related.length >= limit) {
     return related.slice(0, limit);
   }
 
-  return all
-    .filter((item) => !excluded.has(item.slug))
-    .slice(0, limit);
+  // Fill remaining slots from other published recipes so the discovery row
+  // can show three cards when enough eligible recipes exist. Related/soft
+  // matches stay first; this only pads after those are exhausted.
+  const filler = all
+    .filter((item) => !excluded.has(item.slug) && !picked.has(item.slug))
+    .sort(
+      (a, b) =>
+        Number(Boolean(b.featured)) - Number(Boolean(a.featured)) ||
+        a.title.localeCompare(b.title),
+    )
+    .slice(0, limit - related.length);
+
+  return [...related, ...filler].slice(0, limit);
+}
+
+export async function getRankedRelatedRecipes(
+  recipe: Recipe,
+  options: {
+    limit?: number;
+    seriesPeerSlugs?: string[];
+    excludeSlugs?: string[];
+  } = {},
+): Promise<PublicRecipe[]> {
+  const all = await getAllRecipes();
+  return rankRelatedRecipesFromPool(recipe, all, options) as PublicRecipe[];
 }

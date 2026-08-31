@@ -31,6 +31,36 @@ const stages: RecipeInstructionStage[] = [
   },
 ];
 
+const baguetteStages: RecipeInstructionStage[] = [
+  {
+    id: "yeast",
+    name: "Activate Yeast & Incorporate",
+    steps: [{ globalIndex: 0, text: "Mix" }],
+  },
+  {
+    id: "fold",
+    name: "Stretch-and-Fold Rounds",
+    steps: [{ globalIndex: 1, text: "Fold" }],
+  },
+  {
+    id: "shape",
+    name: "Shaping",
+    steps: [{ globalIndex: 2, text: "Shape" }],
+  },
+  {
+    id: "bake",
+    name: "Scoring & Steam Bake",
+    steps: [{ globalIndex: 3, text: "Bake" }],
+  },
+];
+
+const baguetteChapters = [
+  { label: "The Foundation of Perfect Dough", time: 0 },
+  { label: "The Secret to Gluten Development", time: 87 },
+  { label: "Shaping for the Perfect Crumb", time: 197 },
+  { label: "The Art of the Steam Bake", time: 381 },
+];
+
 test("selectStageVideoHelp only attaches strong technique matches", () => {
   const help = selectStageVideoHelp(stages, [
     { label: "Intro", time: 0 },
@@ -41,17 +71,47 @@ test("selectStageVideoHelp only attaches strong technique matches", () => {
   ]);
 
   assert.ok(help["stage-0"]);
-  assert.equal(help["stage-0"].linkLabel, "Watch the stretch-and-fold · 1:22");
+  assert.equal(help["stage-0"].linkLabel, "Watch: Stretch and fold technique · 1:22");
   assert.equal(help["stage-1"], undefined);
   assert.ok(help["stage-2"]);
-  assert.equal(help["stage-2"].linkLabel, "See how to divide & pre-shape · 2:20");
+  assert.equal(help["stage-2"].linkLabel, "Watch: Dividing the dough · 2:20");
   assert.ok(help["stage-3"]);
-  assert.equal(help["stage-3"].linkLabel, "See shaping in the video · 3:09");
+  assert.equal(help["stage-3"].linkLabel, "Watch: Shaping the baguettes · 3:09");
   assert.ok(help["stage-4"]);
-  assert.match(help["stage-4"].linkLabel, /Watch scoring & steam · 5:10/);
+  assert.equal(help["stage-4"].linkLabel, "Watch: Scoring and steam · 5:10");
 });
 
-test("selectStageVideoHelp assigns leftover chapters to unmatched technique stages", () => {
+test("baguette chapters map to the correct instruction stages", () => {
+  const help = selectStageVideoHelp(baguetteStages, baguetteChapters);
+
+  assert.equal(help.yeast?.time, 0);
+  assert.equal(help.yeast?.linkLabel, "Watch: The Foundation of Perfect Dough · 0:00");
+  assert.equal(help.fold?.time, 87);
+  assert.equal(help.fold?.linkLabel, "Watch: The Secret to Gluten Development · 1:27");
+  assert.equal(help.shape?.time, 197);
+  assert.equal(help.shape?.linkLabel, "Watch: Shaping for the Perfect Crumb · 3:17");
+  assert.equal(help.bake?.time, 381);
+  assert.equal(help.bake?.linkLabel, "Watch: The Art of the Steam Bake · 6:21");
+});
+
+test("does not invent stretch-and-fold CTA for yeast/incorporate at 0:00", () => {
+  const help = selectStageVideoHelp(
+    [
+      {
+        id: "yeast",
+        name: "Activate Yeast & Incorporate",
+        steps: [{ globalIndex: 0, text: "Mix" }],
+      },
+    ],
+    baguetteChapters,
+  );
+
+  assert.equal(help.yeast?.time, 0);
+  assert.match(help.yeast?.linkLabel ?? "", /Foundation of Perfect Dough/);
+  assert.doesNotMatch(help.yeast?.linkLabel ?? "", /stretch-and-fold/i);
+});
+
+test("omits uncertain leftover chapter assignments", () => {
   const help = selectStageVideoHelp(stages, [
     { label: "Stretch & fold", time: 60 },
     { label: "Bench work", time: 120 },
@@ -60,10 +120,11 @@ test("selectStageVideoHelp assigns leftover chapters to unmatched technique stag
 
   assert.equal(help["stage-0"]?.time, 60);
   assert.equal(help["stage-1"], undefined);
-  // Dividing unmatched by label → next leftover after stretch claimed
-  assert.ok(help["stage-2"] || help["stage-3"]);
-  assert.ok(help["stage-4"]);
+  // "Bench work" has no strong pair — do not guess a stage.
+  assert.equal(help["stage-2"], undefined);
+  assert.equal(help["stage-3"], undefined);
   assert.equal(help["stage-4"]?.time, 240);
+  assert.match(help["stage-4"]?.linkLabel ?? "", /Into the oven/);
 });
 
 test("selectStageVideoHelp returns empty without chapters", () => {
