@@ -5,7 +5,6 @@ import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideo } from "./RecipeVideoContext";
 import { RecipeVideoChapters } from "./RecipeVideoChapters";
 import { WatchNextPrompt } from "./WatchNextPrompt";
-import { WatchNextSection } from "./WatchNextSection";
 import { YouTubeEmbedFacade } from "./YouTubeEmbedFacade";
 import { YouTubeSubscribeCTA } from "./YouTubeSubscribeCTA";
 
@@ -28,8 +27,8 @@ export function RecipeMainEmbed() {
 
   return (
     <div ref={mainAnchorRef} id="studio-video" className="mt-10 scroll-mt-24">
-      <h2 className="font-serif text-3xl text-ink">Watch {recipeName} step by step</h2>
-      <p className="mt-3 text-base leading-7 text-ink/90">{youtube.hook}</p>
+      <h2 className="font-serif text-2xl text-ink md:text-3xl">Watch step by step</h2>
+      <p className="mt-2 text-base leading-7 text-muted">{youtube.hook}</p>
 
       {miniPlayer ? <div className="mt-5 aspect-video" aria-hidden /> : null}
 
@@ -115,15 +114,6 @@ export function RecipeMainEmbed() {
         videoId={youtube.videoId}
         placement="post_video_subscribe"
       />
-
-      {watchNext ? (
-        <WatchNextSection
-          next={watchNext}
-          recipeSlug={recipeSlug}
-          recipeName={recipeName}
-          sourceVideoId={youtube.videoId}
-        />
-      ) : null}
     </div>
   );
 }

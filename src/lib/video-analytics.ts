@@ -3,6 +3,7 @@ import { trackEvent } from "@/lib/analytics";
 
 export type VideoAnalyticsSource =
   | "hero_cta"
+  | "recipe_top_watch"
   | "main_embed"
   | "main_embed_chapter"
   | "instruction_timestamp"
@@ -11,6 +12,7 @@ export type VideoAnalyticsSource =
   | "related_videos"
   | "watch_next"
   | "watch_next_section"
+  | "series_next"
   | "videos_page"
   | "playlist"
   | "subscribe"

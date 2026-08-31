@@ -5,19 +5,22 @@ import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { CollectionRow } from "@/components/CollectionRow";
-import { JumpToRecipeLink } from "@/components/JumpToRecipeLink";
 import { JsonLd } from "@/components/JsonLd";
+import { RecipeAtAGlance } from "@/components/RecipeAtAGlance";
 import { RecipeCard } from "@/components/RecipeCard";
+import { RecipeHeroActions } from "@/components/RecipeHeroActions";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
 import { RecipeRatingSummary } from "@/components/RecipeRatingSummary";
 import { RecipeReviews } from "@/components/RecipeReviews";
 import { RecipeTableOfContents } from "@/components/RecipeTableOfContents";
 import { ShareButtons } from "@/components/ShareButtons";
+import { RecipeContinuedViewing } from "@/components/youtube/RecipeContinuedViewing";
 import { RecipeMainEmbed } from "@/components/youtube/RecipeMainEmbed";
-import { RecipeVideoCTA } from "@/components/youtube/RecipeVideoCTA";
 import { RecipeVideoExperience } from "@/components/youtube/RecipeVideoExperience";
+import { RecipeVideoTeaser } from "@/components/youtube/RecipeVideoTeaser";
 import { RelatedYouTubeVideos } from "@/components/youtube/RelatedYouTubeVideos";
 import { YouTubeSubscribeCTA } from "@/components/youtube/YouTubeSubscribeCTA";
+import { RecipeSeriesContext } from "@/components/series/RecipeSeriesContext";
 import { site } from "@/data/site";
 import { getAdminSession } from "@/lib/auth";
 import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
@@ -30,7 +33,6 @@ import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug, getRelatedRecipes } from "@/lib/recipes";
 import { getWatchNextRecommendation } from "@/lib/youtube-data/watch-next";
 import { getSeriesLinksForRecipeSlug } from "@/lib/series";
-import { RecipeSeriesLinks } from "@/components/series/RecipeSeriesLinks";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -111,33 +113,30 @@ export default async function RecipePage({ params }: Props) {
 
   const article = (
     <>
-      <div className="mx-auto max-w-3xl px-4 py-10 md:px-6">
+      <div className="mx-auto max-w-3xl px-4 py-8 md:px-6 md:py-10">
+        {seriesLinks.length ? (
+          <div className="mb-3">
+            <RecipeSeriesContext links={seriesLinks} />
+          </div>
+        ) : null}
+
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
           {recipe.course} · {recipe.cuisine}
         </p>
 
-        <h1 className="mt-3 font-serif text-5xl leading-tight text-ink">{recipe.title}</h1>
+        <h1 className="mt-2 font-serif text-4xl leading-tight text-ink md:text-5xl">{recipe.title}</h1>
         <RecipeRatingSummary slug={recipe.slug} initial={reviewData.stats} />
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
           <p className="text-sm text-muted">Updated {updated}</p>
-          <div className="flex flex-wrap items-center gap-4">
-            <ShareButtons title={recipe.title} slug={recipe.slug} />
-            <JumpToRecipeLink slug={recipe.slug} title={recipe.title} />
-          </div>
+          <ShareButtons title={recipe.title} slug={recipe.slug} />
         </div>
 
         {recipe.excerpt ? (
-          <p className="mt-8 text-lg leading-8 text-ink/90">{recipe.excerpt}</p>
+          <p className="mt-5 text-lg leading-8 text-ink/90">{recipe.excerpt}</p>
         ) : null}
 
-        {recipe.intro ? (
-          <div className="prose-mesa mt-4 text-base leading-8 text-ink/90">
-            <p>{recipe.intro}</p>
-          </div>
-        ) : null}
-
-        <figure className="mt-8 overflow-hidden border border-line bg-sand">
+        <figure className="mt-6 overflow-hidden border border-line bg-sand">
           <div className="relative aspect-video w-full">
             <Image
               src={recipe.image}
@@ -150,23 +149,35 @@ export default async function RecipePage({ params }: Props) {
           </div>
         </figure>
 
-        {youtube ? <RecipeVideoCTA /> : null}
+        <RecipeAtAGlance recipe={recipe} />
+        <RecipeHeroActions slug={recipe.slug} title={recipe.title} />
+        {youtube ? <RecipeVideoTeaser /> : null}
 
-        {youtube ? <RecipeMainEmbed /> : null}
+        {recipe.intro ? (
+          <div className="prose-mesa mt-6 text-base leading-7 text-ink/90">
+            <p>{recipe.intro}</p>
+          </div>
+        ) : null}
+      </div>
 
+      <div className="mx-auto max-w-4xl px-4 md:px-6">
+        <RecipeCard recipe={recipe} youtube={youtube} showOverview={false} />
+      </div>
+
+      <div className="mx-auto max-w-3xl px-4 pb-10 md:px-6">
         <RecipeTableOfContents items={toc} />
 
         {recipe.whyItWorks ? (
-          <section id="why-this-works" className="mt-12 scroll-mt-24">
-            <h2 className="font-serif text-3xl">Why this works</h2>
-            <p className="mt-4 leading-8 text-ink/90">{recipe.whyItWorks}</p>
+          <section id="why-this-works" className="mt-8 scroll-mt-24">
+            <h2 className="font-serif text-2xl md:text-3xl">Why this works</h2>
+            <p className="mt-3 leading-7 text-ink/90">{recipe.whyItWorks}</p>
           </section>
         ) : null}
 
         {recipe.keyIngredients.length ? (
-          <section id="key-ingredients" className="mt-12 scroll-mt-24">
-            <h2 className="font-serif text-3xl">Key ingredients</h2>
-            <dl className="mt-5 space-y-5">
+          <section id="key-ingredients" className="mt-8 scroll-mt-24">
+            <h2 className="font-serif text-2xl md:text-3xl">Key ingredients</h2>
+            <dl className="mt-4 space-y-4">
               {recipe.keyIngredients.map((item) => (
                 <div key={item.name} className="border-l-2 border-terracotta/70 pl-4">
                   <dt className="font-semibold">{item.name}</dt>
@@ -178,9 +189,9 @@ export default async function RecipePage({ params }: Props) {
         ) : null}
 
         {recipe.tips.length ? (
-          <section id="studio-tips" className="mt-12 scroll-mt-24">
-            <h2 className="font-serif text-3xl">Studio tips</h2>
-            <ul className="mt-5 space-y-3">
+          <section id="studio-tips" className="mt-8 scroll-mt-24">
+            <h2 className="font-serif text-2xl md:text-3xl">Studio tips</h2>
+            <ul className="mt-4 space-y-2">
               {recipe.tips.map((tip) => (
                 <li key={tip} className="leading-7 text-ink/90">
                   {tip}
@@ -189,17 +200,13 @@ export default async function RecipePage({ params }: Props) {
             </ul>
           </section>
         ) : null}
-      </div>
 
-      <div className="mx-auto max-w-4xl px-4 py-6 md:px-6">
-        <RecipeCard recipe={recipe} youtube={youtube} />
-      </div>
+        {youtube ? <RecipeMainEmbed /> : null}
 
-      <div className="mx-auto max-w-3xl px-4 pb-10 md:px-6">
         {recipe.faqs.length ? (
-          <section id="faqs" className="mt-2 scroll-mt-24">
-            <h2 className="font-serif text-3xl">Frequently asked</h2>
-            <div className="mt-5 space-y-6">
+          <section id="faqs" className="mt-8 scroll-mt-24">
+            <h2 className="font-serif text-2xl md:text-3xl">Frequently asked</h2>
+            <div className="mt-4 space-y-5">
               {recipe.faqs.map((faq) => (
                 <div key={faq.question}>
                   <h3 className="font-semibold">{faq.question}</h3>
@@ -211,18 +218,30 @@ export default async function RecipePage({ params }: Props) {
         ) : null}
 
         {visibleExtrasList.length ? (
-          <section className="mt-12">
+          <section className="mt-8">
             {visibleExtrasList.map((field) => (
               <div
                 key={field.key}
                 id={`extra-${field.key}`}
-                className="mt-10 scroll-mt-24 first:mt-0"
+                className="mt-8 scroll-mt-24 first:mt-0"
               >
-                <h2 className="font-serif text-3xl">{readerExtraLabel(field.label, field.key)}</h2>
+                <h2 className="font-serif text-2xl md:text-3xl">
+                  {readerExtraLabel(field.label, field.key)}
+                </h2>
                 <ExtraValue keyName={field.key} kind={field.kind} value={field.value} />
               </div>
             ))}
           </section>
+        ) : null}
+
+        {youtube || seriesLinks.length ? (
+          <RecipeContinuedViewing
+            watchNext={watchNext}
+            seriesLinks={seriesLinks}
+            recipeSlug={recipe.slug}
+            recipeName={recipe.title}
+            sourceVideoId={youtube?.videoId}
+          />
         ) : null}
 
         <RecipeReviews
@@ -233,8 +252,6 @@ export default async function RecipePage({ params }: Props) {
           defaultEmail={session?.user?.email ?? ""}
         />
 
-        <RecipeSeriesLinks links={seriesLinks} />
-
         {youtube?.relatedVideos?.length ? (
           <RelatedYouTubeVideos
             videos={youtube.relatedVideos}
@@ -244,14 +261,15 @@ export default async function RecipePage({ params }: Props) {
           />
         ) : null}
 
-        <YouTubeSubscribeCTA
-          recipeSlug={recipe.slug}
-          recipeName={recipe.title}
-          videoId={youtube?.videoId}
-          placement="end_of_recipe"
-        />
+        {!youtube ? (
+          <YouTubeSubscribeCTA
+            recipeSlug={recipe.slug}
+            recipeName={recipe.title}
+            placement="end_of_recipe"
+          />
+        ) : null}
 
-        <p className="mt-10 text-sm text-muted">
+        <p className="mt-8 text-sm text-muted">
           Filed under{" "}
           {recipe.categories.map((category, index) => (
             <span key={category}>
@@ -299,17 +317,17 @@ function ExtraValue({
   value: unknown;
 }) {
   if (value == null || value === "") return null;
-  if (kind === "boolean") return <p className="mt-4 text-muted">{value ? "Yes" : "No"}</p>;
+  if (kind === "boolean") return <p className="mt-3 text-muted">{value ? "Yes" : "No"}</p>;
   if (kind === "image" && typeof value === "string") {
     return (
-      <div className="relative mt-4 h-48 w-full overflow-hidden bg-sand">
+      <div className="relative mt-3 h-48 w-full overflow-hidden bg-sand">
         <Image src={value} alt="" fill className="object-cover" sizes="40vw" />
       </div>
     );
   }
   if ((kind === "gallery" || kind === "list" || kind === "tags") && Array.isArray(value)) {
     return (
-      <ul className="mt-4 list-disc space-y-1 pl-5 text-muted">
+      <ul className="mt-3 list-disc space-y-1 pl-5 text-muted">
         {value.map((item) => (
           <li key={String(item)}>{String(item)}</li>
         ))}
@@ -317,7 +335,7 @@ function ExtraValue({
     );
   }
   return (
-    <p className="mt-4 leading-7 text-muted">
+    <p className="mt-3 leading-7 text-muted">
       {formatPublicExtraFieldValue({ key: keyName, kind, value })}
     </p>
   );

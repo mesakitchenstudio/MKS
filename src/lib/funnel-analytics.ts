@@ -22,6 +22,7 @@ export type FunnelPlacement =
   | "chapter_section"
   | "watch_next"
   | "watch_next_section"
+  | "series_next"
   | "subscribe"
   | "post_video_subscribe"
   | "end_of_recipe"
@@ -47,6 +48,7 @@ const CLIENT_EVENT_TO_FUNNEL: Record<string, FunnelEventName> = {
 
 const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   hero_cta: "hero",
+  recipe_top_watch: "hero",
   main_embed: "video_section",
   main_video_section: "video_section",
   main_embed_chapter: "chapter_section",
@@ -57,6 +59,7 @@ const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   related_videos: "watch_next",
   watch_next: "watch_next",
   watch_next_section: "watch_next_section",
+  series_next: "series_next",
   videos_page: "other",
   playlist: "other",
   subscribe: "end_of_recipe",

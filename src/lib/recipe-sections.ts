@@ -23,9 +23,7 @@ export function recipeTocItems(
 ): RecipeTocItem[] {
   const items: RecipeTocItem[] = [];
 
-  if (recipe.youtubeUrl && youtubeVideoId(recipe.youtubeUrl)) {
-    items.push({ id: "studio-video", label: "Watch in the studio" });
-  }
+  items.push({ id: "recipe-card", label: "Recipe" });
   if (recipe.whyItWorks.trim()) {
     items.push({ id: "why-this-works", label: "Why this works" });
   }
@@ -35,7 +33,9 @@ export function recipeTocItems(
   if (recipe.tips.some(Boolean)) {
     items.push({ id: "studio-tips", label: "Studio tips" });
   }
-  items.push({ id: "recipe-card", label: "Recipe" });
+  if (recipe.youtubeUrl && youtubeVideoId(recipe.youtubeUrl)) {
+    items.push({ id: "studio-video", label: "Video" });
+  }
   if (recipe.faqs.some((item) => item.question.trim() || item.answer.trim())) {
     items.push({ id: "faqs", label: "Frequently asked" });
   }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideo } from "./RecipeVideoContext";
 
-const SCROLL_SHOW_RATIO = 0.35;
+const SCROLL_SHOW_RATIO = 0.5;
 const AUTO_HIDE_MS = 60_000;
 
 export function FloatingRecipeVideo() {
@@ -29,6 +29,39 @@ export function FloatingRecipeVideo() {
   const [scrollCardExpired, setScrollCardExpired] = useState(false);
   const [footerVisible, setFooterVisible] = useState(false);
   const [allowPrePlayCard, setAllowPrePlayCard] = useState(false);
+  const [recipeCardPassed, setRecipeCardPassed] = useState(false);
+  const [mainVideoVisible, setMainVideoVisible] = useState(false);
+
+  useEffect(() => {
+    const mainVideo = document.getElementById("studio-video");
+    if (!mainVideo) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setMainVideoVisible(entry.isIntersecting && entry.intersectionRatio > 0.2);
+      },
+      { threshold: [0, 0.2, 0.4] },
+    );
+    observer.observe(mainVideo);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const recipeCard = document.getElementById("recipe-card");
+    if (!recipeCard) {
+      setRecipeCardPassed(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting && entry.boundingClientRect.top < 0) {
+          setRecipeCardPassed(true);
+        }
+      },
+      { threshold: 0 },
+    );
+    observer.observe(recipeCard);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -139,6 +172,8 @@ export function FloatingRecipeVideo() {
 
   const showScrollCard =
     allowPrePlayCard &&
+    recipeCardPassed &&
+    !mainVideoVisible &&
     scrollCardVisible &&
     !scrollCardExpired &&
     !playing &&
