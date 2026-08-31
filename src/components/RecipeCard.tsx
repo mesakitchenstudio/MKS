@@ -200,12 +200,22 @@ function normalizeChapters(timestamps: RecipeYoutubeTimestamp[] | undefined) {
     .sort((a, b) => a.time - b.time);
 }
 
-export function RecipeCookingWorkspace({
+export function RecipeCookingWorkspace(props: {
+  recipe: Recipe;
+  youtube?: ResolvedRecipeYoutube | null;
+  initialStageVideoHelp?: Record<string, StageVideoHelp>;
+}) {
+  return <RecipeCookingWorkspaceInner key={props.recipe.slug} {...props} />;
+}
+
+function RecipeCookingWorkspaceInner({
   recipe,
   youtube = null,
+  initialStageVideoHelp = {},
 }: {
   recipe: Recipe;
   youtube?: ResolvedRecipeYoutube | null;
+  initialStageVideoHelp?: Record<string, StageVideoHelp>;
 }) {
   const [servings, setServings] = useState(recipe.servings);
   const factor = servings / recipe.servings;
@@ -214,48 +224,48 @@ export function RecipeCookingWorkspace({
   const cookingContext = useMemo(() => planCookingContext(recipe, stages), [recipe, stages]);
   const videoCtx = useRecipeVideoOptional();
   const hasVideoCtx = Boolean(videoCtx);
-  const initialChapters = useMemo(
+  const propChapters = useMemo(
     () => normalizeChapters(youtube?.timestamps),
     [youtube?.timestamps],
   );
-  const [localChapters, setLocalChapters] = useState(initialChapters);
-  const chapters = videoCtx?.chapters?.length ? videoCtx.chapters : localChapters;
-  const stageVideoHelp = useMemo(
+  const [fetchedChapters, setFetchedChapters] = useState<RecipeYoutubeTimestamp[] | null>(null);
+  const chapters =
+    videoCtx?.chapters?.length
+      ? videoCtx.chapters
+      : fetchedChapters?.length
+        ? fetchedChapters
+        : propChapters;
+  const clientStageVideoHelp = useMemo(
     () => selectStageVideoHelp(stages, chapters),
     [stages, chapters],
   );
+  const stageVideoHelp = Object.keys(clientStageVideoHelp).length
+    ? clientStageVideoHelp
+    : initialStageVideoHelp;
   const [openStages, setOpenStages] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(stages.map((stage, index) => [stage.id, index === 0])),
   );
 
   useEffect(() => {
-    setLocalChapters(initialChapters);
-  }, [initialChapters]);
-
-  useEffect(() => {
-    if (hasVideoCtx || localChapters.length || !youtube?.videoId) return;
+    if (hasVideoCtx || propChapters.length || !youtube?.videoId) return;
     let cancelled = false;
     fetch(`/api/youtube/chapters?videoId=${encodeURIComponent(youtube.videoId)}`)
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { timestamps?: RecipeYoutubeTimestamp[] } | null) => {
         if (cancelled || !data?.timestamps?.length) return;
-        setLocalChapters(normalizeChapters(data.timestamps));
+        setFetchedChapters(normalizeChapters(data.timestamps));
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [hasVideoCtx, localChapters.length, youtube?.videoId]);
-
-  useEffect(() => {
-    setOpenStages(Object.fromEntries(stages.map((stage, index) => [stage.id, index === 0])));
-  }, [recipe.slug, stages]);
+  }, [hasVideoCtx, propChapters.length, youtube?.videoId]);
 
   const total = totalMinutes(recipe);
   const showNutrition = nutritionHasPublicContent(recipe.nutrition);
   const utensils = recipe.utensils?.filter(Boolean) ?? [];
   const multiStage = stages.length > 1;
-  const allExpanded = multiStage && stages.every((stage) => openStages[stage.id]);
+  const allExpanded = multiStage && stages.every((stage) => openStages[stage.id] === true);
 
   function toggleExpandCollapseAll() {
     if (allExpanded) {

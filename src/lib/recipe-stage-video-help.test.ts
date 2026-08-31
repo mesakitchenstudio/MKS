@@ -46,9 +46,9 @@ test("selectStageVideoHelp only attaches strong technique matches", () => {
   assert.ok(help["stage-2"]);
   assert.equal(help["stage-2"].linkLabel, "See how to divide & pre-shape · 2:20");
   assert.ok(help["stage-3"]);
-  assert.equal(help["stage-3"].linkLabel, "Watch the shaping technique · 3:09");
+  assert.equal(help["stage-3"].linkLabel, "See shaping in the video · 3:09");
   assert.ok(help["stage-4"]);
-  assert.match(help["stage-4"].linkLabel, /See scoring and steam · 5:10/);
+  assert.match(help["stage-4"].linkLabel, /Watch scoring & steam · 5:10/);
 });
 
 test("selectStageVideoHelp assigns leftover chapters to unmatched technique stages", () => {

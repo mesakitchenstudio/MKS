@@ -123,10 +123,10 @@ function buildLinkLabel(stageName: string, chapterLabel: string, time: number) {
     return `See how to divide & pre-shape · ${clock}`;
   }
   if (/shap|proof/i.test(stage) || /shap|proof|form/i.test(chapter)) {
-    return `Watch the shaping technique · ${clock}`;
+    return `See shaping in the video · ${clock}`;
   }
   if (/scor|steam|bak/i.test(stage) || /scor|steam|bak/i.test(chapter)) {
-    return `See scoring and steam · ${clock}`;
+    return `Watch scoring & steam · ${clock}`;
   }
 
   const short = shortenChapterLabel(chapterLabel);

@@ -22,6 +22,10 @@ test("hides Part of Breads when course is Bread", () => {
   assert.deepEqual(heroSeriesLinks([breads], "Bread", "Bread"), []);
 });
 
+test("hides Part of Breads when only category matches", () => {
+  assert.deepEqual(heroSeriesLinks([breads], "", null, ["breads"]), []);
+});
+
 test("keeps a meaningfully named series", () => {
   assert.equal(shouldShowHeroSeriesContext([sourdough], "Bread", "Bread"), true);
   assert.deepEqual(heroSeriesLinks([sourdough], "Bread"), [sourdough]);

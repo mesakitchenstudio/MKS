@@ -36,7 +36,12 @@ export function RecipePageHero({
       .map((link) => link.itemTitle)
       .filter((value): value is string => Boolean(value?.trim())),
   });
-  const visibleSeries = heroSeriesLinks(seriesLinks, recipe.course, recipe.typeName);
+  const visibleSeries = heroSeriesLinks(
+    seriesLinks,
+    recipe.course,
+    recipe.typeName,
+    recipe.categories,
+  );
 
   return (
     <header className={`${recipeContentShellClass} py-5 md:pt-6 md:pb-3 lg:pt-5 lg:pb-2`}>

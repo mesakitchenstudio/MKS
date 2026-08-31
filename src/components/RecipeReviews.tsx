@@ -354,17 +354,25 @@ export function RecipeReviews({
   const hasMoreComments = data.reviews.length > VISIBLE_COMMENTS;
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- session identity hydrate */
     if (session?.user?.name) setName(session.user.name);
     if (session?.user?.email) setEmail(session.user.email);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [session?.user?.name, session?.user?.email]);
 
   useEffect(() => {
+    // Reset compact review UI when navigating between recipes.
+    /* eslint-disable react-hooks/set-state-in-effect -- intentional remount sync on slug */
     const next = { ...initial, replyableReviewIds: initial.replyableReviewIds || [] };
     threadSigRef.current = recipeReviewThreadSignature(next);
     setData(next);
     setLoaded(false);
     setShowAllComments(false);
     setActiveReplyId(null);
+    setFormOpen(false);
+    setSubmitted(false);
+    setError("");
+    /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps -- SSR snapshot for this slug
   }, [slug]);
 
@@ -491,7 +499,19 @@ export function RecipeReviews({
 
       {formOpen ? (
         <form onSubmit={onSubmit} id="leave-comment" className="mt-5 space-y-5 pb-8">
-          <h3 className="font-serif text-xl text-ink">Leave a review</h3>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-serif text-xl text-ink">Leave a review</h3>
+            <button
+              type="button"
+              onClick={() => {
+                setFormOpen(false);
+                setError("");
+              }}
+              className="text-sm font-semibold text-muted hover:text-terracotta"
+            >
+              Cancel
+            </button>
+          </div>
         {knownIdentity ? (
           <p className="text-sm text-muted">
             Commenting as{" "}

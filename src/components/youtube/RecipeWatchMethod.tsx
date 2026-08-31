@@ -46,11 +46,11 @@ export function RecipeWatchMethod() {
               ref={watchButtonRef}
               type="button"
               aria-haspopup="dialog"
-              aria-label="Watch recipe method video"
+              aria-label="Watch recipe step by step"
               onClick={(event) => openModal(event.currentTarget)}
               className={`no-print rounded-full border border-olive px-4 py-2 text-sm font-semibold text-olive hover:bg-olive/5 ${focusRing}`}
             >
-              Watch method
+              Watch step by step
             </button>
             <a
               href={youtube.watchUrl}

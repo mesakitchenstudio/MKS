@@ -21,6 +21,8 @@ import { site } from "@/data/site";
 import { getAdminSession } from "@/lib/auth";
 import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
 import { resolveRecipeYoutube, resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
+import { recipeInstructionStages } from "@/lib/recipe-instructions";
+import { selectStageVideoHelp } from "@/lib/recipe-stage-video-help";
 import { fieldValueHasContent, formatPublicExtraFieldValue } from "@/lib/field-content";
 import { publicExtrasForPage, readerExtraLabel } from "@/lib/recipe-timing";
 import { getContinuedViewingRecipeSlug, getRankedRelatedRecipes } from "@/lib/recipe-related";
@@ -117,6 +119,9 @@ export default async function RecipePage({ params }: Props) {
     limit: 3,
     excludeSlugs: continuedSlug ? [continuedSlug] : [],
   });
+  const initialStageVideoHelp = youtube
+    ? selectStageVideoHelp(recipeInstructionStages(recipe), youtube.timestamps)
+    : {};
 
   const article = (
     <>
@@ -130,7 +135,11 @@ export default async function RecipePage({ params }: Props) {
 
       <RecipeSectionNav hasVideo={Boolean(youtube)} hasLearn={hasLearn} />
 
-      <RecipeCookingWorkspace recipe={recipe} youtube={youtube} />
+      <RecipeCookingWorkspace
+        recipe={recipe}
+        youtube={youtube}
+        initialStageVideoHelp={initialStageVideoHelp}
+      />
 
       <RecipeContentShell className="pb-6">
         <RecipeLearnSection
