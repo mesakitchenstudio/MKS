@@ -9,8 +9,9 @@ export type StageVideoHelp = {
 };
 
 /**
- * Pick at most one contextual video chapter per stage when the chapter
- * clearly matches a technique-heavy stage. Skips stages without a strong match.
+ * Attach at most one chapter timestamp to each technique-heavy stage.
+ * Prefer label/step matches; then assign remaining non-intro chapters in order
+ * so cooks still get useful helpers when chapter wording differs from stage names.
  */
 export function selectStageVideoHelp(
   stages: RecipeInstructionStage[],
@@ -23,10 +24,9 @@ export function selectStageVideoHelp(
 
   const used = new Set<number>();
   const result: Record<string, StageVideoHelp> = {};
+  const techniqueStages = stages.filter((stage) => isTechniqueStage(stage.name));
 
-  for (const stage of stages) {
-    if (!isTechniqueStage(stage.name)) continue;
-
+  for (const stage of techniqueStages) {
     const ranked = chapters
       .map((chapter, index) => ({
         chapter,
@@ -39,20 +39,43 @@ export function selectStageVideoHelp(
     const best = ranked[0];
     if (!best) continue;
     used.add(best.index);
+    result[stage.id] = toHelp(stage.name, best.chapter);
+  }
 
-    result[stage.id] = {
-      time: best.chapter.time,
-      label: best.chapter.label,
-      chapterLabel: best.chapter.label,
-      linkLabel: buildLinkLabel(stage.name, best.chapter.label, best.chapter.time),
-    };
+  // Second pass: unused non-intro chapters → remaining technique stages in order.
+  const leftoverChapters = chapters
+    .map((chapter, index) => ({ chapter, index }))
+    .filter((entry) => !used.has(entry.index) && !isIntroChapter(entry.chapter));
+
+  for (const stage of techniqueStages) {
+    if (result[stage.id]) continue;
+    const next = leftoverChapters.shift();
+    if (!next) break;
+    used.add(next.index);
+    result[stage.id] = toHelp(stage.name, next.chapter);
   }
 
   return result;
 }
 
-function isTechniqueStage(name: string) {
-  return /stretch|fold|incorporat|shap|proof|scor|steam|bak|knead|mix|laminat|piping|temper|whip/i.test(
+function toHelp(stageName: string, chapter: RecipeYoutubeTimestamp): StageVideoHelp {
+  return {
+    time: chapter.time,
+    label: chapter.label,
+    chapterLabel: chapter.label,
+    linkLabel: buildLinkLabel(stageName, chapter.label, chapter.time),
+  };
+}
+
+function isIntroChapter(chapter: RecipeYoutubeTimestamp) {
+  if (chapter.time === 0 && /intro|overview|welcome|hello|start here/i.test(chapter.label)) {
+    return true;
+  }
+  return /^(intro|overview|welcome)\b/i.test(chapter.label.trim());
+}
+
+export function isTechniqueStage(name: string) {
+  return /stretch|fold|incorporat|divid|pre.?shap|shap|proof|scor|steam|bak|knead|laminat|piping|temper|whip|mix(?:ing)? (?:the )?dough/i.test(
     name,
   );
 }
@@ -64,7 +87,8 @@ function chapterStageScore(stage: RecipeInstructionStage, chapter: RecipeYoutube
 
   const pairs: [RegExp, RegExp][] = [
     [/stretch|fold|incorporat/i, /stretch|fold|incorporat/i],
-    [/shap|proof/i, /shap|proof|form|pre.?shape/i],
+    [/divid|pre.?shap/i, /divid|pre.?shap|portion|scale|ball/i],
+    [/shap|proof/i, /shap|proof|form|pre.?shape|baguette/i],
     [/scor|steam|bak/i, /scor|steam|bak|oven|crust/i],
     [/knead|mix/i, /knead|mix|dough/i],
   ];
@@ -95,8 +119,14 @@ function buildLinkLabel(stageName: string, chapterLabel: string, time: number) {
   if (/stretch|fold|incorporat/i.test(stage) || /stretch|fold/i.test(chapter)) {
     return `Watch the stretch-and-fold technique · ${clock}`;
   }
+  if (/divid|pre.?shap/i.test(stage) || /divid|pre.?shap|portion/i.test(chapter)) {
+    return `See how to divide & pre-shape · ${clock}`;
+  }
   if (/shap|proof/i.test(stage) || /shap|proof|form/i.test(chapter)) {
-    return `Watch the shaping technique · ${clock}`;
+    if (/baguette/i.test(`${stageName} ${chapterLabel}`)) {
+      return `See how to shape the baguettes · ${clock}`;
+    }
+    return `See how to shape · ${clock}`;
   }
   if (/scor|steam|bak/i.test(stage) || /scor|steam|bak/i.test(chapter)) {
     return `Watch scoring & baking · ${clock}`;

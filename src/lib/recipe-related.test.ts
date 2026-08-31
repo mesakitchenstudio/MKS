@@ -78,3 +78,28 @@ test("scoreRelatedRecipe prefers same course over unrelated dessert", () => {
   );
   assert.equal(scoreRelatedRecipe(baseRecipe, cupcake, peers), 0);
 });
+
+test("scoreRelatedRecipe boosts overlapping method", () => {
+  const peers = new Set<string>();
+  const withMethod = {
+    ...baseRecipe,
+    slug: "ciabatta",
+    title: "Ciabatta",
+    method: "Bake",
+    course: "Bread",
+  };
+  const source = { ...baseRecipe, method: "Bake" };
+  const otherMethod = {
+    ...baseRecipe,
+    slug: "soup",
+    title: "Soup",
+    course: "Soup",
+    method: "Simmer",
+    categories: ["soups"],
+    tags: [],
+  };
+  assert.ok(
+    scoreRelatedRecipe(source, withMethod, peers) >
+      scoreRelatedRecipe(source, otherMethod, peers),
+  );
+});

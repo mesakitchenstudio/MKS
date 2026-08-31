@@ -35,6 +35,8 @@ export function scoreRelatedRecipe(
 ): number {
   const course = recipe.course.trim().toLowerCase();
   const candidateCourse = candidate.course.trim().toLowerCase();
+  const method = recipe.method.trim().toLowerCase();
+  const candidateMethod = candidate.method.trim().toLowerCase();
   const categories = new Set(recipe.categories.map((item) => item.toLowerCase()));
   const tags = new Set(recipe.tags.map((tag) => tag.toLowerCase()));
   const primaryCategory = recipe.categories[0]?.toLowerCase() || "";
@@ -43,22 +45,27 @@ export function scoreRelatedRecipe(
   if (seriesPeers.has(candidate.slug)) score += 200;
   if (course && candidateCourse === course) score += 90;
 
+  if (recipe.typeName && candidate.typeName) {
+    if (recipe.typeName.trim().toLowerCase() === candidate.typeName.trim().toLowerCase()) {
+      score += 55;
+    }
+  }
+
   const sharedCategories = candidate.categories.filter((category) =>
     categories.has(category.toLowerCase()),
   );
-  if (primaryCategory && sharedCategories.some((category) => category.toLowerCase() === primaryCategory)) {
+  if (
+    primaryCategory &&
+    sharedCategories.some((category) => category.toLowerCase() === primaryCategory)
+  ) {
     score += 70;
   }
   score += sharedCategories.length * 28;
 
-  if (recipe.typeName && candidate.typeName) {
-    if (recipe.typeName.trim().toLowerCase() === candidate.typeName.trim().toLowerCase()) {
-      score += 50;
-    }
-  }
+  if (method && candidateMethod && method === candidateMethod) score += 40;
 
   const sharedTags = candidate.tags.filter((tag) => tags.has(tag.toLowerCase())).length;
-  score += sharedTags * 8;
+  score += sharedTags * 10;
   if (candidate.featured) score += 1;
   return score;
 }
@@ -89,28 +96,35 @@ export async function getRankedRelatedRecipes(
   const picked = new Set(scored.map((entry) => entry.item.slug));
   const course = recipe.course.trim().toLowerCase();
   const categories = new Set(recipe.categories.map((item) => item.toLowerCase()));
+  const method = recipe.method.trim().toLowerCase();
 
-  // Soft fallback: same course/category only — avoid unrelated desserts on a bread page.
+  // Soft fallback: same course, category, type, or method only — no fabricated dessert padding.
   const softFallback = all
     .filter((item) => !excluded.has(item.slug) && !picked.has(item.slug))
     .filter((item) => {
       if (course && item.course.trim().toLowerCase() === course) return true;
+      if (method && item.method.trim().toLowerCase() === method) return true;
+      if (
+        recipe.typeName &&
+        item.typeName &&
+        recipe.typeName.trim().toLowerCase() === item.typeName.trim().toLowerCase()
+      ) {
+        return true;
+      }
       return item.categories.some((category) => categories.has(category.toLowerCase()));
     })
     .slice(0, limit - scored.length);
 
   softFallback.forEach((item) => picked.add(item.slug));
 
-  const generalFallback =
-    scored.length + softFallback.length >= limit
-      ? []
-      : all
-          .filter((item) => !excluded.has(item.slug) && !picked.has(item.slug))
-          .slice(0, limit - scored.length - softFallback.length);
+  const related = [...scored.map((entry) => entry.item), ...softFallback];
 
-  return [
-    ...scored.map((entry) => entry.item),
-    ...softFallback,
-    ...generalFallback,
-  ].slice(0, limit);
+  // Only use general fallback when there is truly nothing related.
+  if (related.length > 0) {
+    return related.slice(0, limit);
+  }
+
+  return all
+    .filter((item) => !excluded.has(item.slug))
+    .slice(0, limit);
 }

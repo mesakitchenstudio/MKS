@@ -100,8 +100,11 @@ export function RecipeVideoProvider({
       if (options?.start !== undefined) {
         setStartSeconds(options.start);
         setActive(true);
-      } else if (options?.load) {
-        setActive(true);
+      } else {
+        setStartSeconds(0);
+        if (options?.load) {
+          setActive(true);
+        }
       }
       if (firstExpand) {
         trackVideoEvent("recipe_video_expand", {

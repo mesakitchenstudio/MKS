@@ -61,7 +61,7 @@ function StageVideoHelpLink({
   return (
     <button
       type="button"
-      className="no-print mt-3 text-left text-sm font-semibold text-terracotta hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+      className="no-print mt-1.5 inline-flex max-w-full items-baseline gap-1.5 text-left text-[0.8125rem] font-medium leading-snug text-terracotta hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
       aria-label={`${help.linkLabel} for ${stageName}`}
       onClick={() => {
         trackVideoEvent("recipe_video_step_click", {
@@ -89,7 +89,10 @@ function StageVideoHelpLink({
         );
       }}
     >
-      {help.linkLabel}
+      <span aria-hidden className="shrink-0 text-terracotta">
+        ▶
+      </span>
+      <span className="min-w-0 break-words">{help.linkLabel}</span>
     </button>
   );
 }
@@ -133,6 +136,16 @@ function StageAccordion({
       <h3 className="recipe-print-stage-title mb-2 hidden font-serif text-base text-ink print:block">
         {stage.name}
       </h3>
+      {videoHelp && youtube ? (
+        <div className="no-print pb-1 pl-0.5">
+          <StageVideoHelpLink
+            help={videoHelp}
+            stageName={stage.name}
+            youtube={youtube}
+            recipe={recipe}
+          />
+        </div>
+      ) : null}
       <div
         id={panelId}
         role="region"
@@ -167,14 +180,6 @@ function StageAccordion({
         {tips.map((tip) => (
           <StudioTipCallout key={tip} tip={tip} />
         ))}
-        {videoHelp && youtube ? (
-          <StageVideoHelpLink
-            help={videoHelp}
-            stageName={stage.name}
-            youtube={youtube}
-            recipe={recipe}
-          />
-        ) : null}
       </div>
     </div>
   );
