@@ -15,6 +15,7 @@ import {
   loadYoutubeChapterTimestampsForVideo,
   parseYoutubeDescriptionChapters,
 } from "@/lib/youtube-description";
+import { parseStageAlignments } from "@/lib/ai-recipe/stage-alignments";
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -119,6 +120,7 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
     playlistUrl: asString(row.playlistUrl) || undefined,
     playlistLabel: asString(row.playlistLabel) || undefined,
     timestamps: parseTimestamps(row.timestamps ?? row.chapters),
+    stageAlignments: parseStageAlignments(row.stageAlignments),
     relatedVideos: parseRelatedVideos(row.relatedVideos ?? row.relatedYoutubeVideos),
   };
 }
@@ -158,6 +160,7 @@ export function resolveRecipeYoutube(recipe: Pick<Recipe, "slug" | "title" | "yo
     playlistUrl: blob?.playlistUrl,
     playlistLabel: blob?.playlistLabel,
     timestamps: blob?.timestamps ?? [],
+    stageAlignments: blob?.stageAlignments ?? [],
     relatedVideos: blob?.relatedVideos ?? [],
   };
 }

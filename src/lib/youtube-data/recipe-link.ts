@@ -467,10 +467,16 @@ export function applySyncedDescriptionChaptersToValues(
     return values;
   }
 
+  const blob = parseRecipeYoutubeBlob(values.youtube) ?? {};
+  // Mesa instruction-stage alignments are canonical — do not overwrite with description sync.
+  if (Array.isArray((blob as { stageAlignments?: unknown }).stageAlignments) &&
+      ((blob as { stageAlignments?: unknown[] }).stageAlignments?.length ?? 0) > 0) {
+    return values;
+  }
+
   const chapters = parseYoutubeDescriptionChapters(video.description);
   if (!chapters.length) return values;
 
-  const blob = parseRecipeYoutubeBlob(values.youtube) ?? {};
   return {
     ...values,
     youtube: {

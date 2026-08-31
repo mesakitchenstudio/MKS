@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { saveRecipeAction } from "@/app/admin/actions";
 import { AiConfidenceBadge } from "@/components/admin/AiConfidenceBadge";
-import { AiDraftReviewSummary } from "@/components/admin/AiDraftReviewSummary";
 import {
   AiRecipeAssistant,
   type AiGenerateApplyPayload,
+  type AiTargetedFillApplyPayload,
 } from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
+import { FieldAiActionButton } from "@/components/admin/FieldAiActionButton";
+import { TagsChipEditor } from "@/components/admin/TagsChipEditor";
 import { YoutubeMetadataEditor } from "@/components/admin/YoutubeMetadataEditor";
 import { RecipeYoutubeConnection } from "@/components/admin/RecipeYoutubeConnection";
 import {
@@ -27,16 +29,23 @@ import {
   type RecipeAiMeta,
 } from "@/lib/ai-recipe/types";
 import {
+  countMissingBySection,
+  listMissingAiFillableFields,
+} from "@/lib/ai-recipe/missing-fields";
+import {
   editorHasContent,
   mergeAiDraftIntoEditor,
 } from "@/lib/ai-recipe/normalize";
+import { mergeTargetedFillIntoEditor } from "@/lib/ai-recipe/targeted-merge";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
 import { EditorStatusBadge } from "@/components/admin/EditorStatusBadge";
 import {
+  adminDangerButtonClass,
   adminFocusRing,
   adminInputClass,
   adminPrimaryButtonClass,
   adminSecondaryButtonClass,
+  adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
 import { ADMIN_IMAGE_FORMAT_HELP, RECIPE_HERO_IMAGE_HELP } from "@/lib/admin-upload";
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
@@ -102,6 +111,9 @@ const CONTENT_KEYS = [
 const MEDIA_PRIMARY_KEYS = ["image", "imageAlt", "youtubeUrl"] as const;
 
 const ADVANCED_KEYS = ["floatingYoutubeUrl", "youtube", "nutrition"] as const;
+
+/** Field keys that show a per-field ✦ Generate / Optimize control. */
+const FIELD_AI_KEYS = new Set(["cuisine", "holiday", "notes", "imageAlt", "tags"]);
 
 const ALL_GROUPED = new Set<string>([
   ...DETAILS_KEYS,
@@ -390,6 +402,7 @@ function FieldLabel({
   compact = false,
   confidence,
   sourceNote,
+  aiAction,
 }: {
   label: string;
   required?: boolean;
@@ -397,14 +410,18 @@ function FieldLabel({
   compact?: boolean;
   confidence?: import("@/lib/ai-recipe/types").AiConfidence;
   sourceNote?: string;
+  aiAction?: ReactNode;
 }) {
   return (
     <div className={compact ? "mb-1.5" : "mb-2"}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className={`font-semibold text-ink ${compact ? "text-sm" : ""}`}>
-          {label}
-          {required ? <span className="text-terracotta"> *</span> : null}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className={`font-semibold text-ink ${compact ? "text-sm" : ""}`}>
+            {label}
+            {required ? <span className="text-terracotta"> *</span> : null}
+          </p>
+          {aiAction}
+        </div>
         <AiConfidenceBadge confidence={confidence} sourceNote={sourceNote} />
       </div>
       {helpText ? <p className="mt-0.5 text-xs text-muted">{helpText}</p> : null}
@@ -458,6 +475,13 @@ export function RecipeEditor({
   const [activeSectionId, setActiveSectionId] = useState(SECTION_BASICS);
   const [moveToDraftOpen, setMoveToDraftOpen] = useState(false);
   const [publishAiWarningOpen, setPublishAiWarningOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [fieldAiBusy, setFieldAiBusy] = useState<string | null>(null);
+  const [fieldAiNotice, setFieldAiNotice] = useState<Record<string, string>>({});
+  const [tagOptimizeProposal, setTagOptimizeProposal] = useState<string[] | null>(null);
+  const [tagOptimizeBusy, setTagOptimizeBusy] = useState(false);
+  const tagOptimizePendingRef = useRef<AiTargetedFillApplyPayload | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState(initial.title);
   const [slug, setSlug] = useState(initial.slug);
   const [slugTouched, setSlugTouched] = useState(Boolean(initial.slug));
@@ -511,18 +535,56 @@ export function RecipeEditor({
     [categories],
   );
 
+  const missingFields = useMemo(
+    () =>
+      listMissingAiFillableFields({
+        fields,
+        title,
+        slug,
+        excerpt,
+        values,
+        aiMeta,
+      }),
+    [aiMeta, excerpt, fields, slug, title, values],
+  );
+  const missingBySection = useMemo(
+    () => countMissingBySection(missingFields.missing),
+    [missingFields.missing],
+  );
+
   const sectionLinks = useMemo(() => {
     const links: RecipeEditorSectionLink[] = [
-      { id: SECTION_BASICS, label: "Basics" },
+      { id: SECTION_BASICS, label: "Basics", missingCount: missingBySection.basics },
     ];
-    if (detailFields.length) links.push({ id: SECTION_DETAILS, label: "Details" });
-    if (contentFields.length) links.push({ id: SECTION_CONTENT, label: "Content" });
-    if (mediaFields.length) links.push({ id: SECTION_MEDIA, label: "Media" });
+    if (detailFields.length) {
+      links.push({ id: SECTION_DETAILS, label: "Details", missingCount: missingBySection.details });
+    }
+    if (contentFields.length) {
+      links.push({ id: SECTION_CONTENT, label: "Content", missingCount: missingBySection.content });
+    }
+    if (mediaFields.length) {
+      links.push({ id: SECTION_MEDIA, label: "Media", missingCount: missingBySection.media });
+    }
     if (advancedFields.length || specialistFields.length) {
-      links.push({ id: SECTION_ADVANCED, label: "Advanced" });
+      links.push({
+        id: SECTION_ADVANCED,
+        label: "Advanced",
+        missingCount: missingBySection.advanced,
+      });
     }
     return links;
-  }, [advancedFields.length, contentFields.length, detailFields.length, mediaFields.length, specialistFields.length]);
+  }, [
+    advancedFields.length,
+    contentFields.length,
+    detailFields.length,
+    mediaFields.length,
+    missingBySection.advanced,
+    missingBySection.basics,
+    missingBySection.content,
+    missingBySection.details,
+    missingBySection.media,
+    specialistFields.length,
+  ]);
 
   const isPublished = normalizeStatus(status) === "published";
 
@@ -543,7 +605,7 @@ export function RecipeEditor({
 
   const draftActionLabel = isPublished ? "Move to draft" : "Save draft";
 
-  const publishButtonLabel = isPublished ? "Update published recipe" : "Publish";
+  const publishButtonLabel = isPublished ? "Update recipe" : "Publish";
 
   const mobileCompactPublishLabel = isPublished ? "Update" : "Publish";
 
@@ -662,6 +724,24 @@ export function RecipeEditor({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [moveToDraftOpen]);
+
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setMoreMenuOpen(false);
+    }
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [moreMenuOpen]);
 
   const scrollTargetStyle = useMemo(
     () => ({ scrollMarginTop: scrollOffset }) as const,
@@ -843,6 +923,135 @@ export function RecipeEditor({
     });
     setReviewCursor(0);
     setAdvancedOpen(true);
+
+    // Derive Mesa canonical stage ↔ video alignments from instruction groups + chapter evidence.
+    const instructionGroups = Array.isArray(withHero.values.instructions)
+      ? (withHero.values.instructions as { name?: string }[])
+      : [];
+    if (instructionGroups.some((group) => String(group.name ?? "").trim())) {
+      void import("@/lib/ai-recipe/stage-alignments").then(
+        ({ buildStageAlignmentsFromAnalysis, applyStageAlignmentsToYoutubeBlob }) => {
+          void import("@/lib/recipe-youtube").then(({ parseRecipeYoutubeBlob }) => {
+            const stages = instructionGroups
+              .map((group, index) => ({
+                id: `stage-${index}`,
+                name: String(group.name ?? "").trim() || `Stage ${index + 1}`,
+              }))
+              .filter((stage) => stage.name);
+            const blob = parseRecipeYoutubeBlob(withHero.values.youtube);
+            const hintChapters = (blob?.timestamps ?? []).map((row) => ({
+              time: row.time,
+              label: row.label,
+            }));
+            const aiAlignments = hintChapters.map((row) => ({
+              instructionSectionTitle: row.label,
+              videoStartSeconds: row.time,
+              chapterTitle: row.label,
+              confidence: "HIGH_CONFIDENCE_INFERENCE" as const,
+            }));
+            const alignments = buildStageAlignmentsFromAnalysis({
+              instructionStages: stages,
+              aiAlignments,
+              youtubeHintChapters: hintChapters,
+            });
+            if (!alignments.length) return;
+            setValues((current) => {
+              const currentBlob =
+                current.youtube && typeof current.youtube === "object"
+                  ? (current.youtube as Record<string, unknown>)
+                  : {};
+              return {
+                ...current,
+                youtube: applyStageAlignmentsToYoutubeBlob(currentBlob, alignments),
+              };
+            });
+          });
+        },
+      );
+    }
+  }
+
+  function applyTargetedFill(payload: AiTargetedFillApplyPayload) {
+    setExcerpt(payload.excerpt);
+    setValues(hydrateEditorValues(fields, payload.values));
+    setAiMeta(payload.aiMeta);
+  }
+
+  async function runFieldAi(path: string, key: string, allowRepopulate = true) {
+    setFieldAiBusy(path);
+    setFieldAiNotice((current) => {
+      const next = { ...current };
+      delete next[path];
+      return next;
+    });
+    if (key === "tags") setTagOptimizeBusy(true);
+
+    try {
+      const youtubeUrl = String(values.youtubeUrl ?? "").trim();
+      const response = await fetch("/api/admin/recipes/ai-fill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          typeId,
+          recipeId,
+          youtubeUrl: youtubeUrl || undefined,
+          mode: "fields",
+          fields: [path],
+          allowRepopulate,
+          current: { title, slug, excerpt, values },
+          aiMeta,
+        }),
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        requestedPaths?: string[];
+        draft?: { excerpt: string; values: Record<string, unknown> };
+        confidenceByPath?: RecipeAiMeta["confidenceByPath"];
+      };
+      if (!response.ok || !data.ok || !data.draft) {
+        setFieldAiNotice((current) => ({
+          ...current,
+          [path]: data.error || "AI could not generate a suggestion.",
+        }));
+        return;
+      }
+
+      const merged = mergeTargetedFillIntoEditor({
+        current: { title, slug, excerpt, values },
+        draft: data.draft,
+        requestedPaths: data.requestedPaths?.length ? data.requestedPaths : [path],
+        confidenceByPath: data.confidenceByPath ?? {},
+        aiMeta,
+      });
+
+      if (key === "tags") {
+        const tags = Array.isArray(merged.values.tags)
+          ? (merged.values.tags as unknown[]).map((tag) => String(tag ?? "").trim()).filter(Boolean)
+          : [];
+        tagOptimizePendingRef.current = merged;
+        setTagOptimizeProposal(tags);
+        setFieldAiNotice((current) => ({
+          ...current,
+          [path]: "AI SUGGESTION — REVIEW",
+        }));
+        return;
+      }
+
+      applyTargetedFill(merged);
+      setFieldAiNotice((current) => ({
+        ...current,
+        [path]: "AI SUGGESTION — REVIEW",
+      }));
+    } catch {
+      setFieldAiNotice((current) => ({
+        ...current,
+        [path]: "AI could not generate a suggestion.",
+      }));
+    } finally {
+      setFieldAiBusy(null);
+      if (key === "tags") setTagOptimizeBusy(false);
+    }
   }
 
   function markAiVerified() {
@@ -1000,6 +1209,20 @@ export function RecipeEditor({
         ? "Describe the hero image for accessibility. Write what a sighted reader needs to understand the photo."
         : field.helpText;
 
+    const fieldPath = `values.${field.key}`;
+    const showFieldAi =
+      FIELD_AI_KEYS.has(field.key) && field.key !== "tags" && field.kind !== "tags";
+
+    function clearFieldError() {
+      if (fieldErrors[field.key]) {
+        setFieldErrors((current) => {
+          const next = { ...current };
+          delete next[field.key];
+          return next;
+        });
+      }
+    }
+
     return (
       <div
         key={field.key}
@@ -1014,19 +1237,21 @@ export function RecipeEditor({
           compact={compact}
           confidence={aiMeta?.confidenceByPath[`values.${field.key}`]?.confidence}
           sourceNote={aiMeta?.confidenceByPath[`values.${field.key}`]?.sourceNote}
+          aiAction={
+            showFieldAi ? (
+              <FieldAiActionButton
+                busy={fieldAiBusy === fieldPath}
+                onClick={() => void runFieldAi(fieldPath, field.key)}
+              />
+            ) : undefined
+          }
         />
         {field.key === "youtube" ? (
           <YoutubeMetadataEditor
             value={values[field.key]}
             onChange={(state) => {
               setField(field.key, state);
-              if (fieldErrors[field.key]) {
-                setFieldErrors((current) => {
-                  const next = { ...current };
-                  delete next[field.key];
-                  return next;
-                });
-              }
+              clearFieldError();
             }}
             confidenceByPath={aiMeta?.confidenceByPath}
             invalidPaths={
@@ -1040,6 +1265,30 @@ export function RecipeEditor({
                 : undefined
             }
           />
+        ) : field.kind === "tags" || field.key === "tags" ? (
+          <TagsChipEditor
+            value={Array.isArray(values[field.key]) ? (values[field.key] as string[]) : []}
+            onChange={(next) => {
+              setField(field.key, next);
+              clearFieldError();
+            }}
+            onOptimize={() => void runFieldAi("values.tags", "tags")}
+            optimizeBusy={tagOptimizeBusy || fieldAiBusy === "values.tags"}
+            optimizeProposal={tagOptimizeProposal}
+            onApplyOptimize={() => {
+              if (tagOptimizePendingRef.current) {
+                applyTargetedFill(tagOptimizePendingRef.current);
+                tagOptimizePendingRef.current = null;
+              } else if (tagOptimizeProposal) {
+                setField("tags", tagOptimizeProposal);
+              }
+              setTagOptimizeProposal(null);
+            }}
+            onDismissOptimize={() => {
+              tagOptimizePendingRef.current = null;
+              setTagOptimizeProposal(null);
+            }}
+          />
         ) : (
           <KindInput
             fieldKey={field.key}
@@ -1048,19 +1297,23 @@ export function RecipeEditor({
             value={values[field.key]}
             onChange={(value) => {
               setField(field.key, value);
-              if (fieldErrors[field.key]) {
-                setFieldErrors((current) => {
-                  const next = { ...current };
-                  delete next[field.key];
-                  return next;
-                });
-              }
+              clearFieldError();
             }}
             compact={compact}
             emphasis={emphasis}
             invalid={Boolean(fieldErrors[field.key])}
           />
         )}
+        {fieldAiNotice[fieldPath] ? (
+          <p
+            className={`mt-1.5 text-xs font-semibold ${
+              fieldAiNotice[fieldPath] === "AI SUGGESTION — REVIEW" ? "text-olive" : "text-terracotta"
+            }`}
+            role="status"
+          >
+            {fieldAiNotice[fieldPath]}
+          </p>
+        ) : null}
         {fieldErrors[field.key] ? (
           <p className={fieldErrorClass} role="alert">
             {fieldErrors[field.key]}
@@ -1108,16 +1361,64 @@ export function RecipeEditor({
                   Verified
                 </span>
               ) : null}
-              {recipeId ? (
-                <DeleteRecipeButton recipeId={recipeId} recipeTitle={pageTitle} />
+              {slug.trim() ? (
+                <Link
+                  href={`/recipes/${slug.trim()}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                >
+                  Preview
+                </Link>
               ) : null}
-              <button
-                type="button"
-                onClick={attemptSaveDraft}
-                className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-              >
-                {draftActionLabel}
-              </button>
+              <div className="relative" ref={moreMenuRef}>
+                <button
+                  type="button"
+                  aria-expanded={moreMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label="More actions"
+                  onClick={() => setMoreMenuOpen((open) => !open)}
+                  className={`${adminTertiaryButtonClass} ${adminFocusRing} px-2.5`}
+                >
+                  ⋯
+                </button>
+                {moreMenuOpen ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-50 mt-1 min-w-[12rem] border border-line bg-paper py-1 shadow-sm"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={`flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta ${adminFocusRing}`}
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        attemptSaveDraft();
+                      }}
+                    >
+                      {draftActionLabel}
+                    </button>
+                    {aiMeta ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta ${adminFocusRing}`}
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          downloadAiJson();
+                        }}
+                      >
+                        Download AI JSON
+                      </button>
+                    ) : null}
+                    {recipeId ? (
+                      <div role="none" className="border-t border-line px-3 py-2">
+                        <DeleteRecipeButton recipeId={recipeId} recipeTitle={pageTitle} />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={attemptPublish}
@@ -1184,22 +1485,20 @@ export function RecipeEditor({
 
         <AiRecipeAssistant
           typeId={typeId}
+          recipeId={recipeId}
           editorHasContent={formHasContent}
           youtubeUrl={String(values.youtubeUrl ?? "")}
           onYoutubeUrlChange={(url) => setField("youtubeUrl", url)}
           linkedVideoId={youtubeVideoId(String(values.youtubeUrl ?? ""))}
           aiMeta={aiMeta}
+          current={{ title, slug, excerpt, values }}
+          missingCount={missingFields.counts.missing}
           onApply={applyAiDraft}
+          onTargetedFill={applyTargetedFill}
+          onReviewEstimated={reviewEstimatedFields}
+          onMarkVerified={markAiVerified}
+          onDownloadJson={downloadAiJson}
         />
-
-        {aiMeta?.generatedByAI ? (
-          <AiDraftReviewSummary
-            meta={aiMeta}
-            onReviewEstimated={reviewEstimatedFields}
-            onMarkVerified={markAiVerified}
-            onDownloadJson={downloadAiJson}
-          />
-        ) : null}
 
         {publishAlert ? (
           <div
@@ -1296,7 +1595,13 @@ export function RecipeEditor({
             </label>
             <label id="recipe-field-excerpt" className="grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
               <span className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-sm font-semibold text-ink">Excerpt</span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-ink">Excerpt</span>
+                  <FieldAiActionButton
+                    busy={fieldAiBusy === "excerpt"}
+                    onClick={() => void runFieldAi("excerpt", "excerpt")}
+                  />
+                </span>
                 <AiConfidenceBadge
                   confidence={aiMeta?.confidenceByPath.excerpt?.confidence}
                   sourceNote={aiMeta?.confidenceByPath.excerpt?.sourceNote}
@@ -1309,6 +1614,16 @@ export function RecipeEditor({
                 rows={3}
                 className={adminInputClass}
               />
+              {fieldAiNotice.excerpt ? (
+                <p
+                  className={`text-xs font-semibold ${
+                    fieldAiNotice.excerpt === "AI SUGGESTION — REVIEW" ? "text-olive" : "text-terracotta"
+                  }`}
+                  role="status"
+                >
+                  {fieldAiNotice.excerpt}
+                </p>
+              ) : null}
             </label>
 
             <div className="md:col-span-2 border-t border-line/80 pt-5">
@@ -1531,9 +1846,6 @@ export function RecipeEditor({
           <button type="button" onClick={attemptSaveDraft} className={`${adminSecondaryButtonClass} ${adminFocusRing}`}>
             {draftActionLabel}
           </button>
-          <button type="button" onClick={attemptPublish} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
-            {publishButtonLabel}
-          </button>
         </div>
       </form>
 
@@ -1736,13 +2048,17 @@ function KindInput({
       </div>
     );
   }
-  if (kind === "list" || kind === "tags") {
+  if (kind === "tags") {
+    const items = Array.isArray(value) ? (value as string[]) : [];
+    return <TagsChipEditor value={items} onChange={(next) => onChange(next)} />;
+  }
+  if (kind === "list") {
     const items = Array.isArray(value) ? (value as string[]) : [];
     return (
       <ListEditor
         items={items}
         onChange={onChange}
-        placeholder={kind === "tags" ? "Tag" : "Item"}
+        placeholder="Item"
         compact={compact}
       />
     );

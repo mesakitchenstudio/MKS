@@ -4,8 +4,13 @@ import { useEffect, useId, useMemo, useState } from "react";
 import type { AiMergeMode } from "@/lib/ai-recipe/normalize";
 import { isRecipeAiVerified } from "@/lib/ai-recipe/field-tracking";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
-import { adminFocusRing, adminPrimaryButtonClass } from "@/lib/admin-ui";
+import {
+  adminFocusRing,
+  adminPrimaryButtonClass,
+  adminSecondaryButtonClass,
+} from "@/lib/admin-ui";
 import { youtubeVideoId } from "@/lib/youtube";
+import { mergeTargetedFillIntoEditor } from "@/lib/ai-recipe/targeted-merge";
 
 type DraftPayload = {
   typeId: string;
@@ -24,6 +29,12 @@ export type AiGenerateApplyPayload = {
   mergeMode: AiMergeMode;
 };
 
+export type AiTargetedFillApplyPayload = {
+  excerpt: string;
+  values: Record<string, unknown>;
+  aiMeta: RecipeAiMeta | null;
+};
+
 type PendingDraft = {
   draft: DraftPayload;
   meta: RecipeAiMeta;
@@ -33,7 +44,7 @@ type ApplyDialogKind = "initial" | "regenerate" | null;
 
 function formatGenerateError(data: { error?: string; code?: string; detail?: string }) {
   if (data.code === "GEMINI_RATE_LIMIT") {
-    return "Gemini daily quota reached for video analysis (free tier is about 20 requests per day per model). Wait until tomorrow, enable billing in Google AI Studio, or save the recipe — YouTube chapters import without Regenerate.";
+    return "Gemini daily quota reached for video analysis (free tier is about 20 requests per day per model). Wait until tomorrow, enable billing in Google AI Studio, or save the recipe — YouTube chapters import without Reanalyze.";
   }
   const codeSuffix = data.code ? ` Error: ${data.code}` : "";
   const detailSuffix =
@@ -42,9 +53,6 @@ function formatGenerateError(data: { error?: string; code?: string; detail?: str
       : "";
   return `${data.error || "Could not generate a recipe draft."}${codeSuffix}${detailSuffix}`;
 }
-
-const secondaryBtn =
-  "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
 
 const PROGRESS_MESSAGES = [
   "Analyzing video — this can take 1–3 minutes…",
@@ -55,31 +63,54 @@ const PROGRESS_MESSAGES = [
 ];
 const CLIENT_REQUEST_TIMEOUT_MS = 285_000;
 const LONG_RUNNING_HINT_MS = 180_000;
+const FILL_TIMEOUT_MS = 55_000;
 
 export function AiRecipeAssistant({
   typeId,
+  recipeId,
   disabled,
   editorHasContent,
   youtubeUrl,
   onYoutubeUrlChange,
   linkedVideoId,
   aiMeta,
+  current,
+  missingCount,
   onApply,
+  onTargetedFill,
+  onReviewEstimated,
+  onMarkVerified,
+  onDownloadJson,
 }: {
   typeId: string;
+  recipeId?: string;
   disabled?: boolean;
   editorHasContent: boolean;
   youtubeUrl: string;
   onYoutubeUrlChange: (url: string) => void;
   linkedVideoId?: string | null;
   aiMeta: RecipeAiMeta | null;
+  current: {
+    title: string;
+    slug: string;
+    excerpt: string;
+    values: Record<string, unknown>;
+  };
+  missingCount: number;
   onApply: (payload: AiGenerateApplyPayload) => void;
+  onTargetedFill: (payload: AiTargetedFillApplyPayload) => void;
+  onReviewEstimated?: () => void;
+  onMarkVerified?: () => void;
+  onDownloadJson?: () => void;
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [fillBusy, setFillBusy] = useState(false);
   const [progressIndex, setProgressIndex] = useState(0);
   const [error, setError] = useState("");
+  const [fillMessage, setFillMessage] = useState("");
   const [applyDialog, setApplyDialog] = useState<ApplyDialogKind>(null);
   const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);
   const [destructiveReplaceOpen, setDestructiveReplaceOpen] = useState(false);
@@ -102,15 +133,9 @@ export function AiRecipeAssistant({
     hasSuccessfulGeneration && currentVideoId && lastVideoId && currentVideoId !== lastVideoId,
   );
 
-  const primaryAction = useMemo(() => {
-    if (isSameSourceVideo) {
-      return { kind: "regenerate" as const, label: "Regenerate" };
-    }
-    if (isNewSourceVideo) {
-      return { kind: "analyze_new" as const, label: "Analyze new video" };
-    }
-    return { kind: "analyze" as const, label: linkedVideoId ? "Analyze linked video & populate recipe" : "Analyze video & populate recipe" };
-  }, [isNewSourceVideo, isSameSourceVideo, linkedVideoId]);
+  const summary = aiMeta?.summary;
+  const verified = summary?.verified ?? 0;
+  const inferred = summary?.inferred ?? 0;
 
   useEffect(() => {
     if (!busy) {
@@ -119,7 +144,7 @@ export function AiRecipeAssistant({
       return;
     }
     const progressTimer = window.setInterval(() => {
-      setProgressIndex((current) => (current + 1) % PROGRESS_MESSAGES.length);
+      setProgressIndex((currentIndex) => (currentIndex + 1) % PROGRESS_MESSAGES.length);
     }, 3200);
     const hintTimer = window.setTimeout(() => setShowLongRunningHint(true), LONG_RUNNING_HINT_MS);
     return () => {
@@ -177,7 +202,7 @@ export function AiRecipeAssistant({
           /failed to fetch|network|timeout|aborted/i.test(fetchError.message));
       setError(
         timedOut
-          ? "Video analysis timed out after about 5 minutes. Gemini may still be busy — wait a moment and try again, or save the recipe to import YouTube chapters without regenerating."
+          ? "Video analysis timed out after about 5 minutes. Gemini may still be busy — wait a moment and try again, or save the recipe to import YouTube chapters without reanalyzing."
           : "Network error while contacting the AI assistant.",
       );
       return null;
@@ -232,7 +257,7 @@ export function AiRecipeAssistant({
     applyDraft(draft, mergeMode);
   }
 
-  async function runRegenerate() {
+  async function runReanalyzeFullVideo() {
     if (!currentVideoId) {
       setError("Link a YouTube video or paste a cooking-video URL first.");
       return;
@@ -243,13 +268,65 @@ export function AiRecipeAssistant({
     setApplyDialog("regenerate");
   }
 
-  function onPrimaryClick() {
-    if (primaryAction.kind === "regenerate") {
-      void runRegenerate();
-      return;
+  async function runFillMissing() {
+    setFillBusy(true);
+    setError("");
+    setFillMessage("");
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), FILL_TIMEOUT_MS);
+    try {
+      const effectiveUrl =
+        youtubeUrl.trim() ||
+        (currentVideoId ? `https://www.youtube.com/watch?v=${currentVideoId}` : "");
+      const response = await fetch("/api/admin/recipes/ai-fill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          typeId,
+          recipeId,
+          youtubeUrl: effectiveUrl || undefined,
+          mode: "missing",
+          current,
+          aiMeta,
+        }),
+        signal: controller.signal,
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        requestedPaths?: string[];
+        draft?: { excerpt: string; values: Record<string, unknown> };
+        confidenceByPath?: RecipeAiMeta["confidenceByPath"];
+      };
+      if (!response.ok || !data.ok || !data.draft) {
+        setError(
+          data.error ||
+            "AI could not complete the missing fields. Existing recipe content was not changed.",
+        );
+        return;
+      }
+      if (!(data.requestedPaths && data.requestedPaths.length)) {
+        setFillMessage("No eligible missing fields to fill.");
+        return;
+      }
+      const merged = mergeTargetedFillIntoEditor({
+        current,
+        draft: data.draft,
+        requestedPaths: data.requestedPaths,
+        confidenceByPath: data.confidenceByPath ?? {},
+        aiMeta,
+      });
+      onTargetedFill(merged);
+      setFillMessage(`Filled ${data.requestedPaths.length} field(s). Review before publishing.`);
+    } catch {
+      setError("AI could not complete the missing fields. Existing recipe content was not changed.");
+    } finally {
+      window.clearTimeout(timeoutId);
+      setFillBusy(false);
     }
-    void runInitialAnalyze(isNewSourceVideo);
   }
+
+  const anyBusy = busy || fillBusy;
 
   return (
     <section className="border border-line bg-paper">
@@ -258,13 +335,15 @@ export function AiRecipeAssistant({
         className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left ${adminFocusRing}`}
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => setOpen((currentOpen) => !currentOpen)}
       >
         <div>
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
             AI recipe assistant
           </p>
-          <p className="mt-1 text-sm text-muted">Generate recipe from a cooking video.</p>
+          <p className="mt-1 text-sm text-muted">
+            {verified} verified · {inferred} inferred · {missingCount} missing
+          </p>
         </div>
         <span className="text-sm font-semibold text-muted">{open ? "Hide" : "Show"}</span>
       </button>
@@ -274,8 +353,7 @@ export function AiRecipeAssistant({
           {linkedVideoId ? (
             <p className="text-sm text-muted">
               Using linked YouTube video{" "}
-              <span className="font-mono text-xs text-ink">{linkedVideoId}</span>. Change the
-              connection in Media if you need a different video.
+              <span className="font-mono text-xs text-ink">{linkedVideoId}</span>.
             </p>
           ) : (
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
@@ -283,7 +361,7 @@ export function AiRecipeAssistant({
               <input
                 type="url"
                 value={youtubeUrl}
-                disabled={busy || disabled}
+                disabled={anyBusy || disabled}
                 onChange={(event) => onYoutubeUrlChange(event.target.value)}
                 placeholder="https://www.youtube.com/watch?v=..."
                 className="h-10 rounded-sm border border-line bg-paper px-3 text-sm font-normal outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
@@ -294,27 +372,82 @@ export function AiRecipeAssistant({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={busy || disabled || !currentVideoId}
-              onClick={onPrimaryClick}
-              className={`${adminPrimaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
+              disabled={anyBusy || disabled || !typeId}
+              onClick={() => void runFillMissing()}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              {primaryAction.label}
+              {fillBusy ? "Filling missing fields…" : "Fill missing fields"}
             </button>
+            {!hasSuccessfulGeneration || isNewSourceVideo ? (
+              <button
+                type="button"
+                disabled={anyBusy || disabled || !currentVideoId}
+                onClick={() => void runInitialAnalyze(isNewSourceVideo)}
+                className={`${adminPrimaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                {isNewSourceVideo ? "Analyze new video" : "Analyze linked video"}
+              </button>
+            ) : null}
           </div>
 
-          {hasSuccessfulGeneration && isSameSourceVideo ? (
-            <p className="mt-2 text-xs text-muted">
-              Regenerate re-analyzes the full video with Gemini (1–5 minutes). YouTube chapters and
-              duration import automatically when you save — no regenerate needed for those.
-            </p>
+          {aiMeta?.generatedByAI ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {onReviewEstimated ? (
+                <button
+                  type="button"
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                  onClick={onReviewEstimated}
+                >
+                  Review inferred fields
+                </button>
+              ) : null}
+              {aiMeta.verificationStatus !== "verified" && onMarkVerified ? (
+                <button
+                  type="button"
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                  onClick={onMarkVerified}
+                >
+                  Mark recipe verified
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
-          {isNewSourceVideo ? (
-            <p className="mt-2 text-xs text-muted">
-              This URL points to a different video than the last successful AI analysis. Use Analyze new
-              video to treat it as a new source.
-            </p>
-          ) : null}
+          <div className="mt-4 border-t border-line/80 pt-3">
+            <button
+              type="button"
+              className={`text-xs font-semibold uppercase tracking-[0.12em] text-muted ${adminFocusRing}`}
+              aria-expanded={advancedOpen}
+              onClick={() => setAdvancedOpen((value) => !value)}
+            >
+              Advanced {advancedOpen ? "▴" : "▾"}
+            </button>
+            {advancedOpen ? (
+              <div className="mt-2 space-y-2">
+                <button
+                  type="button"
+                  disabled={anyBusy || disabled || !currentVideoId}
+                  onClick={() => void runReanalyzeFullVideo()}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  Reanalyze full video
+                </button>
+                <p className="text-xs text-muted">
+                  Full re-analysis sends the video to Gemini and can take 1–5 minutes. Use Fill missing
+                  fields for quick metadata updates.
+                </p>
+                {onDownloadJson ? (
+                  <button
+                    type="button"
+                    className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                    onClick={onDownloadJson}
+                  >
+                    Download AI JSON
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
 
           {busy ? (
             <div className="mt-3 space-y-1" role="status" aria-live="polite">
@@ -327,12 +460,13 @@ export function AiRecipeAssistant({
               </p>
               {showLongRunningHint ? (
                 <p className="text-xs text-muted">
-                  Still working — large videos can take up to 5 minutes. You can refresh this page
-                  to cancel; saving the recipe still imports YouTube chapters.
+                  Still working — large videos can take up to 5 minutes.
                 </p>
               ) : null}
             </div>
           ) : null}
+
+          {fillMessage ? <p className="mt-3 text-sm text-olive">{fillMessage}</p> : null}
 
           {error ? (
             <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
@@ -353,7 +487,11 @@ export function AiRecipeAssistant({
               <p className="text-sm font-semibold text-ink">This recipe already contains information.</p>
               <p className="mt-1 text-xs text-muted">Choose how to apply the AI draft.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} onClick={closeDialogs}>
+                <button
+                  type="button"
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                  onClick={closeDialogs}
+                >
                   Cancel
                 </button>
                 <button
@@ -365,16 +503,12 @@ export function AiRecipeAssistant({
                 </button>
                 <button
                   type="button"
-                  className={`${secondaryBtn} ${adminFocusRing}`}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
                   onClick={() => void confirmInitialAnalyze("replace_all_ai_fillable")}
                 >
                   Replace all AI-fillable recipe fields
                 </button>
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-terracotta">
-                Replace all AI-fillable recipe fields may overwrite existing recipe information in those
-                fields.
-              </p>
             </div>
           ) : null}
 
@@ -382,12 +516,16 @@ export function AiRecipeAssistant({
             <div
               className="mt-4 rounded-sm border border-line bg-cream/50 px-3 py-3"
               role="dialog"
-              aria-label="Apply regenerated AI draft"
+              aria-label="Apply reanalyzed AI draft"
             >
-              <p className="text-sm font-semibold text-ink">A previous AI draft already exists.</p>
+              <p className="text-sm font-semibold text-ink">Full video re-analysis is ready.</p>
               <p className="mt-1 text-xs text-muted">Choose how to apply the new analysis.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} onClick={closeDialogs}>
+                <button
+                  type="button"
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                  onClick={closeDialogs}
+                >
                   Cancel
                 </button>
                 <button
@@ -399,17 +537,13 @@ export function AiRecipeAssistant({
                 </button>
                 <button
                   type="button"
-                  className={`${secondaryBtn} ${adminFocusRing}`}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
                   onClick={() => requestReplaceMode("replace_previous_ai")}
                   disabled={isRecipeAiVerified(aiMeta)}
                 >
                   Replace previous AI-generated fields
                 </button>
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-muted">
-                Replace previous AI-generated fields updates only AI-origin values you have not edited
-                manually. Verified recipes keep human-approved values.
-              </p>
             </div>
           ) : null}
 
@@ -420,14 +554,10 @@ export function AiRecipeAssistant({
               aria-label="Confirm overwrite of verified recipe information"
             >
               <p className="text-sm font-semibold text-ink">Overwrite verified recipe information?</p>
-              <p className="mt-1 text-xs text-muted">
-                This recipe has been marked verified. Replacing AI-fillable fields may overwrite
-                human-approved values.
-              </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className={`${secondaryBtn} ${adminFocusRing}`}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
                   onClick={() => {
                     setDestructiveReplaceOpen(false);
                     setPendingReplaceMode(null);

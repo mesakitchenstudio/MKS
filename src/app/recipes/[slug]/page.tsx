@@ -120,7 +120,11 @@ export default async function RecipePage({ params }: Props) {
     excludeSlugs: continuedSlug ? [continuedSlug] : [],
   });
   const initialStageVideoHelp = youtube
-    ? selectStageVideoHelp(recipeInstructionStages(recipe), youtube.timestamps)
+    ? selectStageVideoHelp(
+        recipeInstructionStages(recipe),
+        youtube.timestamps,
+        youtube.stageAlignments,
+      )
     : {};
 
   const article = (

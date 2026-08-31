@@ -13,6 +13,7 @@ import { normalizeYouTubeForGemini } from "@/lib/ai-recipe/youtube-url";
 import { youtubeVideoId } from "@/lib/youtube";
 import { enrichDraftYoutubeFromDescription } from "@/lib/youtube-description";
 import { aiChaptersFromGeminiRaw } from "@/lib/ai-recipe/youtube-chapters";
+import { buildRecipeAiVideoContext } from "@/lib/ai-recipe/video-context";
 import { getDb } from "@/lib/db";
 
 function mapType(row: {
@@ -255,16 +256,24 @@ function buildMeta(input: {
   draft: NormalizedAiDraft;
 }): RecipeAiMeta {
   const sourceVideoId = youtubeVideoId(input.youtubeUrl) || undefined;
+  const generatedAt = new Date().toISOString();
   return {
     generatedByAI: true,
     sourceType: "youtube",
     sourceUrl: input.youtubeUrl,
     sourceVideoId,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     model: input.model,
     schemaVersion: input.schemaVersion,
     verificationStatus: "unverified",
     confidenceByPath: input.draft.confidenceByPath,
     summary: input.draft.summary,
+    videoContext: buildRecipeAiVideoContext({
+      youtubeUrl: input.youtubeUrl,
+      model: input.model,
+      schemaVersion: input.schemaVersion,
+      draft: input.draft,
+      generatedAt,
+    }),
   };
 }

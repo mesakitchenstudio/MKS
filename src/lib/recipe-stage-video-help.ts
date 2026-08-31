@@ -1,5 +1,6 @@
 import type { RecipeInstructionStage } from "@/lib/recipe-instructions";
-import type { RecipeYoutubeTimestamp } from "@/data/youtube-types";
+import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtube-types";
+import { isConfidentStageAlignment } from "@/lib/ai-recipe/stage-alignments";
 
 export type StageVideoHelp = {
   time: number;
@@ -8,18 +9,20 @@ export type StageVideoHelp = {
   linkLabel: string;
 };
 
-/** Minimum pair score required before attaching an inline chapter CTA. */
-const MIN_MATCH_SCORE = 4;
-
 /**
  * Attach at most one chapter timestamp to each technique-heavy stage.
- * Only strong semantic matches — omit uncertain inline CTAs rather than guess.
- * Full chapter lists still render under “In this video”.
+ * Prefer explicit Mesa stageAlignments; otherwise strong semantic matches only.
  */
 export function selectStageVideoHelp(
   stages: RecipeInstructionStage[],
   timestamps: RecipeYoutubeTimestamp[] | undefined,
+  stageAlignments?: RecipeStageAlignment[] | undefined,
 ): Record<string, StageVideoHelp> {
+  if (stageAlignments?.length) {
+    const fromAlignments = helpFromStageAlignments(stages, stageAlignments);
+    if (Object.keys(fromAlignments).length) return fromAlignments;
+  }
+
   const chapters = [...(timestamps ?? [])]
     .filter((item) => item.label.trim() && item.time >= 0)
     .sort((a, b) => a.time - b.time);
@@ -36,7 +39,7 @@ export function selectStageVideoHelp(
         index,
         score: chapterStageScore(stage, chapter),
       }))
-      .filter((entry) => entry.score >= MIN_MATCH_SCORE && !used.has(entry.index))
+      .filter((entry) => entry.score >= 4 && !used.has(entry.index))
       .sort((a, b) => b.score - a.score || a.chapter.time - b.chapter.time);
 
     const best = ranked[0];
@@ -45,6 +48,32 @@ export function selectStageVideoHelp(
     result[stage.id] = toHelp(best.chapter);
   }
 
+  return result;
+}
+
+function helpFromStageAlignments(
+  stages: RecipeInstructionStage[],
+  alignments: RecipeStageAlignment[],
+): Record<string, StageVideoHelp> {
+  const result: Record<string, StageVideoHelp> = {};
+  const byId = new Map(alignments.map((row) => [row.instructionStageId, row]));
+  const byTitle = new Map(
+    alignments.map((row) => [row.instructionSectionTitle.toLowerCase().trim(), row]),
+  );
+
+  for (const stage of stages) {
+    const match =
+      byId.get(stage.id) ||
+      byTitle.get(stage.name.toLowerCase().trim()) ||
+      null;
+    if (!match || !isConfidentStageAlignment(match)) continue;
+    result[stage.id] = {
+      time: match.videoStartSeconds,
+      label: match.chapterTitle,
+      chapterLabel: match.chapterTitle,
+      linkLabel: `Watch: ${match.chapterTitle} · ${formatClock(match.videoStartSeconds)}`,
+    };
+  }
   return result;
 }
 
@@ -63,33 +92,20 @@ export function isTechniqueStage(name: string) {
   );
 }
 
-/**
- * Strong semantic pairs only. Loose keyword overlap is not enough.
- * Order matters for ties within a stage — earlier pairs are more specific.
- */
 function chapterStageScore(stage: RecipeInstructionStage, chapter: RecipeYoutubeTimestamp) {
   const stageName = stage.name.toLowerCase();
   const label = chapter.label.toLowerCase();
   let score = 0;
 
   const pairs: [RegExp, RegExp, number][] = [
-    // Early dough / yeast / foundation
     [
       /activat|yeast|autolys|mix(?:ing)?(?:\b|.*dough)|foundat|preferment|levain|starter/i,
       /foundat|dough|mix|autolys|yeast|preferment|levain|starter|beginning|start/i,
       5,
     ],
-    // Gluten development / stretch & fold (not mere “incorporate”)
-    [
-      /stretch|fold|gluten|knead/i,
-      /stretch|fold|gluten|knead|develop/i,
-      6,
-    ],
-    // Divide / pre-shape
+    [/stretch|fold|gluten|knead/i, /stretch|fold|gluten|knead|develop/i, 6],
     [/divid|pre.?shap|portion|scale/i, /divid|pre.?shap|portion|scale|ball/i, 5],
-    // Final shape / proof
     [/shap|proof|crumb/i, /shap|proof|form|pre.?shape|baguette|crumb/i, 5],
-    // Score / steam / bake
     [/scor|steam|bak|oven/i, /scor|steam|bak|oven|crust/i, 6],
   ];
 
@@ -99,7 +115,6 @@ function chapterStageScore(stage: RecipeInstructionStage, chapter: RecipeYoutube
     }
   }
 
-  // Explicit stepIndex grounding from metadata (when present).
   if (
     chapter.stepIndex != null &&
     stage.steps.some((step) => step.globalIndex === chapter.stepIndex)
@@ -110,7 +125,6 @@ function chapterStageScore(stage: RecipeInstructionStage, chapter: RecipeYoutube
   return score;
 }
 
-/** Prefer the real YouTube chapter title so CTAs stay truthful. */
 function buildLinkLabel(chapterLabel: string, time: number) {
   const clock = formatClock(time);
   const title = chapterLabel.trim().replace(/^\d{1,2}(?::\d{2}){1,2}\s*[-–—]?\s*/, "");

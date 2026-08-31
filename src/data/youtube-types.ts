@@ -6,6 +6,18 @@ export type RecipeYoutubeTimestamp = {
   stepIndex?: number;
 };
 
+export type StageAlignmentSource = "ai_video_analysis" | "youtube_description_hint" | "manual";
+
+export type RecipeStageAlignment = {
+  instructionStageId: string;
+  instructionSectionTitle: string;
+  videoStartSeconds: number;
+  videoTimestampLabel: string;
+  chapterTitle: string;
+  confidence: "VERIFIED" | "HIGH_CONFIDENCE_INFERENCE" | "ESTIMATED" | "UNKNOWN";
+  source: StageAlignmentSource;
+};
+
 export type RecipeYoutubeRelatedVideo = {
   title: string;
   videoId: string;
@@ -34,6 +46,11 @@ export type RecipeYoutube = {
   playlistUrl?: string;
   playlistLabel?: string;
   timestamps?: RecipeYoutubeTimestamp[];
+  /**
+   * Mesa instruction-stage ↔ video alignments (canonical for public chapter/CTA linking).
+   * YouTube description chapters are hints only.
+   */
+  stageAlignments?: RecipeStageAlignment[];
   relatedVideos?: RecipeYoutubeRelatedVideo[];
 };
 

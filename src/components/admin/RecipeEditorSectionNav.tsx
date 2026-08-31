@@ -6,6 +6,8 @@ import { adminFocusRing } from "@/lib/admin-ui";
 export type RecipeEditorSectionLink = {
   id: string;
   label: string;
+  /** Missing AI-fillable fields in this section (from listMissingAiFillableFields). */
+  missingCount?: number;
 };
 
 export const RecipeEditorSectionNav = forwardRef<
@@ -43,6 +45,9 @@ export const RecipeEditorSectionNav = forwardRef<
       <ul className="-mx-1 flex list-none gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {sections.map((section) => {
           const isActive = activeSectionId === section.id;
+          const missing = section.missingCount ?? 0;
+          const status =
+            missing > 0 ? `${missing} missing` : missing === 0 ? "✓" : "";
           return (
             <li key={section.id} className="shrink-0">
               <button
@@ -55,7 +60,16 @@ export const RecipeEditorSectionNav = forwardRef<
                     : "text-muted"
                 }`}
               >
-                {section.label}
+                <span>{section.label}</span>
+                {status ? (
+                  <span
+                    className={`ml-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] ${
+                      missing > 0 ? "text-terracotta/80" : "text-olive/80"
+                    }`}
+                  >
+                    {status}
+                  </span>
+                ) : null}
               </button>
             </li>
           );

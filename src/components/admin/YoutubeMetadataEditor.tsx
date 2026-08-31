@@ -329,6 +329,25 @@ export function YoutubeMetadataEditor({
         >
           + Add chapter
         </button>
+
+        <div className="mt-4 rounded-sm border border-dashed border-line/80 bg-paper/60 px-3 py-3">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
+            Sync chapters to YouTube
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Prepared preview-only service. Requires{" "}
+            <code className="text-[0.7rem]">YOUTUBE_CHAPTER_SYNC_ENABLED=true</code> and write OAuth
+            (<code className="text-[0.7rem]">youtube.force-ssl</code>). Never runs on recipe save.
+          </p>
+          <button
+            type="button"
+            className={`mt-2 ${secondaryBtn} ${adminFocusRing}`}
+            disabled
+            title="Feature-gated until YouTube write OAuth is configured"
+          >
+            Sync chapters to YouTube (disabled)
+          </button>
+        </div>
       </section>
 
       <section className="rounded-sm border border-line/80 bg-cream/20 p-4">

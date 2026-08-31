@@ -1,0 +1,429 @@
+import { CORE_VALUE_KEYS } from "@/lib/fields";
+import { getDb } from "@/lib/db";
+import {
+  computeRecipeSchemaVersion,
+  isAiFillableFieldKey,
+  type SchemaCategory,
+  type SchemaField,
+  type SchemaRecipeType,
+} from "@/lib/ai-recipe/schema-version";
+import { normalizeAiRecipeResponse, type NormalizedAiDraft } from "@/lib/ai-recipe/normalize";
+import {
+  listMissingAiFillableFields,
+  isFieldEligibleForTargetedFill,
+  PROTECTED_AI_FILL_KEYS,
+  type MissingAiField,
+} from "@/lib/ai-recipe/missing-fields";
+import { generateTargetedRecipeFields } from "@/lib/ai-recipe/targeted-gemini";
+import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
+import { emptyAiSummary, tallyConfidence } from "@/lib/ai-recipe/types";
+import { youtubeVideoId } from "@/lib/youtube";
+import { normalizeYouTubeForGemini } from "@/lib/ai-recipe/youtube-url";
+
+export type TargetedFillMode = "missing" | "fields";
+
+export type TargetedFillRequest = {
+  typeId: string;
+  youtubeUrl?: string;
+  recipeId?: string;
+  mode: TargetedFillMode;
+  /** Field keys or absolute paths (excerpt, values.cuisine, cuisine). */
+  fields?: string[];
+  current: {
+    title: string;
+    slug: string;
+    excerpt: string;
+    values: Record<string, unknown>;
+  };
+  aiMeta?: RecipeAiMeta | null;
+  /** Explicit field regenerate (populated ok). */
+  allowRepopulate?: boolean;
+};
+
+export type TargetedFillSuccess = {
+  ok: true;
+  cachedContextUsed: boolean;
+  generationCacheUsed: boolean;
+  model: string;
+  requestedPaths: string[];
+  draft: {
+    title: string;
+    slug: string;
+    excerpt: string;
+    values: Record<string, unknown>;
+  };
+  confidenceByPath: RecipeAiMeta["confidenceByPath"];
+  latencyMs: number;
+};
+
+export type TargetedFillFailure = {
+  ok: false;
+  code: string;
+  message: string;
+  detail?: string;
+  latencyMs: number;
+};
+
+function mapType(row: {
+  id: string;
+  name: string;
+  slug: string;
+  fields: {
+    key: string;
+    label: string;
+    helpText: string;
+    kind: string;
+    required: boolean;
+    options: string;
+    sortOrder: number;
+  }[];
+}): SchemaRecipeType {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    fields: row.fields
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(
+        (field): SchemaField => ({
+          key: field.key,
+          label: field.label,
+          kind: field.kind,
+          required: field.required,
+          helpText: field.helpText,
+          options: JSON.parse(field.options || "[]") as string[],
+        }),
+      ),
+  };
+}
+
+function resolveRequestedFields(input: {
+  mode: TargetedFillMode;
+  fields: string[] | undefined;
+  typeFields: SchemaField[];
+  current: TargetedFillRequest["current"];
+  aiMeta: RecipeAiMeta | null;
+  allowRepopulate?: boolean;
+}): MissingAiField[] {
+  if (input.mode === "missing") {
+    return listMissingAiFillableFields({
+      fields: input.typeFields,
+      title: input.current.title,
+      slug: input.current.slug,
+      excerpt: input.current.excerpt,
+      values: input.current.values,
+      aiMeta: input.aiMeta,
+    }).missing;
+  }
+
+  const requested = (input.fields ?? []).map((item) => String(item).trim()).filter(Boolean);
+  const out: MissingAiField[] = [];
+
+  for (const token of requested) {
+    if (token === "excerpt" || token === "title" || token === "slug") {
+      if (token !== "excerpt") continue;
+      if (
+        !isFieldEligibleForTargetedFill({
+          path: "excerpt",
+          key: "excerpt",
+          kind: "textarea",
+          value: input.current.excerpt,
+          aiMeta: input.aiMeta,
+          allowRepopulate: input.allowRepopulate,
+        })
+      ) {
+        continue;
+      }
+      out.push({
+        path: "excerpt",
+        key: "excerpt",
+        label: "Excerpt",
+        kind: "textarea",
+        reason: "empty",
+        section: "basics",
+      });
+      continue;
+    }
+
+    const key = token.startsWith("values.") ? token.slice("values.".length) : token;
+    const path = `values.${key}`;
+    if (PROTECTED_AI_FILL_KEYS.has(key) || !isAiFillableFieldKey(key)) continue;
+    const field = input.typeFields.find((row) => row.key === key);
+    if (!field) continue;
+    if (
+      !isFieldEligibleForTargetedFill({
+        path,
+        key,
+        kind: field.kind,
+        value: input.current.values[key],
+        aiMeta: input.aiMeta,
+        allowRepopulate: input.allowRepopulate,
+      })
+    ) {
+      continue;
+    }
+    out.push({
+      path,
+      key,
+      label: field.label,
+      kind: field.kind,
+      reason: "empty",
+      section: "details",
+    });
+  }
+
+  return out;
+}
+
+function pickCacheHints(draft: NormalizedAiDraft, paths: MissingAiField[]) {
+  const hints: Record<string, unknown> = {};
+  for (const row of paths) {
+    if (row.path === "excerpt" && draft.excerpt) hints.excerpt = draft.excerpt;
+    else if (row.key in draft.values) hints[row.path] = draft.values[row.key];
+  }
+  return hints;
+}
+
+function applyReturnedFields(input: {
+  current: TargetedFillRequest["current"];
+  requested: MissingAiField[];
+  returned: Record<string, unknown>;
+}): {
+  draft: TargetedFillSuccess["draft"];
+  confidenceByPath: RecipeAiMeta["confidenceByPath"];
+} {
+  const confidenceByPath: RecipeAiMeta["confidenceByPath"] = {};
+  const summary = emptyAiSummary();
+  const nextValues = { ...input.current.values };
+  let excerpt = input.current.excerpt;
+
+  const allowed = new Set(input.requested.map((row) => row.path));
+
+  for (const [rawPath, value] of Object.entries(input.returned)) {
+    const path = rawPath.startsWith("values.") || rawPath === "excerpt" ? rawPath : `values.${rawPath}`;
+    if (!allowed.has(path) && !allowed.has(rawPath)) continue;
+
+    const target = input.requested.find((row) => row.path === path || row.key === rawPath);
+    if (!target) continue;
+
+    if (target.path === "excerpt") {
+      const text = typeof value === "string" ? value : String((value as { value?: unknown })?.value ?? "");
+      if (!text.trim()) continue;
+      excerpt = text.trim();
+      confidenceByPath.excerpt = {
+        confidence: "HIGH_CONFIDENCE_INFERENCE",
+        sourceNote: "Targeted AI fill",
+      };
+      tallyConfidence("HIGH_CONFIDENCE_INFERENCE", summary);
+      continue;
+    }
+
+    nextValues[target.key] = value;
+    confidenceByPath[target.path] = {
+      confidence: "HIGH_CONFIDENCE_INFERENCE",
+      sourceNote: "Targeted AI fill",
+    };
+    tallyConfidence("HIGH_CONFIDENCE_INFERENCE", summary);
+  }
+
+  return {
+    draft: {
+      title: input.current.title,
+      slug: input.current.slug,
+      excerpt,
+      values: nextValues,
+    },
+    confidenceByPath,
+  };
+}
+
+/**
+ * Fill only requested/missing fields using recipe data + cached analysis + text Gemini.
+ * Never invokes full-video analysis.
+ */
+export async function runTargetedRecipeFill(
+  input: TargetedFillRequest,
+): Promise<TargetedFillSuccess | TargetedFillFailure> {
+  const started = Date.now();
+  const db = getDb();
+
+  const [types, categories, recipeType] = await Promise.all([
+    db.recipeType.findMany({ include: { fields: true }, orderBy: { name: "asc" } }),
+    db.category.findMany({ orderBy: { name: "asc" } }),
+    db.recipeType.findUnique({ where: { id: input.typeId }, include: { fields: true } }),
+  ]);
+
+  if (!recipeType) {
+    return {
+      ok: false,
+      code: "invalid_type",
+      message: "Unknown recipe type.",
+      latencyMs: Date.now() - started,
+    };
+  }
+
+  const selectedType = mapType(recipeType);
+  const allTypes = types.map(mapType);
+  const schemaCategories: SchemaCategory[] = categories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    slug: category.slug,
+    group: category.group,
+  }));
+  const schemaVersion = computeRecipeSchemaVersion({
+    types: allTypes,
+    categories: schemaCategories,
+    coreFieldKeys: CORE_VALUE_KEYS,
+  });
+
+  const aiMeta = input.aiMeta ?? null;
+  const requested = resolveRequestedFields({
+    mode: input.mode,
+    fields: input.fields,
+    typeFields: selectedType.fields,
+    current: input.current,
+    aiMeta,
+    allowRepopulate: input.allowRepopulate,
+  });
+
+  if (!requested.length) {
+    return {
+      ok: true,
+      cachedContextUsed: Boolean(aiMeta?.videoContext),
+      generationCacheUsed: false,
+      model: aiMeta?.model || "none",
+      requestedPaths: [],
+      draft: {
+        title: input.current.title,
+        slug: input.current.slug,
+        excerpt: input.current.excerpt,
+        values: { ...input.current.values },
+      },
+      confidenceByPath: {},
+      latencyMs: Date.now() - started,
+    };
+  }
+
+  let generationCacheUsed = false;
+  let cacheHints: Record<string, unknown> | null = null;
+  const youtubeUrl = String(input.youtubeUrl || aiMeta?.sourceUrl || "").trim();
+  const normalized = youtubeUrl ? normalizeYouTubeForGemini(youtubeUrl) : null;
+  const videoId =
+    normalized?.videoId ||
+    aiMeta?.videoContext?.linkedVideoId ||
+    aiMeta?.sourceVideoId ||
+    youtubeVideoId(youtubeUrl) ||
+    "";
+
+  if (videoId) {
+    const cached = await db.aiRecipeGenerationCache.findUnique({
+      where: {
+        videoId_typeId_schemaVersion: {
+          videoId,
+          typeId: selectedType.id,
+          schemaVersion: aiMeta?.schemaVersion || schemaVersion,
+        },
+      },
+    });
+    if (cached) {
+      try {
+        const raw = JSON.parse(cached.responseJson) as unknown;
+        const draft = normalizeAiRecipeResponse({
+          raw,
+          typeId: selectedType.id,
+          youtubeUrl: normalized?.canonicalUrl || youtubeUrl || `https://www.youtube.com/watch?v=${videoId}`,
+          fields: selectedType.fields,
+          allowedCategoryIds: new Set(schemaCategories.map((category) => category.id)),
+          allowedTypeIds: new Set(allTypes.map((type) => type.id)),
+        });
+        cacheHints = pickCacheHints(draft, requested);
+        generationCacheUsed = Object.keys(cacheHints).length > 0;
+      } catch {
+        cacheHints = null;
+      }
+    }
+  }
+
+  // Prefer cached draft values when present for empty targets (no Gemini call).
+  if (generationCacheUsed && cacheHints && input.mode === "missing") {
+    const fromCache = applyReturnedFields({
+      current: input.current,
+      requested,
+      returned: cacheHints,
+    });
+    const filledPaths = Object.keys(fromCache.confidenceByPath);
+    if (filledPaths.length === requested.length) {
+      console.info("[ai-fill]", {
+        operation: "targeted_fill_cache",
+        recipeId: input.recipeId || null,
+        fields: requested.map((row) => row.path),
+        cacheHit: true,
+        model: aiMeta?.model || "cache",
+        latencyMs: Date.now() - started,
+      });
+      return {
+        ok: true,
+        cachedContextUsed: Boolean(aiMeta?.videoContext),
+        generationCacheUsed: true,
+        model: aiMeta?.model || "cache",
+        requestedPaths: requested.map((row) => row.path),
+        draft: fromCache.draft,
+        confidenceByPath: fromCache.confidenceByPath,
+        latencyMs: Date.now() - started,
+      };
+    }
+  }
+
+  const generated = await generateTargetedRecipeFields({
+    fields: requested,
+    current: input.current,
+    videoContext: aiMeta?.videoContext,
+    cacheHints,
+  });
+
+  if (!generated.ok) {
+    console.info("[ai-fill]", {
+      operation: "targeted_fill",
+      recipeId: input.recipeId || null,
+      fields: requested.map((row) => row.path),
+      cacheHit: generationCacheUsed,
+      model: null,
+      latencyMs: Date.now() - started,
+      failureType: generated.error.code,
+    });
+    return {
+      ok: false,
+      code: generated.error.code,
+      message: generated.error.message,
+      detail: generated.error.detail,
+      latencyMs: Date.now() - started,
+    };
+  }
+
+  const applied = applyReturnedFields({
+    current: input.current,
+    requested,
+    returned: generated.fields,
+  });
+
+  console.info("[ai-fill]", {
+    operation: "targeted_fill",
+    recipeId: input.recipeId || null,
+    fields: requested.map((row) => row.path),
+    cacheHit: generationCacheUsed || Boolean(aiMeta?.videoContext),
+    model: generated.model,
+    latencyMs: Date.now() - started,
+  });
+
+  return {
+    ok: true,
+    cachedContextUsed: Boolean(aiMeta?.videoContext),
+    generationCacheUsed,
+    model: generated.model,
+    requestedPaths: requested.map((row) => row.path),
+    draft: applied.draft,
+    confidenceByPath: applied.confidenceByPath,
+    latencyMs: Date.now() - started,
+  };
+}

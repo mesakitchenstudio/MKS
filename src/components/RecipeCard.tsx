@@ -236,12 +236,15 @@ function RecipeCookingWorkspaceInner({
         ? fetchedChapters
         : propChapters;
   const clientStageVideoHelp = useMemo(
-    () => selectStageVideoHelp(stages, chapters),
-    [stages, chapters],
+    () => selectStageVideoHelp(stages, chapters, youtube?.stageAlignments),
+    [stages, chapters, youtube?.stageAlignments],
   );
-  const stageVideoHelp = Object.keys(clientStageVideoHelp).length
-    ? clientStageVideoHelp
-    : initialStageVideoHelp;
+  const stageVideoHelp =
+    youtube?.stageAlignments?.length && Object.keys(clientStageVideoHelp).length
+      ? clientStageVideoHelp
+      : Object.keys(clientStageVideoHelp).length
+        ? clientStageVideoHelp
+        : initialStageVideoHelp;
   const [openStages, setOpenStages] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(stages.map((stage, index) => [stage.id, index === 0])),
   );

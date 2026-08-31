@@ -16,6 +16,19 @@ export type AiVerificationStatus = "none" | "unverified" | "verified";
 
 import type { AiFieldProvenance } from "@/lib/ai-recipe/field-tracking";
 
+export type RecipeAiVideoContext = {
+  linkedVideoId: string;
+  schemaVersion: string;
+  model: string;
+  videoDuration?: string;
+  semanticSummary?: string;
+  dishContext?: string;
+  ingredientEvidence?: string[];
+  instructionStageEvidence?: { title: string; notes?: string }[];
+  timingNotes?: string;
+  generatedAt: string;
+};
+
 export type RecipeAiMeta = {
   generatedByAI: boolean;
   sourceType: "youtube";
@@ -38,6 +51,11 @@ export type RecipeAiMeta = {
     estimated: number;
     unknown: number;
   };
+  /**
+   * Compact reusable video analysis for targeted fills.
+   * Full Gemini JSON remains in AiRecipeGenerationCache.
+   */
+  videoContext?: RecipeAiVideoContext;
   /** How the Mesa recipe type was chosen when creating from YouTube. */
   recipeTypeSource?: "ai" | "manual";
   recipeTypeConfidence?: "HIGH" | "MEDIUM" | "LOW";
@@ -120,6 +138,7 @@ export function parseRecipeAiMeta(raw: string | null | undefined): RecipeAiMeta 
       heroImageYoutubeVideoId: parsed.heroImageYoutubeVideoId
         ? String(parsed.heroImageYoutubeVideoId)
         : undefined,
+      videoContext: parseVideoContext(parsed.videoContext),
     };
 
     if (!parsed.generatedByAI) {
@@ -144,6 +163,37 @@ export function parseRecipeAiMeta(raw: string | null | undefined): RecipeAiMeta 
 export function serializeRecipeAiMeta(meta: RecipeAiMeta | null | undefined) {
   if (!meta) return "{}";
   return JSON.stringify(meta);
+}
+
+function parseVideoContext(raw: unknown): RecipeAiVideoContext | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const row = raw as Record<string, unknown>;
+  const linkedVideoId = String(row.linkedVideoId ?? "").trim();
+  if (!linkedVideoId) return undefined;
+  return {
+    linkedVideoId,
+    schemaVersion: String(row.schemaVersion ?? ""),
+    model: String(row.model ?? ""),
+    videoDuration: row.videoDuration ? String(row.videoDuration) : undefined,
+    semanticSummary: row.semanticSummary ? String(row.semanticSummary) : undefined,
+    dishContext: row.dishContext ? String(row.dishContext) : undefined,
+    ingredientEvidence: Array.isArray(row.ingredientEvidence)
+      ? row.ingredientEvidence.map((item) => String(item)).filter(Boolean).slice(0, 40)
+      : undefined,
+    instructionStageEvidence: Array.isArray(row.instructionStageEvidence)
+      ? row.instructionStageEvidence
+          .flatMap((item) => {
+            if (!item || typeof item !== "object") return [];
+            const stage = item as { title?: string; notes?: string };
+            const title = String(stage.title ?? "").trim();
+            if (!title) return [];
+            return [{ title, notes: stage.notes ? String(stage.notes) : undefined }];
+          })
+          .slice(0, 20)
+      : undefined,
+    timingNotes: row.timingNotes ? String(row.timingNotes) : undefined,
+    generatedAt: String(row.generatedAt ?? ""),
+  };
 }
 
 export function confidenceLabel(confidence: AiConfidence): string {
