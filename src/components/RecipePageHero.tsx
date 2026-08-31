@@ -36,7 +36,7 @@ export function RecipePageHero({
             {recipe.course}
           </p>
 
-          <h1 className="mt-1 font-serif text-3xl leading-tight text-ink md:text-4xl xl:text-[2.75rem]">
+          <h1 className="mt-1 font-serif text-3xl leading-tight text-ink md:text-[2rem] lg:text-[2.125rem] xl:text-[2.375rem]">
             {recipe.title}
           </h1>
 

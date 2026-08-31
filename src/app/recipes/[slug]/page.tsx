@@ -13,7 +13,7 @@ import { RecipeReviews } from "@/components/RecipeReviews";
 import { RecipeSectionNav } from "@/components/RecipeSectionNav";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
 import { RecipeContinuedViewing } from "@/components/youtube/RecipeContinuedViewing";
-import { RecipeCompactSubscribe } from "@/components/youtube/RecipeCompactSubscribe";
+import { RecipeEndSubscribe } from "@/components/youtube/RecipeCompactSubscribe";
 import { RecipeVideoExperience } from "@/components/youtube/RecipeVideoExperience";
 import { RecipeWatchMethod } from "@/components/youtube/RecipeWatchMethod";
 import { site } from "@/data/site";
@@ -22,7 +22,7 @@ import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-
 import { resolveRecipeYoutube, resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
 import { fieldValueHasContent, formatPublicExtraFieldValue } from "@/lib/field-content";
 import { publicExtrasForPage, readerExtraLabel } from "@/lib/recipe-timing";
-import { getRankedRelatedRecipes } from "@/lib/recipe-related";
+import { getContinuedViewingRecipeSlug, getRankedRelatedRecipes } from "@/lib/recipe-related";
 import { recipeJsonLd } from "@/lib/schema";
 import { formatGmtDisplay } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
@@ -87,7 +87,6 @@ export default async function RecipePage({ params }: Props) {
     userId: session?.user?.id ?? null,
   });
 
-  const related = await getRankedRelatedRecipes(recipe, { seriesPeerSlugs, limit: 3 });
   const visibleExtrasList = publicExtrasForPage(recipe).filter((field) =>
     fieldValueHasContent(field.value, field.kind),
   );
@@ -110,6 +109,13 @@ export default async function RecipePage({ params }: Props) {
         curatedRelated: youtube.relatedVideos,
       })
     : null;
+
+  const continuedSlug = getContinuedViewingRecipeSlug(watchNext, seriesLinks);
+  const related = await getRankedRelatedRecipes(recipe, {
+    seriesPeerSlugs,
+    limit: 3,
+    excludeSlugs: continuedSlug ? [continuedSlug] : [],
+  });
 
   const article = (
     <>
@@ -178,34 +184,29 @@ export default async function RecipePage({ params }: Props) {
           defaultEmail={session?.user?.email ?? ""}
         />
 
-        {!youtube ? (
-          <RecipeCompactSubscribe
-            recipeSlug={recipe.slug}
-            recipeName={recipe.title}
-            variant="end"
-          />
-        ) : null}
+        <RecipeEndSubscribe recipeSlug={recipe.slug} recipeName={recipe.title} />
 
-        <p className="mt-8 text-sm text-muted">
-          Filed under{" "}
-          {recipe.categories.map((category, index) => (
-            <span key={category}>
-              {index > 0 ? ", " : ""}
-              <Link href={`/category/${category}`} className="text-terracotta hover:underline">
+        {recipe.categories.length ? (
+          <div className="mt-6 flex flex-wrap gap-2">
+            {recipe.categories.map((category) => (
+              <Link
+                key={category}
+                href={`/category/${category}`}
+                className="rounded-full border border-line/80 px-3 py-1 text-xs font-semibold capitalize text-muted transition-colors hover:border-terracotta hover:text-terracotta"
+              >
                 {category.replace(/-/g, " ")}
               </Link>
-            </span>
-          ))}
-          .
-        </p>
+            ))}
+          </div>
+        ) : null}
       </div>
 
-      <CollectionRow title="More from the studio" recipes={related} />
+      <CollectionRow title="More from the studio" recipes={related} uniformCards />
     </>
   );
 
   return (
-    <article>
+    <article className="min-w-0">
       <SetCurrentRecipe slug={recipe.slug} title={recipe.title} />
       <JsonLd data={recipeJsonLd(recipe, reviewData.stats)} />
       {youtube ? (

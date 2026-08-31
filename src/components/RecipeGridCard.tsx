@@ -12,6 +12,7 @@ export function RecipeGridCard({
   large = false,
   compact = false,
   mediaOverlay,
+  imageAspect = "5/4",
 }: {
   recipe: Recipe;
   large?: boolean;
@@ -19,12 +20,14 @@ export function RecipeGridCard({
   compact?: boolean;
   /** Rendered over the image, outside the card link (e.g. favorite control). */
   mediaOverlay?: ReactNode;
+  imageAspect?: "5/4" | "4/3";
 }) {
+  const aspectClass =
+    large ? "aspect-[4/3]" : imageAspect === "4/3" ? "aspect-[4/3]" : "aspect-[5/4]";
+
   const body = (
     <article>
-      <div
-        className={`relative overflow-hidden bg-sand ${large ? "aspect-[4/3]" : "aspect-[5/4]"}`}
-      >
+      <div className={`relative overflow-hidden bg-sand ${aspectClass}`}>
         <RecipeImage
           src={recipe.image}
           alt={recipe.imageAlt}

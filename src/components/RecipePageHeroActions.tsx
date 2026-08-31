@@ -34,6 +34,7 @@ export function RecipePageHeroActions({
       <button
         type="button"
         onClick={startCooking}
+        aria-label="Start cooking — go to ingredients and steps"
         className="no-print rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark"
       >
         Start cooking
@@ -42,6 +43,7 @@ export function RecipePageHeroActions({
         <button
           type="button"
           onClick={watchMethod}
+          aria-label="Watch the method — expand video"
           className="no-print rounded-full border border-olive px-4 py-2.5 text-sm font-semibold text-olive hover:bg-olive/5"
         >
           Watch the method

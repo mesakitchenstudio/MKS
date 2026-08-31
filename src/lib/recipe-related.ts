@@ -1,4 +1,6 @@
 import type { Recipe } from "@/data/types";
+import type { WatchNextRecommendation } from "@/lib/youtube-data/watch-next-select";
+import type { RecipeSeriesLink } from "@/lib/series-types";
 import { getAllRecipes, type PublicRecipe } from "@/lib/recipes";
 
 const TIMING_DEDUP_KEYS = new Set([
@@ -15,21 +17,34 @@ export function isPublicTimingExtraRedundant(key: string): boolean {
   return TIMING_DEDUP_KEYS.has(key);
 }
 
+/** Slug shown in Next in Series / continued-viewing — exclude from related row. */
+export function getContinuedViewingRecipeSlug(
+  watchNext: WatchNextRecommendation | null,
+  seriesLinks: RecipeSeriesLink[],
+): string | null {
+  const seriesNext = seriesLinks[0]?.nextItem?.recipeSlug;
+  if (seriesNext) return seriesNext;
+  if (watchNext?.recipeSlug) return watchNext.recipeSlug;
+  return null;
+}
+
 export async function getRankedRelatedRecipes(
   recipe: Recipe,
   options: {
     limit?: number;
     seriesPeerSlugs?: string[];
+    excludeSlugs?: string[];
   } = {},
 ): Promise<PublicRecipe[]> {
   const limit = options.limit ?? 3;
   const seriesPeers = new Set(options.seriesPeerSlugs ?? []);
+  const excluded = new Set([recipe.slug, ...(options.excludeSlugs ?? [])]);
   const course = recipe.course.trim().toLowerCase();
   const categories = new Set(recipe.categories);
   const tags = new Set(recipe.tags.map((tag) => tag.toLowerCase()));
 
   const scored = (await getAllRecipes())
-    .filter((item) => item.slug !== recipe.slug)
+    .filter((item) => !excluded.has(item.slug))
     .map((item) => {
       let score = 0;
       if (seriesPeers.has(item.slug)) score += 100;
@@ -50,7 +65,7 @@ export async function getRankedRelatedRecipes(
 
   const picked = new Set(scored.map((entry) => entry.item.slug));
   const fallback = (await getAllRecipes())
-    .filter((item) => item.slug !== recipe.slug && !picked.has(item.slug))
+    .filter((item) => !excluded.has(item.slug) && !picked.has(item.slug))
     .slice(0, limit - scored.length);
 
   return [...scored.map((entry) => entry.item), ...fallback].slice(0, limit);

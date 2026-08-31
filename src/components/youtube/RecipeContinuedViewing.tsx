@@ -34,7 +34,8 @@ export function RecipeContinuedViewing({
   if (merged && watchNext && primarySeries) {
     return (
       <ContinuedCard
-        eyebrow={`Next in ${primarySeries.shortTitle || primarySeries.title}`}
+        seriesSlug={primarySeries.slug}
+        seriesTitle={primarySeries.shortTitle || primarySeries.title}
         title={watchNext.title}
         thumbnailUrl={watchNext.thumbnailUrl}
         durationDisplay={watchNext.durationDisplay}
@@ -52,7 +53,8 @@ export function RecipeContinuedViewing({
   if (seriesNext?.recipeSlug) {
     return (
       <ContinuedCard
-        eyebrow={`Next in ${primarySeries!.shortTitle || primarySeries!.title}`}
+        seriesSlug={primarySeries!.slug}
+        seriesTitle={primarySeries!.shortTitle || primarySeries!.title}
         title={seriesNext.title}
         thumbnailUrl={watchNext?.thumbnailUrl}
         durationDisplay={watchNext?.durationDisplay}
@@ -74,7 +76,6 @@ export function RecipeContinuedViewing({
   if (watchNext) {
     return (
       <ContinuedCard
-        eyebrow="Watch next"
         title={watchNext.title}
         thumbnailUrl={watchNext.thumbnailUrl}
         durationDisplay={watchNext.durationDisplay}
@@ -93,7 +94,8 @@ export function RecipeContinuedViewing({
 }
 
 function ContinuedCard({
-  eyebrow,
+  seriesSlug,
+  seriesTitle,
   title,
   thumbnailUrl,
   durationDisplay,
@@ -105,7 +107,8 @@ function ContinuedCard({
   sourceVideoId,
   analyticsSource,
 }: {
-  eyebrow: string;
+  seriesSlug?: string;
+  seriesTitle?: string;
   title: string;
   thumbnailUrl?: string;
   durationDisplay?: string;
@@ -132,9 +135,21 @@ function ContinuedCard({
   const videoHref = recipeSlug ? `/recipes/${recipeSlug}#watch-method` : watchUrl;
 
   return (
-    <section className="mt-10 border border-line bg-sand/40 px-4 py-5 sm:px-5">
+    <section className="mt-8 border border-line bg-sand/40 px-4 py-5 sm:px-5">
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-        {eyebrow}
+        {seriesSlug && seriesTitle ? (
+          <>
+            Next in{" "}
+            <Link
+              href={`/series/${seriesSlug}`}
+              className="text-terracotta hover:underline"
+            >
+              {seriesTitle}
+            </Link>
+          </>
+        ) : (
+          "Watch next"
+        )}
       </p>
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
         {thumbnailUrl ? (

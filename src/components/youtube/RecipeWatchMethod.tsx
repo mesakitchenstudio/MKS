@@ -42,7 +42,7 @@ export function RecipeWatchMethod() {
     <section
       ref={mainAnchorRef}
       id="watch-method"
-      className="mt-10 scroll-mt-24"
+      className="mt-8 scroll-mt-24"
       aria-label="Watch the method"
     >
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">

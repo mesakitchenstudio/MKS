@@ -16,6 +16,23 @@ import {
 import { timestampForStep } from "@/lib/recipe-youtube";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 
+function ChevronDown({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 20 20"
+      className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`}
+      fill="currentColor"
+    >
+      <path
+        fillRule="evenodd"
+        d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 function StageAccordion({
   stage,
   stageIndex,
@@ -42,11 +59,12 @@ function StageAccordion({
         aria-expanded={open}
         aria-controls={panelId}
         onClick={onToggle}
-        className="no-print flex w-full items-center justify-between gap-3 py-3 text-left"
+        className="no-print flex w-full items-center justify-between gap-3 rounded-sm py-3 text-left transition-colors hover:bg-cream/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
       >
-        <span className="font-serif text-lg text-ink">{stage.name}</span>
-        <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-          {open ? `${stage.steps.length} steps` : `Open · ${stage.steps.length} steps`}
+        <span className="min-w-0 font-serif text-lg text-ink">{stage.name}</span>
+        <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
+          <span className="whitespace-nowrap">{stage.steps.length} steps</span>
+          <ChevronDown open={open} />
         </span>
       </button>
       <div
@@ -131,7 +149,7 @@ export function RecipeCookingWorkspace({
     <>
       <section
         id="recipe-cooking"
-        className="recipe-cooking-workspace scroll-mt-24 bg-paper px-4 py-6 md:px-6 md:py-8"
+        className="recipe-cooking-workspace scroll-mt-24 bg-paper px-4 py-6 md:px-6 md:py-7"
       >
         <div className="mx-auto max-w-[75rem]">
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line/80 pb-4">
@@ -157,6 +175,7 @@ export function RecipeCookingWorkspace({
               <button
                 type="button"
                 onClick={openCookMode}
+                aria-label="Open cook mode — guided step-by-step view"
                 className="rounded-full border border-olive px-4 py-2 text-sm font-semibold text-olive hover:bg-olive/5"
               >
                 Cook mode

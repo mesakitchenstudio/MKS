@@ -11,18 +11,26 @@ export function CollectionRow({
   href,
   viewMoreLabel = "View more",
   recipes,
+  uniformCards = false,
 }: {
   title: string;
   description?: string;
   href?: string;
   viewMoreLabel?: string;
   recipes: Recipe[];
+  /** Consistent 4:3 cards for recipe-page related row. */
+  uniformCards?: boolean;
 }) {
   if (!recipes.length) return null;
 
+  const gridClass =
+    recipes.length >= 3
+      ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+      : "grid gap-6 sm:grid-cols-2";
+
   return (
-    <section className="mx-auto max-w-6xl px-4 py-12 md:px-6">
-      <div className="mb-6 flex items-end justify-between gap-4">
+    <section className="mx-auto max-w-[75rem] px-4 py-8 md:px-6">
+      <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <h2 className="font-serif text-3xl text-ink md:text-4xl">{title}</h2>
           {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
@@ -36,9 +44,13 @@ export function CollectionRow({
           </Link>
         ) : null}
       </div>
-      <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={gridClass}>
         {recipes.map((recipe) => (
-          <RecipeGridCard key={recipe.slug} recipe={recipe} />
+          <RecipeGridCard
+            key={recipe.slug}
+            recipe={recipe}
+            imageAspect={uniformCards ? "4/3" : "5/4"}
+          />
         ))}
       </div>
     </section>

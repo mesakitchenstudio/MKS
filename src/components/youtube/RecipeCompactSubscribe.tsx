@@ -2,6 +2,7 @@
 
 import { site } from "@/data/site";
 import { trackEvent } from "@/lib/analytics";
+import { useRecipeVideoOptional } from "@/components/youtube/RecipeVideoContext";
 
 export function RecipeCompactSubscribe({
   recipeSlug,
@@ -17,8 +18,8 @@ export function RecipeCompactSubscribe({
   const subscribeUrl = `${site.social.youtube}?sub_confirmation=1`;
 
   return (
-    <p className={`no-print text-sm text-muted ${variant === "post_video" ? "mt-5" : "mt-8"}`}>
-      {variant === "post_video" ? "Enjoyed the video?" : "Cook with Mesa every week?"}{" "}
+    <p className={`no-print text-sm text-muted ${variant === "post_video" ? "mt-4" : "mt-6"}`}>
+      {variant === "post_video" ? "Enjoyed the method?" : "Cook with Mesa every week?"}{" "}
       <a
         href={subscribeUrl}
         target="_blank"
@@ -36,5 +37,21 @@ export function RecipeCompactSubscribe({
         Subscribe to Mesa on YouTube →
       </a>
     </p>
+  );
+}
+
+/** End-of-page subscribe when the visitor has not already seen the post-video CTA. */
+export function RecipeEndSubscribe({
+  recipeSlug,
+  recipeName,
+}: {
+  recipeSlug: string;
+  recipeName: string;
+}) {
+  const video = useRecipeVideoOptional();
+  if (video?.videoInteracted) return null;
+
+  return (
+    <RecipeCompactSubscribe recipeSlug={recipeSlug} recipeName={recipeName} variant="end" />
   );
 }
