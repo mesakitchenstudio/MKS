@@ -151,7 +151,7 @@ export default async function RecipePage({ params }: Props) {
         ) : null}
 
         {recipe.faqs.length ? (
-          <section id="faqs" className="mt-8 scroll-mt-24">
+          <section id="faqs" className="no-print mt-8 scroll-mt-24">
             <h2 className="font-serif text-2xl text-ink">Frequently asked</h2>
             <div className="mt-4 space-y-5">
               {recipe.faqs.map((faq) => (
@@ -165,7 +165,7 @@ export default async function RecipePage({ params }: Props) {
         ) : null}
 
         {visibleExtrasList.length ? (
-          <section className="mt-8">
+          <section className="no-print mt-8">
             {visibleExtrasList.map((field) => (
               <div key={field.key} id={`extra-${field.key}`} className="mt-8 scroll-mt-24 first:mt-0">
                 <h2 className="font-serif text-2xl text-ink">
@@ -190,7 +190,7 @@ export default async function RecipePage({ params }: Props) {
         ) : null}
 
         {recipe.categories.length ? (
-          <p className="mt-4 text-sm text-muted">
+          <p className="no-print mt-4 text-sm text-muted">
             Filed under{" "}
             {recipe.categories.map((category, index) => (
               <span key={category}>
@@ -207,7 +207,9 @@ export default async function RecipePage({ params }: Props) {
         ) : null}
       </RecipeContentShell>
 
-      <CollectionRow title="More from the studio" recipes={related} compactDiscovery />
+      <div className="no-print">
+        <CollectionRow title="More from the studio" recipes={related} compactDiscovery />
+      </div>
     </>
   );
 

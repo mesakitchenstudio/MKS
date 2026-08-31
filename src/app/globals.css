@@ -47,19 +47,113 @@ body {
 }
 
 @media print {
+  @page {
+    margin: 12mm 14mm;
+  }
+
   .no-print {
     display: none !important;
   }
 
+  html,
   body {
-    background: white;
-    color: black;
+    background: #fff !important;
+    color: #111 !important;
   }
 
+  body {
+    font-size: 11pt;
+    line-height: 1.45;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+
+  article img,
+  article picture,
+  article video,
+  article iframe,
+  article canvas {
+    display: none !important;
+  }
+
+  /* Compact recipe document flow */
+  article {
+    max-width: none !important;
+  }
+
+  .recipe-print-brand {
+    display: block !important;
+    margin: 0 0 0.35rem;
+    letter-spacing: 0.16em;
+  }
+
+  header h1 {
+    font-size: 18pt !important;
+    line-height: 1.2 !important;
+    margin-top: 0.15rem !important;
+  }
+
+  .recipe-print-meta {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.35rem 0.75rem !important;
+    margin-top: 0.65rem !important;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid #cfc3b0;
+  }
+
+  .recipe-print-meta dt {
+    font-size: 7.5pt !important;
+  }
+
+  .recipe-print-meta dd {
+    font-size: 9.5pt !important;
+  }
+
+  /* Cooking workspace: single column, tight spacing */
   .recipe-cooking-workspace,
   #recipe-cooking {
-    break-inside: avoid;
+    background: #fff !important;
     box-shadow: none !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0 !important;
+  }
+
+  .recipe-cooking-workspace .recipe-cook-grid {
+    display: block !important;
+    margin-top: 0.75rem !important;
+  }
+
+  .recipe-ingredients-panel {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin-bottom: 0.85rem;
+  }
+
+  .recipe-ingredient-group {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .recipe-instructions-panel {
+    margin-top: 0.5rem;
+  }
+
+  .recipe-stage {
+    border-color: #d9cbb6 !important;
+  }
+
+  .recipe-print-stage-title {
+    display: block !important;
+    break-after: avoid;
+    page-break-after: avoid;
   }
 
   .recipe-stage-panel,
@@ -67,7 +161,66 @@ body {
     display: block !important;
   }
 
-  .recipe-stage button[aria-expanded] {
-    display: none !important;
+  .recipe-print-step {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 0.35rem;
+  }
+
+  .recipe-print-step > span:first-child {
+    background: #111 !important;
+    color: #fff !important;
+    width: 1.15rem !important;
+    height: 1.15rem !important;
+    font-size: 8pt !important;
+  }
+
+  .recipe-notes {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #fff !important;
+    border: 1px solid #cfc3b0 !important;
+    margin-top: 0.75rem !important;
+    padding: 0.55rem 0.65rem !important;
+  }
+
+  /* Technique & context always prints fully */
+  #recipe-learn {
+    border-top: 1px solid #cfc3b0 !important;
+    margin-top: 0.85rem !important;
+    padding-top: 0.55rem !important;
+  }
+
+  .recipe-learn-panel,
+  .recipe-learn-panel.hidden {
+    display: block !important;
+    border-top: none !important;
+    margin-top: 0.35rem !important;
+    padding-top: 0 !important;
+  }
+
+  .recipe-learn-panel > div {
+    display: block !important;
+  }
+
+  .recipe-learn-panel > div > div {
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 0 0.65rem !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .recipe-learn-panel h3 {
+    border-bottom: 1px solid #d9cbb6 !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Reduce shell padding in print */
+  .recipe-content-shell {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    max-width: none !important;
   }
 }

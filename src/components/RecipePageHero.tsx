@@ -25,10 +25,13 @@ export function RecipePageHero({
 }) {
   return (
     <header className={`${recipeContentShellClass} py-6 md:py-8`}>
+      <p className="recipe-print-brand mb-2 hidden text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-ink print:block">
+        Mesa Kitchen Studio
+      </p>
       <div className="lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start lg:gap-10 xl:gap-12">
         <div className="min-w-0 order-1 lg:order-none">
           {seriesLinks.length ? (
-            <div className="mb-2">
+            <div className="no-print mb-2">
               <RecipeSeriesContext links={seriesLinks} />
             </div>
           ) : null}
@@ -42,10 +45,12 @@ export function RecipePageHero({
           </h1>
 
           {recipe.excerpt ? (
-            <p className="mt-3 max-w-2xl text-base leading-7 text-ink/90 md:text-lg">{recipe.excerpt}</p>
+            <p className="no-print mt-3 max-w-2xl text-base leading-7 text-ink/90 md:text-lg">
+              {recipe.excerpt}
+            </p>
           ) : null}
 
-          <div className="mt-3">
+          <div className="no-print mt-3">
             <RecipeRatingSummary slug={recipe.slug} initial={reviewData.stats} />
           </div>
 
@@ -54,20 +59,24 @@ export function RecipePageHero({
             <ShareButtons title={recipe.title} slug={recipe.slug} />
           </div>
 
-          <RecipeAtAGlanceFacts recipe={recipe} className="mt-4" />
+          <RecipeAtAGlanceFacts recipe={recipe} className="mt-4 recipe-print-meta" />
           <RecipePageHeroActions slug={recipe.slug} title={recipe.title} />
         </div>
 
-        <figure className="order-2 mt-5 overflow-hidden bg-sand lg:order-none lg:mt-0">
-          <div className="relative aspect-video w-full lg:aspect-[5/4]">
-            <Image
-              src={recipe.image}
-              alt={recipe.imageAlt}
-              fill
-              priority
-              sizes="(min-width: 1024px) 42vw, 100vw"
-              className="object-cover"
-            />
+        <figure className="recipe-hero-figure no-print order-2 mt-5 lg:order-none lg:mt-0">
+          <div className="rounded-[2px] border border-line bg-paper p-2 shadow-[0_1px_0_rgba(42,34,24,0.045)] sm:p-2.5">
+            <div className="rounded-[1px] border border-line/70 p-px">
+              <div className="relative aspect-video w-full overflow-hidden bg-sand lg:aspect-[5/4]">
+                <Image
+                  src={recipe.image}
+                  alt={recipe.imageAlt}
+                  fill
+                  priority
+                  sizes="(min-width: 1024px) 42vw, 100vw"
+                  className="object-cover"
+                />
+              </div>
+            </div>
           </div>
         </figure>
       </div>

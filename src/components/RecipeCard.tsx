@@ -66,6 +66,9 @@ function StageAccordion({
           <ChevronDown open={open} />
         </span>
       </button>
+      <h3 className="recipe-print-stage-title mb-2 hidden font-serif text-base text-ink print:block">
+        {stage.name}
+      </h3>
       <div
         id={panelId}
         role="region"
@@ -76,7 +79,7 @@ function StageAccordion({
           {stage.steps.map((step) => {
             const ts = youtube ? timestampForStep(youtube.timestamps, step.globalIndex) : undefined;
             return (
-              <li key={step.globalIndex} className="flex gap-3 text-sm leading-7">
+              <li key={step.globalIndex} className="recipe-print-step flex gap-3 text-sm leading-7">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-terracotta text-xs font-semibold text-paper">
                   {step.globalIndex + 1}
                 </span>
@@ -164,7 +167,7 @@ export function RecipeCookingWorkspace({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-start">
+          <div className="recipe-cook-grid mt-6 grid gap-8 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-start">
             <div className="recipe-ingredients-panel lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-2">
               <h3 className="font-serif text-xl text-ink">Ingredients</h3>
               <div className="mt-2 flex items-center gap-2 text-sm font-semibold">
@@ -190,7 +193,7 @@ export function RecipeCookingWorkspace({
               </div>
 
               {recipe.ingredients.map((group) => (
-                <div key={group.name ?? "main"} className="mt-4">
+                <div key={group.name ?? "main"} className="recipe-ingredient-group mt-4">
                   {group.name ? <p className="mb-2 text-sm font-semibold text-olive">{group.name}</p> : null}
                   <ul className="space-y-2">
                     {group.items.map((item) => (
@@ -211,7 +214,7 @@ export function RecipeCookingWorkspace({
               ))}
 
               {utensils.length ? (
-                <div className="mt-5">
+                <div className="recipe-utensils mt-5">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">Utensils</p>
                   <ul className="mt-2 flex flex-wrap gap-2">
                     {utensils.map((item) => (
@@ -224,7 +227,7 @@ export function RecipeCookingWorkspace({
               ) : null}
             </div>
 
-            <div>
+            <div className="recipe-instructions-panel">
               <h3 className="font-serif text-xl text-ink">Instructions</h3>
               <div className="mt-3">
                 {stages.map((stage, index) => (
@@ -243,12 +246,12 @@ export function RecipeCookingWorkspace({
           </div>
 
           {recipe.notes.length ? (
-            <aside className="mt-5 border border-line/80 bg-cream/50 px-4 py-3 md:px-5">
+            <aside className="recipe-notes mt-5 border border-line/80 bg-cream/50 px-4 py-3 md:px-5">
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
                 Recipe notes
               </p>
               <h3 className="mt-1 font-serif text-lg text-ink">Notes</h3>
-              <p className="mt-1 text-sm text-muted">Useful details before you start.</p>
+              <p className="no-print mt-1 text-sm text-muted">Useful details before you start.</p>
               <ul className="mt-3 space-y-2">
                 {recipe.notes.map((note) => (
                   <li key={note} className="flex gap-2.5 text-sm leading-6 text-ink/90">

@@ -79,6 +79,10 @@ function RecipeLearnAccordion({
 
   return (
     <section id="recipe-learn" className="mt-5 scroll-mt-24 border-t border-line/70 pt-4">
+      <div className="mb-3 hidden print:block">
+        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink">Learn</p>
+        <h2 className="mt-1 font-serif text-xl text-ink">Technique & context</h2>
+      </div>
       <button
         type="button"
         aria-expanded={open}
@@ -110,7 +114,7 @@ function RecipeLearnAccordion({
 
       <div
         id={panelId}
-        className={`border-t border-line/60 pt-3 ${open ? "mt-3 block" : "hidden print:block"}`}
+        className={`recipe-learn-panel border-t border-line/60 pt-3 ${open ? "mt-3 block" : "hidden print:block"}`}
       >
         <div className="grid gap-5 md:grid-cols-3 md:gap-6 md:divide-x md:divide-line/50">
           {hasWhy ? (

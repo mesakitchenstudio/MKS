@@ -142,7 +142,7 @@ function ContinuedStrip({
   const videoHref = recipeSlug ? `/recipes/${recipeSlug}#watch-method` : watchUrl;
 
   return (
-    <section className="mt-5 scroll-mt-24 border-t border-line/70 pt-4">
+    <section className="no-print mt-5 scroll-mt-24 border-t border-line/70 pt-4">
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
         {seriesSlug && seriesTitle ? (
           <>

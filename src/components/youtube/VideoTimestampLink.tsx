@@ -24,7 +24,7 @@ export function VideoTimestampLink({
   return (
     <button
       type="button"
-      className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-terracotta hover:underline"
+      className="no-print mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-terracotta hover:underline"
       onClick={() => {
         trackVideoEvent("recipe_video_timestamp_click", {
           recipeSlug,
