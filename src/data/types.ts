@@ -59,6 +59,10 @@ export type Recipe = {
   method: string;
   holiday?: string;
   cuisine: string;
+  /** Optional dish identity when `title` is a topic/SEO headline. */
+  dishName?: string;
+  /** Recipe type name from CMS (e.g. Bread), when available. */
+  typeName?: string;
   categories: string[];
   tags: string[];
   featured?: boolean;

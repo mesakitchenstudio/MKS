@@ -13,7 +13,10 @@ export type DbRecipeRecord = {
   updatedAt: Date;
   values: string | Record<string, unknown>;
   categories: { category: { slug: string } }[];
-  type?: { fields: { key: string; label: string; kind: string; sortOrder: number }[] };
+  type?: {
+    name?: string;
+    fields: { key: string; label: string; kind: string; sortOrder: number }[];
+  };
 };
 
 export type ExtraField = {
@@ -128,6 +131,12 @@ export function toPublicRecipe(record: DbRecipeRecord): Recipe & { extras: Extra
     method: asString(values.method),
     holiday: asString(values.holiday) || undefined,
     cuisine: asString(values.cuisine),
+    dishName:
+      asString(values.dishName) ||
+      asString(values.recipeDish) ||
+      asString(values.shortName) ||
+      undefined,
+    typeName: asString(record.type?.name) || undefined,
     categories: record.categories.map((item) => item.category.slug),
     tags: asStringArray(values.tags),
     featured: record.featured,
@@ -173,6 +182,7 @@ export function recipeToValues(recipe: Recipe): Record<string, unknown> {
     method: recipe.method,
     holiday: recipe.holiday || "",
     cuisine: recipe.cuisine,
+    ...(recipe.dishName ? { dishName: recipe.dishName } : {}),
     tags: recipe.tags,
     ingredients: recipe.ingredients,
     instructions: recipe.instructions,

@@ -21,10 +21,16 @@ export function SetCurrentRecipe({ slug, title }: { slug: string; title: string 
 export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }) {
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const [showFloatingSearch, setShowFloatingSearch] = useState(true);
+  const isRecipeDetail = /^\/recipes\/[^/]+$/.test(pathname);
+  const [showFloatingSearch, setShowFloatingSearch] = useState(false);
 
   useEffect(() => {
     function update() {
+      // Header already provides search; hide the floating control on recipe pages.
+      if (isRecipeDetail) {
+        setShowFloatingSearch(false);
+        return;
+      }
       const desktop = window.matchMedia("(min-width: 768px)").matches;
       setShowFloatingSearch(!(isHome && desktop));
     }
@@ -32,7 +38,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
     const mq = window.matchMedia("(min-width: 768px)");
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
-  }, [isHome]);
+  }, [isHome, isRecipeDetail]);
   const [current, setCurrent] = useState<LikedRecipe | null>(null);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState<LikedRecipe[]>([]);

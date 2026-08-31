@@ -7,6 +7,7 @@ export type VideoAnalyticsSource =
   | "main_embed"
   | "main_embed_chapter"
   | "instruction_timestamp"
+  | "stage_video_help"
   | "floating_card"
   | "floating_player"
   | "related_videos"
@@ -33,6 +34,7 @@ export type VideoAnalyticsPayload = {
   timestamp?: number;
   chapterLabel?: string;
   chapterIndex?: number;
+  stageName?: string;
 };
 
 type VideoAnalyticsEvent =
@@ -45,6 +47,7 @@ type VideoAnalyticsEvent =
   | "recipe_video_complete"
   | "recipe_video_watch_youtube_click"
   | "recipe_video_timestamp_click"
+  | "recipe_video_step_click"
   | "recipe_floating_video_impression"
   | "recipe_floating_video_play"
   | "recipe_floating_video_close"
@@ -73,6 +76,7 @@ function toAnalyticsProps(payload: VideoAnalyticsPayload): AnalyticsProperties {
     timestamp: payload.timestamp,
     chapter_label: payload.chapterLabel,
     chapter_index: payload.chapterIndex,
+    stage_name: payload.stageName,
   };
 }
 

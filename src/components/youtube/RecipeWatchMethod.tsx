@@ -23,7 +23,7 @@ export function RecipeWatchMethod() {
     <section
       ref={mainAnchorRef}
       id="watch-method"
-      className="no-print mt-5 scroll-mt-24 border-t border-line/70 pt-4"
+      className="no-print mt-5 scroll-mt-28 border-t border-line/70 pt-4"
       aria-label="Watch the method"
     >
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">

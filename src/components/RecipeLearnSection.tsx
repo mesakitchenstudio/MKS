@@ -78,7 +78,7 @@ function RecipeLearnAccordion({
   const panelId = "recipe-learn-panel";
 
   return (
-    <section id="recipe-learn" className="mt-5 scroll-mt-24 border-t border-line/70 pt-4">
+    <section id="recipe-learn" className="mt-5 scroll-mt-28 border-t border-line/70 pt-4">
       <div className="mb-3 hidden print:block">
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink">Learn</p>
         <h2 className="mt-1 font-serif text-xl text-ink">Technique & context</h2>

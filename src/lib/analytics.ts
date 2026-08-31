@@ -10,6 +10,7 @@ export type AnalyticsEvent =
   | "recipe_video_complete"
   | "recipe_video_watch_youtube_click"
   | "recipe_video_timestamp_click"
+  | "recipe_video_step_click"
   | "recipe_floating_video_impression"
   | "recipe_floating_video_play"
   | "recipe_floating_video_close"
@@ -48,6 +49,7 @@ export type AnalyticsProperties = {
   timestamp?: number;
   chapter_label?: string;
   chapter_index?: number;
+  stage_name?: string;
   platform?: string;
   direction?: "increase" | "decrease";
   servings?: number;

@@ -34,7 +34,7 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="no-print sticky top-0 z-50 border-b border-line/80 bg-paper/90 backdrop-blur-md">
+    <header className="site-header no-print sticky top-0 z-50 border-b border-line/80 bg-paper/90 backdrop-blur-md transition-transform duration-200 ease-out">
       <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:px-6">
         <span onClick={closeMenus}>
           <Logo />

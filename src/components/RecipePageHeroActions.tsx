@@ -7,13 +7,15 @@ import { trackEvent } from "@/lib/analytics";
 export function RecipePageHeroActions({
   slug,
   title,
+  videoDuration,
 }: {
   slug: string;
   title: string;
+  videoDuration?: string;
 }) {
   const video = useRecipeVideoOptional();
 
-  function startCooking() {
+  function jumpToRecipe() {
     trackEvent("recipe_start_cooking_click", {
       recipe_slug: slug,
       recipe_title: title,
@@ -34,24 +36,32 @@ export function RecipePageHeroActions({
     document.getElementById("watch-method")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  const watchLabel = videoDuration?.trim()
+    ? `Watch the method · ${videoDuration.trim()}`
+    : "Watch the method";
+
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3">
+    <div className="mt-3 flex flex-wrap items-center gap-3">
       <button
         type="button"
-        onClick={startCooking}
-        aria-label="Start cooking — go to ingredients and steps"
+        onClick={jumpToRecipe}
+        aria-label="Jump to recipe — go to ingredients and steps"
         className="no-print rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark"
       >
-        Start cooking
+        Jump to recipe
       </button>
       {video ? (
         <button
           type="button"
           onClick={watchMethod}
-          aria-label="Watch the method — open video"
+          aria-label={
+            videoDuration?.trim()
+              ? `Watch the method, ${videoDuration.trim()}`
+              : "Watch the method — open video"
+          }
           className="no-print rounded-full border border-olive px-4 py-2.5 text-sm font-semibold text-olive hover:bg-olive/5"
         >
-          Watch the method
+          {watchLabel}
         </button>
       ) : null}
       <button

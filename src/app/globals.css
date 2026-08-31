@@ -46,6 +46,12 @@ body {
   margin-top: 1rem;
 }
 
+/* Recipe page: hide site header once section nav pins, avoiding dual sticky bars. */
+html[data-mesa-recipe-compact="true"] .site-header {
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
 @media print {
   @page {
     margin: 12mm 14mm;

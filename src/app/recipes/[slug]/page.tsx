@@ -25,7 +25,7 @@ import { fieldValueHasContent, formatPublicExtraFieldValue } from "@/lib/field-c
 import { publicExtrasForPage, readerExtraLabel } from "@/lib/recipe-timing";
 import { getContinuedViewingRecipeSlug, getRankedRelatedRecipes } from "@/lib/recipe-related";
 import { recipeJsonLd } from "@/lib/schema";
-import { formatGmtDisplay } from "@/lib/datetime";
+import { formatAdminDate } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
 import { getWatchNextRecommendation } from "@/lib/youtube-data/watch-next";
 import { getSeriesLinksForRecipeSlug, getSeriesPeerRecipeSlugs } from "@/lib/series";
@@ -91,7 +91,7 @@ export default async function RecipePage({ params }: Props) {
   const visibleExtrasList = publicExtrasForPage(recipe).filter((field) =>
     fieldValueHasContent(field.value, field.kind),
   );
-  const updated = formatGmtDisplay(recipe.updatedAt);
+  const updated = formatAdminDate(recipe.updatedAt);
   const hasLearn =
     Boolean(recipe.whyItWorks.trim()) ||
     recipe.keyIngredients.length > 0 ||
@@ -125,6 +125,7 @@ export default async function RecipePage({ params }: Props) {
         seriesLinks={seriesLinks}
         updated={updated}
         reviewData={reviewData}
+        videoDuration={youtube?.duration}
       />
 
       <RecipeSectionNav hasVideo={Boolean(youtube)} hasLearn={hasLearn} />

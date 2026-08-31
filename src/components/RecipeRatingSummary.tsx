@@ -43,17 +43,11 @@ export function RecipeRatingSummary({
   }, []);
 
   if (!stats.count) {
-    return (
-      <p className="mt-4 text-sm text-muted">
-        <Link href="#recipe-comments" className="font-semibold text-terracotta hover:underline">
-          Be the first to rate this recipe
-        </Link>
-      </p>
-    );
+    return null;
   }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
       <StarRating value={stats.average} size="sm" label={`${stats.average} out of 5 stars`} />
       <p className="flex items-center gap-2 text-sm leading-none text-muted">
         <span className="font-serif text-xl font-semibold text-ink">

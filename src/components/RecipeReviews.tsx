@@ -471,7 +471,7 @@ export function RecipeReviews({
   }
 
   return (
-    <section id="recipe-comments" className="no-print mt-6 scroll-mt-24 border-t border-line/80 pt-4">
+    <section id="recipe-comments" className="no-print mt-6 scroll-mt-28 border-t border-line/80 pt-4">
       <h2 className="font-serif text-xl text-ink md:text-2xl">Ratings & comments</h2>
 
       {!data.reviews.length && !formOpen ? (

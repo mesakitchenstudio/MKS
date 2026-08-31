@@ -63,6 +63,7 @@ export const CORE_VALUE_KEYS = [
   "method",
   "holiday",
   "cuisine",
+  "dishName",
   "tags",
   "ingredients",
   "instructions",
