@@ -165,16 +165,37 @@ export async function fetchYoutubeVideoDescriptionMeta(
   const trimmedId = videoId.trim();
   if (!trimmedId) return null;
 
+  const candidates: { description: string; durationSeconds: number | null }[] = [];
+
   const apiKey = process.env.YOUTUBE_API_KEY?.trim();
   if (apiKey) {
     const fromApi = await fetchViaYoutubeDataApi(trimmedId, apiKey);
-    if (fromApi?.description) return fromApi;
+    if (fromApi?.description.trim()) candidates.push(fromApi);
   }
 
   const fromInnerTube = await fetchViaInnerTube(trimmedId);
-  if (fromInnerTube?.description) return fromInnerTube;
+  if (fromInnerTube?.description.trim()) candidates.push(fromInnerTube);
 
-  return fetchViaWatchPage(trimmedId);
+  const fromWatch = await fetchViaWatchPage(trimmedId);
+  if (fromWatch?.description.trim()) candidates.push(fromWatch);
+
+  if (!candidates.length) return null;
+
+  // Prefer the description that actually contains chapter timestamp lines.
+  // Some sources (esp. short/truncated descriptions) omit the chapter block.
+  let best = candidates[0];
+  let bestChapterCount = parseYoutubeDescriptionChapters(best.description).length;
+  for (const candidate of candidates.slice(1)) {
+    const count = parseYoutubeDescriptionChapters(candidate.description).length;
+    if (count > bestChapterCount) {
+      best = candidate;
+      bestChapterCount = count;
+    } else if (count === bestChapterCount && candidate.description.length > best.description.length) {
+      best = candidate;
+    }
+  }
+
+  return best;
 }
 
 export function enrichYoutubeBlobFromDescription(input: {
