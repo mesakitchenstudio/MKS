@@ -28,6 +28,20 @@ test("parseYoutubeDescriptionChapters reads timestamp lines from description", (
   assert.equal(chapters[3].confidence, "VERIFIED");
 });
 
+test("parseYoutubeDescriptionChapters accepts bracketed and dashed chapter lines", () => {
+  const chapters = parseYoutubeDescriptionChapters(`
+[0:00] Introduction
+(0:42) Mixing the dough
+1:35 - Stretch and fold
+3:10: Shaping
+`.trim());
+  assert.equal(chapters.length, 4);
+  assert.equal(chapters[0].label, "Introduction");
+  assert.equal(chapters[1].time, 42);
+  assert.equal(chapters[2].time, 95);
+  assert.equal(chapters[3].label, "Shaping");
+});
+
 test("enrichYoutubeBlobFromDescription fills missing timestamps from description", () => {
   const confidenceByPath: Record<string, { confidence: "VERIFIED"; sourceNote: string }> = {};
   const summary = emptyAiSummary();

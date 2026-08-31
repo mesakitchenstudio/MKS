@@ -17,14 +17,18 @@ export function parseYoutubeDescriptionChapters(description: string): Normalized
 
   const rows: NormalizedAiYoutubeChapter[] = [];
   for (const line of description.split(/\r?\n/)) {
-    const trimmed = line.trim().replace(/^[-•*]\s*/, "");
+    const trimmed = line
+      .trim()
+      .replace(/^[-•*●▪︎]\s*/, "")
+      .replace(/^\[(\d{1,2}(?::\d{2}){1,2})\]\s*/u, "$1 ")
+      .replace(/^\((\d{1,2}(?::\d{2}){1,2})\)\s*/u, "$1 ");
     if (!trimmed) continue;
 
-    const match = trimmed.match(/^(\d{1,2}(?::\d{2}){1,2})\s+[-–—]?\s*(.+)$/);
+    const match = trimmed.match(/^(\d{1,2}(?::\d{2}){1,2})\s*[-–—:]?\s+(.+)$/);
     if (!match) continue;
 
     const seconds = parseTimestampInput(match[1]);
-    const label = match[2].trim();
+    const label = match[2].trim().replace(/^[-–—:]\s*/, "");
     if (seconds == null || !label) continue;
 
     rows.push({
@@ -292,5 +296,63 @@ export async function enrichDraftYoutubeFromDescription(input: {
 
   if (enriched) {
     input.values.youtube = enriched;
+  }
+}
+
+export type YoutubeChapterTimestamp = {
+  time: number;
+  label: string;
+};
+
+/**
+ * Resolve chapter timestamps for a linked video.
+ * Prefer synced YouTube Data (admin channel sync), then live description fetch.
+ * Does not invent chapters and does not call Gemini.
+ */
+export async function loadYoutubeChapterTimestampsForVideo(
+  videoId: string,
+): Promise<{ timestamps: YoutubeChapterTimestamp[]; durationSeconds: number | null }> {
+  const trimmedId = videoId.trim();
+  if (!trimmedId) return { timestamps: [], durationSeconds: null };
+
+  // 1) Synced YouTubeVideo.description from admin YouTube sync.
+  try {
+    const { getDb } = await import("@/lib/db");
+    const video = await getDb().youTubeVideo.findUnique({
+      where: { videoId: trimmedId },
+      select: { description: true, durationSeconds: true },
+    });
+    if (video?.description.trim()) {
+      const chapters = parseYoutubeDescriptionChapters(video.description);
+      if (chapters.length) {
+        return {
+          timestamps: chapters.map((chapter) => ({
+            time: chapter.time,
+            label: chapter.label,
+          })),
+          durationSeconds: video.durationSeconds > 0 ? video.durationSeconds : null,
+        };
+      }
+    }
+  } catch {
+    // DB unavailable in some local/test contexts — fall through.
+  }
+
+  // 2) Live description (Data API / InnerTube / watch page).
+  try {
+    const meta = await fetchYoutubeVideoDescriptionMeta(trimmedId);
+    if (!meta?.description.trim()) {
+      return { timestamps: [], durationSeconds: meta?.durationSeconds ?? null };
+    }
+    const chapters = parseYoutubeDescriptionChapters(meta.description);
+    return {
+      timestamps: chapters.map((chapter) => ({
+        time: chapter.time,
+        label: chapter.label,
+      })),
+      durationSeconds: meta.durationSeconds,
+    };
+  } catch {
+    return { timestamps: [], durationSeconds: null };
   }
 }

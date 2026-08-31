@@ -9,11 +9,10 @@ import {
   youtubeThumbnailUrl,
   youtubeVideoId,
   youtubeWatchUrl,
-  youtubeWatchUrlAt,
 } from "@/lib/youtube";
 import { parseTimestampInput, formatTimestampInput } from "@/lib/youtube-metadata-editor";
 import {
-  fetchYoutubeVideoDescriptionMeta,
+  loadYoutubeChapterTimestampsForVideo,
   parseYoutubeDescriptionChapters,
 } from "@/lib/youtube-description";
 
@@ -198,13 +197,25 @@ export async function resolveRecipeYoutubeForDisplay(
   if (!base || (base.timestamps?.length ?? 0) > 0) return base;
 
   try {
-    const meta = await fetchYoutubeVideoDescriptionMeta(base.videoId);
-    if (!meta?.description.trim()) return base;
-    return applyDescriptionChaptersToResolvedYoutube(
-      base,
-      meta.description,
-      meta.durationSeconds,
-    );
+    const loaded = await loadYoutubeChapterTimestampsForVideo(base.videoId);
+    if (!loaded.timestamps.length) {
+      if (loaded.durationSeconds && !base.duration) {
+        return {
+          ...base,
+          duration: formatTimestampInput(loaded.durationSeconds),
+        };
+      }
+      return base;
+    }
+    return {
+      ...base,
+      duration:
+        base.duration ||
+        (loaded.durationSeconds != null && loaded.durationSeconds > 0
+          ? formatTimestampInput(loaded.durationSeconds)
+          : undefined),
+      timestamps: loaded.timestamps,
+    };
   } catch {
     return base;
   }
