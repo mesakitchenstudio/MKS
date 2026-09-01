@@ -2,7 +2,6 @@ import {
   hasCanonicalStartTimestamp,
   normalizeInstructionGroups,
   resolveChapterLabel,
-  type InstructionGroupWithChapters,
 } from "@/lib/instruction-chapters";
 import { formatTimestampInput } from "@/lib/youtube-metadata-editor";
 import type {

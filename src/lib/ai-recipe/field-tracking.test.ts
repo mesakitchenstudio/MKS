@@ -104,6 +104,33 @@ test("noteHumanEditorChange ignores blank ingredient template reshaping", () => 
   assert.equal(next?.fieldProvenance?.["values.ingredients"]?.humanModifiedAfterGeneration, false);
 });
 
+test("noteHumanEditorChange strips stale confidence when staff clears scalar field", () => {
+  const meta: RecipeAiMeta = {
+    ...baseMeta,
+    confidenceByPath: {
+      "values.holiday": {
+        confidence: "HIGH_CONFIDENCE_INFERENCE",
+        sourceNote: "Targeted AI fill",
+      },
+    },
+    summary: { verified: 0, inferred: 1, estimated: 0, unknown: 0 },
+    fieldProvenance: {
+      "values.holiday": {
+        aiGenerated: true,
+        aiGeneratedValue: "Christmas",
+        humanModifiedAfterGeneration: false,
+        reviewState: "unreviewed",
+        source: "inferred",
+      },
+    },
+  };
+  const next = noteHumanEditorChange(meta, "values.holiday", "");
+  assert.equal(next?.confidenceByPath?.["values.holiday"], undefined);
+  assert.equal(next?.summary.inferred, 0);
+  assert.equal(next?.fieldProvenance?.["values.holiday"]?.humanModifiedAfterGeneration, true);
+  assert.equal(next?.fieldProvenance?.["values.holiday"]?.originalAi?.value, "Christmas");
+});
+
 test("replace_previous_ai skips verified recipe fields", () => {
   const meta: RecipeAiMeta = {
     ...baseMeta,

@@ -78,7 +78,7 @@ test("listMissingAiFillableFields includes UNKNOWN confidence as needs_input", (
   assert.equal(cuisine?.reason, "needs_input");
 });
 
-test("listMissingAiFillableFields skips human-modified and populated verified fields", () => {
+test("listMissingAiFillableFields skips populated verified fields but allows cleared optional fields", () => {
   const result = listMissingAiFillableFields({
     fields,
     title: "Bread",
@@ -103,7 +103,7 @@ test("listMissingAiFillableFields skips human-modified and populated verified fi
   const keys = result.missing.map((row) => row.key);
   assert.ok(!keys.includes("excerpt"));
   assert.ok(!keys.includes("cuisine"));
-  assert.ok(!keys.includes("notes"));
+  assert.ok(keys.includes("notes"));
 });
 
 test("listMissingAiFillableFields includes cleared verified fields when empty", () => {

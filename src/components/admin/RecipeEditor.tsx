@@ -73,10 +73,18 @@ import {
   fieldPathHasContent,
   getRecipeFieldAiDef,
   isRecipeFieldAiSupported,
+  recipeFieldIsEmpty,
   resolveFieldAiActionLabel,
   type FieldAiIntent,
 } from "@/lib/ai-recipe/field-ai-registry";
-import { resolveFieldReviewState, buildProvenanceAfterConfirm, buildProvenanceAfterLock, buildProvenanceAfterUnlock, isFieldLocked } from "@/lib/ai-recipe/field-state";
+import {
+  resolveActiveFieldAiAnnotation,
+  resolveFieldReviewState,
+  buildProvenanceAfterConfirm,
+  buildProvenanceAfterLock,
+  buildProvenanceAfterUnlock,
+  isFieldLocked,
+} from "@/lib/ai-recipe/field-state";
 import { buildProvenanceAfterChapterSuggestionApply } from "@/lib/ai-recipe/chapter-suggestions/apply";
 import type { AiFieldProvenance } from "@/lib/ai-recipe/field-tracking";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
@@ -259,78 +267,6 @@ function editorFormSnapshot(payload: {
     categoryIds: [...payload.categoryIds].sort(),
     aiMeta: payload.aiMeta ?? null,
   });
-}
-
-function reorderButtonClass(disabled: boolean) {
-  return `min-w-[2.25rem] px-2 py-1 text-xs font-semibold transition-colors duration-150 motion-reduce:transition-none focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-terracotta ${
-    disabled
-      ? "cursor-not-allowed text-muted/35"
-      : "text-muted hover:bg-cream hover:text-terracotta"
-  }`;
-}
-
-function ReorderControls({
-  itemLabel,
-  onMoveUp,
-  onMoveDown,
-  onRemove,
-  upDisabled,
-  downDisabled,
-  hideReorderWhenStatic = false,
-  showRemove = true,
-}: {
-  itemLabel: string;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onRemove?: () => void;
-  upDisabled: boolean;
-  downDisabled: boolean;
-  hideReorderWhenStatic?: boolean;
-  showRemove?: boolean;
-}) {
-  const reorderAvailable = !(upDisabled && downDisabled);
-  const showReorder = reorderAvailable && !(hideReorderWhenStatic && upDisabled && downDisabled);
-
-  return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2">
-      {showReorder ? (
-        <div
-          role="group"
-          aria-label={`Reorder ${itemLabel}`}
-          className="inline-flex overflow-hidden rounded-sm border border-line bg-paper"
-        >
-          <button
-            type="button"
-            aria-label={`Move ${itemLabel} up`}
-            disabled={upDisabled}
-            className={`${reorderButtonClass(upDisabled)} border-r border-line`}
-            onClick={onMoveUp}
-          >
-            Up
-          </button>
-          <button
-            type="button"
-            aria-label={`Move ${itemLabel} down`}
-            disabled={downDisabled}
-            className={reorderButtonClass(downDisabled)}
-            onClick={onMoveDown}
-          >
-            Down
-          </button>
-        </div>
-      ) : null}
-      {showRemove && onRemove ? (
-        <button
-          type="button"
-          aria-label={`Remove ${itemLabel}`}
-          className={removeActionClass}
-          onClick={onRemove}
-        >
-          Remove
-        </button>
-      ) : null}
-    </div>
-  );
 }
 
 function pickFieldsOrdered(fields: Field[], keys: readonly string[]) {
@@ -586,6 +522,18 @@ export function RecipeEditor({
       }),
     [aiMeta, categoryIds, excerpt, fields, resolveEditorSection, title, values],
   );
+
+  function activeAiAnnotation(path: string, kind: string, value: unknown) {
+    const isEmpty = recipeFieldIsEmpty({
+      path,
+      kind,
+      value,
+      title,
+      excerpt,
+      categoryIds,
+    });
+    return resolveActiveFieldAiAnnotation(path, aiMeta, isEmpty);
+  }
 
   const requiredMissing = useMemo(
     () =>
@@ -1868,6 +1816,7 @@ export function RecipeEditor({
 
     const fieldPath = `values.${field.key}`;
     const fieldDef = getRecipeFieldAiDef(fieldPath, fields);
+    const fieldAnnotation = activeAiAnnotation(fieldPath, field.kind, values[field.key]);
     const showFieldAi =
       Boolean(fieldDef) &&
       isRecipeFieldAiSupported(fieldPath, fields) &&
@@ -1898,8 +1847,8 @@ export function RecipeEditor({
           required={field.required}
           helpText={displayHelp}
           compact={compact}
-          confidence={aiMeta?.confidenceByPath[`values.${field.key}`]?.confidence}
-          sourceNote={aiMeta?.confidenceByPath[`values.${field.key}`]?.sourceNote}
+          confidence={fieldAnnotation.confidence}
+          sourceNote={fieldAnnotation.sourceNote}
           aiAction={
             showFieldAi ? (
               <FieldAiFieldActions
@@ -2409,8 +2358,8 @@ export function RecipeEditor({
                   />
                 </span>
                 <AiConfidenceBadge
-                  confidence={aiMeta?.confidenceByPath.title?.confidence}
-                  sourceNote={aiMeta?.confidenceByPath.title?.sourceNote}
+                  confidence={activeAiAnnotation("title", "text", title).confidence}
+                  sourceNote={activeAiAnnotation("title", "text", title).sourceNote}
                 />
               </span>
               <input
@@ -2466,8 +2415,8 @@ export function RecipeEditor({
               <span className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-sm font-semibold text-ink">Slug</span>
                 <AiConfidenceBadge
-                  confidence={aiMeta?.confidenceByPath.slug?.confidence}
-                  sourceNote={aiMeta?.confidenceByPath.slug?.sourceNote}
+                  confidence={activeAiAnnotation("slug", "text", slug).confidence}
+                  sourceNote={activeAiAnnotation("slug", "text", slug).sourceNote}
                 />
               </span>
               <input
@@ -2494,8 +2443,8 @@ export function RecipeEditor({
                   />
                 </span>
                 <AiConfidenceBadge
-                  confidence={aiMeta?.confidenceByPath.excerpt?.confidence}
-                  sourceNote={aiMeta?.confidenceByPath.excerpt?.sourceNote}
+                  confidence={activeAiAnnotation("excerpt", "textarea", excerpt).confidence}
+                  sourceNote={activeAiAnnotation("excerpt", "textarea", excerpt).sourceNote}
                 />
               </span>
               <textarea
@@ -2568,8 +2517,8 @@ export function RecipeEditor({
                       onAction={(intent) => void runFieldAi("categoryIds", "categoryIds", intent)}
                     />
                     <AiConfidenceBadge
-                      confidence={aiMeta?.confidenceByPath.categoryIds?.confidence}
-                      sourceNote={aiMeta?.confidenceByPath.categoryIds?.sourceNote}
+                      confidence={activeAiAnnotation("categoryIds", "categories", categoryIds).confidence}
+                      sourceNote={activeAiAnnotation("categoryIds", "categories", categoryIds).sourceNote}
                     />
                   </div>
                 </div>
@@ -3411,123 +3360,6 @@ function ListEditor({
   );
 }
 
-function NamedNotesEditor({
-  items,
-  onChange,
-  variant,
-  parentKey,
-  typeFields,
-  fieldAiBusy = null,
-  fieldSuggestions = {},
-  fieldAiNotice = {},
-  onRunFieldAi,
-  onApplyFieldSuggestion,
-  onClearFieldSuggestion,
-}: {
-  items: { name?: string; note?: string }[];
-  onChange: (value: unknown) => void;
-  variant: "faq" | "keyIngredients" | "default";
-  parentKey: string;
-  typeFields?: Field[];
-  fieldAiBusy?: string | null;
-  fieldSuggestions?: Record<
-    string,
-    {
-      currentValue: unknown;
-      suggestion: unknown;
-      pending: AiTargetedFillApplyPayload;
-    }
-  >;
-  fieldAiNotice?: Record<string, string>;
-  onRunFieldAi?: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
-  onApplyFieldSuggestion?: (path: string) => void;
-  onClearFieldSuggestion?: (path: string) => void;
-}) {
-  const placeholders =
-    variant === "faq"
-      ? { name: "Question", note: "Answer" }
-      : variant === "keyIngredients"
-        ? { name: "Ingredient", note: "Why it matters / notes" }
-        : { name: "Name", note: "Note" };
-
-  return (
-    <div className="grid gap-3">
-      {items.map((item, index) => {
-        const namePath = `values.${parentKey}.${index}.name`;
-        const notePath = `values.${parentKey}.${index}.note`;
-        return (
-        <div key={index} className="grid gap-2 border-t border-line/70 pt-3 first:border-t-0 first:pt-0 md:grid-cols-2">
-          <div className="grid gap-1.5">
-            <input
-              value={item.name || ""}
-              placeholder={placeholders.name}
-              aria-label={`${placeholders.name} ${index + 1}`}
-              onChange={(event) => {
-                const next = [...items];
-                next[index] = { ...item, name: event.target.value };
-                onChange(next);
-              }}
-              className={compactInputClass}
-            />
-            {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
-              <GranularFieldAiSlot
-                path={namePath}
-                parentKey={parentKey}
-                value={item.name ?? ""}
-                kind="namedNotes"
-                typeFields={typeFields}
-                fieldAiBusy={fieldAiBusy}
-                fieldSuggestions={fieldSuggestions}
-                fieldAiNotice={fieldAiNotice}
-                onRunFieldAi={onRunFieldAi}
-                onApplyFieldSuggestion={onApplyFieldSuggestion}
-                onClearFieldSuggestion={onClearFieldSuggestion}
-              />
-            ) : null}
-          </div>
-          <div className="grid gap-1.5">
-            <textarea
-              value={item.note || ""}
-              placeholder={placeholders.note}
-              rows={2}
-              aria-label={`${placeholders.note} ${index + 1}`}
-              onChange={(event) => {
-                const next = [...items];
-                next[index] = { ...item, note: event.target.value };
-                onChange(next);
-              }}
-              className={`${adminInputClass} h-auto min-h-[4.5rem] resize-y`}
-            />
-            {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
-              <GranularFieldAiSlot
-                path={notePath}
-                parentKey={parentKey}
-                value={item.note ?? ""}
-                kind="namedNotes"
-                typeFields={typeFields}
-                fieldAiBusy={fieldAiBusy}
-                fieldSuggestions={fieldSuggestions}
-                fieldAiNotice={fieldAiNotice}
-                onRunFieldAi={onRunFieldAi}
-                onApplyFieldSuggestion={onApplyFieldSuggestion}
-                onClearFieldSuggestion={onClearFieldSuggestion}
-              />
-            ) : null}
-          </div>
-        </div>
-      );
-      })}
-      <button
-        type="button"
-        className={editorTextAction}
-        onClick={() => onChange([...items, { name: "", note: "" }])}
-      >
-        + Add {variant === "faq" ? "question" : "item"}
-      </button>
-    </div>
-  );
-}
-
 function IngredientsEditor({
   groups,
   onChange,
@@ -3760,167 +3592,6 @@ function IngredientsEditor({
         onClick={() => update([...groups, { name: "", items: [{ item: "", amount: "", notes: "" }] }])}
       >
         + Add group
-      </button>
-    </div>
-  );
-}
-
-function InstructionsEditor({
-  groups,
-  onChange,
-  parentKey,
-  typeFields,
-  fieldAiBusy = null,
-  fieldSuggestions = {},
-  fieldAiNotice = {},
-  onRunFieldAi,
-  onApplyFieldSuggestion,
-  onClearFieldSuggestion,
-}: {
-  groups: { name?: string; steps: string[] }[];
-  onChange: (value: unknown) => void;
-  parentKey: string;
-  typeFields?: Field[];
-  fieldAiBusy?: string | null;
-  fieldSuggestions?: Record<
-    string,
-    {
-      currentValue: unknown;
-      suggestion: unknown;
-      pending: AiTargetedFillApplyPayload;
-    }
-  >;
-  fieldAiNotice?: Record<string, string>;
-  onRunFieldAi?: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
-  onApplyFieldSuggestion?: (path: string) => void;
-  onClearFieldSuggestion?: (path: string) => void;
-}) {
-  const stepOffsetByGroup = groups.map((_, index) =>
-    groups.slice(0, index).reduce((total, prior) => total + prior.steps.length, 0),
-  );
-
-  return (
-    <div className="grid gap-5">
-      {groups.map((group, groupIndex) => {
-        const namePath = `values.${parentKey}.${groupIndex}.name`;
-        return (
-        <div key={groupIndex} className="grid gap-3">
-          <div className="flex flex-wrap items-start gap-2">
-            <input
-              value={group.name || ""}
-              placeholder="Section name (optional)"
-              onChange={(event) => {
-                const next = [...groups];
-                next[groupIndex] = { ...group, name: event.target.value };
-                onChange(next);
-              }}
-              className={`${compactInputClass} max-w-md flex-1`}
-            />
-            {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
-              <GranularFieldAiSlot
-                path={namePath}
-                parentKey={parentKey}
-                value={group.name ?? ""}
-                kind="text"
-                typeFields={typeFields}
-                fieldAiBusy={fieldAiBusy}
-                fieldSuggestions={fieldSuggestions}
-                fieldAiNotice={fieldAiNotice}
-                onRunFieldAi={onRunFieldAi}
-                onApplyFieldSuggestion={onApplyFieldSuggestion}
-                onClearFieldSuggestion={onClearFieldSuggestion}
-              />
-            ) : null}
-          </div>
-          {group.steps.map((step, stepIndex) => {
-            const stepPath = `values.${parentKey}.${groupIndex}.steps.${stepIndex}`;
-            const stepNumber = (stepOffsetByGroup[groupIndex] ?? 0) + stepIndex + 1;
-            return (
-              <div key={stepIndex} className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-                <span className="shrink-0 text-xs font-semibold tabular-nums text-muted sm:mt-2.5 sm:w-5">
-                  {stepNumber}
-                </span>
-                <div className="grid min-w-0 flex-1 gap-1.5">
-                  <textarea
-                    value={step}
-                    rows={2}
-                    aria-label={`Step ${stepNumber}${group.name ? ` in ${group.name}` : ""}`}
-                    onChange={(event) => {
-                      const next = [...groups];
-                      const steps = [...group.steps];
-                      steps[stepIndex] = event.target.value;
-                      next[groupIndex] = { ...group, steps };
-                      onChange(next);
-                    }}
-                    className={`${adminInputClass} h-auto min-h-[4.5rem] flex-1 resize-y sm:min-h-[2.75rem]`}
-                  />
-                  {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
-                    <GranularFieldAiSlot
-                      path={stepPath}
-                      parentKey={parentKey}
-                      value={step}
-                      kind="textarea"
-                      typeFields={typeFields}
-                      fieldAiBusy={fieldAiBusy}
-                      fieldSuggestions={fieldSuggestions}
-                      fieldAiNotice={fieldAiNotice}
-                      onRunFieldAi={onRunFieldAi}
-                      onApplyFieldSuggestion={onApplyFieldSuggestion}
-                      onClearFieldSuggestion={onClearFieldSuggestion}
-                    />
-                  ) : null}
-                </div>
-                <ReorderControls
-                  itemLabel={`step ${stepNumber}${group.name ? ` in ${group.name}` : ""}`}
-                  upDisabled={stepIndex === 0}
-                  downDisabled={stepIndex === group.steps.length - 1}
-                  hideReorderWhenStatic
-                  onMoveUp={() => {
-                    const next = [...groups];
-                    next[groupIndex] = {
-                      ...group,
-                      steps: moveArrayItem(group.steps, stepIndex, stepIndex - 1),
-                    };
-                    onChange(next);
-                  }}
-                  onMoveDown={() => {
-                    const next = [...groups];
-                    next[groupIndex] = {
-                      ...group,
-                      steps: moveArrayItem(group.steps, stepIndex, stepIndex + 1),
-                    };
-                    onChange(next);
-                  }}
-                  onRemove={() => {
-                    const next = [...groups];
-                    const steps = group.steps.filter((_, i) => i !== stepIndex);
-                    next[groupIndex] = { ...group, steps: steps.length ? steps : [""] };
-                    onChange(next);
-                  }}
-                />
-              </div>
-            );
-          })}
-          <button
-            type="button"
-            className={editorTextAction}
-            onClick={() => {
-              const next = [...groups];
-              next[groupIndex] = { ...group, steps: [...group.steps, ""] };
-              onChange(next);
-            }}
-          >
-            + Add step
-          </button>
-        </div>
-      );
-      })}
-      <button
-        type="button"
-        className={editorTextAction}
-        onClick={() => onChange([...groups, { name: "", steps: [""] }])}
-      >
-        + Add section
       </button>
     </div>
   );
