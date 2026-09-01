@@ -32,13 +32,13 @@ type InstructionVideoWorkspaceContextValue = {
   setVideoPanelVisible: (visible: boolean) => void;
   playerError: string | null;
   setPlayerError: (message: string | null) => void;
-  currentTimeSeconds: number;
   durationSeconds: number | null;
   activeSectionIndex: number | null;
   setActiveSectionIndex: (index: number | null) => void;
   playingSectionIndex: number | null;
   playerRef: RefObject<AdminYouTubeVerificationPlayerHandle | null>;
   stickyTopPx: number;
+  stickyBottomPx: number;
   seekAndPlay: (seconds: number, sectionIndex?: number) => void;
   seekOnly: (seconds: number, sectionIndex?: number) => void;
   readPlayheadSeconds: () => number;
@@ -67,19 +67,21 @@ export function InstructionVideoWorkspaceProvider({
   instructionGroups,
   videoDurationSeconds,
   stickyTopPx = 96,
+  stickyBottomPx = 64,
   children,
 }: {
   linkedVideo: LinkedVideoPreview | null;
   instructionGroups: InstructionGroupWithChapters[];
   videoDurationSeconds?: number;
   stickyTopPx?: number;
+  stickyBottomPx?: number;
   children: ReactNode;
 }) {
   const playerRef = useRef<AdminYouTubeVerificationPlayerHandle | null>(null);
   const pendingSeekRef = useRef<QueuedSeek | null>(null);
+  const currentTimeRef = useRef(0);
   const [videoPanelVisible, setVideoPanelVisible] = useState(true);
   const [playerError, setPlayerError] = useState<string | null>(null);
-  const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0);
   const [durationSeconds, setDurationSeconds] = useState<number | null>(
     linkedVideo?.durationSeconds ?? videoDurationSeconds ?? null,
   );
@@ -90,9 +92,9 @@ export function InstructionVideoWorkspaceProvider({
     durationSeconds ?? linkedVideo?.durationSeconds ?? videoDurationSeconds ?? null;
 
   const readPlayheadSeconds = useCallback(() => {
-    const raw = playerRef.current?.getCurrentTime() ?? currentTimeSeconds;
+    const raw = playerRef.current?.getCurrentTime() ?? currentTimeRef.current;
     return roundPlayheadToSeconds(raw);
-  }, [currentTimeSeconds]);
+  }, []);
 
   const runSeek = useCallback((request: QueuedSeek) => {
     const player = playerRef.current;
@@ -143,14 +145,14 @@ export function InstructionVideoWorkspaceProvider({
 
   const onPlayheadChange = useCallback(
     (seconds: number, duration: number | null) => {
-      setCurrentTimeSeconds(seconds);
+      currentTimeRef.current = seconds;
       if (duration != null && duration > 0) setDurationSeconds(Math.floor(duration));
       const atSection = findCanonicalSectionAtPlayhead({
         groups: instructionGroups,
         playheadSeconds: seconds,
         videoDurationSeconds: effectiveDuration ?? undefined,
       });
-      setPlayingSectionIndex(atSection);
+      setPlayingSectionIndex((current) => (current === atSection ? current : atSection));
     },
     [effectiveDuration, instructionGroups],
   );
@@ -162,13 +164,13 @@ export function InstructionVideoWorkspaceProvider({
       setVideoPanelVisible,
       playerError,
       setPlayerError,
-      currentTimeSeconds,
       durationSeconds: effectiveDuration,
       activeSectionIndex,
       setActiveSectionIndex,
       playingSectionIndex,
       playerRef,
       stickyTopPx,
+      stickyBottomPx,
       seekAndPlay,
       seekOnly,
       readPlayheadSeconds,
@@ -179,11 +181,11 @@ export function InstructionVideoWorkspaceProvider({
       linkedVideo,
       videoPanelVisible,
       playerError,
-      currentTimeSeconds,
       effectiveDuration,
       activeSectionIndex,
       playingSectionIndex,
       stickyTopPx,
+      stickyBottomPx,
       seekAndPlay,
       seekOnly,
       readPlayheadSeconds,

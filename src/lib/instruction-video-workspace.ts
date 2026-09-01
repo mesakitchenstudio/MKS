@@ -98,3 +98,21 @@ export type ChapterTimestampSuggestion = {
   confidence?: number;
   evidence?: string;
 };
+
+export function validateEndTimestampFromPlayhead(input: {
+  startTimestamp?: number;
+  endSeconds: number;
+}): { ok: true } | { ok: false; message: string } {
+  const end = roundPlayheadToSeconds(input.endSeconds);
+  if (input.startTimestamp == null) {
+    return { ok: true };
+  }
+  const start = roundPlayheadToSeconds(input.startTimestamp);
+  if (end <= start) {
+    return {
+      ok: false,
+      message: "End must be later than this section's start timestamp.",
+    };
+  }
+  return { ok: true };
+}

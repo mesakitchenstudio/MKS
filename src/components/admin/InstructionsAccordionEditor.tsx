@@ -199,6 +199,7 @@ export function InstructionsAccordionEditor({
   onSetEndFromPlayhead,
   onClearStartTimestamp,
   onClearEndTimestamp,
+  endPlayheadFeedback = null,
 }: {
   groups: InstructionGroupWithChapters[];
   onChange: (value: unknown) => void;
@@ -237,6 +238,7 @@ export function InstructionsAccordionEditor({
   onSetEndFromPlayhead?: (groupIndex: number, seconds: number) => void;
   onClearStartTimestamp?: (groupIndex: number) => void;
   onClearEndTimestamp?: (groupIndex: number) => void;
+  endPlayheadFeedback?: string | null;
 }) {
   const videoWorkspace = useInstructionVideoWorkspaceOptional();
 
@@ -669,6 +671,11 @@ export function InstructionsAccordionEditor({
                         >
                           Set explicit end from playhead
                         </button>
+                      ) : null}
+                      {endPlayheadFeedback ? (
+                        <span className="text-xs font-semibold text-terracotta" role="alert">
+                          {endPlayheadFeedback}
+                        </span>
                       ) : null}
                       {hasExplicitEnd && onClearEndTimestamp ? (
                         <button

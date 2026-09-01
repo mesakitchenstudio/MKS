@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   findCanonicalSectionAtPlayhead,
   roundPlayheadToSeconds,
+  validateEndTimestampFromPlayhead,
 } from "@/lib/instruction-video-workspace";
 
 test("roundPlayheadToSeconds uses nearest whole second", () => {
@@ -50,6 +51,36 @@ test("findCanonicalSectionAtPlayhead spans until the next canonical section", ()
   assert.equal(
     findCanonicalSectionAtPlayhead({ groups, playheadSeconds: 5 }),
     null,
+  );
+});
+
+test("validateEndTimestampFromPlayhead rejects end at or before start", () => {
+  const invalid = validateEndTimestampFromPlayhead({
+    startTimestamp: 197,
+    endSeconds: 197,
+  });
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) {
+    assert.match(invalid.message, /later than/i);
+  }
+
+  const before = validateEndTimestampFromPlayhead({
+    startTimestamp: 197,
+    endSeconds: 120,
+  });
+  assert.equal(before.ok, false);
+
+  const valid = validateEndTimestampFromPlayhead({
+    startTimestamp: 197,
+    endSeconds: 240.6,
+  });
+  assert.equal(valid.ok, true);
+});
+
+test("validateEndTimestampFromPlayhead allows end when start is missing", () => {
+  assert.deepEqual(
+    validateEndTimestampFromPlayhead({ startTimestamp: undefined, endSeconds: 90 }),
+    { ok: true },
   );
 });
 

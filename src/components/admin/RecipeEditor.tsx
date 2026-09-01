@@ -1970,6 +1970,7 @@ export function RecipeEditor({
           <InstructionsVideoVerificationLayout
             values={values}
             stickyTopPx={scrollOffset}
+            stickyBottomPx={64}
             onInstructionsChange={(next) => {
               setField("instructions", next);
               clearFieldError();
