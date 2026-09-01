@@ -8,7 +8,7 @@ import {
   PRIMARY_CATEGORY_SLUGS,
 } from "@/lib/recipe-primary-taxonomy";
 
-export function SiteFooter() {
+export function SiteFooter({ hideNewsletter = false }: { hideNewsletter?: boolean }) {
   return (
     <footer className="no-print mt-auto border-t border-line bg-ink text-cream">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-4 md:px-6">
@@ -63,6 +63,7 @@ export function SiteFooter() {
           </ul>
         </div>
 
+        {hideNewsletter ? null : (
         <div>
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-sand">
             Newsletter
@@ -72,6 +73,7 @@ export function SiteFooter() {
           </p>
           <NewsletterForm tone="dark" />
         </div>
+        )}
       </div>
 
       <div className="border-t border-white/10">

@@ -12,7 +12,7 @@ export type HomepageCollectionConfig = {
   title: string;
   description?: string;
   viewMoreLabel?: string;
-  /** Destination for “View more” */
+  /** Destination for collection links on /recipes */
   href?: string;
   /** Curated recipe slugs in display order */
   recipeSlugs: string[];
@@ -25,12 +25,11 @@ export type HomepageLatestConfig = {
   title: string;
   viewMoreLabel?: string;
   href: string;
-  recipeSlugs: string[];
   limit: number;
 };
 
 export type HomepageHeroConfig = {
-  /** Preferred featured recipe; falls back to latest published if missing */
+  /** Legacy file-based fallback when no admin featured recipe is set */
   recipeSlug?: string;
   eyebrow: string;
 };
@@ -38,32 +37,26 @@ export type HomepageHeroConfig = {
 export type HomepageConfig = {
   hero: HomepageHeroConfig;
   latest: HomepageLatestConfig;
+  /** Legacy collection definitions for /recipes ?collection= URLs — not rendered on homepage */
   collections: HomepageCollectionConfig[];
 };
 
-/** Homepage editorial config — reorder, enable, or replace collections here. */
+/** Homepage editorial config — homepage renders hero + latest only. */
 export const homepageConfig: HomepageConfig = {
   hero: {
-    recipeSlug: "salsa-verde",
-    eyebrow: "Latest recipe",
+    eyebrow: "From the studio",
   },
   latest: {
     enabled: true,
     title: "Latest recipes",
-    viewMoreLabel: "View all",
-    href: "/recipes?sort=latest",
-    recipeSlugs: [
-      "chocolate-chunk-cookies",
-      "vanilla-bean-cupcakes",
-      "breakfast-tortillas",
-      "chile-honey-roasted-chicken",
-    ],
+    viewMoreLabel: "All recipes →",
+    href: "/recipes",
     limit: 4,
   },
   collections: [
     {
       id: "summer-at-the-table",
-      enabled: true,
+      enabled: false,
       order: 1,
       title: "Summer at the table",
       viewMoreLabel: "View more",
@@ -79,7 +72,7 @@ export const homepageConfig: HomepageConfig = {
     },
     {
       id: "cookies-and-sweets",
-      enabled: true,
+      enabled: false,
       order: 2,
       title: "Cookies and sweets",
       viewMoreLabel: "View more",
@@ -93,7 +86,7 @@ export const homepageConfig: HomepageConfig = {
     },
     {
       id: "best-breakfast",
-      enabled: true,
+      enabled: false,
       order: 3,
       title: "Best breakfast recipes",
       viewMoreLabel: "View more",
@@ -107,7 +100,7 @@ export const homepageConfig: HomepageConfig = {
     },
     {
       id: "easy-dinners",
-      enabled: true,
+      enabled: false,
       order: 4,
       title: "Easy dinner recipes",
       viewMoreLabel: "View more",
@@ -126,9 +119,6 @@ export function homepageCollectionSlugMap(config: HomepageConfig = homepageConfi
   const map: Record<string, string[]> = {};
   for (const collection of config.collections) {
     map[collection.id] = collection.recipeSlugs;
-  }
-  if (config.latest.enabled) {
-    map.latest = config.latest.recipeSlugs;
   }
   return map;
 }

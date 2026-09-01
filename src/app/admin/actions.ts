@@ -1317,6 +1317,17 @@ export async function saveStudioLessonLinksAction(formData: FormData) {
   redirect("/admin/studio?saved=1");
 }
 
+export async function saveHomepageFeaturedRecipeAction(formData: FormData) {
+  await requireAccess("content");
+  const clear = String(formData.get("clear") || "") === "1";
+  const slug = clear ? "" : String(formData.get("recipeSlug") || "").trim();
+  const { setSiteSetting, SITE_SETTING_KEYS } = await import("@/lib/site-settings");
+  await setSiteSetting(SITE_SETTING_KEYS.homepageFeaturedRecipeSlug, slug);
+  revalidatePath("/");
+  revalidatePath("/admin/studio");
+  redirect("/admin/studio?featuredSaved=1");
+}
+
 export async function keepRemovedSeriesItemAction(formData: FormData) {
   await requireEditor();
   const seriesId = String(formData.get("seriesId") || "").trim();

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { saveStudioLessonLinksAction } from "@/app/admin/actions";
+import { HomepageFeaturedRecipeForm } from "@/components/admin/HomepageFeaturedRecipeForm";
 import { lessons } from "@/data/lessons";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { getHomepageFeaturedRecipeSlug } from "@/lib/site-settings";
 import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass } from "@/lib/admin-ui";
 import { studioLessonTypeLabel } from "@/lib/studio-types";
 import { lessonHref } from "@/data/lessons";
@@ -12,12 +14,12 @@ export const dynamic = "force-dynamic";
 export default async function AdminStudioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; featuredSaved?: string }>;
 }) {
   await requireAccess("content");
   const params = await searchParams;
   const db = getDb();
-  const [publishedRecipes, links] = await Promise.all([
+  const [publishedRecipes, links, featuredSlug] = await Promise.all([
     db.recipe.findMany({
       where: { status: "published" },
       select: { id: true, slug: true, title: true },
@@ -27,6 +29,7 @@ export default async function AdminStudioPage({
       select: { lessonSlug: true, recipeId: true },
       orderBy: [{ lessonSlug: "asc" }, { sortOrder: "asc" }],
     }),
+    getHomepageFeaturedRecipeSlug(),
   ]);
 
   const linksByLesson = new Map<string, Set<string>>();
@@ -51,6 +54,14 @@ export default async function AdminStudioPage({
           Studio recipe links saved.
         </p>
       ) : null}
+
+      {params.featuredSaved ? (
+        <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
+          Homepage featured recipe saved.
+        </p>
+      ) : null}
+
+      <HomepageFeaturedRecipeForm recipes={publishedRecipes} selectedSlug={featuredSlug} />
 
       <div className="space-y-6">
         {lessons.map((lesson) => {

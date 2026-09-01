@@ -513,7 +513,13 @@ model YouTubeAnalyticsTrafficDay {
   @@index([videoId, date, dimension])
 }
 
-/** Curated many-to-many between static Studio lesson slugs and published recipes. */
+/** Key-value site settings (e.g. homepage featured recipe slug). */
+model SiteSetting {
+  key       String   @id
+  value     String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
 model StudioLessonRecipeLink {
   lessonSlug String
   recipeId   String

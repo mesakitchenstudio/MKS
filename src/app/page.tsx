@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CollectionRow } from "@/components/CollectionRow";
+import { HomepageBrowseCategories } from "@/components/HomepageBrowseCategories";
 import { HomepageHero } from "@/components/HomepageHero";
 import { HomepageLatestSection } from "@/components/HomepageLatestSection";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { site } from "@/data/site";
 import { homepageConfig } from "@/data/homepage";
 import { resolveHomepage } from "@/lib/homepage";
+import { getHomepageFeaturedRecipeSlug } from "@/lib/site-settings";
 import { getAllRecipes } from "@/lib/recipes";
 
 export const revalidate = 300;
@@ -29,24 +30,27 @@ const heroLinkFocus =
 
 export default async function Home() {
   const recipes = await getAllRecipes();
-  const homepage = resolveHomepage(recipes, homepageConfig);
+  const featuredRecipeSlug = await getHomepageFeaturedRecipeSlug();
+  const homepage = resolveHomepage(recipes, {
+    featuredRecipeSlug,
+  });
 
   return (
     <>
       <section className="relative overflow-hidden bg-ink text-cream">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-2 md:px-6 md:py-16 lg:py-18">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-12 md:grid-cols-2 md:gap-10 md:px-6 md:py-14 lg:py-16">
           <div className="order-1">
             <h1 className="max-w-xl font-serif text-5xl leading-[1.1] md:text-6xl">
-              {site.name}
+              Recipes for the table.
             </h1>
             <p className="mt-4 max-w-xl font-serif text-2xl leading-snug text-sand md:text-3xl">
-              {site.tagline}
+              Tested in the studio.
             </p>
             <p className="mt-5 max-w-md text-base leading-7 text-sand/85">
-              Foolproof recipes, tested in a real kitchen, written so you know why they
-              work — then you can sit down and eat.
+              Recipes tested in a real kitchen, with clear methods and explanations so you know
+              why they work.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-7">
               <Link
                 href="/recipes"
                 className={`rounded-full bg-terracotta px-6 py-3 text-sm font-semibold text-paper hover:bg-terracotta-dark ${heroLinkFocus}`}
@@ -63,7 +67,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {homepageConfig.latest.enabled && homepage.latest.length ? (
+      {homepageConfig.latest.enabled && homepage.latest.length > 0 ? (
         <HomepageLatestSection
           title={homepageConfig.latest.title}
           href={homepageConfig.latest.href}
@@ -72,38 +76,18 @@ export default async function Home() {
         />
       ) : null}
 
-      {homepage.collections.map((collection) => {
-        const row = (
-          <CollectionRow
-            key={collection.id}
-            title={collection.title}
-            description={collection.description}
-            href={collection.href}
-            viewMoreLabel={collection.viewMoreLabel}
-            recipes={collection.recipes}
-          />
-        );
-        if (collection.tone === "sand") {
-          return (
-            <section key={collection.id} className="bg-sand/40">
-              {row}
-            </section>
-          );
-        }
-        return row;
-      })}
+      <HomepageBrowseCategories />
 
       <section className="border-y border-line bg-paper">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:px-6">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-2 md:px-6 md:py-16">
           <div>
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
               The studio
             </p>
             <h2 className="mt-3 font-serif text-4xl">A small kitchen, tested recipes</h2>
             <p className="mt-4 max-w-lg text-base leading-7 text-muted">
-              Mesa Kitchen Studio is a recipe studio for home cooks. We write the way we
-              cook: measure twice, taste as you go, and leave the table a little fuller
-              than you found it.
+              Mesa Kitchen Studio is a test kitchen for home cooks. We measure, test, adjust, and
+              explain recipes so the method is something you can repeat in your own kitchen.
             </p>
             <Link
               href="/about"

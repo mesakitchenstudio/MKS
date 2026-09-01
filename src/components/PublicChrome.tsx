@@ -42,7 +42,7 @@ export function PublicChrome({
       ) : null}
       {showChrome ? <SiteHeader /> : null}
       {children}
-      {showChrome ? <SiteFooter /> : null}
+      {showChrome ? <SiteFooter hideNewsletter={pathname === "/"} /> : null}
       {hideTools ? null : <RecipeFloatTools recipes={recipes} />}
     </>
   );
