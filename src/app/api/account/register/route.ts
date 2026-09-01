@@ -3,6 +3,7 @@ import { registerEmailUser } from "@/lib/accounts";
 import {
   isValidSignupEmail,
   MEMBER_EXISTING_ACCOUNT_API_ERROR,
+  MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR,
   MEMBER_PASSWORD_MIN_LENGTH,
 } from "@/lib/auth-credentials";
 
@@ -39,7 +40,9 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create account.";
     const status =
-      message === MEMBER_EXISTING_ACCOUNT_API_ERROR || message.includes("already exists")
+      message === MEMBER_EXISTING_ACCOUNT_API_ERROR ||
+      message === MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR ||
+      message.includes("already exists")
         ? 409
         : 500;
     return NextResponse.json({ error: message }, { status });

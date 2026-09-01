@@ -10,6 +10,8 @@ import {
   EMAIL_CONSENT_LABEL,
   MEMBER_EXISTING_ACCOUNT_API_ERROR,
   MEMBER_EXISTING_ACCOUNT_MESSAGE,
+  MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR,
+  MEMBER_GOOGLE_ONLY_ACCOUNT_MESSAGE,
   MEMBER_PASSWORD_MIN_LENGTH,
   MEMBER_PASSWORD_REQUIREMENT,
   MEMBER_WRONG_CREDENTIALS_MESSAGE,
@@ -134,7 +136,10 @@ export function AuthModal({
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
-        if (
+        if (data.error === MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR) {
+          setExistingAccount(false);
+          setFormError(MEMBER_GOOGLE_ONLY_ACCOUNT_MESSAGE);
+        } else if (
           response.status === 409 ||
           data.error === MEMBER_EXISTING_ACCOUNT_API_ERROR ||
           data.error?.includes("already exists")
@@ -173,7 +178,7 @@ export function AuthModal({
     setFieldErrors({});
 
     if (!email.trim()) {
-      setFieldErrors({ email: "Enter your email or username." });
+      setFieldErrors({ email: "Enter your email." });
       return;
     }
     if (!password) {
@@ -205,7 +210,7 @@ export function AuthModal({
     setFormError("");
     setFieldErrors({});
     if (!identifier.trim()) {
-      setFieldErrors({ identifier: "Enter your email or username." });
+      setFieldErrors({ identifier: "Enter your email." });
       return;
     }
 
@@ -235,8 +240,8 @@ export function AuthModal({
     mode === "signup"
       ? SIGNUP_SUBTITLE
       : mode === "signin"
-        ? "Welcome back — sign in with your email or username and password."
-        : "Enter the email or username on the account. If we find it, we will send a reset link.";
+        ? "Welcome back — sign in with your email and password."
+        : "Enter the email on the account. If we find it, we will send a reset link.";
 
   return (
     <div
@@ -383,11 +388,11 @@ export function AuthModal({
           {mode === "signin" ? (
             <form onSubmit={submitSignIn} className="mt-3.5 grid gap-3" noValidate>
               <label className="grid gap-1.5 text-sm font-semibold text-ink">
-                Email or username
+                Email
                 <input
                   required
-                  type="text"
-                  autoComplete="username"
+                  type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@email.com"
@@ -433,11 +438,11 @@ export function AuthModal({
           {mode === "forgot" && !forgotSent ? (
             <form onSubmit={submitForgot} className="mt-3.5 grid gap-3" noValidate>
               <label className="grid gap-1.5 text-sm font-semibold text-ink">
-                Email or username
+                Email
                 <input
                   required
-                  type="text"
-                  autoComplete="username"
+                  type="email"
+                  autoComplete="email"
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                   aria-invalid={fieldErrors.identifier ? true : undefined}

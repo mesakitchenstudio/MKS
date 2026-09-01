@@ -70,7 +70,7 @@ export function AccountMenu() {
 
   // Never keep showing a deleted member from localStorage after Auth.js rejected the session.
   const user: PublicUser | null =
-    data?.error === "MemberDeleted"
+    data?.error === "MemberDeleted" || data?.error === "SessionRevoked"
       ? null
       : data?.user?.email
         ? {

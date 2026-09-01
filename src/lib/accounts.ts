@@ -1,4 +1,5 @@
-import { MEMBER_EXISTING_ACCOUNT_API_ERROR } from "@/lib/auth-credentials";
+import { MEMBER_EXISTING_ACCOUNT_API_ERROR, MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR } from "@/lib/auth-credentials";
+import { evaluatePasswordRegistration } from "@/lib/member-session";
 import { getDb } from "@/lib/db";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
 import { MEMBER_PRESENCE_STALE_MS, MEMBER_PRESENCE_WRITE_THROTTLE_MS, normalizePresenceSessionKey, presenceLastSeenForGraceDisconnect } from "@/lib/member-presence";
@@ -180,6 +181,7 @@ async function ensureMemberRecord(email: string, name = "", headers?: unknown) {
     data: {
       email: key,
       name: displayName || key,
+      notify: false,
     },
   });
   // Connection rows are recorded by NextAuth events.signIn (with headers) or
@@ -217,22 +219,15 @@ export async function registerEmailUser(input: {
     throw new Error("This email is a studio admin. Use the admin login.");
   }
   const existing = await db.user.findUnique({ where: { email } });
-  if (existing?.passwordHash) {
-    throw new Error(MEMBER_EXISTING_ACCOUNT_API_ERROR);
+  const registration = evaluatePasswordRegistration(existing);
+  if (!registration.allowed) {
+    if (registration.reason === "password_account_exists") {
+      throw new Error(MEMBER_EXISTING_ACCOUNT_API_ERROR);
+    }
+    throw new Error(MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR);
   }
   const passwordHash = hashPassword(input.password);
   const name = input.name.trim() || email;
-  if (existing) {
-    return db.user.update({
-      where: { email },
-      data: {
-        name: existing.name || name,
-        passwordHash,
-        notify: input.notify,
-        lastSeenAt: new Date(),
-      },
-    });
-  }
   return db.user.create({
     data: {
       email,
@@ -245,17 +240,12 @@ export async function registerEmailUser(input: {
 
 export async function authenticateEmailUser(email: string, password: string) {
   const db = getDb();
-  const identifier = email.trim();
-  let user = await db.user.findUnique({ where: { email: emailKey(identifier) } });
-  if (!user) {
-    const users = await db.user.findMany();
-    user = users.find((item) => item.name.toLowerCase() === identifier.toLowerCase()) ?? null;
-  }
+  const user = await db.user.findUnique({ where: { email: emailKey(email) } });
   if (!user) {
     throw new Error("Email or password is not correct.");
   }
   if (!user.passwordHash) {
-    throw new Error("This email uses Google sign-in. Use Sign in with Google.");
+    throw new Error("This email uses Google sign-in. Use Continue with Google.");
   }
   if (!verifyPassword(password, user.passwordHash)) {
     throw new Error("Email or password is not correct.");
@@ -263,6 +253,16 @@ export async function authenticateEmailUser(email: string, password: string) {
   return db.user.update({
     where: { id: user.id },
     data: { lastSeenAt: new Date() },
+  });
+}
+
+export async function updateMemberNotifyPreference(email: string, notify: boolean) {
+  const db = getDb();
+  const user = await requireActiveMember(email);
+  return db.user.update({
+    where: { id: user.id },
+    data: { notify },
+    select: { notify: true },
   });
 }
 

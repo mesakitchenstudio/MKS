@@ -29,7 +29,11 @@ function SessionSync() {
   useEffect(() => {
     if (status === "loading") return;
 
-    if (session?.error === "MemberDeleted" || (status === "authenticated" && !session?.user?.email)) {
+    if (
+      session?.error === "MemberDeleted" ||
+      session?.error === "SessionRevoked" ||
+      (status === "authenticated" && !session?.user?.email)
+    ) {
       if (!didForceSignOut.current) {
         didForceSignOut.current = true;
         clearLocalSession();
@@ -140,7 +144,7 @@ function SessionSync() {
   }, [session, status]);
 
   useEffect(() => {
-    if (!session?.user?.email || session.staffRole || session.error === "MemberDeleted") return;
+    if (!session?.user?.email || session.staffRole || session.error === "MemberDeleted" || session.error === "SessionRevoked") return;
     void hydrateLikesFromProfile().then((favorites) => {
       if (pathname === "/profile" && favorites.length && !didRefreshProfile.current) {
         didRefreshProfile.current = true;

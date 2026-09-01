@@ -10,6 +10,11 @@ export const MEMBER_EXISTING_ACCOUNT_MESSAGE =
 
 export const MEMBER_EXISTING_ACCOUNT_API_ERROR = "An account with this email already exists.";
 
+export const MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR =
+  "An account already exists with this email. Continue with Google to sign in.";
+
+export const MEMBER_GOOGLE_ONLY_ACCOUNT_MESSAGE = MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR;
+
 export const SIGNUP_SUBTITLE =
   "Create a Mesa account to save favorite recipes and leave ratings and reviews.";
 
