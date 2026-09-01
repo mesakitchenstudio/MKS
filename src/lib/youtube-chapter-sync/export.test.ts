@@ -4,6 +4,7 @@ import {
   buildYoutubeChapterExport,
   DEFAULT_SYNTHETIC_INTRO_LABEL,
   evaluateYoutubeExportReadiness,
+  formatYoutubeChapterBlock,
   formatYoutubeChapterExportLine,
 } from "@/lib/youtube-chapter-sync/export";
 
@@ -123,4 +124,106 @@ test("export I: empty labels fail readiness", () => {
 
 test("formatYoutubeChapterExportLine uses MM:SS under one hour", () => {
   assert.equal(formatYoutubeChapterExportLine(12, "Mix"), "00:12 Mix");
+});
+
+test("export J: preserves instruction array order when timestamps are non-monotonic", () => {
+  const instructions = [
+    { name: "Section A", steps: [""], startTimestamp: 47, chapterLabel: "A" },
+    { name: "Section B", steps: [""], startTimestamp: 0, chapterLabel: "B" },
+    { name: "Section C", steps: [""], startTimestamp: 89, chapterLabel: "C" },
+  ];
+  const result = buildYoutubeChapterExport({
+    videoId: "abc",
+    instructions,
+    videoDurationSeconds: 300,
+  });
+  const mesa = result.items.filter((item) => item.source === "mesa_section");
+  assert.deepEqual(
+    mesa.map((item) => item.timestamp),
+    [47, 0, 89],
+  );
+  assert.deepEqual(
+    mesa.map((item) => item.instructionIndex),
+    [0, 1, 2],
+  );
+  assert.equal(result.ready, false);
+  assert.equal(
+    result.errors.some((issue) => issue.code === "non_monotonic_canonical"),
+    true,
+  );
+  assert.match(result.errors[0]?.message ?? "", /"B"/);
+});
+
+test("export K: does not sort export rows into ascending timestamp order", () => {
+  const instructions = [
+    { name: "Section A", steps: [""], startTimestamp: 47, chapterLabel: "A" },
+    { name: "Section B", steps: [""], startTimestamp: 0, chapterLabel: "B" },
+    { name: "Section C", steps: [""], startTimestamp: 89, chapterLabel: "C" },
+  ];
+  const result = buildYoutubeChapterExport({
+    videoId: "abc",
+    instructions,
+    videoDurationSeconds: 300,
+  });
+  const timestamps = result.items.map((item) => item.timestamp);
+  assert.notDeepEqual(timestamps, [0, 47, 89]);
+  assert.deepEqual(timestamps, [0, 47, 0, 89]);
+});
+
+test("export L: synthetic intro when first mapped section starts after 0 in array order", () => {
+  const result = buildYoutubeChapterExport({
+    videoId: "abc",
+    instructions: [
+      { name: "A", steps: [""], startTimestamp: 12, chapterLabel: "A" },
+      { name: "B", steps: [""], startTimestamp: 64, chapterLabel: "B" },
+      { name: "C", steps: [""], startTimestamp: 120, chapterLabel: "C" },
+    ],
+    videoDurationSeconds: 180,
+  });
+  assert.equal(result.items[0]?.source, "synthetic_intro");
+  assert.equal(result.items[0]?.timestamp, 0);
+  assert.equal(result.items[1]?.timestamp, 12);
+  assert.equal(result.items[2]?.timestamp, 64);
+  assert.equal(result.ready, true);
+});
+
+test("export M: no synthetic intro when first mapped section starts at 0", () => {
+  const result = buildYoutubeChapterExport({
+    videoId: "abc",
+    instructions: [
+      { name: "A", steps: [""], startTimestamp: 0, chapterLabel: "A" },
+      { name: "B", steps: [""], startTimestamp: 47, chapterLabel: "B" },
+    ],
+    videoDurationSeconds: 120,
+  });
+  assert.equal(result.items.some((item) => item.source === "synthetic_intro"), false);
+  assert.equal(result.items[0]?.timestamp, 0);
+  assert.equal(result.items[0]?.label, "A");
+  assert.equal(result.items[1]?.timestamp, 47);
+});
+
+test("export N: synthetic intro does not recover non-monotonic canonical structure", () => {
+  const result = buildYoutubeChapterExport({
+    videoId: "abc",
+    instructions: [
+      { name: "Initial Mix", steps: [""], startTimestamp: 47, chapterLabel: "Initial Mix" },
+      { name: "Activate Yeast", steps: [""], startTimestamp: 0, chapterLabel: "Activate Yeast" },
+      { name: "Shape", steps: [""], startTimestamp: 89, chapterLabel: "Shape" },
+    ],
+    videoDurationSeconds: 400,
+  });
+  assert.equal(result.items[0]?.source, "synthetic_intro");
+  assert.equal(result.ready, false);
+  assert.match(result.errors[0]?.message ?? "", /Activate Yeast/);
+});
+
+test("formatYoutubeChapterBlock preserves export item order", () => {
+  const block = formatYoutubeChapterBlock([
+    { timestamp: 47, label: "A", source: "mesa_section", instructionIndex: 0 },
+    { timestamp: 0, label: "B", source: "mesa_section", instructionIndex: 1 },
+    { timestamp: 89, label: "C", source: "mesa_section", instructionIndex: 2 },
+  ]);
+  assert.match(block, /^00:47 A/);
+  assert.match(block, /\n00:00 B/);
+  assert.match(block, /\n01:29 C/);
 });

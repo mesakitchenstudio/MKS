@@ -17,9 +17,9 @@ export function formatYoutubeChapterExportLine(timestamp: number, label: string)
   return `${formatTimestampInput(timestamp)} ${label.trim()}`;
 }
 
+/** Format export items in canonical instruction export order (never timestamp-sorted). */
 export function formatYoutubeChapterBlock(items: YoutubeChapterExportItem[]): string {
-  return [...items]
-    .sort((a, b) => a.timestamp - b.timestamp)
+  return items
     .map((item) => formatYoutubeChapterExportLine(item.timestamp, item.label))
     .join("\n");
 }
@@ -40,7 +40,7 @@ function inferIntroLabelFromDescription(
 
 /**
  * Build YouTube export from canonical InstructionGroup chapters only.
- * Does not use stageAlignments or legacy timestamps when canonical mode is active.
+ * Preserves instruction array order — never sorts by timestamp.
  */
 export function buildYoutubeChapterExport(input: {
   videoId: string;
@@ -65,10 +65,9 @@ export function buildYoutubeChapterExport(input: {
     });
   }
 
-  mapped.sort((a, b) => a.timestamp - b.timestamp);
-
   const items: YoutubeChapterExportItem[] = [];
-  if (mapped.length > 0 && mapped[0]!.timestamp > 0) {
+  const firstMappedTimestamp = mapped[0]?.timestamp;
+  if (mapped.length > 0 && firstMappedTimestamp != null && firstMappedTimestamp > 0) {
     const intro =
       input.introLabel?.trim() ||
       (input.remoteDescription
@@ -96,6 +95,24 @@ export function buildYoutubeChapterExport(input: {
   };
 }
 
+function evaluateCanonicalInstructionOrder(
+  items: YoutubeChapterExportItem[],
+): YoutubeChapterReadinessIssue | null {
+  const mesa = items.filter((item) => item.source === "mesa_section");
+  for (let i = 1; i < mesa.length; i += 1) {
+    const prev = mesa[i - 1]!;
+    const current = mesa[i]!;
+    if (current.timestamp <= prev.timestamp) {
+      return {
+        code: "non_monotonic_canonical",
+        message: `Timestamp for "${current.label}" occurs before the previous instruction section.`,
+        severity: "error",
+      };
+    }
+  }
+  return null;
+}
+
 export function evaluateYoutubeExportReadiness(input: {
   items: YoutubeChapterExportItem[];
   videoDurationSeconds?: number;
@@ -106,9 +123,14 @@ export function evaluateYoutubeExportReadiness(input: {
 } {
   const errors: YoutubeChapterReadinessIssue[] = [];
   const warnings: YoutubeChapterReadinessIssue[] = [];
-  const sorted = [...input.items].sort((a, b) => a.timestamp - b.timestamp);
+  const items = input.items;
 
-  if (sorted.length < 3) {
+  const canonicalOrderIssue = evaluateCanonicalInstructionOrder(items);
+  if (canonicalOrderIssue) {
+    errors.push(canonicalOrderIssue);
+  }
+
+  if (items.length < 3) {
     errors.push({
       code: "min_chapters",
       message: "YouTube requires at least 3 chapters.",
@@ -116,7 +138,7 @@ export function evaluateYoutubeExportReadiness(input: {
     });
   }
 
-  if (sorted.length && sorted[0]!.timestamp !== 0) {
+  if (items.length && items[0]!.timestamp !== 0) {
     errors.push({
       code: "first_not_zero",
       message: "YouTube chapters must begin at 00:00.",
@@ -124,7 +146,7 @@ export function evaluateYoutubeExportReadiness(input: {
     });
   }
 
-  for (const item of sorted) {
+  for (const item of items) {
     if (!item.label.trim()) {
       errors.push({
         code: "empty_label",
@@ -135,9 +157,9 @@ export function evaluateYoutubeExportReadiness(input: {
     }
   }
 
-  for (let i = 1; i < sorted.length; i += 1) {
-    const prev = sorted[i - 1]!;
-    const current = sorted[i]!;
+  for (let i = 1; i < items.length; i += 1) {
+    const prev = items[i - 1]!;
+    const current = items[i]!;
     if (current.timestamp <= prev.timestamp) {
       errors.push({
         code: "non_ascending",
@@ -158,8 +180,8 @@ export function evaluateYoutubeExportReadiness(input: {
   }
 
   const duration = input.videoDurationSeconds;
-  if (duration != null && duration > 0 && sorted.length > 0) {
-    const last = sorted[sorted.length - 1]!;
+  if (duration != null && duration > 0 && items.length > 0) {
+    const last = items[items.length - 1]!;
     if (last.timestamp > duration) {
       errors.push({
         code: "beyond_duration",
@@ -178,7 +200,7 @@ export function evaluateYoutubeExportReadiness(input: {
   }
 
   const seen = new Set<number>();
-  for (const item of sorted) {
+  for (const item of items) {
     if (seen.has(item.timestamp)) {
       errors.push({
         code: "duplicate",

@@ -167,3 +167,51 @@ test("apply rebuild blocks linked video change", () => {
   if (!verified.ok) return;
   assert.notEqual(verified.payload.videoId, "vid2");
 });
+
+test("apply rebuild rejects non-monotonic canonical chapters at apply time", () => {
+  process.env.ADMIN_SECRET = process.env.ADMIN_SECRET || "test-admin-secret";
+
+  const nonMonotonic = [
+    { name: "Initial Mix", steps: [""], startTimestamp: 47, chapterLabel: "Initial Mix" },
+    { name: "Activate Yeast", steps: [""], startTimestamp: 0, chapterLabel: "Activate Yeast" },
+    { name: "Shape", steps: [""], startTimestamp: 89, chapterLabel: "Shape" },
+  ];
+  const remoteDescription = "Recipe intro copy.\n\n#bread";
+  const exportResult = buildYoutubeChapterExport({
+    videoId: "vid1",
+    instructions: nonMonotonic,
+    videoDurationSeconds: 400,
+    introLabel: "Introduction",
+  });
+  assert.equal(exportResult.ready, false);
+
+  const patch = buildDescriptionPatchPlan({
+    currentDescription: remoteDescription,
+    exportItems: exportResult.items,
+  });
+  const { previewToken } = createChapterSyncPreviewToken({
+    recipeId: "recipe1",
+    videoId: "vid1",
+    introLabel: "Introduction",
+    beforeHash: descriptionContentHash(remoteDescription),
+    remoteEtag: null,
+    canonicalFingerprint: canonicalChapterFingerprint(nonMonotonic),
+    exportFingerprint: youtubeExportFingerprint("Introduction", exportResult.items),
+    replacementStrategy: patch.strategy,
+    replacementBlockHash: chapterBlockHash(patch.existingChapterBlock ?? ""),
+  });
+  const verified = verifyChapterSyncPreviewToken(previewToken);
+  assert.equal(verified.ok, true);
+  if (!verified.ok) return;
+
+  const rebuilt = rebuildChapterSyncApplyPlan({
+    snapshot: verified.payload,
+    instructions: nonMonotonic,
+    videoDurationSeconds: 400,
+    remoteDescription,
+  });
+  assert.equal(rebuilt.ok, false);
+  if (!rebuilt.ok) {
+    assert.equal(rebuilt.code, "not_ready");
+  }
+});
