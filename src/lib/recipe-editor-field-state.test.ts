@@ -4,6 +4,8 @@ import {
   fieldNeedsHumanReview,
   isFieldProtectedFromBulkAi,
   legacyConfidenceToSource,
+  resolveActiveFieldAiAnnotation,
+  resolveActiveFieldSource,
   resolveFieldSource,
 } from "./ai-recipe/field-state";
 import { evaluateRecipeFields } from "./recipe-editor-field-state";
@@ -85,12 +87,88 @@ test("optional empty holiday is ai-fillable but not blocking", () => {
   assert.ok(evaluation.counts.aiFillableEmpty >= 1);
 });
 
+test("cleared AI field hides stale inferred source and review count", () => {
+  const meta = {
+    generatedByAI: true,
+    sourceType: "youtube" as const,
+    sourceUrl: "",
+    generatedAt: "",
+    model: "",
+    schemaVersion: "",
+    verificationStatus: "unverified" as const,
+    confidenceByPath: {
+      "values.holiday": {
+        confidence: "HIGH_CONFIDENCE_INFERENCE" as const,
+        sourceNote: "Targeted AI fill",
+      },
+    },
+    summary: { verified: 0, inferred: 1, estimated: 0, unknown: 0 },
+    fieldProvenance: {
+      "values.holiday": {
+        aiGenerated: true,
+        aiGeneratedValue: "Christmas",
+        humanModifiedAfterGeneration: true,
+        reviewState: "edited" as const,
+        source: "staff" as const,
+        originalAi: { value: "Christmas", source: "inferred" as const },
+      },
+    },
+  };
+  assert.equal(resolveActiveFieldSource("values.holiday", meta, true), undefined);
+  assert.deepEqual(resolveActiveFieldAiAnnotation("values.holiday", meta, true), {});
+  const evaluation = evaluateRecipeFields({
+    fields: [{ key: "holiday", label: "Season / holiday", kind: "text", required: false }],
+    title: "Bread",
+    excerpt: "",
+    categoryIds: [],
+    values: { holiday: "" },
+    aiMeta: meta,
+    typeFields: [{ key: "holiday", label: "Season / holiday", kind: "text", required: false, helpText: "", options: [] }],
+  });
+  const holidayNode = evaluation.nodes.find((node) => node.path === "values.holiday");
+  assert.ok(holidayNode);
+  assert.equal(holidayNode?.completeness, "missing");
+  assert.equal(holidayNode?.needsReview, false);
+  assert.equal(holidayNode?.source, undefined);
+  assert.equal(holidayNode?.aiFillEligible, true);
+  assert.equal(evaluation.counts.needsReview, 0);
+});
+
 test("applyValueAtEditorPath updates nested instruction step", () => {
   const values = {
     instructions: [{ name: "Mix", steps: ["Combine flour", ""] }],
   };
   const next = applyValueAtEditorPath(values, "values.instructions.0.steps.1", "Knead until smooth");
   assert.equal(readValueAtEditorPath(next, "values.instructions.0.steps.1"), "Knead until smooth");
+});
+
+test("confirmed populated AI content with confirmed reviewState does not need review", () => {
+  const meta = {
+    generatedByAI: true,
+    sourceType: "youtube" as const,
+    sourceUrl: "",
+    generatedAt: "",
+    model: "",
+    schemaVersion: "",
+    verificationStatus: "unverified" as const,
+    confidenceByPath: {
+      "values.intro": { confidence: "HIGH_CONFIDENCE_INFERENCE" as const, sourceNote: "AI" },
+    },
+    summary: { verified: 0, inferred: 1, estimated: 0, unknown: 0 },
+    fieldProvenance: {
+      "values.intro": {
+        aiGenerated: true,
+        aiGeneratedValue: "Warm intro",
+        humanModifiedAfterGeneration: false,
+        reviewState: "confirmed" as const,
+        source: "inferred" as const,
+      },
+    },
+  };
+  assert.equal(
+    fieldNeedsHumanReview({ path: "values.intro", meta, isEmpty: false }),
+    false,
+  );
 });
 
 test("staff verification blocked when required fields missing", () => {

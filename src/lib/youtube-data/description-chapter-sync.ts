@@ -41,7 +41,7 @@ export function formatYoutubeChapterBlock(chapters: RecipeYoutubeTimestamp[]) {
 
 /** Strip legacy Mesa HTML blocks and leading native chapter runs (read paths only). */
 export function stripManagedChapterBlocks(description: string) {
-  let next = description.replace(
+  const next = description.replace(
     new RegExp(
       `${escapeRegExp(LEGACY_MESA_BLOCK_START)}[\\s\\S]*?${escapeRegExp(LEGACY_MESA_BLOCK_END)}\\s*`,
       "g",

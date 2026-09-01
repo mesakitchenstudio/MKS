@@ -230,7 +230,7 @@ export async function runChapterSyncPreview(input: {
     ),
   );
 
-  const { previewId, previewToken, expiresAt } = createChapterSyncPreviewToken({
+  const { previewId, previewToken } = createChapterSyncPreviewToken({
     recipeId: recipe.id,
     videoId,
     introLabel,

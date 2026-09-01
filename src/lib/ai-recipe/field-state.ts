@@ -49,6 +49,27 @@ export function resolveFieldReviewState(
   return "unreviewed";
 }
 
+/** Active display source — empty fields never show stale AI provenance badges. */
+export function resolveActiveFieldSource(
+  path: string,
+  meta: RecipeAiMeta | null | undefined,
+  isEmpty: boolean,
+): FieldSource | undefined {
+  if (isEmpty) return undefined;
+  return resolveFieldSource(path, meta);
+}
+
+/** Active confidence annotation — cleared fields must not show INFERRED / From video badges. */
+export function resolveActiveFieldAiAnnotation(
+  path: string,
+  meta: RecipeAiMeta | null | undefined,
+  isEmpty: boolean,
+): { confidence?: import("@/lib/ai-recipe/types").AiConfidence; sourceNote?: string } {
+  if (isEmpty || !meta?.confidenceByPath?.[path]) return {};
+  const row = meta.confidenceByPath[path];
+  return { confidence: row.confidence, sourceNote: row.sourceNote };
+}
+
 export function resolveFieldSource(
   path: string,
   meta: RecipeAiMeta | null | undefined,
@@ -77,7 +98,7 @@ export function fieldNeedsHumanReview(input: {
   }
 
   // reviewState === "unreviewed"
-  const source = resolveFieldSource(input.path, input.meta);
+  const source = resolveActiveFieldSource(input.path, input.meta, false);
   if (source === "staff") return false;
   if (source === "from_video" || source === "inferred" || source === "template") {
     return true;

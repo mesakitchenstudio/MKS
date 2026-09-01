@@ -7,6 +7,8 @@ import {
   isFieldLocked,
   isFieldProtectedFromBulkAi,
 } from "@/lib/ai-recipe/field-state";
+import { recipeFieldIsEmpty } from "@/lib/ai-recipe/field-ai-registry";
+import { emptyAiSummary, tallyConfidence } from "@/lib/ai-recipe/types";
 import {
   serializeYoutubeMetadataEditorState,
   youtubeMetadataToEditorState,
@@ -71,7 +73,17 @@ export function noteHumanEditorChange(
   path: string,
   nextValue: unknown,
 ): RecipeAiMeta | null {
-  if (!meta?.fieldProvenance?.[path]) return meta;
+  if (!meta) return meta;
+
+  if (isMeaningfullyEmptyEditorPath(path, nextValue)) {
+    let updated: RecipeAiMeta | null = meta;
+    if (meta.fieldProvenance?.[path]) {
+      updated = markFieldHumanModified(meta, path, nextValue);
+    }
+    return stripActiveConfidenceAnnotation(updated ?? meta, path);
+  }
+
+  if (!meta.fieldProvenance?.[path]) return meta;
   const provenance = meta.fieldProvenance[path];
   if (provenance.humanModifiedAfterGeneration) return meta;
   if (aiValuesEqual(provenance.aiGeneratedValue, nextValue)) return meta;
@@ -82,6 +94,30 @@ export function noteHumanEditorChange(
   if (previousEmpty && nextEmpty) return meta;
 
   return markFieldHumanModified(meta, path, nextValue);
+}
+
+function isMeaningfullyEmptyEditorPath(path: string, value: unknown): boolean {
+  if (path === "title" || path === "excerpt" || path === "slug") {
+    return !String(value ?? "").trim();
+  }
+  if (path === "categoryIds") {
+    return !Array.isArray(value) || value.length === 0;
+  }
+  if (path.startsWith("values.")) {
+    return recipeFieldIsEmpty({ path, kind: "text", value });
+  }
+  return isBlankAiStructuredValue(value);
+}
+
+function stripActiveConfidenceAnnotation(meta: RecipeAiMeta, path: string): RecipeAiMeta {
+  if (!meta.confidenceByPath?.[path]) return meta;
+  const confidenceByPath = { ...meta.confidenceByPath };
+  delete confidenceByPath[path];
+  const summary = emptyAiSummary();
+  for (const row of Object.values(confidenceByPath)) {
+    if (row?.confidence) tallyConfidence(row.confidence, summary);
+  }
+  return { ...meta, confidenceByPath, summary };
 }
 
 /** Empty ingredient/instruction/namedNotes placeholders (including stacks of blank groups). */

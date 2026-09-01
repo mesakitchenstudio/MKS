@@ -1,9 +1,10 @@
-import { fieldValueHasContent, nutritionHasPublicContent } from "@/lib/field-content";
+import { nutritionHasPublicContent } from "@/lib/field-content";
 import {
   fieldNeedsHumanReview,
+  isFieldLocked,
   isFieldProtectedFromBulkAi,
   resolveFieldReviewState,
-  resolveFieldSource,
+  resolveActiveFieldSource,
   type AttentionLevel,
   type FieldCompleteness,
   type FieldReviewState,
@@ -112,11 +113,12 @@ function buildScalarNode(input: {
   ));
   const completeness: FieldCompleteness = empty ? "missing" : "filled";
   const def = getRecipeFieldAiDef(input.path, input.typeFields);
+  const locked = isFieldLocked(input.path, input.aiMeta);
   const aiFillEligible =
     Boolean(def) &&
     isRecipeFieldAiSupported(input.path, input.typeFields) &&
-    !isFieldProtectedFromBulkAi(input.path, input.aiMeta) &&
-    empty;
+    empty &&
+    !locked;
 
   return {
     path: input.path,
@@ -128,7 +130,7 @@ function buildScalarNode(input: {
     required,
     blocking,
     attentionLevel,
-    source: resolveFieldSource(input.path, input.aiMeta),
+    source: resolveActiveFieldSource(input.path, input.aiMeta, empty),
     reviewState: resolveFieldReviewState(input.path, input.aiMeta),
     needsReview: fieldNeedsHumanReview({ path: input.path, meta: input.aiMeta, isEmpty: empty }),
     aiFillEligible,
@@ -171,7 +173,7 @@ function expandNamedNotesNodes(input: {
         required: false,
         blocking: false,
         attentionLevel: "recommended",
-        source: resolveFieldSource(notePath, input.aiMeta),
+        source: resolveActiveFieldSource(notePath, input.aiMeta, true),
         reviewState: resolveFieldReviewState(notePath, input.aiMeta),
         needsReview: fieldNeedsHumanReview({ path: notePath, meta: input.aiMeta, isEmpty: true }),
         aiFillEligible:
@@ -192,7 +194,7 @@ function expandNamedNotesNodes(input: {
         required: false,
         blocking: false,
         attentionLevel: "recommended",
-        source: resolveFieldSource(namePath, input.aiMeta),
+        source: resolveActiveFieldSource(namePath, input.aiMeta, true),
         reviewState: resolveFieldReviewState(namePath, input.aiMeta),
         needsReview: fieldNeedsHumanReview({ path: namePath, meta: input.aiMeta, isEmpty: true }),
         aiFillEligible:
@@ -231,7 +233,7 @@ function expandInstructionNodes(input: {
         required: false,
         blocking: false,
         attentionLevel: "recommended",
-        source: resolveFieldSource(namePath, input.aiMeta),
+        source: resolveActiveFieldSource(namePath, input.aiMeta, true),
         reviewState: resolveFieldReviewState(namePath, input.aiMeta),
         needsReview: false,
         aiFillEligible: !isFieldProtectedFromBulkAi(namePath, input.aiMeta),
@@ -257,7 +259,7 @@ function expandInstructionNodes(input: {
         required: false,
         blocking: false,
         attentionLevel: "recommended",
-        source: resolveFieldSource(stepPath, input.aiMeta),
+        source: resolveActiveFieldSource(stepPath, input.aiMeta, true),
         reviewState: resolveFieldReviewState(stepPath, input.aiMeta),
         needsReview: false,
         aiFillEligible: !isFieldProtectedFromBulkAi(stepPath, input.aiMeta),
@@ -299,7 +301,7 @@ function expandIngredientNodes(input: {
         required: false,
         blocking: false,
         attentionLevel: "recommended",
-        source: resolveFieldSource(namePath, input.aiMeta),
+        source: resolveActiveFieldSource(namePath, input.aiMeta, true),
         reviewState: resolveFieldReviewState(namePath, input.aiMeta),
         needsReview: false,
         aiFillEligible: !isFieldProtectedFromBulkAi(namePath, input.aiMeta),
@@ -329,7 +331,7 @@ function expandIngredientNodes(input: {
           required: false,
           blocking: false,
           attentionLevel: "recommended",
-          source: resolveFieldSource(cellPath, input.aiMeta),
+          source: resolveActiveFieldSource(cellPath, input.aiMeta, true),
           reviewState: resolveFieldReviewState(cellPath, input.aiMeta),
           needsReview: false,
           aiFillEligible: !isFieldProtectedFromBulkAi(cellPath, input.aiMeta),
@@ -416,7 +418,7 @@ export function evaluateRecipeFields(input: EvalInput & { typeFields?: SchemaFie
         required: false,
         blocking: false,
         attentionLevel: "recommended",
-        source: resolveFieldSource(basic.path, input.aiMeta),
+        source: resolveActiveFieldSource(basic.path, input.aiMeta, false),
         reviewState: resolveFieldReviewState(basic.path, input.aiMeta),
         needsReview: true,
         aiFillEligible: true,
@@ -636,7 +638,7 @@ export function evaluateRecipeFields(input: EvalInput & { typeFields?: SchemaFie
         required: field.required,
         blocking: false,
         attentionLevel: field.required ? "required" : "recommended",
-        source: resolveFieldSource(path, input.aiMeta),
+        source: resolveActiveFieldSource(path, input.aiMeta, false),
         reviewState: resolveFieldReviewState(path, input.aiMeta),
         needsReview: false,
         aiFillEligible: true,
@@ -653,7 +655,7 @@ export function evaluateRecipeFields(input: EvalInput & { typeFields?: SchemaFie
         required: field.required,
         blocking: false,
         attentionLevel: field.required ? "required" : "recommended",
-        source: resolveFieldSource(path, input.aiMeta),
+        source: resolveActiveFieldSource(path, input.aiMeta, false),
         reviewState: resolveFieldReviewState(path, input.aiMeta),
         needsReview: true,
         aiFillEligible: false,

@@ -1,10 +1,9 @@
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import {
-  buildRecipeAiFieldRegistry,
   recipeFieldIsEmpty,
   type RecipeAiFieldDef,
 } from "@/lib/ai-recipe/field-ai-registry";
-import { isFieldProtectedFromBulkAi } from "@/lib/ai-recipe/field-state";
+import { isFieldLocked, isFieldProtectedFromBulkAi } from "@/lib/ai-recipe/field-state";
 import { evaluateRecipeFields } from "@/lib/recipe-editor-field-state";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
 
@@ -51,60 +50,6 @@ function isWholeProtectedKey(path: string, key: string): boolean {
 
 function isVerifiedPath(meta: RecipeAiMeta | null | undefined, path: string): boolean {
   return confidenceAt(meta, path) === "VERIFIED";
-}
-
-function valueForPath(input: {
-  path: string;
-  key: string;
-  title: string;
-  excerpt: string;
-  categoryIds?: string[];
-  values: Record<string, unknown>;
-}): unknown {
-  if (input.path === "title") return input.title;
-  if (input.path === "excerpt") return input.excerpt;
-  if (input.path === "categoryIds") return input.categoryIds ?? [];
-  return input.values[input.key];
-}
-
-function pushIfMissing(
-  missing: MissingAiField[],
-  input: {
-    def: RecipeAiFieldDef;
-    value: unknown;
-    meta: RecipeAiMeta | null;
-    title: string;
-    excerpt: string;
-    categoryIds?: string[];
-  },
-) {
-  const { def, meta } = input;
-  if (def.strategy === "none" || def.strategy === "source_owned") return;
-  if (PROTECTED_AI_FILL_KEYS.has(def.key)) return;
-  if (isFieldProtectedFromBulkAi(def.path, meta)) return;
-
-  const empty = recipeFieldIsEmpty({
-    path: def.path,
-    kind: def.kind,
-    value: input.value,
-    title: input.title,
-    excerpt: input.excerpt,
-    categoryIds: input.categoryIds,
-  });
-  const needsInput = confidenceAt(meta, def.path) === "UNKNOWN";
-
-  if (!empty && !needsInput) return;
-  if (!empty && isVerifiedPath(meta, def.path)) return;
-
-  missing.push({
-    path: def.path,
-    key: def.key,
-    label: def.label,
-    kind: def.kind,
-    reason: empty ? "empty" : "needs_input",
-    section: def.section,
-    strategy: def.strategy,
-  });
 }
 
 function isTargetedOnlyGranularPath(path: string): boolean {
@@ -192,7 +137,6 @@ export function isFieldEligibleForTargetedFill(input: {
   const meta = input.aiMeta ?? null;
   if (input.key === "slug") return false;
   if (isWholeProtectedKey(input.path, input.key)) return false;
-  if (isFieldProtectedFromBulkAi(input.path, meta) && !input.allowRepopulate) return false;
 
   const empty = recipeFieldIsEmpty({
     path: input.path,
@@ -203,7 +147,9 @@ export function isFieldEligibleForTargetedFill(input: {
     categoryIds: input.categoryIds,
   });
 
-  if (empty) return true;
+  if (empty && !isFieldLocked(input.path, meta)) return true;
+  if (isFieldProtectedFromBulkAi(input.path, meta) && !input.allowRepopulate) return false;
+
   if (input.allowRepopulate) return true;
   if (confidenceAt(meta, input.path) === "UNKNOWN") return true;
   if (isVerifiedPath(meta, input.path)) return false;
