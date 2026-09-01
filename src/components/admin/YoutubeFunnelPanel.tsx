@@ -322,10 +322,10 @@ export function YoutubeFunnelPanel({
                       Played
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
-                      Watch YT
+                      Watch on YouTube
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
-                      Subscribe
+                      Subscribe CTA
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
                       {RECIPE_MULTI_VIDEO_VISITORS_LABEL}
@@ -391,9 +391,9 @@ export function YoutubeFunnelPanel({
                       <dd>{row.uniquePageviewVisitors.toLocaleString("en-US")}</dd>
                       <dt className="text-muted">Played</dt>
                       <dd>{row.playOutcomeLabel}</dd>
-                      <dt className="text-muted">Watch YT</dt>
+                      <dt className="text-muted">Watch on YouTube</dt>
                       <dd>{row.watchOutcomeLabel}</dd>
-                      <dt className="text-muted">Subscribe</dt>
+                      <dt className="text-muted">Subscribe CTA</dt>
                       <dd>{row.subscribeOutcomeLabel}</dd>
                       <dt className="text-muted">{RECIPE_MULTI_VIDEO_VISITORS_LABEL}</dt>
                       <dd>{row.multiVideoVisitorsLabel}</dd>
