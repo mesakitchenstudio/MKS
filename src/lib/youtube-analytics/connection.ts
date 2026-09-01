@@ -10,6 +10,10 @@ import {
   YT_ANALYTICS_SCOPES,
 } from "@/lib/youtube-analytics/oauth";
 import { analyticsScopesAreSufficient } from "@/lib/youtube-analytics/oauth-scopes";
+import {
+  canReadYoutubeAnalytics,
+  canWriteYoutubeVideoMetadata,
+} from "@/lib/youtube-analytics/oauth-scopes";
 import { resolveYoutubeChannelId } from "@/lib/youtube-data/config";
 import type { VideoAnalyticsLoadState } from "@/lib/youtube-analytics/status";
 
@@ -28,6 +32,8 @@ export type AnalyticsConnectionPublic = {
   videoMetricsError: string;
   scopesSufficient: boolean;
   scopes: string;
+  canReadAnalytics: boolean;
+  canWriteVideoMetadata: boolean;
 };
 
 export async function getAnalyticsConnectionPublic(): Promise<AnalyticsConnectionPublic> {
@@ -49,6 +55,8 @@ export async function getAnalyticsConnectionPublic(): Promise<AnalyticsConnectio
       videoMetricsError: row?.videoMetricsError || "",
       scopesSufficient: false,
       scopes: row?.scopes || "",
+      canReadAnalytics: false,
+      canWriteVideoMetadata: false,
     };
   }
   return {
@@ -64,6 +72,8 @@ export async function getAnalyticsConnectionPublic(): Promise<AnalyticsConnectio
     videoMetricsError: row.videoMetricsError,
     scopesSufficient: analyticsScopesAreSufficient(row.scopes),
     scopes: row.scopes,
+    canReadAnalytics: canReadYoutubeAnalytics(row.scopes),
+    canWriteVideoMetadata: canWriteYoutubeVideoMetadata(row.scopes),
   };
 }
 

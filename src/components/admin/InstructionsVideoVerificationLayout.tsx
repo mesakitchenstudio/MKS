@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChapterTimestampSuggestionsPanel } from "@/components/admin/ChapterTimestampSuggestionsPanel";
+import { YoutubeChapterSyncPanel } from "@/components/admin/YoutubeChapterSyncPanel";
 import { InstructionVideoWorkspace } from "@/components/admin/InstructionVideoWorkspace";
 import {
   InstructionVideoWorkspaceProvider,
@@ -74,6 +75,8 @@ type Props = {
     groups: InstructionGroupWithChapters[];
     provenancePaths: Record<string, { source: FieldSource; value: unknown }>;
   }) => void;
+  recipeId?: string;
+  isDirty?: boolean;
 };
 
 function VideoPanelRestoreButton() {
@@ -235,6 +238,8 @@ export function InstructionsVideoVerificationLayout({
   title,
   aiMeta,
   onApplyChapterSuggestions,
+  recipeId,
+  isDirty = false,
 }: Props) {
   const groups = useMemo(
     () => normalizeInstructionGroups(values.instructions),
@@ -376,6 +381,15 @@ export function InstructionsVideoVerificationLayout({
           aiMeta={aiMeta}
           videoDurationSeconds={videoDurationSeconds}
           onApplySuggestions={onApplyChapterSuggestions}
+        />
+      ) : null}
+
+      {recipeId ? (
+        <YoutubeChapterSyncPanel
+          recipeId={recipeId}
+          values={values}
+          isDirty={isDirty}
+          videoDurationSeconds={videoDurationSeconds}
         />
       ) : null}
 

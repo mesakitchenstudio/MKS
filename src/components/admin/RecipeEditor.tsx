@@ -2038,6 +2038,8 @@ export function RecipeEditor({
             title={title}
             aiMeta={aiMeta}
             onApplyChapterSuggestions={handleApplyChapterSuggestions}
+            recipeId={recipeId}
+            isDirty={isDirty && !saved}
           />
         ) : (
           <KindInput

@@ -1,9 +1,12 @@
 import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { YouTubeAnalyticsError } from "@/lib/youtube-analytics/errors";
-import { YT_ANALYTICS_SCOPES } from "@/lib/youtube-analytics/oauth-scopes";
+import {
+  YT_ANALYTICS_SCOPES,
+  YT_CHAPTER_SYNC_SCOPES,
+} from "@/lib/youtube-analytics/oauth-scopes";
 
-export { YT_ANALYTICS_SCOPES } from "@/lib/youtube-analytics/oauth-scopes";
+export { YT_ANALYTICS_SCOPES, YT_CHAPTER_SYNC_SCOPES } from "@/lib/youtube-analytics/oauth-scopes";
 
 export const OAUTH_STATE_COOKIE = "mesa_yt_analytics_oauth_state";
 
@@ -35,13 +38,16 @@ export function hashOAuthState(state: string): string {
 export function buildAnalyticsAuthUrl(input: {
   origin: string;
   state: string;
+  /** Request union of Analytics + YouTube write scopes for chapter sync. */
+  includeWriteScope?: boolean;
 }): string {
   const { clientId } = youtubeAnalyticsOAuthClient();
+  const scopes = input.includeWriteScope ? YT_CHAPTER_SYNC_SCOPES : YT_ANALYTICS_SCOPES;
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: youtubeAnalyticsRedirectUri(input.origin),
     response_type: "code",
-    scope: YT_ANALYTICS_SCOPES.join(" "),
+    scope: scopes.join(" "),
     access_type: "offline",
     // Always show account + consent so Owners can pick the channel-owner Google account.
     prompt: "select_account consent",

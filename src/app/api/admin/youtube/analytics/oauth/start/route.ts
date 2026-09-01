@@ -27,9 +27,11 @@ export async function GET(request: Request) {
 
   try {
     const state = createOAuthState();
+    const includeWriteScope = new URL(request.url).searchParams.get("write") === "1";
     const authUrl = buildAnalyticsAuthUrl({
       origin: requestOrigin(request),
       state,
+      includeWriteScope,
     });
 
     const jar = await cookies();

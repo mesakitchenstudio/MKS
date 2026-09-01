@@ -1,77 +1,94 @@
 import type { RecipeYoutubeTimestamp } from "@/data/youtube-types";
-import { formatClock } from "@/lib/recipe-stage-video-help";
-import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
+import {
+  formatYoutubeChapterBlock as formatExportChapterBlock,
+  buildYoutubeChapterExport,
+} from "@/lib/youtube-chapter-sync/export";
+import {
+  buildDescriptionPatchPlan,
+  detectChapterBlocks,
+  LEGACY_MESA_BLOCK_END,
+  LEGACY_MESA_BLOCK_START,
+  stripLegacyMesaHtmlMarkers,
+} from "@/lib/youtube-chapter-sync/description-patch";
+import { youtubeChapterSyncEnabled } from "@/lib/youtube-chapter-sync/sync-metadata";
 
-export const MESA_CHAPTER_BLOCK_START = "<!-- mesa-chapters:start -->";
-export const MESA_CHAPTER_BLOCK_END = "<!-- mesa-chapters:end -->";
+export {
+  LEGACY_MESA_BLOCK_START as MESA_CHAPTER_BLOCK_START,
+  LEGACY_MESA_BLOCK_END as MESA_CHAPTER_BLOCK_END,
+} from "@/lib/youtube-chapter-sync/description-patch";
+
+/** @deprecated Use `youtubeChapterSyncEnabled` from sync-metadata. */
+export { youtubeChapterSyncEnabled };
 
 /**
- * YouTube description chapter sync helpers.
- * Does NOT call the YouTube API — preview/diff only until write OAuth is enabled.
+ * Legacy preview helper — no HTML markers in PR6 exports.
  */
-
-export function youtubeChapterSyncEnabled() {
-  return process.env.YOUTUBE_CHAPTER_SYNC_ENABLED === "true";
-}
-
-export function formatYoutubeChapterBlock(chapters: RecipeYoutubeTimestamp[]) {
-  const lines = chapters
+export function formatYoutubeChapterBlockFromTimestamps(chapters: RecipeYoutubeTimestamp[]) {
+  const items = chapters
     .filter((row) => row.label.trim() && row.time >= 0)
     .sort((a, b) => a.time - b.time)
-    .map((row) => `${formatClock(row.time)} ${row.label.trim()}`);
-  if (!lines.length) return "";
-  return [MESA_CHAPTER_BLOCK_START, ...lines, MESA_CHAPTER_BLOCK_END].join("\n");
+    .map((row) => ({
+      timestamp: row.time,
+      label: row.label.trim(),
+      source: "mesa_section" as const,
+    }));
+  return formatExportChapterBlock(items);
 }
 
-/** Strip Mesa-managed blocks and any leading native timestamp chapter list. */
+/** @deprecated Use formatYoutubeChapterBlockFromTimestamps */
+export function formatYoutubeChapterBlock(chapters: RecipeYoutubeTimestamp[]) {
+  return formatYoutubeChapterBlockFromTimestamps(chapters);
+}
+
+/** Strip legacy Mesa HTML blocks and leading native chapter runs (read paths only). */
 export function stripManagedChapterBlocks(description: string) {
   let next = description.replace(
-    new RegExp(`${escapeRegExp(MESA_CHAPTER_BLOCK_START)}[\\s\\S]*?${escapeRegExp(MESA_CHAPTER_BLOCK_END)}\\s*`, "g"),
+    new RegExp(
+      `${escapeRegExp(LEGACY_MESA_BLOCK_START)}[\\s\\S]*?${escapeRegExp(LEGACY_MESA_BLOCK_END)}\\s*`,
+      "g",
+    ),
     "",
   );
 
-  const lines = next.split(/\r?\n/);
-  const kept: string[] = [];
-  let skippingChapterRun = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const isChapterLine = Boolean(
-      trimmed.match(/^(\d{1,2}(?::\d{2}){1,2})\s+.+/) ||
-        trimmed.match(/^\[(\d{1,2}(?::\d{2}){1,2})\]\s+.+/),
-    );
-    if (isChapterLine) {
-      skippingChapterRun = true;
-      continue;
-    }
-    if (skippingChapterRun && !trimmed) {
-      continue;
-    }
-    skippingChapterRun = false;
-    kept.push(line);
+  const blocks = detectChapterBlocks(next);
+  if (!blocks.length) return next.trim();
+
+  let result = next;
+  for (const block of [...blocks].sort((a, b) => b.start - a.start)) {
+    result = result.slice(0, block.start) + result.slice(block.end);
   }
-  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return result.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export function buildYoutubeDescriptionChapterPreview(input: {
   currentDescription: string;
   chapters: RecipeYoutubeTimestamp[];
+  videoId?: string;
 }) {
-  const body = stripManagedChapterBlocks(input.currentDescription);
-  const block = formatYoutubeChapterBlock(input.chapters);
-  const nextDescription = block ? `${body}\n\n${block}`.trim() : body;
-  const currentChapters = parseYoutubeDescriptionChapters(input.currentDescription).map((row) => ({
-    time: row.time,
-    label: row.label,
-  }));
+  const exportResult = buildYoutubeChapterExport({
+    videoId: input.videoId ?? "preview",
+    instructions: input.chapters.map((chapter) => ({
+      name: chapter.label,
+      steps: [""],
+      startTimestamp: chapter.time,
+      chapterLabel: chapter.label,
+    })),
+  });
+
+  const normalizedDescription = stripLegacyMesaHtmlMarkers(input.currentDescription);
+  const patch = buildDescriptionPatchPlan({
+    currentDescription: normalizedDescription,
+    exportItems: exportResult.items,
+  });
 
   return {
     currentDescription: input.currentDescription,
-    nextDescription,
-    bodyPreserved: body,
-    chapterBlock: block,
-    currentChapterCount: currentChapters.length,
-    nextChapterCount: input.chapters.length,
-    wouldChange: nextDescription !== input.currentDescription.trim(),
+    nextDescription: patch.proposedDescription,
+    bodyPreserved: stripManagedChapterBlocks(input.currentDescription),
+    chapterBlock: patch.generatedChapterBlock,
+    currentChapterCount: input.chapters.length,
+    nextChapterCount: exportResult.items.length,
+    wouldChange: patch.proposedDescription !== input.currentDescription.trim(),
   };
 }
 
