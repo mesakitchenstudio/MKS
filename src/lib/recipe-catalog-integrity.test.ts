@@ -15,8 +15,8 @@ describe("recipe catalog integrity", () => {
     assert.equal(CARD_TIME_SEMANTIC, "total");
     const horchata = recipes.find((recipe) => recipe.slug === "iced-horchata-coffee");
     assert.ok(horchata);
-    assert.equal(cardDisplayMinutes(horchata!), 15);
-    assert.equal(formatTime(cardDisplayMinutes(horchata!)), "15 min");
+    assert.equal(cardDisplayMinutes(horchata!), 255);
+    assert.equal(formatTime(cardDisplayMinutes(horchata!)), "4 h 15 min");
   });
 
   it("recognizes allowed public image hosts", () => {

@@ -77,3 +77,12 @@ test("rise and rest deduplication hides redundant rise extra", () => {
   assert.equal(publicRestLabel(recipe), "Proofing");
   assert.equal(publicRestMinutes(recipe), 60);
 });
+
+test("publicRestMinutes sums proofing and separate bench rest when windows differ", () => {
+  const recipe = {
+    ...baseRecipe({ restMinutes: 75 }),
+    extras: [{ key: "riseHours", label: "Proofing time", kind: "number", value: 8 }],
+  };
+  assert.equal(publicRestMinutes(recipe), 8 * 60 + 75);
+  assert.equal(totalMinutes(recipe), 20 + 75 + 8 * 60);
+});

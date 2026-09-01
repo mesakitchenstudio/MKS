@@ -27,7 +27,13 @@ export function shouldHideRiseHoursExtra(recipe: RecipeWithExtras): boolean {
 export function publicRestMinutes(recipe: RecipeWithExtras): number {
   const riseHours = riseHoursFromExtras(recipe);
   const rest = recipe.restMinutes ?? 0;
-  if (riseHours > 0 && (rest <= 0 || riseRestMinutesOverlap(recipe))) {
+  if (riseHours > 0 && riseRestMinutesOverlap(recipe)) {
+    return riseHours * 60;
+  }
+  if (riseHours > 0 && rest > 0) {
+    return riseHours * 60 + rest;
+  }
+  if (riseHours > 0) {
     return riseHours * 60;
   }
   return rest;

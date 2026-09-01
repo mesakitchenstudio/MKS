@@ -4,6 +4,7 @@ import { lessons } from "../src/data/lessons";
 import { recipes } from "../src/data/recipes";
 import { CORE_FIELDS, type FieldDefinition } from "../src/lib/fields";
 import { recipeToValues } from "../src/lib/recipe-map";
+import { mergeProductionRecipeContentPatches } from "../src/lib/production-recipe-content-patches";
 
 const prisma = new PrismaClient();
 
@@ -102,7 +103,9 @@ async function main() {
         featured: Boolean(recipe.featured),
         seasonal: Boolean(recipe.seasonal),
         publishedAt: new Date(recipe.publishedAt),
-        values: JSON.stringify(recipeToValues(recipe)),
+        values: JSON.stringify(
+          mergeProductionRecipeContentPatches(recipe.slug, recipeToValues(recipe)),
+        ),
         categories: {
           create: recipe.categories
             .map((slug) => dbCategories.find((category) => category.slug === slug))
