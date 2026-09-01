@@ -11,7 +11,10 @@ import {
   formatFunnelRate,
   funnelDateWindow,
 } from "@/lib/youtube-funnel/aggregate";
-import type { YoutubeFunnelDashboard } from "@/lib/youtube-funnel/types";
+import {
+  formatRecipeVisitorOutcome,
+} from "@/lib/youtube-funnel/funnel-display";
+import type { FunnelNoVideoTrafficRow, YoutubeFunnelDashboard } from "@/lib/youtube-funnel/types";
 import {
   DEFAULT_ANALYTICS_RANGE_DAYS,
   parseAnalyticsRangeDays,
@@ -30,71 +33,19 @@ function maskVisitorId(id: string) {
   return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
 }
 
-export async function loadYoutubeFunnelDashboard(input?: {
-  analyticsRangeDays?: AnalyticsRangeDays | string | number;
-  includeDiagnostics?: boolean;
-}): Promise<YoutubeFunnelDashboard> {
-  const rangeDays = parseAnalyticsRangeDays(
-    input?.analyticsRangeDays ?? DEFAULT_ANALYTICS_RANGE_DAYS,
-  );
-  const window = funnelDateWindow(rangeDays);
-  const db = getDb();
-  const { recipesWithVideo } = await buildRecipeVideoIndex({ includeDrafts: false });
-
-  const linkedSlugs = recipesWithVideo.map((r) => r.recipeSlug);
-  const linkedPaths = linkedSlugs.map(recipePath);
-
-  const [pageViews, events, latestPageview, latestFunnelEvent] = await Promise.all([
-    linkedPaths.length
-      ? db.guestPageView.findMany({
-          where: {
-            path: { in: linkedPaths },
-            createdAt: { gte: window.start, lt: window.endExclusive },
-          },
-          select: {
-            path: true,
-            visitorId: true,
-            userAgent: true,
-            visitor: { select: { userAgent: true } },
-          },
-        })
-      : Promise.resolve([]),
-    db.funnelEvent.findMany({
-      where: {
-        createdAt: { gte: window.start, lt: window.endExclusive },
-      },
-      select: {
-        visitorId: true,
-        name: true,
-        recipeSlug: true,
-        youtubeVideoId: true,
-        targetVideoId: true,
-        placement: true,
-        chapterLabel: true,
-        chapterTimeSeconds: true,
-        chapterIndex: true,
-      },
-    }),
-    input?.includeDiagnostics
-      ? db.guestPageView.findFirst({
-          where: linkedPaths.length ? { path: { in: linkedPaths } } : undefined,
-          orderBy: { createdAt: "desc" },
-          select: { path: true, createdAt: true, visitorId: true },
-        })
-      : Promise.resolve(null),
-    input?.includeDiagnostics
-      ? db.funnelEvent.findFirst({
-          orderBy: { createdAt: "desc" },
-          select: { name: true, recipeSlug: true, createdAt: true, visitorId: true },
-        })
-      : Promise.resolve(null),
-  ]);
-
+function aggregatePageviews(
+  rows: Array<{
+    path: string;
+    visitorId: string;
+    userAgent: string;
+    visitor: { userAgent: string };
+  }>,
+) {
   const pageviewsBySlug = new Map<string, { views: number; uniqueVisitors: number }>();
   const pageviewVisitorSet = new Set<string>();
-  let linkedRecipePageviews = 0;
+  let totalPageviews = 0;
 
-  for (const row of pageViews) {
+  for (const row of rows) {
     const ua = row.userAgent.trim() || row.visitor.userAgent.trim();
     if (!isHumanGuestUserAgent(ua)) continue;
     const slug = row.path.replace(/^\/recipes\//, "").split("/")[0] || "";
@@ -102,25 +53,111 @@ export async function loadYoutubeFunnelDashboard(input?: {
     const bucket = pageviewsBySlug.get(slug) || { views: 0, uniqueVisitors: 0 };
     bucket.views += 1;
     pageviewsBySlug.set(slug, bucket);
-    linkedRecipePageviews += 1;
+    totalPageviews += 1;
     pageviewVisitorSet.add(`${slug}::${row.visitorId}`);
   }
 
   for (const [slug, bucket] of pageviewsBySlug) {
-    const unique = new Set<string>();
+    let unique = 0;
     for (const key of pageviewVisitorSet) {
-      if (key.startsWith(`${slug}::`)) unique.add(key);
+      if (key.startsWith(`${slug}::`)) unique += 1;
     }
-    bucket.uniqueVisitors = unique.size;
+    bucket.uniqueVisitors = unique;
   }
 
   const uniquePageviewVisitors = new Set(
     [...pageviewVisitorSet].map((key) => key.split("::")[1] || ""),
   ).size;
 
+  return { pageviewsBySlug, pageviewVisitorSet, totalPageviews, uniquePageviewVisitors };
+}
+
+function formatRecipeOutcomeLabel(numerator: number, denominator: number): string {
+  const { fractionLabel, rateLabel } = formatRecipeVisitorOutcome(numerator, denominator);
+  return rateLabel ? `${fractionLabel} · ${rateLabel}` : fractionLabel;
+}
+
+export async function loadYoutubeFunnelDashboard(input?: {
+  analyticsRangeDays?: AnalyticsRangeDays | string | number;
+  includeDiagnostics?: boolean;
+  includeEditorTracking?: boolean;
+}): Promise<YoutubeFunnelDashboard> {
+  const rangeDays = parseAnalyticsRangeDays(
+    input?.analyticsRangeDays ?? DEFAULT_ANALYTICS_RANGE_DAYS,
+  );
+  const window = funnelDateWindow(rangeDays);
+  const db = getDb();
+  const { recipesWithVideo, recipesWithoutVideo } = await buildRecipeVideoIndex({
+    includeDrafts: false,
+  });
+
+  const linkedSlugs = recipesWithVideo.map((r) => r.recipeSlug);
+  const linkedPaths = linkedSlugs.map(recipePath);
+  const noVideoPaths = recipesWithoutVideo.map((r) => recipePath(r.slug));
+
+  const pageviewWhere = {
+    createdAt: { gte: window.start, lt: window.endExclusive },
+  };
+
+  const [linkedPageViews, noVideoPageViews, events, latestPageview, latestFunnelEvent] =
+    await Promise.all([
+      linkedPaths.length
+        ? db.guestPageView.findMany({
+            where: { path: { in: linkedPaths }, ...pageviewWhere },
+            select: {
+              path: true,
+              visitorId: true,
+              userAgent: true,
+              visitor: { select: { userAgent: true } },
+            },
+          })
+        : Promise.resolve([]),
+      noVideoPaths.length
+        ? db.guestPageView.findMany({
+            where: { path: { in: noVideoPaths }, ...pageviewWhere },
+            select: {
+              path: true,
+              visitorId: true,
+              userAgent: true,
+              visitor: { select: { userAgent: true } },
+            },
+          })
+        : Promise.resolve([]),
+      db.funnelEvent.findMany({
+        where: pageviewWhere,
+        select: {
+          visitorId: true,
+          name: true,
+          recipeSlug: true,
+          youtubeVideoId: true,
+          targetVideoId: true,
+          placement: true,
+          chapterLabel: true,
+          chapterTimeSeconds: true,
+          chapterIndex: true,
+        },
+      }),
+      input?.includeDiagnostics
+        ? db.guestPageView.findFirst({
+            where: linkedPaths.length ? { path: { in: linkedPaths } } : undefined,
+            orderBy: { createdAt: "desc" },
+            select: { path: true, createdAt: true, visitorId: true },
+          })
+        : Promise.resolve(null),
+      input?.includeDiagnostics || input?.includeEditorTracking
+        ? db.funnelEvent.findFirst({
+            orderBy: { createdAt: "desc" },
+            select: { name: true, recipeSlug: true, createdAt: true, visitorId: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+  const linkedPv = aggregatePageviews(linkedPageViews);
+  const noVideoPv = aggregatePageviews(noVideoPageViews);
+
   const summary = buildFunnelSummary({
-    uniquePageviewVisitors,
-    linkedRecipePageviews,
+    uniquePageviewVisitors: linkedPv.uniquePageviewVisitors,
+    linkedRecipePageviews: linkedPv.totalPageviews,
     events,
   });
 
@@ -131,49 +168,85 @@ export async function loadYoutubeFunnelDashboard(input?: {
       recipeTitle: r.recipeTitle,
       youtubeVideoId: r.videoId,
     })),
-    pageviewsBySlug,
+    pageviewsBySlug: linkedPv.pageviewsBySlug,
+    pageviewVisitorKeys: linkedPv.pageviewVisitorSet,
     events,
   });
 
+  const noVideoTraffic: FunnelNoVideoTrafficRow[] = recipesWithoutVideo
+    .map((recipe) => {
+      const pv = noVideoPv.pageviewsBySlug.get(recipe.slug) || {
+        views: 0,
+        uniqueVisitors: 0,
+      };
+      return {
+        recipeId: recipe.id,
+        recipeSlug: recipe.slug,
+        recipeTitle: recipe.title,
+        pageviews: pv.views,
+        uniquePageviewVisitors: pv.uniqueVisitors,
+      };
+    })
+    .filter((row) => row.uniquePageviewVisitors > 0)
+    .sort(
+      (a, b) =>
+        b.uniquePageviewVisitors - a.uniquePageviewVisitors ||
+        b.pageviews - a.pageviews ||
+        a.recipeTitle.localeCompare(b.recipeTitle),
+    );
+
   const placements = buildPlacementBreakdown(events);
   const hasFunnelEvents = events.length > 0;
+  const visitorDenom = summary.uniquePageviewVisitors;
 
   return {
     rangeDays,
     startDate: window.startDate,
     endDate: window.endDate,
-    trackingNote:
-      `UTC window ${window.startDate} → ${window.endDate} (includes today). ` +
-      "Linked recipe pageviews = raw GuestPageView rows. " +
-      "Visitor play rate / Visitor YouTube CTR / Visitor Subscribe CTR = unique visitors who did the action ÷ unique linked-recipe visitors (mks_guest). " +
-      "Continued-viewing visitor rate = visitors who interacted with ≥2 distinct videos ÷ visitors with ≥1 video interaction. " +
-      "Raw click/play counts are also shown; rates never use raw pageviews as the denominator.",
     summary,
     summaryDisplay: {
       linkedRecipePageviews: formatFunnelCount(summary.linkedRecipePageviews),
       uniquePageviewVisitors: formatFunnelCount(summary.uniquePageviewVisitors),
       videoPlays: formatFunnelCount(summary.videoPlays),
       uniquePlayVisitors: formatFunnelCount(summary.uniquePlayVisitors),
-      playRate: formatFunnelRate(summary.playRate),
+      playRate: formatFunnelRate(summary.playRate, visitorDenom),
       chapterClicks: formatFunnelCount(summary.chapterClicks),
+      uniqueChapterVisitors: formatFunnelCount(summary.uniqueChapterVisitors),
       watchOnYoutubeClicks: formatFunnelCount(summary.watchOnYoutubeClicks),
       uniqueWatchOnYoutubeVisitors: formatFunnelCount(summary.uniqueWatchOnYoutubeVisitors),
-      watchOnYoutubeCtr: formatFunnelRate(summary.watchOnYoutubeCtr),
+      watchOnYoutubeCtr: formatFunnelRate(summary.watchOnYoutubeCtr, visitorDenom),
       subscribeCtaClicks: formatFunnelCount(summary.subscribeCtaClicks),
       uniqueSubscribeVisitors: formatFunnelCount(summary.uniqueSubscribeVisitors),
-      subscribeCtr: formatFunnelRate(summary.subscribeCtr),
+      subscribeCtr: formatFunnelRate(summary.subscribeCtr, visitorDenom),
       watchNextClicks: formatFunnelCount(summary.watchNextClicks),
       uniqueWatchNextVisitors: formatFunnelCount(summary.uniqueWatchNextVisitors),
       continuedViewingSessions: formatFunnelCount(summary.continuedViewingSessions),
       videoInteractionSessions: formatFunnelCount(summary.videoInteractionSessions),
-      continuedViewingRate: formatFunnelRate(summary.continuedViewingRate),
+      continuedViewingRate: formatFunnelRate(
+        summary.continuedViewingRate,
+        summary.videoInteractionSessions,
+      ),
     },
     recipes: recipeRows.map((row) => ({
       ...row,
-      playRateLabel: formatFunnelRate(row.playRate),
-      watchCtrLabel: formatFunnelRate(row.watchCtr),
-      subscribeCtrLabel: formatFunnelRate(row.subscribeCtr),
+      playOutcomeLabel: formatRecipeOutcomeLabel(
+        row.uniquePlayVisitors,
+        row.uniquePageviewVisitors,
+      ),
+      watchOutcomeLabel: formatRecipeOutcomeLabel(
+        row.uniqueWatchVisitors,
+        row.uniquePageviewVisitors,
+      ),
+      subscribeOutcomeLabel: formatRecipeOutcomeLabel(
+        row.uniqueSubscribeVisitors,
+        row.uniquePageviewVisitors,
+      ),
+      continuedOutcomeLabel: formatRecipeOutcomeLabel(
+        row.uniqueContinuedVisitors,
+        row.uniquePageviewVisitors,
+      ),
     })),
+    noVideoTraffic,
     placements: placements.map((row) => ({
       placement: row.placement,
       label: row.label,
@@ -203,6 +276,17 @@ export async function loadYoutubeFunnelDashboard(input?: {
             guestPageview: "POST /api/analytics/guest (pageview: true)",
             funnelEvents: "POST /api/analytics/events",
           },
+        }
+      : undefined,
+    editorTracking: input?.includeEditorTracking
+      ? {
+          trackingActive: hasFunnelEvents || linkedPv.totalPageviews > 0,
+          lastEvent: latestFunnelEvent
+            ? {
+                name: latestFunnelEvent.name,
+                receivedAt: latestFunnelEvent.createdAt.toISOString(),
+              }
+            : null,
         }
       : undefined,
   };

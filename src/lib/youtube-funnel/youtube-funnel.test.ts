@@ -7,12 +7,20 @@ import {
   isFunnelEventName,
 } from "@/lib/funnel-analytics";
 import {
+  buildFunnelRecipeRows,
   buildFunnelSummary,
   computeContinuedViewing,
+  continuedViewingVisitorIds,
   formatFunnelRate,
   funnelDateWindow,
   uniqueVisitorsForEvents,
 } from "@/lib/youtube-funnel/aggregate";
+import {
+  formatContinuedViewingOutcome,
+  formatRecipeVisitorOutcome,
+  FUNNEL_LOW_SAMPLE_THRESHOLD,
+  isFunnelLowSample,
+} from "@/lib/youtube-funnel/funnel-display";
 import { analyticsDateRange } from "@/lib/youtube-analytics/ranges";
 
 describe("funnel-analytics", () => {
@@ -76,7 +84,7 @@ describe("funnel-analytics", () => {
 });
 
 describe("youtube-funnel aggregate", () => {
-  it("computes unique visitors and rates", () => {
+  it("computes unique visitors and parallel outcome rates", () => {
     const events = [
       { visitorId: "v1", name: "recipe_video_play", recipeSlug: "a", youtubeVideoId: "vid1", targetVideoId: "" },
       { visitorId: "v1", name: "recipe_video_play", recipeSlug: "a", youtubeVideoId: "vid1", targetVideoId: "" },
@@ -97,8 +105,29 @@ describe("youtube-funnel aggregate", () => {
     });
     assert.equal(summary.uniquePlayVisitors, 2);
     assert.equal(summary.playRate, 0.2);
-    assert.equal(formatFunnelRate(summary.playRate), "20.0%");
+    assert.equal(summary.uniqueWatchOnYoutubeVisitors, 1);
+    assert.equal(summary.watchOnYoutubeCtr, 0.1);
+    assert.equal(formatFunnelRate(summary.playRate, 10), "20%");
     assert.equal(formatFunnelRate(null), "—");
+  });
+
+  it("derives unique chapter-clicking visitors without schema changes", () => {
+    const events = [
+      { visitorId: "v1", name: "recipe_video_chapter_click", recipeSlug: "a" },
+      { visitorId: "v1", name: "recipe_video_chapter_click", recipeSlug: "a" },
+      { visitorId: "v2", name: "recipe_video_chapter_click", recipeSlug: "a" },
+    ];
+    const summary = buildFunnelSummary({
+      uniquePageviewVisitors: 5,
+      linkedRecipePageviews: 8,
+      events: events.map((e) => ({
+        ...e,
+        youtubeVideoId: "vid",
+        targetVideoId: "",
+      })),
+    });
+    assert.equal(summary.chapterClicks, 3);
+    assert.equal(summary.uniqueChapterVisitors, 2);
   });
 
   it("detects continued viewing across two distinct videos", () => {
@@ -138,6 +167,50 @@ describe("youtube-funnel aggregate", () => {
     assert.equal(multi.rate, 1);
   });
 
+  it("continuedViewingSessions counts unique visitors not browser sessions", () => {
+    const events = [
+      { visitorId: "a", name: "recipe_video_play", youtubeVideoId: "v1", targetVideoId: "" },
+      { visitorId: "a", name: "recipe_video_play", youtubeVideoId: "v2", targetVideoId: "" },
+      { visitorId: "b", name: "recipe_video_play", youtubeVideoId: "v1", targetVideoId: "" },
+    ];
+    const summary = buildFunnelSummary({
+      uniquePageviewVisitors: 10,
+      linkedRecipePageviews: 10,
+      events: events.map((e) => ({ ...e, recipeSlug: "x" })),
+    });
+    assert.equal(summary.continuedViewingSessions, 1);
+    assert.equal(summary.videoInteractionSessions, 2);
+    assert.equal(summary.continuedViewingRate, 0.5);
+    assert.equal(continuedViewingVisitorIds(events).size, 1);
+  });
+
+  it("aggregates recipe rows by visitors descending with visitor-first labels", () => {
+    const events = [
+      { visitorId: "v1", name: "recipe_video_play", recipeSlug: "a", youtubeVideoId: "vid1", targetVideoId: "" },
+      { visitorId: "v2", name: "recipe_video_play", recipeSlug: "b", youtubeVideoId: "vid2", targetVideoId: "" },
+      { visitorId: "v1", name: "recipe_watch_on_youtube_click", recipeSlug: "a", youtubeVideoId: "vid1", targetVideoId: "" },
+      { visitorId: "v1", name: "recipe_video_play", recipeSlug: "b", youtubeVideoId: "vid3", targetVideoId: "" },
+      { visitorId: "v1", name: "recipe_watch_next_click", recipeSlug: "b", youtubeVideoId: "vid3", targetVideoId: "vid4" },
+    ];
+    const pageviewVisitorKeys = new Set(["a::v1", "b::v1", "b::v2"]);
+    const rows = buildFunnelRecipeRows({
+      recipes: [
+        { recipeId: "1", recipeSlug: "a", recipeTitle: "Alpha", youtubeVideoId: "vid1" },
+        { recipeId: "2", recipeSlug: "b", recipeTitle: "Beta", youtubeVideoId: "vid2" },
+      ],
+      pageviewsBySlug: new Map([
+        ["a", { views: 3, uniqueVisitors: 1 }],
+        ["b", { views: 5, uniqueVisitors: 2 }],
+      ]),
+      pageviewVisitorKeys,
+      events,
+    });
+    assert.equal(rows[0]?.recipeSlug, "b");
+    assert.equal(rows[0]?.uniquePageviewVisitors, 2);
+    assert.equal(rows[0]?.uniqueContinuedVisitors, 1);
+    assert.equal(rows[1]?.uniquePlayVisitors, 1);
+  });
+
   it("funnel date window includes today UTC (unlike YouTube Analytics lag)", () => {
     const now = new Date("2026-08-30T15:00:00.000Z");
     const funnel = funnelDateWindow(7, now);
@@ -145,9 +218,41 @@ describe("youtube-funnel aggregate", () => {
     assert.equal(funnel.endDate, "2026-08-30");
     assert.equal(funnel.startDate, "2026-08-24");
     assert.equal(yt.endDate, "2026-08-29");
-    assert.ok(funnel.endExclusive.getTime() > now.getTime() || funnel.endExclusive.toISOString().startsWith("2026-08-31"));
-    // An event created "now" must fall inside [start, endExclusive).
     assert.ok(now.getTime() >= funnel.start.getTime());
     assert.ok(now.getTime() < funnel.endExclusive.getTime());
+  });
+});
+
+describe("youtube-funnel display", () => {
+  it("formats visitor-first outcomes with integer rates at low N", () => {
+    const outcome = formatRecipeVisitorOutcome(4, 5);
+    assert.equal(outcome.fractionLabel, "4 of 5 visitors");
+    assert.equal(outcome.rateLabel, "80%");
+    assert.equal(outcome.limitedSample, true);
+    assert.equal(formatFunnelRate(0.8, 5), "80%");
+    assert.equal(formatFunnelRate(0.812, 25), "81.2%");
+  });
+
+  it("uses video-interacting visitors as continued-viewing denominator", () => {
+    const outcome = formatContinuedViewingOutcome(2, 4);
+    assert.equal(outcome.headline, "2 continued-viewing visitors");
+    assert.equal(outcome.fractionLabel, "2 of 4 video-interacting visitors");
+    assert.equal(outcome.rateLabel, "50%");
+    assert.equal(outcome.limitedSample, true);
+  });
+
+  it("does not show misleading continued rate against pageview visitors", () => {
+    const pageviewDenom = 5;
+    const continued = 2;
+    const interacted = 4;
+    assert.notEqual(continued / pageviewDenom, continued / interacted);
+    const outcome = formatContinuedViewingOutcome(continued, interacted);
+    assert.match(outcome.fractionLabel, /video-interacting visitors/);
+  });
+
+  it("flags low sample below threshold", () => {
+    assert.equal(isFunnelLowSample(19), true);
+    assert.equal(isFunnelLowSample(FUNNEL_LOW_SAMPLE_THRESHOLD), false);
+    assert.equal(isFunnelLowSample(0), false);
   });
 });

@@ -1,11 +1,18 @@
 import type { FunnelRecipeRow, FunnelSummaryMetrics } from "@/lib/youtube-funnel/aggregate";
 import type { AnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
 
+export type FunnelNoVideoTrafficRow = {
+  recipeId: string;
+  recipeSlug: string;
+  recipeTitle: string;
+  pageviews: number;
+  uniquePageviewVisitors: number;
+};
+
 export type YoutubeFunnelDashboard = {
   rangeDays: AnalyticsRangeDays;
   startDate: string;
   endDate: string;
-  trackingNote: string;
   summary: FunnelSummaryMetrics;
   summaryDisplay: {
     linkedRecipePageviews: string;
@@ -14,6 +21,7 @@ export type YoutubeFunnelDashboard = {
     uniquePlayVisitors: string;
     playRate: string;
     chapterClicks: string;
+    uniqueChapterVisitors: string;
     watchOnYoutubeClicks: string;
     uniqueWatchOnYoutubeVisitors: string;
     watchOnYoutubeCtr: string;
@@ -28,11 +36,13 @@ export type YoutubeFunnelDashboard = {
   };
   recipes: Array<
     FunnelRecipeRow & {
-      playRateLabel: string;
-      watchCtrLabel: string;
-      subscribeCtrLabel: string;
+      playOutcomeLabel: string;
+      watchOutcomeLabel: string;
+      subscribeOutcomeLabel: string;
+      continuedOutcomeLabel: string;
     }
   >;
+  noVideoTraffic: FunnelNoVideoTrafficRow[];
   placements: Array<{
     placement: string;
     label: string;
@@ -40,7 +50,7 @@ export type YoutubeFunnelDashboard = {
     subscribeCtaClicks: string;
   }>;
   hasFunnelEvents: boolean;
-  /** Owner-only temporary diagnostics; omitted for other roles. */
+  /** Owner-only technical diagnostics; omitted for editors. */
   diagnostics?: {
     windowLabel: string;
     latestPageview: {
@@ -58,5 +68,10 @@ export type YoutubeFunnelDashboard = {
       guestPageview: string;
       funnelEvents: string;
     };
+  };
+  /** Editor-safe tracking status without endpoints or visitor identifiers. */
+  editorTracking?: {
+    trackingActive: boolean;
+    lastEvent: { name: string; receivedAt: string } | null;
   };
 };

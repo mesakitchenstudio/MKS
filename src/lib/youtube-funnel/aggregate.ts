@@ -23,6 +23,7 @@ export type FunnelSummaryMetrics = {
   subscribeCtr: number | null;
   watchNextClicks: number;
   uniqueWatchNextVisitors: number;
+  uniqueChapterVisitors: number;
   continuedViewingSessions: number;
   videoInteractionSessions: number;
   continuedViewingRate: number | null;
@@ -45,6 +46,8 @@ export type FunnelRecipeRow = {
   subscribeCtaClicks: number;
   uniqueSubscribeVisitors: number;
   subscribeCtr: number | null;
+  uniqueChapterVisitors: number;
+  uniqueContinuedVisitors: number;
   continuedWatchActions: number;
   watchNextClicks: number;
 };
@@ -68,8 +71,11 @@ function rate(numerator: number, denominator: number): number | null {
   return numerator / denominator;
 }
 
-export function formatFunnelRate(value: number | null): string {
+export function formatFunnelRate(value: number | null, denominator?: number): string {
   if (value === null || !Number.isFinite(value)) return "—";
+  if (typeof denominator === "number" && denominator > 0 && denominator < 20) {
+    return `${Math.round(value * 100)}%`;
+  }
   return `${(value * 100).toFixed(1)}%`;
 }
 
@@ -164,6 +170,48 @@ export function computeContinuedViewing(rows: Array<{
   return { continued, interacted, rate: rate(continued, interacted) };
 }
 
+/** Visitor IDs who interacted with ≥2 distinct Mesa youtubeVideoIds in the period. */
+export function continuedViewingVisitorIds(rows: Array<{
+  visitorId: string;
+  name: string;
+  youtubeVideoId: string;
+  targetVideoId: string;
+}>): Set<string> {
+  const byVisitor = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (
+      row.name !== "recipe_video_play" &&
+      row.name !== "recipe_watch_on_youtube_click" &&
+      row.name !== "recipe_watch_next_click"
+    ) {
+      continue;
+    }
+    const ids = byVisitor.get(row.visitorId) || new Set<string>();
+    if (row.youtubeVideoId) ids.add(row.youtubeVideoId);
+    if (row.name === "recipe_watch_next_click" && row.targetVideoId) {
+      ids.add(row.targetVideoId);
+    }
+    byVisitor.set(row.visitorId, ids);
+  }
+  const continued = new Set<string>();
+  for (const [visitorId, ids] of byVisitor) {
+    if (ids.size >= 2) continued.add(visitorId);
+  }
+  return continued;
+}
+
+export function pageviewVisitorIdsForSlug(
+  pageviewVisitorSet: Iterable<string>,
+  recipeSlug: string,
+): Set<string> {
+  const prefix = `${recipeSlug}::`;
+  const ids = new Set<string>();
+  for (const key of pageviewVisitorSet) {
+    if (key.startsWith(prefix)) ids.add(key.slice(prefix.length));
+  }
+  return ids;
+}
+
 export function buildFunnelSummary(input: {
   uniquePageviewVisitors: number;
   linkedRecipePageviews: number;
@@ -180,6 +228,7 @@ export function buildFunnelSummary(input: {
   const uniqueWatch = uniqueVisitorsForEvents(events, "recipe_watch_on_youtube_click");
   const uniqueSub = uniqueVisitorsForEvents(events, "recipe_youtube_subscribe_click");
   const uniqueWatchNext = uniqueVisitorsForEvents(events, "recipe_watch_next_click");
+  const uniqueChapter = uniqueVisitorsForEvents(events, "recipe_video_chapter_click");
   const continued = computeContinuedViewing(events);
   const denom = input.uniquePageviewVisitors;
 
@@ -190,6 +239,7 @@ export function buildFunnelSummary(input: {
     uniquePlayVisitors,
     playRate: rate(uniquePlayVisitors, denom),
     chapterClicks: countEvents(events, "recipe_video_chapter_click"),
+    uniqueChapterVisitors: uniqueChapter,
     watchOnYoutubeClicks: countEvents(events, "recipe_watch_on_youtube_click"),
     uniqueWatchOnYoutubeVisitors: uniqueWatch,
     watchOnYoutubeCtr: rate(uniqueWatch, denom),
@@ -212,6 +262,7 @@ export function buildFunnelRecipeRows(input: {
     youtubeVideoId: string;
   }>;
   pageviewsBySlug: Map<string, { views: number; uniqueVisitors: number }>;
+  pageviewVisitorKeys: Set<string>;
   events: Array<{
     visitorId: string;
     name: string;
@@ -220,6 +271,7 @@ export function buildFunnelRecipeRows(input: {
     targetVideoId: string;
   }>;
 }): FunnelRecipeRow[] {
+  const continuedIds = continuedViewingVisitorIds(input.events);
   const rows: FunnelRecipeRow[] = [];
   for (const recipe of input.recipes) {
     const pv = input.pageviewsBySlug.get(recipe.recipeSlug) || { views: 0, uniqueVisitors: 0 };
@@ -227,12 +279,13 @@ export function buildFunnelRecipeRows(input: {
     const uniquePlay = uniqueVisitorsForEvents(scoped, "recipe_video_play");
     const uniqueWatch = uniqueVisitorsForEvents(scoped, "recipe_watch_on_youtube_click");
     const uniqueSub = uniqueVisitorsForEvents(scoped, "recipe_youtube_subscribe_click");
+    const uniqueChapter = uniqueVisitorsForEvents(scoped, "recipe_video_chapter_click");
     const watchNextClicks = countEvents(scoped, "recipe_watch_next_click");
-    const continuedActions = scoped.filter(
-      (e) =>
-        e.name === "recipe_watch_next_click" ||
-        (e.name === "recipe_watch_on_youtube_click" && e.targetVideoId),
-    ).length;
+    const recipeVisitorIds = pageviewVisitorIdsForSlug(input.pageviewVisitorKeys, recipe.recipeSlug);
+    let uniqueContinued = 0;
+    for (const visitorId of recipeVisitorIds) {
+      if (continuedIds.has(visitorId)) uniqueContinued += 1;
+    }
 
     rows.push({
       recipeId: recipe.recipeId,
@@ -245,17 +298,24 @@ export function buildFunnelRecipeRows(input: {
       uniquePlayVisitors: uniquePlay,
       playRate: rate(uniquePlay, pv.uniqueVisitors),
       chapterClicks: countEvents(scoped, "recipe_video_chapter_click"),
+      uniqueChapterVisitors: uniqueChapter,
       watchOnYoutubeClicks: countEvents(scoped, "recipe_watch_on_youtube_click"),
       uniqueWatchVisitors: uniqueWatch,
       watchCtr: rate(uniqueWatch, pv.uniqueVisitors),
       subscribeCtaClicks: countEvents(scoped, "recipe_youtube_subscribe_click"),
       uniqueSubscribeVisitors: uniqueSub,
       subscribeCtr: rate(uniqueSub, pv.uniqueVisitors),
-      continuedWatchActions: continuedActions,
+      uniqueContinuedVisitors: uniqueContinued,
+      continuedWatchActions: watchNextClicks,
       watchNextClicks,
     });
   }
-  rows.sort((a, b) => b.pageviews - a.pageviews || a.recipeTitle.localeCompare(b.recipeTitle));
+  rows.sort(
+    (a, b) =>
+      b.uniquePageviewVisitors - a.uniquePageviewVisitors ||
+      b.pageviews - a.pageviews ||
+      a.recipeTitle.localeCompare(b.recipeTitle),
+  );
   return rows;
 }
 

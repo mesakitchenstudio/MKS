@@ -1,0 +1,65 @@
+/** Below this visitor denominator, show limited-sample messaging and integer rates only. */
+export const FUNNEL_LOW_SAMPLE_THRESHOLD = 20;
+
+export type VisitorOutcomeDisplay = {
+  fractionLabel: string;
+  rateLabel: string | null;
+  limitedSample: boolean;
+};
+
+export function isFunnelLowSample(denominator: number): boolean {
+  return denominator > 0 && denominator < FUNNEL_LOW_SAMPLE_THRESHOLD;
+}
+
+/** Visitor-first outcome from recipe-visitor base (parallel outcomes). */
+export function formatRecipeVisitorOutcome(
+  numerator: number,
+  recipeVisitorDenominator: number,
+): VisitorOutcomeDisplay {
+  const limitedSample = isFunnelLowSample(recipeVisitorDenominator);
+  const fractionLabel = `${numerator} of ${recipeVisitorDenominator} visitors`;
+  let rateLabel: string | null = null;
+  if (recipeVisitorDenominator > 0) {
+    const pct = Math.round((numerator / recipeVisitorDenominator) * 100);
+    rateLabel = `${pct}%`;
+  }
+  return { fractionLabel, rateLabel, limitedSample };
+}
+
+/** Continued viewing uses video-interaction visitors as denominator, not pageview visitors. */
+export function formatContinuedViewingOutcome(
+  continuedVisitors: number,
+  videoInteractionVisitors: number,
+): VisitorOutcomeDisplay & { headline: string } {
+  const limitedSample = isFunnelLowSample(videoInteractionVisitors);
+  const headline = `${continuedVisitors} continued-viewing visitor${continuedVisitors === 1 ? "" : "s"}`;
+  const fractionLabel =
+    videoInteractionVisitors > 0
+      ? `${continuedVisitors} of ${videoInteractionVisitors} video-interacting visitors`
+      : `${continuedVisitors} continued-viewing visitors`;
+  let rateLabel: string | null = null;
+  if (videoInteractionVisitors > 0) {
+    const pct = Math.round((continuedVisitors / videoInteractionVisitors) * 100);
+    rateLabel = `${pct}%`;
+  }
+  return { headline, fractionLabel, rateLabel, limitedSample };
+}
+
+export function formatFunnelRateInteger(value: number | null, denominator: number): string {
+  if (value === null || !Number.isFinite(value) || denominator <= 0) return "—";
+  return `${Math.round(value * 100)}%`;
+}
+
+export const FUNNEL_METHODOLOGY = {
+  intro:
+    "Tracks first-party Mesa website actions around recipe videos. These are Mesa interactions, not confirmed YouTube views or subscriptions.",
+  lowSampleNotice: (visitorCount: number) =>
+    `${visitorCount} unique visitor${visitorCount === 1 ? "" : "s"} in this period. A single visitor can materially change these rates.`,
+} as const;
+
+export const FUNNEL_RATE_LABELS = {
+  playRate: "Play rate",
+  watchOnYoutubeRate: "Watch on YouTube visitor rate",
+  subscribeRate: "Subscribe CTA visitor rate",
+  continuedRate: "Continued-viewing rate",
+} as const;

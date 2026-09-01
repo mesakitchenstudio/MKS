@@ -53,6 +53,7 @@ export default async function AdminYoutubePage({
       ? loadYoutubeFunnelDashboard({
           analyticsRangeDays: rangeDays,
           includeDiagnostics: admin.role === "owner",
+          includeEditorTracking: admin.role === "editor",
         })
       : null,
     canCreateRecipes
