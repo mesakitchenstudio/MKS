@@ -3,7 +3,7 @@
  */
 
 export type VideoCoverageStats = {
-  /** Public synced videos with a Mesa recipe link. */
+  /** Public synced videos linked to any Mesa recipe (draft or published). */
   linkedCount: number;
   /** All public synced YouTubeVideo rows in Mesa DB. */
   syncedPublicVideoCount: number;

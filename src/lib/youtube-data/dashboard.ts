@@ -278,6 +278,7 @@ export async function loadYoutubeAdminDashboard(input?: {
     healthIssues,
     catalogMedianPeriodViews: medianViews,
     analyticsConnected: analyticsConnection.connected,
+    analyticsRangeDays,
   });
 
   const attentionTop = topAttentionItems(attentionQueue, 3);

@@ -21,9 +21,13 @@ export type AttentionQueueItem = {
   actionLabel: string;
   actionKind: AttentionActionKind;
   videoId?: string;
+  videoTitle?: string;
   recipeId?: string;
   possibleMatchRecipeId?: string;
   possibleMatchRecipeTitle?: string;
+  possibleMatchRecipeSlug?: string;
+  /** Quiet period analytics line for high-performing unlinked cards. */
+  metricsContext?: string;
   filterTarget?: string;
 };
 
@@ -49,7 +53,19 @@ export type BuildAttentionQueueInput = {
   /** Median period views among public videos with analytics views > 0. */
   catalogMedianPeriodViews: number;
   analyticsConnected: boolean;
+  analyticsRangeDays: number;
 };
+
+export function formatAttentionMetricsContext(
+  analytics: Pick<AggregatedAnalyticsMetrics, "views" | "subscribersGained">,
+  rangeDays: number,
+): string {
+  const views = analytics.views.toLocaleString("en-US");
+  const subs = analytics.subscribersGained;
+  const subsLabel =
+    subs >= 0 ? `+${subs.toLocaleString("en-US")}` : subs.toLocaleString("en-US");
+  return `${views} views · ${subsLabel} subscribers · last ${rangeDays} days`;
+}
 
 function sortValuableUnlinked(a: AttentionVideoInput, b: AttentionVideoInput): number {
   const subsDiff = b.analytics.subscribersGained - a.analytics.subscribersGained;
@@ -102,14 +118,16 @@ export function buildAttentionQueue(input: BuildAttentionQueueInput): AttentionQ
       id: `possible-match-${video.videoId}`,
       priority: "P0",
       rank: rank++,
-      title: "Possible existing recipe match",
-      detail: `${video.title} → ${video.possibleMatch.title}`,
+      title: "Possible match",
+      detail: video.title,
       href: `/admin/youtube/videos/${video.videoId}`,
-      actionLabel: "Review match",
+      actionLabel: "Link recipe",
       actionKind: "link-recipe",
       videoId: video.videoId,
+      videoTitle: video.title,
       possibleMatchRecipeId: video.possibleMatch.id,
       possibleMatchRecipeTitle: video.possibleMatch.title,
+      possibleMatchRecipeSlug: video.possibleMatch.slug,
     });
   }
 
@@ -128,6 +146,10 @@ export function buildAttentionQueue(input: BuildAttentionQueueInput): AttentionQ
       actionLabel: "Create or link",
       actionKind: "create-recipe",
       videoId: video.videoId,
+      videoTitle: video.title,
+      metricsContext: input.analyticsConnected
+        ? formatAttentionMetricsContext(video.analytics, input.analyticsRangeDays)
+        : undefined,
     });
   }
 

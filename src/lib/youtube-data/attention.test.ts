@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildAttentionQueue,
   catalogMedianPeriodViews,
+  formatAttentionMetricsContext,
   topAttentionItems,
 } from "./attention.ts";
 import { emptyAggregatedMetrics } from "@/lib/youtube-analytics/aggregate";
@@ -40,6 +41,7 @@ describe("attention queue", () => {
       ],
       catalogMedianPeriodViews: 1000,
       analyticsConnected: true,
+      analyticsRangeDays: 28,
     });
 
     assert.equal(queue[0]?.priority, "P0");
@@ -83,6 +85,7 @@ describe("attention queue", () => {
       healthIssues: [],
       catalogMedianPeriodViews: 1000,
       analyticsConnected: true,
+      analyticsRangeDays: 28,
     });
 
     const valuable = queue.filter((item) => item.id.startsWith("valuable-unlinked"));
@@ -106,6 +109,7 @@ describe("attention queue", () => {
       healthIssues: [],
       catalogMedianPeriodViews: 100,
       analyticsConnected: true,
+      analyticsRangeDays: 28,
     });
     assert.ok(topAttentionItems(queue, 3).length <= 3);
   });
@@ -114,5 +118,42 @@ describe("attention queue", () => {
 describe("catalogMedianPeriodViews", () => {
   it("computes median of positive values", () => {
     assert.equal(catalogMedianPeriodViews([0, 10, 20, 30]), 20);
+  });
+});
+
+describe("formatAttentionMetricsContext", () => {
+  it("formats period views and subscribers for unlinked cards", () => {
+    assert.equal(
+      formatAttentionMetricsContext({ views: 7771, subscribersGained: 10 }, 28),
+      "7,771 views · +10 subscribers · last 28 days",
+    );
+  });
+});
+
+describe("attention queue valuable unlinked", () => {
+  it("includes metrics context on high-performing unlinked cards", () => {
+    const queue = buildAttentionQueue({
+      videos: [
+        {
+          videoId: "v1",
+          title: "Cheesecake",
+          privacyStatus: "public",
+          embeddable: true,
+          format: "UNKNOWN",
+          publishedAt: new Date(),
+          hasDescriptionChapters: false,
+          hasRecipeChapters: false,
+          hasMetadataIssue: false,
+          analytics: { ...emptyAggregatedMetrics(), views: 7771, subscribersGained: 10 },
+        },
+      ],
+      healthIssues: [],
+      catalogMedianPeriodViews: 1000,
+      analyticsConnected: true,
+      analyticsRangeDays: 28,
+    });
+
+    const item = queue.find((row) => row.id.startsWith("valuable-unlinked"));
+    assert.equal(item?.metricsContext, "7,771 views · +10 subscribers · last 28 days");
   });
 });

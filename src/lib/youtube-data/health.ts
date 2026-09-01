@@ -39,23 +39,19 @@ export function videoContentHealthStatus(input: {
   if (!input.embeddable) return "Not embeddable";
   if (input.hasMetadataIssue) return "Metadata issue";
   if (input.format === "SHORT") return "—";
-  if (
-    input.format === "LONG" &&
-    input.linkedRecipeId &&
-    !input.hasDescriptionChapters &&
-    !input.hasRecipeChapters
-  ) {
-    return "Missing chapters";
+  if (!input.linkedRecipeId) return "—";
+
+  const hasChapters = input.hasDescriptionChapters || input.hasRecipeChapters;
+
+  if (input.format === "UNKNOWN") {
+    return hasChapters ? "Chapters OK" : "—";
   }
-  if (
-    input.format === "LONG" &&
-    !input.linkedRecipeId &&
-    !input.hasDescriptionChapters &&
-    !input.hasRecipeChapters
-  ) {
-    return "—";
+
+  if (input.format === "LONG") {
+    return hasChapters ? "Chapters OK" : "Missing chapters";
   }
-  return "Chapters OK";
+
+  return "—";
 }
 
 /** @deprecated Prefer videoRelationshipStatus + videoContentHealthStatus in dashboard UI. */

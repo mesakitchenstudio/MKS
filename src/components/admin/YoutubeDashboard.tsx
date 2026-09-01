@@ -1105,8 +1105,25 @@ function NeedsAttentionSection({
       <div className="grid gap-3 lg:grid-cols-3">
         {items.map((item) => (
           <div key={item.id} className="rounded-sm border border-line bg-paper px-4 py-4">
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-terracotta">{item.title}</p>
-            <p className="mt-2 text-sm text-ink">{item.detail}</p>
+            {item.actionKind === "link-recipe" && item.possibleMatchRecipeId ? (
+              <>
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-terracotta">
+                  Possible match
+                </p>
+                <p className="mt-2 font-semibold text-ink">{item.possibleMatchRecipeTitle}</p>
+                {item.videoTitle ? <p className="mt-1 text-sm text-muted">{item.videoTitle}</p> : null}
+              </>
+            ) : (
+              <>
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-terracotta">
+                  {item.title}
+                </p>
+                <p className="mt-2 text-sm text-ink">{item.detail}</p>
+                {item.metricsContext ? (
+                  <p className="mt-1 text-xs text-muted">{item.metricsContext}</p>
+                ) : null}
+              </>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
               {item.actionKind === "link-recipe" && item.videoId && item.possibleMatchRecipeId && canCreateRecipes ? (
                 <>
@@ -1118,7 +1135,7 @@ function NeedsAttentionSection({
                         item.videoId!,
                         item.possibleMatchRecipeId!,
                         item.possibleMatchRecipeTitle || "Recipe",
-                        "",
+                        item.possibleMatchRecipeSlug || "",
                       )
                     }
                   >
@@ -1224,7 +1241,7 @@ function CatalogCoverageSection({
       </div>
       <div className="space-y-4 rounded-sm border border-line bg-paper px-4 py-4">
         <CoverageRow
-          label="Videos linked to recipes"
+          label="Videos linked to any Mesa recipe"
           numerator={coverage.video.linkedCount}
           denominator={coverage.video.syncedPublicVideoCount}
           percentage={coverage.video.percentage}
@@ -1232,7 +1249,7 @@ function CatalogCoverageSection({
           onRemainderClick={() => onFilter("needs")}
         />
         <CoverageRow
-          label="Recipes with YouTube videos"
+          label="Published recipes with YouTube videos"
           numerator={coverage.recipe.withVideoCount}
           denominator={coverage.recipe.publishedRecipeCount}
           percentage={coverage.recipe.percentage}
