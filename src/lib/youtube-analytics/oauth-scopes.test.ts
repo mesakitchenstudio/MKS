@@ -37,9 +37,12 @@ test("canWrite requires granted scope in token — not request flag alone", () =
   assert.equal(canWriteYoutubeVideoMetadata(""), false);
 });
 
-test("youtubeChapterSyncEnabled defaults false when unset", () => {
+test("youtubeChapterSyncEnabled defaults false when unset", (t) => {
   const prior = process.env.YOUTUBE_CHAPTER_SYNC_ENABLED;
+  t.after(() => {
+    if (prior === undefined) delete process.env.YOUTUBE_CHAPTER_SYNC_ENABLED;
+    else process.env.YOUTUBE_CHAPTER_SYNC_ENABLED = prior;
+  });
   delete process.env.YOUTUBE_CHAPTER_SYNC_ENABLED;
   assert.equal(youtubeChapterSyncEnabled(), false);
-  if (prior !== undefined) process.env.YOUTUBE_CHAPTER_SYNC_ENABLED = prior;
 });

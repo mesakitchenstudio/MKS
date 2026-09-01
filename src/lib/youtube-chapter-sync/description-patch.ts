@@ -188,6 +188,10 @@ function joinWithSeparator(before: string, block: string): string {
   return `${before}\n\n${block}`;
 }
 
+function chapterBlocksMatch(existing: string, generated: string): boolean {
+  return existing.trim() === generated.trim();
+}
+
 export function buildDescriptionPatchPlan(input: {
   currentDescription: string;
   exportItems: YoutubeChapterExportItem[];
@@ -209,6 +213,15 @@ export function buildDescriptionPatchPlan(input: {
   if (input.lastSyncedChapterBlock) {
     const span = findExactBlockSpan(current, input.lastSyncedChapterBlock);
     if (span) {
+      if (chapterBlocksMatch(input.lastSyncedChapterBlock, generatedChapterBlock)) {
+        return finishPlan({
+          strategy: "already_in_sync",
+          current,
+          proposed: current,
+          generatedChapterBlock,
+          existingBlock: input.lastSyncedChapterBlock,
+        });
+      }
       const proposed =
         current.slice(0, span.start) + generatedChapterBlock + current.slice(span.end);
       return finishPlan({
@@ -232,6 +245,16 @@ export function buildDescriptionPatchPlan(input: {
   }
   if (legacyBlocks.length === 1) {
     const block = legacyBlocks[0]!;
+    if (chapterBlocksMatch(block.text, generatedChapterBlock)) {
+      return finishPlan({
+        strategy: "already_in_sync",
+        current,
+        proposed: current,
+        generatedChapterBlock,
+        existingBlock: block.text,
+        existingBlockLineCount: block.lineCount,
+      });
+    }
     const proposed =
       current.slice(0, block.start) + generatedChapterBlock + current.slice(block.end);
     return finishPlan({
@@ -256,6 +279,16 @@ export function buildDescriptionPatchPlan(input: {
 
   if (blocks.length === 1) {
     const block = blocks[0]!;
+    if (chapterBlocksMatch(block.text, generatedChapterBlock)) {
+      return finishPlan({
+        strategy: "already_in_sync",
+        current,
+        proposed: current,
+        generatedChapterBlock,
+        existingBlock: block.text,
+        existingBlockLineCount: block.lineCount,
+      });
+    }
     const proposed =
       current.slice(0, block.start) + generatedChapterBlock + current.slice(block.end);
     return finishPlan({

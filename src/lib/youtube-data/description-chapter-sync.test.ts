@@ -60,6 +60,12 @@ test("formatYoutubeChapterBlock orders timestamps without markers", () => {
   assert.ok(!block.includes("mesa-chapters"));
 });
 
-test("youtubeChapterSyncEnabled defaults false", () => {
+test("youtubeChapterSyncEnabled defaults false", (t) => {
+  const prior = process.env.YOUTUBE_CHAPTER_SYNC_ENABLED;
+  t.after(() => {
+    if (prior === undefined) delete process.env.YOUTUBE_CHAPTER_SYNC_ENABLED;
+    else process.env.YOUTUBE_CHAPTER_SYNC_ENABLED = prior;
+  });
+  delete process.env.YOUTUBE_CHAPTER_SYNC_ENABLED;
   assert.equal(youtubeChapterSyncEnabled(), false);
 });

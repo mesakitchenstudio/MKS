@@ -116,6 +116,17 @@ test("patch J: already identical → in sync", () => {
   assert.equal(plan.strategy, "already_in_sync");
 });
 
+test("patch K: identical detected chapter block inside full description → already in sync", () => {
+  const block = formatYoutubeChapterBlock(exportItems);
+  const current = ["Recipe intro copy.", "", block, "", "#bread"].join("\n");
+  const plan = buildDescriptionPatchPlan({
+    currentDescription: current,
+    exportItems,
+  });
+  assert.equal(plan.strategy, "already_in_sync");
+  assert.equal(plan.proposedDescription, current);
+});
+
 test("legacy Mesa HTML marker block replaced as visible unit in preview diff", () => {
   const current = [
     "Body copy stays.",
