@@ -1,13 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   instructionChapterCoverage,
   hasCanonicalInstructionChapters,
   normalizeInstructionGroups,
 } from "@/lib/instruction-chapters";
+import { listChapterLabelOverrides } from "@/lib/instruction-chapter-labels";
 import { formatYoutubeChapterExportLine } from "@/lib/youtube-chapter-sync/export";
 import { diffChapterBlockLines } from "@/lib/youtube-chapter-sync/description-patch";
+import {
+  chapterSyncApplyUiFailure,
+  chapterSyncApplyUiStart,
+  chapterSyncApplyUiSuccess,
+  createChapterSyncApplyFlightGuard,
+  parseChapterSyncApplyHttpResponse,
+} from "@/lib/youtube-chapter-sync/apply-response";
+import { readChapterSyncMetadata } from "@/lib/youtube-chapter-sync/sync-metadata";
 import { adminFocusRing } from "@/lib/admin-ui";
 import { recipeLinkedVideoId } from "@/lib/youtube-data/recipe-link";
 import { youtubeWatchUrl } from "@/lib/youtube";
@@ -19,7 +28,7 @@ type PreviewResponse = {
   videoId: string;
   videoTitle: string;
   export: {
-    items: Array<{ timestamp: number; label: string; source: string }>;
+    items: Array<{ timestamp: number; label: string; source: string; instructionIndex?: number }>;
     ready: boolean;
     errors: Array<{ message: string }>;
     warnings: Array<{ message: string }>;
@@ -64,21 +73,33 @@ const STATUS_LABELS: Record<string, string> = {
   not_youtube_ready: "Not YouTube-ready",
 };
 
+function formatSyncedAt(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
 export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurationSeconds }: Props) {
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [introLabelDraft, setIntroLabelDraft] = useState("");
   const [showBefore, setShowBefore] = useState(false);
   const [showProposed, setShowProposed] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const applyFlightRef = useRef(createChapterSyncApplyFlightGuard());
 
   const groups = useMemo(() => normalizeInstructionGroups(values.instructions), [values.instructions]);
   const coverage = useMemo(() => instructionChapterCoverage(groups), [groups]);
   const linkedVideoId = useMemo(() => recipeLinkedVideoId(values), [values]);
   const canonical = hasCanonicalInstructionChapters(groups);
+  const chapterLabelOverrides = useMemo(() => listChapterLabelOverrides(values.instructions), [values.instructions]);
+  const storedSyncMeta = useMemo(() => readChapterSyncMetadata(values), [values]);
 
   const proposedChapterBlock = useMemo(() => {
     if (!preview?.export.items.length) return "";
@@ -93,11 +114,12 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
     return diffChapterBlockLines(beforeBlock, proposedChapterBlock);
   }, [preview, proposedChapterBlock]);
 
+  const displayedLastSyncedAt = lastSyncedAt ?? storedSyncMeta?.lastSyncedAt ?? null;
+
   async function loadPreview(introOverride?: string) {
     if (!recipeId || isDirty) return;
     setLoading(true);
     setError(null);
-    setSuccess(null);
     try {
       const response = await fetch("/api/admin/youtube/chapter-sync/preview", {
         method: "POST",
@@ -107,7 +129,12 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
           introLabel: (introOverride ?? introLabelDraft.trim()) || undefined,
         }),
       });
-      const payload = (await response.json()) as PreviewResponse & { error?: string; code?: string };
+      let payload: PreviewResponse & { error?: string; code?: string };
+      try {
+        payload = (await response.json()) as typeof payload;
+      } catch {
+        throw new Error("Unexpected preview response from server.");
+      }
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error ?? "Could not generate preview.");
       }
@@ -123,36 +150,77 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
 
   async function applySync() {
     if (!preview || isDirty) return;
-    setApplying(true);
+    if (!applyFlightRef.current.tryAcquire()) return;
+
+    const start = chapterSyncApplyUiStart();
+    setApplying(start.applying);
+    setModalError(start.modalError);
     setError(null);
     setSuccess(null);
+
     try {
       const response = await fetch("/api/admin/youtube/chapter-sync/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipeId, previewToken: preview.previewToken }),
       });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        error?: string;
-        warning?: string;
-        lastSyncedAt?: string;
-      };
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.error ?? "YouTube update failed.");
+
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        const failure = chapterSyncApplyUiFailure("Unexpected server response. Try again.");
+        setApplying(failure.applying ?? false);
+        setModalError(failure.modalError ?? null);
+        setError(failure.modalError ?? null);
+        return;
       }
-      setConfirmOpen(false);
-      setSuccess(
-        payload.warning
-          ? payload.warning
-          : `YouTube chapters updated successfully.${payload.lastSyncedAt ? ` Last synced ${new Date(payload.lastSyncedAt).toLocaleString()}.` : ""}`,
-      );
+
+      const parsed = parseChapterSyncApplyHttpResponse({
+        ok: response.ok,
+        status: response.status,
+        body,
+      });
+
+      if (!parsed.ok) {
+        const failure = chapterSyncApplyUiFailure(parsed.message);
+        setApplying(failure.applying ?? false);
+        setModalError(failure.modalError ?? null);
+        setError(failure.modalError ?? null);
+        return;
+      }
+
+      const successState = chapterSyncApplyUiSuccess({
+        lastSyncedAt: parsed.lastSyncedAt,
+        warning: parsed.warning,
+      });
+      setConfirmOpen(successState.confirmOpen ?? false);
+      setApplying(successState.applying ?? false);
+      setModalError(successState.modalError ?? null);
+      setSuccess(successState.successMessage ?? null);
+      setLastSyncedAt(successState.lastSyncedAt ?? null);
       await loadPreview(introLabelDraft);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed.");
+      const message =
+        err instanceof Error ? err.message : "Could not reach Mesa. Check your connection and try again.";
+      const failure = chapterSyncApplyUiFailure(message);
+      setApplying(failure.applying ?? false);
+      setModalError(failure.modalError ?? null);
+      setError(failure.modalError ?? null);
     } finally {
-      setApplying(false);
+      applyFlightRef.current.release();
     }
+  }
+
+  function openConfirmModal() {
+    setModalError(null);
+    setConfirmOpen(true);
+  }
+
+  function closeConfirmModal() {
+    if (applying) return;
+    setConfirmOpen(false);
+    setModalError(null);
   }
 
   if (!linkedVideoId || !canonical) return null;
@@ -182,14 +250,51 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
         {preview?.export.ready ? " · YouTube ready ✓" : ""}
       </p>
 
+      {displayedLastSyncedAt ? (
+        <p className="mb-3 text-sm text-muted">
+          Last synced: <span className="font-medium text-ink">{formatSyncedAt(displayedLastSyncedAt)}</span>
+        </p>
+      ) : null}
+
       {isDirty ? (
         <p className="mb-3 text-sm text-terracotta/90">
           Save recipe changes before syncing chapters to YouTube.
         </p>
       ) : null}
 
-      {error ? <p className="mb-3 text-sm text-terracotta">{error}</p> : null}
-      {success ? <p className="mb-3 text-sm text-emerald-800">{success}</p> : null}
+      {chapterLabelOverrides.length ? (
+        <div className="mb-3 rounded-sm border border-terracotta/30 bg-terracotta/5 px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-terracotta">
+            YouTube chapter label overrides
+          </p>
+          <ul className="mt-2 space-y-2 text-sm">
+            {chapterLabelOverrides.map((row) => (
+              <li key={row.groupIndex}>
+                <span className="text-muted">Section {row.groupIndex + 1}:</span>{" "}
+                <span className="font-medium text-ink">{row.sectionTitle}</span>
+                <br />
+                <span className="text-muted">YouTube chapter label:</span>{" "}
+                <span className="font-semibold text-terracotta">{row.youtubeLabel}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted">
+            Export uses the YouTube chapter label, not the section title. Clear overrides in the
+            instruction editor when the section title is correct.
+          </p>
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="mb-3 text-sm font-semibold text-terracotta" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p className="mb-3 text-sm font-semibold text-emerald-800" role="status">
+          {success}
+        </p>
+      ) : null}
 
       <div className="mb-3 flex flex-wrap gap-2">
         <button
@@ -289,7 +394,7 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
             </p>
           ) : null}
           {preview.replacementStrategy === "already_in_sync" ? (
-            <p className="text-sm text-emerald-800">Already in sync with YouTube.</p>
+            <p className="text-sm font-semibold text-emerald-800">Already in sync with YouTube.</p>
           ) : null}
 
           {chapterDiff && preview.existingChapterBlock ? (
@@ -362,7 +467,7 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
             type="button"
             disabled={updateDisabled || applying}
             className={`rounded-sm bg-terracotta px-3 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:cursor-not-allowed disabled:opacity-50 ${adminFocusRing}`}
-            onClick={() => setConfirmOpen(true)}
+            onClick={openConfirmModal}
           >
             Update YouTube description
           </button>
@@ -371,8 +476,10 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
 
       {confirmOpen && preview ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-          <div className="max-w-md rounded-sm border border-line bg-white p-5 shadow-lg">
-            <h4 className="mb-2 text-base font-semibold text-ink">Update chapters on YouTube?</h4>
+          <div className="max-w-md rounded-sm border border-line bg-white p-5 shadow-lg" role="dialog" aria-modal="true" aria-labelledby="chapter-sync-apply-title">
+            <h4 id="chapter-sync-apply-title" className="mb-2 text-base font-semibold text-ink">
+              Update chapters on YouTube?
+            </h4>
             <p className="mb-1 text-sm text-muted">
               Video: <span className="font-medium text-ink">{preview.videoTitle}</span>
             </p>
@@ -380,21 +487,35 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
               Mesa will update the video&apos;s description chapter block. Other description text,
               title, tags, and category will be preserved.
             </p>
+
+            {applying ? (
+              <p className="mb-4 text-sm font-semibold text-ink" role="status" aria-live="polite">
+                Updating YouTube…
+              </p>
+            ) : null}
+
+            {modalError ? (
+              <p className="mb-4 text-sm font-semibold text-terracotta" role="alert">
+                {modalError}
+              </p>
+            ) : null}
+
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                className={`rounded-sm border border-line px-3 py-1.5 text-sm font-semibold ${adminFocusRing}`}
-                onClick={() => setConfirmOpen(false)}
+                disabled={applying}
+                className={`rounded-sm border border-line px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${adminFocusRing}`}
+                onClick={closeConfirmModal}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 disabled={applying}
-                className={`rounded-sm bg-terracotta px-3 py-1.5 text-sm font-bold text-white disabled:opacity-50 ${adminFocusRing}`}
+                className={`rounded-sm bg-terracotta px-3 py-1.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${adminFocusRing}`}
                 onClick={() => void applySync()}
               >
-                {applying ? "Updating…" : "Update YouTube"}
+                Update YouTube
               </button>
             </div>
           </div>

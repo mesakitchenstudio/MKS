@@ -270,6 +270,7 @@ export async function runChapterSyncPreview(input: {
 export type ChapterSyncApplyResult =
   | {
       ok: true;
+      status: "synced" | "already_in_sync";
       videoId: string;
       videoTitle: string;
       lastSyncedAt: string;
@@ -285,7 +286,10 @@ export async function runChapterSyncApply(input: {
   adminId: string;
   adminLabel: string;
 }): Promise<ChapterSyncApplyResult> {
+  const logBase = { recipeId: input.recipeId, stage: "start" as string, videoId: "" };
+
   if (!youtubeChapterSyncEnabled()) {
+    console.info("[chapter-sync-apply]", { ...logBase, stage: "disabled" });
     return {
       ok: false,
       code: "disabled",
@@ -295,20 +299,25 @@ export async function runChapterSyncApply(input: {
 
   const verified = verifyChapterSyncPreviewToken(input.previewToken);
   if (!verified.ok) {
+    console.info("[chapter-sync-apply]", { ...logBase, stage: "preview_invalid" });
     return { ok: false, code: "preview_invalid", message: verified.reason };
   }
   const snapshot = verified.payload;
+  logBase.videoId = snapshot.videoId;
   if (snapshot.recipeId !== input.recipeId) {
+    console.info("[chapter-sync-apply]", { ...logBase, stage: "preview_mismatch" });
     return { ok: false, code: "preview_mismatch", message: "Preview does not match this recipe." };
   }
 
   const recipe = await loadRecipe(input.recipeId);
   if (!recipe) {
+    console.info("[chapter-sync-apply]", { ...logBase, stage: "not_found" });
     return { ok: false, code: "not_found", message: "Recipe not found." };
   }
 
   const videoId = recipeLinkedVideoId(recipe.values);
   if (!videoId || videoId !== snapshot.videoId) {
+    console.info("[chapter-sync-apply]", { ...logBase, stage: "video_changed", videoId: videoId ?? "" });
     return {
       ok: false,
       code: "video_changed",
@@ -318,6 +327,7 @@ export async function runChapterSyncApply(input: {
 
   const connection = await getAnalyticsConnectionPublic();
   if (!canWriteYoutubeVideoMetadata(connection.scopes)) {
+    console.info("[chapter-sync-apply]", { ...logBase, stage: "oauth_write_denied" });
     return {
       ok: false,
       code: "oauth_write",
@@ -330,6 +340,7 @@ export async function runChapterSyncApply(input: {
   try {
     ({ accessToken } = await getAnalyticsAccessToken());
   } catch (error) {
+    console.info("[chapter-sync-apply]", { ...logBase, stage: "oauth_error" });
     const message =
       error instanceof YouTubeAnalyticsError
         ? error.message
@@ -339,6 +350,7 @@ export async function runChapterSyncApply(input: {
 
   const remote = await fetchYoutubeVideoSnippetOAuth(accessToken, videoId);
   if (!remote) {
+    console.info("[chapter-sync-apply]", { ...logBase, stage: "video_not_found" });
     return { ok: false, code: "video_not_found", message: "Linked YouTube video was not found." };
   }
 
@@ -353,12 +365,23 @@ export async function runChapterSyncApply(input: {
   });
 
   if (!rebuilt.ok) {
+    console.info("[chapter-sync-apply]", {
+      ...logBase,
+      stage: "rebuild_failed",
+      code: rebuilt.code,
+    });
     return { ok: false, code: rebuilt.code, message: rebuilt.message };
   }
 
   if (rebuilt.patchStrategy === "already_in_sync") {
+    console.info("[chapter-sync-apply]", {
+      ...logBase,
+      stage: "already_in_sync",
+      videosUpdateReached: false,
+    });
     return {
       ok: true,
+      status: "already_in_sync",
       videoId,
       videoTitle: remote.snippet.title,
       lastSyncedAt: syncMeta?.lastSyncedAt ?? new Date().toISOString(),
@@ -367,11 +390,27 @@ export async function runChapterSyncApply(input: {
     };
   }
 
-  const updated = await updateYoutubeVideoDescriptionOAuth({
-    accessToken,
-    video: remote,
-    nextDescription: rebuilt.proposedDescription,
-  });
+  console.info("[chapter-sync-apply]", { ...logBase, stage: "videos_update_start" });
+  let updated: Awaited<ReturnType<typeof updateYoutubeVideoDescriptionOAuth>>;
+  try {
+    updated = await updateYoutubeVideoDescriptionOAuth({
+      accessToken,
+      video: remote,
+      nextDescription: rebuilt.proposedDescription,
+    });
+  } catch (error) {
+    console.info("[chapter-sync-apply]", {
+      ...logBase,
+      stage: "videos_update_failed",
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    return {
+      ok: false,
+      code: "youtube_rejected",
+      message: "YouTube rejected the update.",
+    };
+  }
+  console.info("[chapter-sync-apply]", { ...logBase, stage: "videos_update_complete" });
 
   const verifiedRemote = await fetchYoutubeVideoSnippetOAuth(accessToken, videoId);
   const descriptionMatches =
@@ -383,6 +422,12 @@ export async function runChapterSyncApply(input: {
     JSON.stringify(remote.snippet.tags ?? []);
 
   if (!descriptionMatches) {
+    console.info("[chapter-sync-apply]", {
+      ...logBase,
+      stage: "verify_failed",
+      videosUpdateReached: true,
+      postWriteVerificationPassed: false,
+    });
     return {
       ok: false,
       code: "verify_failed",
@@ -418,15 +463,24 @@ export async function runChapterSyncApply(input: {
     metadataStored = false;
   }
 
+  console.info("[chapter-sync-apply]", {
+    ...logBase,
+    stage: "complete",
+    videosUpdateReached: true,
+    postWriteVerificationPassed: true,
+    metadataStored,
+  });
+
   const warning =
     !metadataStored
-      ? "YouTube was updated successfully, but Mesa could not record the sync state."
+      ? "YouTube was updated successfully, but Mesa could not record the sync status."
       : !titleUnchanged || !categoryUnchanged || !tagsUnchanged
         ? "YouTube description updated; verify title, category, or tags in YouTube Studio if needed."
         : undefined;
 
   return {
     ok: true,
+    status: "synced",
     videoId,
     videoTitle: remote.snippet.title,
     lastSyncedAt: metadata.lastSyncedAt,

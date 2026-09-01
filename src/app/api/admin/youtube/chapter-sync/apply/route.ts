@@ -51,7 +51,10 @@ export async function POST(request: Request) {
               result.code === "block_changed"
             ? 409
             : 400;
-    return NextResponse.json({ ok: false, error: result.message, code: result.code }, { status });
+    return NextResponse.json(
+      { ok: false, error: result.message, message: result.message, code: result.code },
+      { status },
+    );
   }
 
   return NextResponse.json({ ...result });

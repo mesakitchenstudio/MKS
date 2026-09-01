@@ -26,6 +26,11 @@ import {
   type InstructionGroupWithChapters,
 } from "@/lib/instruction-chapters";
 import {
+  chapterLabelOverrideInfo,
+  clearSwappedAdjacentChapterLabels,
+  detectSwappedAdjacentChapterLabels,
+} from "@/lib/instruction-chapter-labels";
+import {
   END_BEFORE_START_MESSAGE,
   validateExplicitEndTimestamp,
 } from "@/lib/instruction-video-workspace";
@@ -262,6 +267,7 @@ export function InstructionsAccordionEditor({
   const stepOffsetByGroup = groups.map((_, index) =>
     groups.slice(0, index).reduce((total, prior) => total + prior.steps.length, 0),
   );
+  const swappedChapterLabels = useMemo(() => detectSwappedAdjacentChapterLabels(groups), [groups]);
 
   const coverageSummary = useMemo(() => {
     const coverage = instructionChapterCoverage(groups, {
@@ -442,6 +448,7 @@ export function InstructionsAccordionEditor({
         const stepCount = group.steps.length;
         const status = sectionStatusLabel({ groupIndex, reviewPaths, missingPaths, parentKey });
         const namePath = `values.${parentKey}.${groupIndex}.name`;
+        const labelOverride = chapterLabelOverrideInfo(group);
         const timestampMeta = collapsedTimestampLabel({
           group,
           groupIndex,
@@ -583,6 +590,25 @@ export function InstructionsAccordionEditor({
                   <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
                     Video chapter
                   </p>
+                  {swappedChapterLabels &&
+                  (groupIndex === swappedChapterLabels.indexA ||
+                    groupIndex === swappedChapterLabels.indexB) ? (
+                    <div className="mt-2 rounded-sm border border-terracotta/35 bg-terracotta/5 px-3 py-2">
+                      <p className="text-xs font-semibold text-terracotta">
+                        Swapped YouTube chapter labels detected between sections{" "}
+                        {swappedChapterLabels.indexA + 1} and {swappedChapterLabels.indexB + 1}.
+                      </p>
+                      {groupIndex === swappedChapterLabels.indexA ? (
+                        <button
+                          type="button"
+                          className={`mt-2 text-xs font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
+                          onClick={() => onChange(clearSwappedAdjacentChapterLabels(groups))}
+                        >
+                          Clear both overrides and use section titles
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     <label className="grid gap-1.5 text-sm md:col-span-1">
                       <span className="font-semibold text-muted">Chapter label</span>
@@ -595,9 +621,32 @@ export function InstructionsAccordionEditor({
                           onChapterFieldChange?.(groupIndex, "chapterLabel", value);
                           patchGroup(groupIndex, { chapterLabel: value });
                         }}
-                        className={compactInputClass}
+                        className={`${compactInputClass}${labelOverride.hasOverride ? " border-terracotta/50" : ""}`}
                       />
-                      <span className="text-xs text-muted">Leave blank to use the section title.</span>
+                      {labelOverride.hasOverride ? (
+                        <div className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-2 py-2 text-xs">
+                          <p>
+                            <span className="font-semibold text-muted">Recipe section:</span>{" "}
+                            <span className="font-medium text-ink">{labelOverride.sectionTitle}</span>
+                          </p>
+                          <p className="mt-1">
+                            <span className="font-semibold text-muted">YouTube chapter label:</span>{" "}
+                            <span className="font-semibold text-terracotta">{labelOverride.youtubeLabel}</span>
+                          </p>
+                          <button
+                            type="button"
+                            className={`mt-2 font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
+                            onClick={() => {
+                              onChapterFieldChange?.(groupIndex, "chapterLabel", undefined);
+                              patchGroup(groupIndex, { chapterLabel: undefined });
+                            }}
+                          >
+                            Use section title
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted">Leave blank to use the section title.</span>
+                      )}
                     </label>
                     <label className="grid gap-1.5 text-sm">
                       <span className="font-semibold text-muted">Start</span>
