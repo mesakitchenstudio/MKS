@@ -15,7 +15,8 @@ import {
   MEMBER_PASSWORD_MIN_LENGTH,
   MEMBER_PASSWORD_REQUIREMENT,
   MEMBER_WRONG_CREDENTIALS_MESSAGE,
-  PRIVACY_ACKNOWLEDGMENT,
+  PRIVACY_ACKNOWLEDGMENT_PREFIX,
+  PRIVACY_POLICY_LINK_LABEL,
   SIGNUP_SUBTITLE,
   validateSignupFields,
 } from "@/lib/auth-credentials";
@@ -265,7 +266,7 @@ export function AuthModal({
             type="button"
             onClick={onClose}
             aria-label="Close sign-in dialog"
-            className={`absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-sm text-[1.35rem] leading-none text-muted transition-colors duration-150 hover:text-ink ${authFocusRing}`}
+            className={`absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-sm text-[1.35rem] leading-none text-muted transition-colors duration-150 hover:text-ink ${authFocusRing}`}
           >
             <span aria-hidden>×</span>
           </button>
@@ -368,10 +369,11 @@ export function AuthModal({
               </label>
 
               <p className="text-xs leading-5 text-muted">
-                {PRIVACY_ACKNOWLEDGMENT}{" "}
+                {PRIVACY_ACKNOWLEDGMENT_PREFIX}
                 <Link href="/privacy" className={`font-semibold ${authLinkClass} ${authFocusRing}`}>
-                  Privacy Policy
+                  {PRIVACY_POLICY_LINK_LABEL}
                 </Link>
+                .
               </p>
 
               <button
