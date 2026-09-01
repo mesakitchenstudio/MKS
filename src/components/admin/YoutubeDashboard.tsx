@@ -16,7 +16,9 @@ import {
   type CatalogVideoSortDirection,
 } from "@/lib/youtube-data/catalog-filters";
 import type { AttentionQueueItem } from "@/lib/youtube-data/dashboard";
+import type { AttentionReviewGroup } from "@/lib/youtube-data/attention-review";
 import type { RecipeCoverageStats, VideoCoverageStats } from "@/lib/youtube-data/coverage";
+import { formatVideoLinkScopeBreakdown } from "@/lib/youtube-data/coverage";
 import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { YOUTUBE_ANALYTICS_RETENTION_FOOTNOTE } from "@/lib/youtube-analytics/metric-copy";
 import {
@@ -26,7 +28,7 @@ import {
 } from "@/lib/youtube-data/video-format";
 import type { AnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
 import { ANALYTICS_RANGE_DAYS } from "@/lib/youtube-analytics/ranges";
-import { formatAdminDateTime } from "@/lib/datetime";
+import { formatAdminShortDateTime } from "@/lib/datetime";
 import type { YouTubeVideoFormat } from "@/lib/youtube-data/video-format";
 
 type ChannelSummary = {
@@ -42,6 +44,8 @@ type ChannelSummary = {
   lastSyncError: string;
   trendViews7d: string | null;
   trendSubscribers7d: string | null;
+  trendSubscribersShort: string | null;
+  trendSubscribersTitle: string | null;
   trendFromDate: string | null;
   trendToDate: string | null;
 };
@@ -157,6 +161,18 @@ function contentHealthClass(value: string) {
   return "text-terracotta";
 }
 
+function ContentHealthText({ value }: { value: string }) {
+  if (value === "—") {
+    return (
+      <>
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">Not applicable</span>
+      </>
+    );
+  }
+  return <>{value}</>;
+}
+
 function rowStatusLabel(phase: RowPhase, error?: string) {
   switch (phase) {
     case "detecting":
@@ -205,7 +221,7 @@ export function YoutubeDashboard({
     catalogMedianPeriodViews?: number;
   };
   coverage: { video: VideoCoverageStats; recipe: RecipeCoverageStats };
-  attention: { top: AttentionQueueItem[]; all: AttentionQueueItem[]; total: number };
+  attention: { top: AttentionQueueItem[]; total: number; review: AttentionReviewGroup[] };
   videos: VideoRow[];
   canSync: boolean;
   canManageAnalytics?: boolean;
@@ -587,11 +603,26 @@ export function YoutubeDashboard({
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">YouTube</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Operational channel dashboard — performance, catalog coverage, and Mesa recipe relationships.
-        </p>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">YouTube</h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted">
+              Operational channel dashboard — performance, catalog coverage, and Mesa recipe relationships.
+            </p>
+          </div>
+          <FreshnessStrip
+            analytics={analytics}
+            channel={channel}
+            canSync={canSync}
+            canManageAnalytics={canManageAnalytics}
+            analyticsPending={analyticsPending}
+            dataPending={pending}
+            onSync={onSync}
+            onRefreshAnalytics={onRefreshAnalytics}
+            onDisconnectAnalytics={onDisconnectAnalytics}
+          />
+        </div>
       </div>
 
       {syncMessage ? (
@@ -620,22 +651,10 @@ export function YoutubeDashboard({
         </p>
       ) : null}
 
-      <FreshnessBar
-        analytics={analytics}
-        channel={channel}
-        canSync={canSync}
-        canManageAnalytics={canManageAnalytics}
-        analyticsPending={analyticsPending}
-        dataPending={pending}
-        onSync={onSync}
-        onRefreshAnalytics={onRefreshAnalytics}
-        onDisconnectAnalytics={onDisconnectAnalytics}
-      />
-
       <NeedsAttentionSection
         items={attention.top}
         total={attention.total}
-        allItems={attention.all}
+        reviewGroups={attention.review}
         reviewAllOpen={reviewAllOpen}
         onToggleReviewAll={() => setReviewAllOpen((open) => !open)}
         onFilter={(target) => updateFilter(parseYoutubeDashboardFilter(target))}
@@ -872,7 +891,9 @@ export function YoutubeDashboard({
                       {renderRecipeActions(video)}
                     </td>
                     <td className="px-4 py-3">
-                      <p className={`font-semibold ${contentHealthClass(video.contentHealth)}`}>{video.contentHealth}</p>
+                      <p className={`font-semibold ${contentHealthClass(video.contentHealth)}`}>
+                        <ContentHealthText value={video.contentHealth} />
+                      </p>
                     </td>
                   </tr>
                 ))
@@ -910,7 +931,7 @@ export function YoutubeDashboard({
                 ) : null}
                 <div className="mt-3">{renderRecipeActions(video)}</div>
                 <p className={`mt-2 text-xs font-semibold ${contentHealthClass(video.contentHealth)}`}>
-                  {video.contentHealth}
+                  <ContentHealthText value={video.contentHealth} />
                 </p>
               </article>
             ))
@@ -987,7 +1008,7 @@ export function YoutubeDashboard({
   );
 }
 
-function FreshnessBar({
+function FreshnessStrip({
   analytics,
   channel,
   canSync,
@@ -1008,64 +1029,81 @@ function FreshnessBar({
   onRefreshAnalytics: () => void;
   onDisconnectAnalytics: () => void;
 }) {
+  const analyticsLabel = analytics.connection.connected
+    ? analytics.connection.lastSyncAt
+      ? formatAdminShortDateTime(analytics.connection.lastSyncAt)
+      : "Never refreshed"
+    : "Not connected";
+  const youtubeLabel = channel?.lastSyncedAt ? channel.lastSyncedAt.replace(" GMT", "") : "Not synced";
+
+  const stripText = `Analytics ${analyticsLabel} · Public YouTube ${youtubeLabel} · Mesa catalog live`;
+
   return (
-    <div className="rounded-sm border border-line bg-cream/30 px-4 py-4">
-      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Data freshness</p>
-      <div className="mt-3 grid gap-3 md:grid-cols-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+    <details className="group relative w-full max-w-xl text-sm">
+      <summary
+        className={`cursor-pointer list-none rounded-sm border border-line/80 bg-cream/30 px-3 py-2 text-xs text-muted marker:content-none ${adminFocusRing}`}
+      >
+        <span className="block truncate group-open:hidden">{stripText}</span>
+        <span className="hidden group-open:block">Data freshness</span>
+        <span className="ml-2 font-semibold text-ink group-open:hidden">Data freshness ▾</span>
+        <span className="ml-2 hidden font-semibold text-ink group-open:inline">▴</span>
+      </summary>
+      <div className="absolute right-0 z-20 mt-1 w-full min-w-[16rem] rounded-sm border border-line bg-paper px-3 py-3 shadow-sm">
+        <dl className="space-y-2 text-xs">
           <div>
-            <p className="font-semibold text-ink">Analytics</p>
-            <p className="text-xs text-muted">
-              {analytics.connection.connected
-                ? analytics.connection.lastSyncAt
-                  ? `Updated ${formatAdminDateTime(analytics.connection.lastSyncAt)}`
-                  : "Never refreshed"
-                : "Not connected"}
-            </p>
+            <dt className="font-semibold text-ink">Analytics</dt>
+            <dd className="text-muted">{analyticsLabel}</dd>
           </div>
-          {canManageAnalytics ? (
-            <div className="flex flex-wrap gap-2">
-              {!analytics.connection.connected ? (
-                <a href="/api/admin/youtube/analytics/oauth/start" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
-                  Connect
-                </a>
-              ) : (
-                <>
-                  <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={analyticsPending} onClick={onRefreshAnalytics}>
-                    {analyticsPending ? "Refreshing…" : "Refresh"}
-                  </button>
-                  <button type="button" className={`text-xs font-semibold text-muted underline ${adminFocusRing}`} disabled={analyticsPending} onClick={onDisconnectAnalytics}>
-                    Disconnect
-                  </button>
-                </>
-              )}
-            </div>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <div>
-            <p className="font-semibold text-ink">Public YouTube</p>
-            <p className="text-xs text-muted">{channel?.lastSyncedAt ? `Updated ${channel.lastSyncedAt}` : "Not synced"}</p>
+            <dt className="font-semibold text-ink">Public YouTube</dt>
+            <dd className="text-muted">{channel?.lastSyncedAt ? `Updated ${channel.lastSyncedAt}` : "Not synced"}</dd>
           </div>
-          {canSync ? (
-            <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={dataPending} onClick={onSync}>
-              {dataPending ? "Refreshing…" : "Refresh"}
-            </button>
-          ) : null}
-        </div>
-        <div className="text-sm">
-          <p className="font-semibold text-ink">Mesa catalog</p>
-          <p className="text-xs text-muted">Live recipe relationships</p>
-        </div>
+          <div>
+            <dt className="font-semibold text-ink">Mesa catalog</dt>
+            <dd className="text-muted">Live recipe relationships</dd>
+          </div>
+        </dl>
+        {canManageAnalytics || canSync ? (
+          <div className="mt-3 space-y-2 border-t border-line/70 pt-3">
+            {canManageAnalytics ? (
+              <div className="flex flex-wrap gap-2">
+                {!analytics.connection.connected ? (
+                  <a href="/api/admin/youtube/analytics/oauth/start" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+                    Connect Analytics
+                  </a>
+                ) : (
+                  <>
+                    <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={analyticsPending} onClick={onRefreshAnalytics}>
+                      {analyticsPending ? "Refreshing…" : "Refresh Analytics"}
+                    </button>
+                    <button
+                      type="button"
+                      className={`text-xs font-semibold text-terracotta underline ${adminFocusRing}`}
+                      disabled={analyticsPending}
+                      onClick={onDisconnectAnalytics}
+                    >
+                      Disconnect Analytics
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
+            {canSync ? (
+              <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={dataPending} onClick={onSync}>
+                {dataPending ? "Refreshing…" : "Refresh Public YouTube"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-    </div>
+    </details>
   );
 }
 
 function NeedsAttentionSection({
   items,
   total,
-  allItems,
+  reviewGroups,
   reviewAllOpen,
   onToggleReviewAll,
   onFilter,
@@ -1075,7 +1113,7 @@ function NeedsAttentionSection({
 }: {
   items: AttentionQueueItem[];
   total: number;
-  allItems: AttentionQueueItem[];
+  reviewGroups: AttentionReviewGroup[];
   reviewAllOpen: boolean;
   onToggleReviewAll: () => void;
   onFilter: (target: string) => void;
@@ -1097,8 +1135,14 @@ function NeedsAttentionSection({
       <div className="flex flex-wrap items-end justify-between gap-2">
         <h2 className="font-serif text-xl text-ink">Needs attention</h2>
         {total > items.length ? (
-          <button type="button" className={`text-sm font-semibold ${adminLinkClass}`} onClick={onToggleReviewAll}>
-            {reviewAllOpen ? "Hide all" : "Review all"}
+          <button
+            type="button"
+            className={`text-sm font-semibold ${adminLinkClass}`}
+            aria-expanded={reviewAllOpen}
+            aria-controls="attention-review-all"
+            onClick={onToggleReviewAll}
+          >
+            {reviewAllOpen ? "Show less" : "Review all"}
           </button>
         ) : null}
       </div>
@@ -1147,7 +1191,7 @@ function NeedsAttentionSection({
                 </>
               ) : item.actionKind === "create-recipe" && item.videoId && canCreateRecipes ? (
                 <button type="button" className={`${adminPrimaryButtonClass} ${adminFocusRing}`} onClick={() => onCreate(item.videoId!)}>
-                  Create or link
+                  Create recipe
                 </button>
               ) : item.actionKind === "review-queue" && item.filterTarget ? (
                 <button type="button" className={`${adminPrimaryButtonClass} ${adminFocusRing}`} onClick={() => onFilter(item.filterTarget!)}>
@@ -1163,31 +1207,150 @@ function NeedsAttentionSection({
         ))}
       </div>
       {reviewAllOpen ? (
-        <ul className="space-y-2 rounded-sm border border-line bg-paper px-4 py-4">
-          {allItems.map((item) => (
-            <li key={item.id} className="border-b border-line/60 pb-2 text-sm last:border-0 last:pb-0">
-              {item.href ? (
-                <Link href={item.href} className={adminLinkClass}>
-                  {item.detail}
-                </Link>
-              ) : (
-                item.detail
-              )}
-            </li>
-          ))}
-        </ul>
+        <AttentionReviewPanel
+          id="attention-review-all"
+          groups={reviewGroups}
+          canCreateRecipes={canCreateRecipes}
+          onFilter={onFilter}
+          onLink={onLink}
+          onCreate={onCreate}
+        />
       ) : null}
     </section>
   );
 }
 
+function AttentionReviewPanel({
+  id,
+  groups,
+  canCreateRecipes,
+  onFilter,
+  onLink,
+  onCreate,
+}: {
+  id: string;
+  groups: AttentionReviewGroup[];
+  canCreateRecipes: boolean;
+  onFilter: (target: string) => void;
+  onLink: (videoId: string, recipeId: string, title: string, slug: string) => void;
+  onCreate: (videoId: string) => void;
+}) {
+  if (!groups.length) return null;
+
+  return (
+    <div
+      id={id}
+      className="max-h-[min(28rem,70vh)] overflow-y-auto overscroll-contain rounded-sm border border-line bg-paper px-4 py-4 md:max-h-[26rem]"
+      aria-label="Full attention queue"
+    >
+      <div className="space-y-5">
+        {groups.map((group) => (
+          <section key={group.id} aria-labelledby={`${id}-${group.id}-heading`}>
+            <h3
+              id={`${id}-${group.id}-heading`}
+              className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive"
+            >
+              {group.label}
+            </h3>
+            {group.collapsed ? (
+              <div className="mt-2 space-y-2 text-sm">
+                <p className="text-ink">{group.collapsed.summaryLine}</p>
+                {group.collapsed.examples.map((example) => (
+                  <p key={example} className="text-muted">
+                    {example}
+                  </p>
+                ))}
+                {group.collapsed.moreCount > 0 ? (
+                  <p className="text-xs text-muted">+{group.collapsed.moreCount} more</p>
+                ) : null}
+                {group.collapsed.topByViews ? (
+                  <p className="text-xs text-muted">
+                    Top by views: {group.collapsed.topByViews.title} · {group.collapsed.topByViews.viewsLabel} views
+                  </p>
+                ) : null}
+                <div className="pt-1">
+                  {group.collapsed.actionKind === "review-queue" && group.collapsed.filterTarget ? (
+                    <button
+                      type="button"
+                      className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                      onClick={() => onFilter(group.collapsed!.filterTarget!)}
+                    >
+                      {group.collapsed.actionLabel}
+                    </button>
+                  ) : group.collapsed.href ? (
+                    <Link href={group.collapsed.href} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+                      {group.collapsed.actionLabel}
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <ul className="mt-2 space-y-3">
+                {group.entities.map((entity) => (
+                  <li key={entity.id} className="rounded-sm border border-line/70 px-3 py-3">
+                    {entity.actionKind === "link-recipe" && entity.possibleMatchRecipeId ? (
+                      <>
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-terracotta">
+                          Possible match
+                        </p>
+                        <p className="mt-1 font-semibold text-ink">{entity.possibleMatchRecipeTitle}</p>
+                        {entity.videoTitle ? <p className="mt-1 text-xs text-muted">{entity.videoTitle}</p> : null}
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-ink">{entity.entityLabel}</p>
+                        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
+                          {entity.issues.map((issue) => (
+                            <li key={issue}>{issue}</li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {entity.actionKind === "link-recipe" && entity.videoId && entity.possibleMatchRecipeId && canCreateRecipes ? (
+                        <>
+                          <button
+                            type="button"
+                            className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                            onClick={() =>
+                              onLink(
+                                entity.videoId!,
+                                entity.possibleMatchRecipeId!,
+                                entity.possibleMatchRecipeTitle || "Recipe",
+                                entity.possibleMatchRecipeSlug || "",
+                              )
+                            }
+                          >
+                            Link recipe
+                          </button>
+                          <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} onClick={() => onCreate(entity.videoId!)}>
+                            Create new
+                          </button>
+                        </>
+                      ) : entity.actionKind === "create-recipe" && entity.videoId && canCreateRecipes ? (
+                        <button type="button" className={`${adminPrimaryButtonClass} ${adminFocusRing}`} onClick={() => onCreate(entity.videoId!)}>
+                          Create recipe
+                        </button>
+                      ) : entity.href ? (
+                        <Link href={entity.href} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+                          {entity.actionLabel}
+                        </Link>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChannelSnapshot({ channel }: { channel: ChannelSummary }) {
-  const subscriberTrend =
-    channel.trendSubscribers7d && channel.trendFromDate && channel.trendToDate
-      ? `${channel.trendSubscribers7d} since ${channel.trendFromDate} → ${channel.trendToDate}`
-      : channel.trendSubscribers7d
-        ? `${channel.trendSubscribers7d} · 7-day snapshot delta`
-        : null;
+  const subscriberTrend = channel.trendSubscribersShort || channel.trendSubscribers7d || null;
+  const subscriberTrendTitle = channel.trendSubscribersTitle || subscriberTrend || undefined;
 
   return (
     <section className="rounded-sm border border-line bg-paper px-4 py-4">
@@ -1200,7 +1363,11 @@ function ChannelSnapshot({ channel }: { channel: ChannelSummary }) {
         <MiniStat label="Subscribers" value={channel.subscriberCount} />
         <MiniStat label="Public videos" value={channel.videoCount} />
         <MiniStat label="Lifetime views" value={channel.viewCount} />
-        <MiniStat label="Subscriber change" value={subscriberTrend || "—"} />
+        <MiniStat
+          label="Subscriber change"
+          value={subscriberTrend || "—"}
+          title={subscriberTrendTitle}
+        />
       </div>
     </section>
   );
@@ -1247,6 +1414,9 @@ function CatalogCoverageSection({
           percentage={coverage.video.percentage}
           remainderLabel={`${summary.videosWithoutRecipes} unlinked`}
           onRemainderClick={() => onFilter("needs")}
+          scopeNote={
+            coverage.video.linkScope ? formatVideoLinkScopeBreakdown(coverage.video.linkScope) : null
+          }
         />
         <CoverageRow
           label="Published recipes with YouTube videos"
@@ -1279,6 +1449,7 @@ function CoverageRow({
   percentage,
   remainderLabel,
   onRemainderClick,
+  scopeNote,
 }: {
   label: string;
   numerator: number;
@@ -1286,18 +1457,27 @@ function CoverageRow({
   percentage: number;
   remainderLabel: string;
   onRemainderClick: () => void;
+  scopeNote?: string | null;
 }) {
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-semibold text-ink">{label}</p>
-        <p className="text-sm text-muted">
+        <p className="text-sm text-muted" aria-label={`${numerator} of ${denominator}, ${percentage} percent`}>
           {numerator} of {denominator} · {percentage}%
         </p>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-sand/60">
+      <div
+        className="mt-2 h-2 overflow-hidden rounded-full bg-sand/60"
+        role="progressbar"
+        aria-valuenow={percentage}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${label}: ${numerator} of ${denominator}`}
+      >
         <div className="h-full rounded-full bg-olive/70" style={{ width: `${Math.min(100, percentage)}%` }} />
       </div>
+      {scopeNote ? <p className="mt-1 text-xs text-muted">{scopeNote}</p> : null}
       <button type="button" className={`mt-2 text-xs font-semibold ${adminLinkClass}`} onClick={onRemainderClick}>
         {remainderLabel}
       </button>
@@ -1323,11 +1503,13 @@ function SummaryCard({ label, value, note }: { label: string; value: string; not
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
     <div>
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">{label}</p>
-      <p className="mt-1 font-serif text-lg text-ink">{value}</p>
+      <p className="mt-1 font-serif text-lg text-ink" title={title}>
+        {value}
+      </p>
     </div>
   );
 }

@@ -2,6 +2,13 @@
  * Mesa YouTube catalog coverage — operational denominators use synced DB rows only.
  */
 
+export type VideoLinkScopeBreakdown = {
+  /** Links where the Mesa recipe is published. */
+  publishedLinks: number;
+  /** Links where the Mesa recipe is draft (or non-published). */
+  draftLinks: number;
+};
+
 export type VideoCoverageStats = {
   /** Public synced videos linked to any Mesa recipe (draft or published). */
   linkedCount: number;
@@ -12,6 +19,8 @@ export type VideoCoverageStats = {
   percentage: number;
   /** True when channel counter and synced public inventory disagree. */
   inventoryMismatch: boolean;
+  /** Published vs draft recipe links among linked public videos. */
+  linkScope?: VideoLinkScopeBreakdown;
 };
 
 export type RecipeCoverageStats = {
@@ -22,12 +31,44 @@ export type RecipeCoverageStats = {
   percentage: number;
 };
 
+export function computeVideoLinkScopeBreakdown(input: {
+  linkedPublicVideoIds: string[];
+  recipeStatusById: Map<string, string>;
+  linkRecipeIdByVideoId: Map<string, string>;
+}): VideoLinkScopeBreakdown {
+  let publishedLinks = 0;
+  let draftLinks = 0;
+
+  for (const videoId of input.linkedPublicVideoIds) {
+    const recipeId = input.linkRecipeIdByVideoId.get(videoId);
+    if (!recipeId) continue;
+    const status = input.recipeStatusById.get(recipeId);
+    if (status === "published") publishedLinks += 1;
+    else draftLinks += 1;
+  }
+
+  return { publishedLinks, draftLinks };
+}
+
+export function formatVideoLinkScopeBreakdown(breakdown: VideoLinkScopeBreakdown): string | null {
+  const total = breakdown.publishedLinks + breakdown.draftLinks;
+  if (total <= 0) return null;
+  if (breakdown.draftLinks <= 0) {
+    return `${breakdown.publishedLinks} published link${breakdown.publishedLinks === 1 ? "" : "s"}`;
+  }
+  if (breakdown.publishedLinks <= 0) {
+    return `${breakdown.draftLinks} draft link${breakdown.draftLinks === 1 ? "" : "s"}`;
+  }
+  return `${total} links total · ${breakdown.publishedLinks} published · ${breakdown.draftLinks} draft`;
+}
+
 export function computeVideoCoverage(input: {
   linkedPublicVideoCount: number;
   syncedPublicVideoCount: number;
   channelVideoCount: number | null;
+  linkScope?: VideoLinkScopeBreakdown;
 }): VideoCoverageStats {
-  const { linkedPublicVideoCount, syncedPublicVideoCount, channelVideoCount } = input;
+  const { linkedPublicVideoCount, syncedPublicVideoCount, channelVideoCount, linkScope } = input;
   const percentage =
     syncedPublicVideoCount > 0
       ? Math.round((linkedPublicVideoCount / syncedPublicVideoCount) * 100)
@@ -43,6 +84,7 @@ export function computeVideoCoverage(input: {
     channelVideoCount,
     percentage,
     inventoryMismatch,
+    linkScope,
   };
 }
 

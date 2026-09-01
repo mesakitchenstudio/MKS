@@ -155,5 +155,6 @@ describe("attention queue valuable unlinked", () => {
 
     const item = queue.find((row) => row.id.startsWith("valuable-unlinked"));
     assert.equal(item?.metricsContext, "7,771 views · +10 subscribers · last 28 days");
+    assert.equal(item?.actionLabel, "Create recipe");
   });
 });

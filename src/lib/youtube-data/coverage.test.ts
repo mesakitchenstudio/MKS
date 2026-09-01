@@ -12,6 +12,7 @@ describe("coverage", () => {
       linkedPublicVideoCount: 6,
       syncedPublicVideoCount: 21,
       channelVideoCount: 21,
+      linkScope: { publishedLinks: 3, draftLinks: 3 },
     });
     assert.equal(stats.percentage, 29);
     assert.equal(stats.syncedPublicVideoCount, 21);

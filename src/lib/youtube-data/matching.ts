@@ -15,6 +15,7 @@ export type RecipeVideoRow = {
   id: string;
   slug: string;
   title: string;
+  status: string;
   youtubeUrl?: string;
   youtube?: ReturnType<typeof parseRecipeYoutubeBlob>;
 };
@@ -33,6 +34,7 @@ async function loadRecipeVideoRows(options?: { includeDrafts?: boolean }): Promi
       id: row.id,
       slug: row.slug,
       title: row.title,
+      status: row.status,
       youtubeUrl: typeof values.youtubeUrl === "string" ? values.youtubeUrl : undefined,
       youtube: parseRecipeYoutubeBlob(values.youtube),
     };

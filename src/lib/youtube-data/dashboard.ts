@@ -1,15 +1,18 @@
 import { getDb } from "@/lib/db";
 import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
-import { formatGmtDisplay, formatYoutubeSnapshotDateTime } from "@/lib/datetime";
+import { formatChannelSnapshotTrendShort, formatGmtDisplay, formatYoutubeSnapshotDateTime } from "@/lib/datetime";
 import {
   buildAttentionQueue,
   catalogMedianPeriodViews,
+  listRemainingUnlinkedVideos,
   topAttentionItems,
   type AttentionQueueItem,
 } from "@/lib/youtube-data/attention";
+import { buildAttentionReviewGroups } from "@/lib/youtube-data/attention-review";
 import {
   computeRecipeCoverage,
   computeVideoCoverage,
+  computeVideoLinkScopeBreakdown,
   parseChannelVideoCount,
 } from "@/lib/youtube-data/coverage";
 import {
@@ -254,6 +257,18 @@ export async function loadYoutubeAdminDashboard(input?: {
   }
 
   const linkedPublicCount = publicVideos.filter((video) => byVideoId.has(video.videoId)).length;
+  const linkedPublicVideoIds = publicVideos
+    .filter((video) => byVideoId.has(video.videoId))
+    .map((video) => video.videoId);
+  const linkRecipeIdByVideoId = new Map(
+    linkedPublicVideoIds.map((videoId) => [videoId, byVideoId.get(videoId)!.recipeId]),
+  );
+  const recipeStatusById = new Map(recipes.map((recipe) => [recipe.id, recipe.status]));
+  const linkScope = computeVideoLinkScopeBreakdown({
+    linkedPublicVideoIds,
+    recipeStatusById,
+    linkRecipeIdByVideoId,
+  });
   const syncedPublicVideoCount = publicVideos.length;
   const channelVideoCount = channel ? parseChannelVideoCount(channel.videoCount) : null;
 
@@ -261,6 +276,7 @@ export async function loadYoutubeAdminDashboard(input?: {
     linkedPublicVideoCount: linkedPublicCount,
     syncedPublicVideoCount,
     channelVideoCount,
+    linkScope,
   });
 
   const recipeCoverage = computeRecipeCoverage({
@@ -273,15 +289,30 @@ export async function loadYoutubeAdminDashboard(input?: {
     attentionVideoInputs.map((video) => video.analytics.views),
   );
 
-  const attentionQueue = buildAttentionQueue({
+  const attentionQueueInput = {
     videos: attentionVideoInputs,
     healthIssues,
     catalogMedianPeriodViews: medianViews,
     analyticsConnected: analyticsConnection.connected,
     analyticsRangeDays,
-  });
+  };
+
+  const attentionQueue = buildAttentionQueue(attentionQueueInput);
 
   const attentionTop = topAttentionItems(attentionQueue, 3);
+  const attentionReview = buildAttentionReviewGroups({
+    items: attentionQueue,
+    recipesWithoutVideo: publishedIndex.recipesWithoutVideo.map((recipe) => ({
+      id: recipe.id,
+      title: recipe.title,
+    })),
+    remainingUnlinkedVideos: listRemainingUnlinkedVideos(attentionQueueInput),
+  });
+  const subscriberTrendDisplay = formatChannelSnapshotTrendShort({
+    delta: trend.subscribers,
+    fromRecordedAt: trend.fromRecordedAt,
+    toRecordedAt: trend.toRecordedAt,
+  });
   const channelAnalyticsDisplay = displayMetrics(channelAnalytics);
 
   return {
@@ -299,6 +330,8 @@ export async function loadYoutubeAdminDashboard(input?: {
           lastSyncError: channel.lastSyncError,
           trendViews7d: trend.views,
           trendSubscribers7d: trend.subscribers,
+          trendSubscribersShort: subscriberTrendDisplay.short,
+          trendSubscribersTitle: subscriberTrendDisplay.title,
           trendFromDate: trend.fromRecordedAt
             ? `${formatYoutubeSnapshotDateTime(trend.fromRecordedAt).date} ${formatYoutubeSnapshotDateTime(trend.fromRecordedAt).time}`.trim()
             : null,
@@ -325,6 +358,7 @@ export async function loadYoutubeAdminDashboard(input?: {
       top: attentionTop,
       all: attentionQueue,
       total: attentionQueue.length,
+      review: attentionReview,
     },
     videos: rows,
     analytics: {
@@ -431,3 +465,4 @@ export async function loadYoutubeVideoDetail(
 }
 
 export type { AttentionQueueItem };
+export type { AttentionReviewGroup } from "@/lib/youtube-data/attention-review";

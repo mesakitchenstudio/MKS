@@ -143,7 +143,7 @@ export function buildAttentionQueue(input: BuildAttentionQueueInput): AttentionQ
       title: "High-performing video without recipe",
       detail: video.title,
       href: `/admin/youtube/videos/${video.videoId}`,
-      actionLabel: "Create or link",
+      actionLabel: "Create recipe",
       actionKind: "create-recipe",
       videoId: video.videoId,
       videoTitle: video.title,
@@ -228,6 +228,26 @@ export function buildAttentionQueue(input: BuildAttentionQueueInput): AttentionQ
   }
 
   return items;
+}
+
+/** Public unlinked videos outside P0 opportunity cards — used for Review All backlog summary. */
+export function listRemainingUnlinkedVideos(
+  input: BuildAttentionQueueInput,
+): Array<{ videoId: string; title: string; periodViews: number }> {
+  const unlinked = input.videos.filter(
+    (video) => !video.linkedRecipeId && video.privacyStatus === "public",
+  );
+
+  return unlinked
+    .filter(
+      (video) => !video.possibleMatch && !isValuableUnlinked(video, input.catalogMedianPeriodViews),
+    )
+    .map((video) => ({
+      videoId: video.videoId,
+      title: video.title,
+      periodViews: video.analytics.views,
+    }))
+    .sort((a, b) => b.periodViews - a.periodViews);
 }
 
 export function topAttentionItems(queue: AttentionQueueItem[], limit = 3): AttentionQueueItem[] {

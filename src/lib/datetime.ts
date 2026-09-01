@@ -133,6 +133,30 @@ export function formatYoutubeSnapshotDateTime(value: Date | string | null | unde
   };
 }
 
+/** Short public snapshot delta label, e.g. "+10 since Aug 30". */
+export function formatChannelSnapshotTrendShort(input: {
+  delta: string | null | undefined;
+  fromRecordedAt: Date | string | null | undefined;
+  toRecordedAt?: Date | string | null | undefined;
+}): { short: string | null; title: string | null } {
+  const delta = String(input.delta ?? "").trim();
+  if (!delta) return { short: null, title: null };
+
+  const from = asDate(input.fromRecordedAt);
+  const to = asDate(input.toRecordedAt);
+  const fromLabel = from
+    ? from.toLocaleString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+    : null;
+
+  const short = fromLabel ? `${delta} since ${fromLabel}` : `${delta} · 7-day snapshot delta`;
+  const title =
+    from && to
+      ? `${delta} since ${formatYoutubeSnapshotDateTime(from).date} ${formatYoutubeSnapshotDateTime(from).time} → ${formatYoutubeSnapshotDateTime(to).date} ${formatYoutubeSnapshotDateTime(to).time}`.trim()
+      : short;
+
+  return { short, title };
+}
+
 /** Readable dates with optional time: Aug 24, 2026, 19:35 GMT */
 export function formatGmtDisplay(
   value: Date | string | null | undefined,
