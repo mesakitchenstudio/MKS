@@ -35,7 +35,7 @@ async function readPresenceBody(request: Request): Promise<PresenceBody> {
 export async function POST(request: Request) {
   const session = await auth();
   const email = session?.user?.email;
-  if (!email || session?.error === "MemberDeleted") {
+  if (!email || session?.error === "MemberDeleted" || session?.error === "SessionRevoked") {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 

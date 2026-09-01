@@ -183,7 +183,7 @@ describe("password reset token consumption", () => {
 
   it("accepts a valid token, updates the password, and invalidates the reset row", async () => {
     const deleted: string[] = [];
-    const updates: Array<{ email: string; passwordHash: string }> = [];
+    const updates: Array<{ email: string; passwordHash: string; sessionVersionIncrement?: boolean }> = [];
     const token = "valid-reset-token-hex";
     const result = await resetPasswordWithToken(token, "brand-new-password", {
       findResetByHash: async (tokenHash) => {
@@ -210,6 +210,28 @@ describe("password reset token consumption", () => {
     assert.equal(updates[0]?.email, "chef@studio.com");
     assert.ok(updates[0]?.passwordHash);
     assert.deepEqual(deleted, ["row-ok"]);
+  });
+
+  it("increments member sessionVersion when a member password reset succeeds", async () => {
+    const memberUpdates: Array<{ email: string; sessionVersionIncrement: boolean }> = [];
+    const result = await resetPasswordWithToken("member-reset-token", "new-member-password", {
+      findResetByHash: async () => ({
+        id: "member-row",
+        email: "member@example.com",
+        kind: "member",
+        expiresAt: new Date(Date.now() + 60_000),
+      }),
+      updateMemberPassword: async (email) => {
+        memberUpdates.push({ email, sessionVersionIncrement: true });
+        return true;
+      },
+      deleteResetById: async () => undefined,
+    });
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.kind, "member");
+    assert.deepEqual(memberUpdates, [
+      { email: "member@example.com", sessionVersionIncrement: true },
+    ]);
   });
 
   it("treats a valid unexpired token as openable by evaluatePasswordResetRow", () => {

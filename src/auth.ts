@@ -12,6 +12,7 @@ import {
   upsertGoogleUser,
 } from "@/lib/accounts";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
+import { isMemberSessionVersionCurrent } from "@/lib/member-session";
 
 if (process.env.VERCEL) {
   // Always pin the public host so OAuth callbacks match Google Cloud redirect URIs.
@@ -25,6 +26,10 @@ const googleReady = Boolean(googleId && googleSecret);
 
 function asStaffRole(value: unknown): AccessLevel | null {
   return typeof value === "string" && isAccessLevel(value) ? value : null;
+}
+
+function invalidMemberSession(error: "MemberDeleted" | "SessionRevoked") {
+  return { error };
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
@@ -50,7 +55,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
         if (!email || password.length < 6) return null;
         try {
           const user = await authenticateEmailUser(email, password);
-          return { id: user.id, email: user.email, name: user.name };
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            memberSessionVersion: user.sessionVersion ?? 0,
+          };
         } catch {
           return null;
         }
@@ -91,6 +101,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
         token.email = user.email;
         token.name = user.name;
         delete token.error;
+        const staff = await getStaffByEmail(user.email);
+        if (!staff) {
+          const member = await findActiveMemberByEmail(user.email);
+          if (member) {
+            token.memberSessionVersion =
+              "memberSessionVersion" in user && typeof user.memberSessionVersion === "number"
+                ? user.memberSessionVersion
+                : member.sessionVersion ?? 0;
+          }
+        }
       }
       if (user?.image) {
         token.picture = user.image;
@@ -98,23 +118,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
       if (token.email) {
         const staff = await getStaffByEmail(String(token.email));
         token.staffRole = asStaffRole(staff?.role);
-        // JWT alone must not keep a deleted member authenticated.
         if (!token.staffRole) {
           const member = await findActiveMemberByEmail(String(token.email));
           if (!member) {
-            return { error: "MemberDeleted" };
+            return invalidMemberSession("MemberDeleted");
+          }
+          if (
+            !isMemberSessionVersionCurrent(
+              token.memberSessionVersion as number | undefined,
+              member.sessionVersion ?? 0,
+            )
+          ) {
+            return invalidMemberSession("SessionRevoked");
           }
         }
       }
       return token;
     },
     async session({ session, token }) {
-      if (token.error === "MemberDeleted") {
+      if (token.error === "MemberDeleted" || token.error === "SessionRevoked") {
         return {
           expires: session.expires,
           user: undefined,
           staffRole: null,
-          error: "MemberDeleted",
+          error: token.error,
         };
       }
 
@@ -138,6 +165,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
                 user: undefined,
                 staffRole: null,
                 error: "MemberDeleted",
+              };
+            }
+            if (
+              !isMemberSessionVersionCurrent(
+                token.memberSessionVersion as number | undefined,
+                member.sessionVersion ?? 0,
+              )
+            ) {
+              return {
+                expires: session.expires,
+                user: undefined,
+                staffRole: null,
+                error: "SessionRevoked",
               };
             }
             if (token.picture) {

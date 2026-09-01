@@ -172,10 +172,7 @@ async function findMember(identifier: string) {
   const trimmed = identifier.trim();
   if (!trimmed) return null;
   const db = getDb();
-  const byEmail = await db.user.findUnique({ where: { email: trimmed.toLowerCase() } });
-  if (byEmail) return byEmail;
-  const users = await db.user.findMany();
-  return users.find((user) => user.name.toLowerCase() === trimmed.toLowerCase()) ?? null;
+  return db.user.findUnique({ where: { email: trimmed.toLowerCase() } });
 }
 
 async function defaultCreateResetRecord(input: {
@@ -349,7 +346,10 @@ export async function resetPasswordWithToken(
     (async (email: string, passwordHash: string) => {
       const user = await getDb().user.findUnique({ where: { email } });
       if (!user) return false;
-      await getDb().user.update({ where: { id: user.id }, data: { passwordHash } });
+      await getDb().user.update({
+        where: { id: user.id },
+        data: { passwordHash, sessionVersion: { increment: 1 } },
+      });
       return true;
     });
 

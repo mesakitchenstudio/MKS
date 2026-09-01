@@ -16,7 +16,7 @@ export function ForgotPasswordForm({
   const help =
     kind === "admin"
       ? "Enter the email or username on the account. The owner account uses Google or the owner password."
-      : "Enter the email or username on the account. If we find it, we will send a reset link.";
+      : "Enter the email on the account. If we find it, we will send a reset link.";
   return (
     <div className="mx-auto max-w-md border border-line bg-paper p-8">
       <h1 className="font-serif text-3xl">Forgot password</h1>
@@ -29,11 +29,12 @@ export function ForgotPasswordForm({
       <form action={requestPasswordResetAction} className="mt-6 grid gap-4">
         <input type="hidden" name="kind" value={kind} />
         <label className="grid gap-1 text-sm">
-          Email or username
+          {kind === "admin" ? "Email or username" : "Email"}
           <input
             name="email"
             required
-            autoComplete="username"
+            type={kind === "admin" ? "text" : "email"}
+            autoComplete={kind === "admin" ? "username" : "email"}
             className="rounded-sm border border-line px-3 py-2 outline-none focus:border-terracotta"
           />
         </label>

@@ -7,6 +7,7 @@ import { formatLongDate } from "@/lib/datetime";
 import { getAllRecipes } from "@/lib/recipes";
 import { authFocusRing } from "@/lib/auth-ui";
 import { memberIdentityLines, resolveMemberDisplayName } from "@/lib/auth-client";
+import { EmailUpdatesPreference } from "@/components/EmailUpdatesPreference";
 import { FavoritesEmptyState, ProfileFavorites } from "@/components/ProfileFavorites";
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export default async function ProfilePage() {
   const session = await auth();
   const email = session?.user?.email;
 
-  if (!email || session?.error === "MemberDeleted") {
+  if (!email || session?.error === "MemberDeleted" || session?.error === "SessionRevoked") {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 md:px-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">Account</p>
@@ -133,6 +134,8 @@ export default async function ProfilePage() {
           <FavoritesEmptyState />
         )}
       </section>
+
+      <EmailUpdatesPreference initialNotify={user.notify} />
     </div>
   );
 }

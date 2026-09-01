@@ -16,7 +16,7 @@ function unauthorized() {
 export async function GET() {
   const session = await auth();
   const email = session?.user?.email;
-  if (!email || session?.error === "MemberDeleted") {
+  if (!email || session?.error === "MemberDeleted" || session?.error === "SessionRevoked") {
     return NextResponse.json({ favorites: [] }, { status: 401 });
   }
   try {
@@ -33,7 +33,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await auth();
   const email = session?.user?.email;
-  if (!email || session?.error === "MemberDeleted") {
+  if (!email || session?.error === "MemberDeleted" || session?.error === "SessionRevoked") {
     return unauthorized();
   }
 

@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { registerEmailUser } from "@/lib/accounts";
+import {
+  isValidSignupEmail,
+  MEMBER_EXISTING_ACCOUNT_API_ERROR,
+  MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR,
+  MEMBER_PASSWORD_MIN_LENGTH,
+} from "@/lib/auth-credentials";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
@@ -11,20 +17,34 @@ export async function POST(request: Request) {
   const name = String(body.name ?? "").trim();
   const email = String(body.email ?? "").trim();
   const password = String(body.password ?? "");
-  if (!name || !email || password.length < 6) {
-    return NextResponse.json({ error: "Name, email, and a password of 6+ characters are required." }, { status: 400 });
+  if (!name || !email) {
+    return NextResponse.json({ error: "Name and email are required." }, { status: 400 });
+  }
+  if (!isValidSignupEmail(email)) {
+    return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
+  }
+  if (password.length < MEMBER_PASSWORD_MIN_LENGTH) {
+    return NextResponse.json(
+      { error: `Use at least ${MEMBER_PASSWORD_MIN_LENGTH} characters.` },
+      { status: 400 },
+    );
   }
   try {
     const user = await registerEmailUser({
       name,
       email,
       password,
-      notify: body.notify !== false,
+      notify: Boolean(body.notify),
     });
     return NextResponse.json({ email: user.email, name: user.name });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create account.";
-    const status = message.includes("already exists") ? 409 : 500;
+    const status =
+      message === MEMBER_EXISTING_ACCOUNT_API_ERROR ||
+      message === MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR ||
+      message.includes("already exists")
+        ? 409
+        : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
