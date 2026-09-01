@@ -16,6 +16,7 @@ import { EditorStickyActionBar } from "@/components/admin/EditorStickyActionBar"
 import { FaqAccordionEditor } from "@/components/admin/FaqAccordionEditor";
 import { FieldOverflowMenu } from "@/components/admin/FieldOverflowMenu";
 import { InstructionsAccordionEditor } from "@/components/admin/InstructionsAccordionEditor";
+import { InstructionsVideoVerificationLayout } from "@/components/admin/InstructionsVideoVerificationLayout";
 import { KeyIngredientsCompactEditor } from "@/components/admin/KeyIngredientsCompactEditor";
 import { StudioTipsCompactEditor } from "@/components/admin/StudioTipsCompactEditor";
 import { UtensilsChipEditor } from "@/components/admin/UtensilsChipEditor";
@@ -1245,6 +1246,14 @@ export function RecipeEditor({
     setAiMeta((meta) => noteHumanEditorChange(meta, path, value));
   }
 
+  function handleNavigateChapterIssue(groupIndex: number) {
+    setInstructionExpandedGroups((current) => ({ ...current, [groupIndex]: true }));
+    void scrollToEditorPath(`values.instructions.${groupIndex}.startTimestamp`, {
+      pulse: true,
+      updateHash: true,
+    });
+  }
+
   function provenanceValueForPath(path: string): unknown {
     if (path === "title") return title;
     if (path === "excerpt") return excerpt;
@@ -1956,6 +1965,49 @@ export function RecipeEditor({
               setTagOptimizeProposal(null);
             }}
             onTryAnotherOptimize={() => void runFieldAi("values.tags", "tags", "alternative")}
+          />
+        ) : field.key === "instructions" ? (
+          <InstructionsVideoVerificationLayout
+            values={values}
+            stickyTopPx={scrollOffset}
+            onInstructionsChange={(next) => {
+              setField("instructions", next);
+              clearFieldError();
+            }}
+            typeFields={fields}
+            fieldAiBusy={fieldAiBusy}
+            fieldSuggestions={fieldSuggestions}
+            fieldAiNotice={fieldAiNotice}
+            onRunFieldAi={(path, _parentKey, intent) => void runFieldAi(path, field.key, intent)}
+            onApplyFieldSuggestion={applyFieldSuggestion}
+            onClearFieldSuggestion={clearFieldSuggestion}
+            expandedGroups={instructionExpandedGroups}
+            onToggleGroup={(groupIndex) =>
+              setInstructionExpandedGroups((current) => ({
+                ...current,
+                [groupIndex]: !current[groupIndex],
+              }))
+            }
+            onExpandAll={() => {
+              const groups = Array.isArray(values.instructions)
+                ? (values.instructions as { steps: string[] }[])
+                : [];
+              const next: Record<number, boolean> = {};
+              groups.forEach((_, index) => {
+                next[index] = true;
+              });
+              setInstructionExpandedGroups(next);
+            }}
+            onCollapseAll={() => setInstructionExpandedGroups({})}
+            reviewPaths={evaluatorReviewPaths}
+            missingPaths={evaluatorMissingPaths}
+            pulsingPath={pulsingPath}
+            videoDurationSeconds={instructionChapterContext.videoDurationSeconds}
+            stageAlignments={instructionChapterContext.stageAlignments}
+            legacyTimestamps={instructionChapterContext.legacyTimestamps}
+            chapterValidationIssues={instructionChapterContext.chapterValidationIssues}
+            onChapterFieldChange={handleInstructionChapterFieldChange}
+            onNavigateChapterIssue={handleNavigateChapterIssue}
           />
         ) : (
           <KindInput

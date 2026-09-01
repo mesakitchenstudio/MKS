@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { AiTargetedFillApplyPayload } from "@/components/admin/AiRecipeAssistant";
+import { useInstructionVideoWorkspaceOptional } from "@/components/admin/InstructionVideoWorkspaceContext";
 import { EditorDragHandle, EditorRowActions } from "@/components/admin/EditorRowActions";
 import { FieldAiActionButton } from "@/components/admin/FieldAiActionButton";
 import { FieldAiSuggestionPanel } from "@/components/admin/FieldAiSuggestionPanel";
@@ -194,9 +195,10 @@ export function InstructionsAccordionEditor({
   legacyTimestamps = [],
   chapterValidationIssues = [],
   onChapterFieldChange,
-  onPlayTimestamp,
   onSetStartFromPlayhead,
   onSetEndFromPlayhead,
+  onClearStartTimestamp,
+  onClearEndTimestamp,
 }: {
   groups: InstructionGroupWithChapters[];
   onChange: (value: unknown) => void;
@@ -231,13 +233,12 @@ export function InstructionsAccordionEditor({
     field: "chapterLabel" | "startTimestamp" | "endTimestamp",
     value: string | number | undefined,
   ) => void;
-  onPlayTimestamp?: (seconds: number) => void;
-  onSetStartFromPlayhead?: (groupIndex: number) => void;
-  onSetEndFromPlayhead?: (groupIndex: number) => void;
+  onSetStartFromPlayhead?: (groupIndex: number, seconds: number) => void;
+  onSetEndFromPlayhead?: (groupIndex: number, seconds: number) => void;
+  onClearStartTimestamp?: (groupIndex: number) => void;
+  onClearEndTimestamp?: (groupIndex: number) => void;
 }) {
-  void onPlayTimestamp;
-  void onSetStartFromPlayhead;
-  void onSetEndFromPlayhead;
+  const videoWorkspace = useInstructionVideoWorkspaceOptional();
 
   const canonicalMode = useMemo(
     () => hasCanonicalInstructionChapters(groups),
@@ -382,6 +383,21 @@ export function InstructionsAccordionEditor({
     patchGroup(groupIndex, { startTimestamp: resolved.startTimestamp });
   }
 
+  function handleToggleGroup(groupIndex: number) {
+    videoWorkspace?.setActiveSectionIndex(groupIndex);
+    onToggleGroup(groupIndex);
+  }
+
+  function handlePlaySection(groupIndex: number, seconds: number) {
+    videoWorkspace?.setActiveSectionIndex(groupIndex);
+    videoWorkspace?.seekAndPlay(seconds, groupIndex);
+  }
+
+  function handleSeekTimestamp(groupIndex: number, seconds: number) {
+    videoWorkspace?.setActiveSectionIndex(groupIndex);
+    videoWorkspace?.seekOnly(seconds, groupIndex);
+  }
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 pb-3">
@@ -433,40 +449,76 @@ export function InstructionsAccordionEditor({
             ? formatTimestampInput(resolved.endTimestamp)
             : null;
 
+        const isActiveSection = videoWorkspace?.activeSectionIndex === groupIndex;
+        const isPlayingSection = videoWorkspace?.playingSectionIndex === groupIndex;
+        const canonicalStart = hasCanonicalStartTimestamp(group) ? group.startTimestamp : undefined;
+
         return (
-          <div key={groupIndex} className="border border-line/80 bg-cream/20">
-            <button
-              type="button"
-              aria-expanded={expanded}
-              className={`flex w-full items-start gap-3 px-3 py-3 text-left hover:bg-cream/50 ${adminFocusRing}`}
-              onClick={() => onToggleGroup(groupIndex)}
-            >
-              <span className="mt-0.5 shrink-0 text-sm text-muted" aria-hidden>
+          <div
+            key={groupIndex}
+            className={`border border-line/80 bg-cream/20${
+              isActiveSection ? " ring-1 ring-olive/25" : ""
+            }`}
+          >
+            <div className="flex items-start gap-2 px-3 py-3">
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-label={`${expanded ? "Collapse" : "Expand"} section ${groupIndex + 1}`}
+                className={`mt-0.5 shrink-0 text-sm text-muted hover:text-ink ${adminFocusRing}`}
+                onClick={() => handleToggleGroup(groupIndex)}
+              >
                 {expanded ? "▾" : "▸"}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-xs font-semibold tabular-nums text-muted">{groupIndex + 1}</span>
-                  <span className="font-semibold text-ink">{sectionTitle}</span>
-                </span>
-                <span className="mt-0.5 block text-xs text-muted">
+              </button>
+              <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  className={`w-full text-left hover:opacity-90 ${adminFocusRing}`}
+                  onClick={() => handleToggleGroup(groupIndex)}
+                >
+                  <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="text-xs font-semibold tabular-nums text-muted">{groupIndex + 1}</span>
+                    <span className="font-semibold text-ink">{sectionTitle}</span>
+                    {isPlayingSection ? (
+                      <span className="text-xs font-semibold text-olive">Playing</span>
+                    ) : null}
+                  </span>
+                </button>
+                <p className="mt-0.5 text-xs text-muted">
                   {stepCount} step{stepCount === 1 ? "" : "s"}
                   {status ? <span className="text-terracotta/90"> · {status}</span> : null}
-                  <span
-                    className={
-                      timestampMeta.quiet
-                        ? " text-muted/80"
-                        : timestampMeta.legacy
-                          ? " text-olive/90"
-                          : ""
-                    }
+                  {" · "}
+                  {canonicalStart != null ? (
+                    <button
+                      type="button"
+                      className={`font-semibold tabular-nums underline-offset-2 hover:underline ${
+                        timestampMeta.legacy ? " text-olive/90" : " text-ink"
+                      } ${adminFocusRing}`}
+                      aria-label={`Seek video to ${formatTimestampInput(canonicalStart)} for ${sectionTitle}`}
+                      onClick={() => handleSeekTimestamp(groupIndex, canonicalStart)}
+                    >
+                      {formatTimestampInput(canonicalStart)}
+                    </button>
+                  ) : (
+                    <span className={timestampMeta.quiet ? " text-muted/80" : ""}>
+                      {timestampMeta.text}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                {canonicalStart != null ? (
+                  <button
+                    type="button"
+                    className={`text-xs font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
+                    aria-label={`Play section ${sectionTitle} from ${formatTimestampInput(canonicalStart)}`}
+                    onClick={() => handlePlaySection(groupIndex, canonicalStart)}
                   >
-                    {" "}
-                    · {timestampMeta.text}
-                  </span>
-                </span>
-              </span>
-            </button>
+                    ▶ {formatTimestampInput(canonicalStart)}
+                  </button>
+                ) : null}
+              </div>
+            </div>
 
             {expanded ? (
               <div className="grid gap-4 border-t border-line/70 px-3 pb-4 pt-3">
@@ -562,6 +614,29 @@ export function InstructionsAccordionEditor({
                               : ""}
                         </button>
                       ) : null}
+                      {onSetStartFromPlayhead ? (
+                        <button
+                          type="button"
+                          className={`text-left text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline ${adminFocusRing}`}
+                          onClick={() =>
+                            onSetStartFromPlayhead(
+                              groupIndex,
+                              videoWorkspace?.readPlayheadSeconds() ?? 0,
+                            )
+                          }
+                        >
+                          Set from playhead
+                        </button>
+                      ) : null}
+                      {hasCanonicalStartTimestamp(group) && onClearStartTimestamp ? (
+                        <button
+                          type="button"
+                          className={`text-left text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline ${adminFocusRing}`}
+                          onClick={() => onClearStartTimestamp(groupIndex)}
+                        >
+                          Clear timestamp
+                        </button>
+                      ) : null}
                     </label>
                     <label className="grid gap-1.5 text-sm">
                       <span className="font-semibold text-muted">End</span>
@@ -580,6 +655,29 @@ export function InstructionsAccordionEditor({
                       ) : null}
                       {autoEnd && !hasExplicitEnd ? (
                         <span className="text-xs text-muted">Auto: {autoEnd}</span>
+                      ) : null}
+                      {onSetEndFromPlayhead ? (
+                        <button
+                          type="button"
+                          className={`text-left text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline ${adminFocusRing}`}
+                          onClick={() =>
+                            onSetEndFromPlayhead(
+                              groupIndex,
+                              videoWorkspace?.readPlayheadSeconds() ?? 0,
+                            )
+                          }
+                        >
+                          Set explicit end from playhead
+                        </button>
+                      ) : null}
+                      {hasExplicitEnd && onClearEndTimestamp ? (
+                        <button
+                          type="button"
+                          className={`text-left text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline ${adminFocusRing}`}
+                          onClick={() => onClearEndTimestamp(groupIndex)}
+                        >
+                          Use automatic end
+                        </button>
                       ) : null}
                     </label>
                   </div>
