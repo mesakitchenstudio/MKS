@@ -3,6 +3,20 @@ import type { ExtraField } from "@/lib/recipe-map";
 
 export type RecipeWithExtras = Recipe & { extras?: ExtraField[] };
 
+/**
+ * TIMING INVARIANT (card / reader passive time via publicRestMinutes):
+ *
+ * - riseHours (bread RecipeType field, hours): long yeast proofing / cold fermentation.
+ * - restMinutes (core field, minutes): separate passive windows — chill, soak, bench rest.
+ *
+ * These are INDEPENDENT durations when both are populated (editor + AI intent).
+ * reconcileTimingFields() in ai-recipe/normalize clears restMinutes only when it
+ * duplicates the same proof window as riseHours (within 5 minutes).
+ *
+ * publicRestMinutes sums both when they describe distinct periods; when they
+ * overlap numerically, only riseHours counts (no double-count).
+ */
+
 export function riseHoursFromExtras(recipe: RecipeWithExtras): number {
   const row = recipe.extras?.find((field) => field.key === "riseHours");
   if (typeof row?.value !== "number" || !Number.isFinite(row.value) || row.value <= 0) {

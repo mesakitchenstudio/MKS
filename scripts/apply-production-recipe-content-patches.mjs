@@ -1,11 +1,16 @@
 import { PrismaClient } from "@prisma/client";
 import { parseValues } from "../src/lib/recipe-map.ts";
 import {
-  mergeProductionRecipeContentPatches,
+  applyProductionRecipeContentPatchPlan,
+  countAppliedFields,
   patchedProductionRecipeSlugs,
+  planProductionRecipeContentPatch,
+  summarizePatchPlans,
 } from "../src/lib/production-recipe-content-patches.ts";
 
+const dryRun = process.argv.includes("--dry-run");
 const url = process.env.DATABASE_URL?.trim();
+
 if (!url?.startsWith("postgres")) {
   console.error(
     "DATABASE_URL must be postgres:// for this script. For local SQLite use scripts/apply-production-recipe-content-patches.py",
@@ -20,17 +25,63 @@ const rows = await prisma.recipe.findMany({
   select: { id: true, slug: true, values: true },
 });
 
-let updated = 0;
+const plans = [];
+const updates: { id: string; slug: string; values: Record<string, unknown> }[] = [];
+
 for (const row of rows) {
   const values = parseValues(row.values);
-  const merged = mergeProductionRecipeContentPatches(row.slug, values);
-  await prisma.recipe.update({
-    where: { id: row.id },
-    data: { values: JSON.stringify(merged) },
-  });
-  updated += 1;
-  console.log(`patched ${row.slug}`);
+  const plan = planProductionRecipeContentPatch(row.slug, values);
+  if (!plan) continue;
+  plans.push(plan);
+
+  for (const decision of plan.decisions) {
+    console.log(
+      JSON.stringify({
+        slug: row.slug,
+        field: decision.field,
+        current: decision.currentValue,
+        legacyBaseline: decision.legacyBaseline,
+        proposed: decision.proposedValue,
+        action: decision.action,
+        reason: decision.reason,
+      }),
+    );
+  }
+
+  const merged = applyProductionRecipeContentPatchPlan(values, plan);
+  const changed = plan.decisions.some((d) => d.action === "APPLY");
+  if (changed) {
+    updates.push({ id: row.id, slug: row.slug, values: merged });
+  }
 }
 
-console.log(`updated ${updated} published recipes`);
+const summary = summarizePatchPlans(plans);
+    if (!dryRun && updates.length > 0) {
+  await prisma.$transaction(
+    updates.map((row) =>
+      prisma.recipe.update({
+        where: { id: row.id },
+        data: { values: JSON.stringify(row.values) },
+      }),
+    ),
+  );
+}
+
+if (!dryRun) {
+  summary.fieldsApplied = countAppliedFields(plans);
+}
+
+console.log(
+  JSON.stringify({
+    mode: dryRun ? "dry-run" : "apply",
+    recipesInspected: summary.recipesInspected,
+    fieldsProposed: summary.fieldsProposed,
+    fieldsApplied: summary.fieldsApplied,
+    fieldsAlreadyCorrect: summary.fieldsAlreadyCorrect,
+    fieldsSkipped: summary.fieldsSkipped,
+    fieldsConflict: summary.fieldsConflict,
+    recipesUpdated: dryRun ? 0 : updates.length,
+  }),
+);
+
 await prisma.$disconnect();
