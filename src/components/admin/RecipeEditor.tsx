@@ -445,6 +445,7 @@ export function RecipeEditor({
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const sectionNavRef = useRef<HTMLElement>(null);
   const headerSentinelRef = useRef<HTMLDivElement>(null);
+  const actionBarSentinelRef = useRef<HTMLDivElement>(null);
   const moveToDraftCancelRef = useRef<HTMLButtonElement>(null);
   const moveToDraftTitleId = useId();
   const [headerHeight, setHeaderHeight] = useState(84);
@@ -795,15 +796,15 @@ export function RecipeEditor({
   }, [evaluatorMissingPaths, evaluatorReviewPaths, values.instructions]);
 
   useEffect(() => {
-    const header = stickyHeaderRef.current;
-    if (!header) return;
+    const sentinel = actionBarSentinelRef.current;
+    if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry) setStickyActionsVisible(!entry.isIntersecting);
       },
-      { threshold: 0, rootMargin: "-1px 0px 0px 0px" },
+      { threshold: 0 },
     );
-    observer.observe(header);
+    observer.observe(sentinel);
     return () => observer.disconnect();
   }, []);
 
@@ -1011,7 +1012,7 @@ export function RecipeEditor({
           ? path.slice("values.".length).split(".")[0] ?? ""
           : path);
 
-    const scroll = () => {
+    const scroll = (): boolean => {
       const anchorId = recipeEditorAnchorId(path, fieldKey);
       const target =
         document.getElementById(anchorId) ??
@@ -1041,12 +1042,16 @@ export function RecipeEditor({
       return true;
     };
 
-    const delay = hintsNeedExpansion(path) ? 140 : fieldNeedsAdvancedOpen(fieldKey) ? 120 : 80;
-    window.setTimeout(() => {
-      if (!scroll()) {
-        window.setTimeout(scroll, 120);
+    const needsExpansion = hintsNeedExpansion(path);
+    const attemptScroll = (attempt = 0) => {
+      if (scroll()) return;
+      if (attempt < 10) {
+        window.setTimeout(() => attemptScroll(attempt + 1), needsExpansion ? 100 : 80);
       }
-    }, delay);
+    };
+
+    const initialDelay = needsExpansion ? 80 : fieldNeedsAdvancedOpen(fieldKey) ? 120 : 60;
+    window.setTimeout(() => attemptScroll(), initialDelay);
   }
 
   function hintsNeedExpansion(path: string) {
@@ -1835,6 +1840,7 @@ export function RecipeEditor({
                 strategy={fieldDef?.strategy}
                 value={values[field.key]}
                 busy={fieldAiBusy === fieldPath}
+                disabled={Boolean(aiMeta && isFieldLocked(fieldPath, aiMeta))}
                 onAction={(intent) => void runFieldAi(fieldPath, field.key, intent)}
               />
             ) : undefined
@@ -2004,6 +2010,7 @@ export function RecipeEditor({
 
   return (
     <>
+      <div ref={actionBarSentinelRef} className="h-px w-full" aria-hidden />
       <div
         ref={stickyHeaderRef}
         className="sticky top-0 z-50 -mx-5 mb-8 border-b border-line bg-[var(--cream)] px-5 transition-[padding] duration-150 motion-reduce:transition-none md:-mx-6 md:px-6 md:py-3"
@@ -2144,7 +2151,7 @@ export function RecipeEditor({
       <form
         ref={formRef}
         action={saveRecipeAction}
-        className="grid gap-6 [&_input:not([type='hidden']):not([type='file'])]:[scroll-margin-top:var(--recipe-editor-scroll-offset)] [&_select]:[scroll-margin-top:var(--recipe-editor-scroll-offset)] [&_textarea]:[scroll-margin-top:var(--recipe-editor-scroll-offset)]"
+        className="grid gap-6 pb-24 [&_input:not([type='hidden']):not([type='file'])]:[scroll-margin-top:var(--recipe-editor-scroll-offset)] [&_select]:[scroll-margin-top:var(--recipe-editor-scroll-offset)] [&_textarea]:[scroll-margin-top:var(--recipe-editor-scroll-offset)]"
         style={
           {
             "--recipe-editor-scroll-offset": `${scrollOffset}px`,
