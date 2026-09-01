@@ -12,6 +12,7 @@ export function PublicChrome({
   hideTools = false,
   showChrome = true,
   showStaffPreviewBanner = false,
+  showStudioStaffPreviewBanner = false,
   recipes = [],
 }: {
   children: React.ReactNode;
@@ -20,6 +21,8 @@ export function PublicChrome({
   showChrome?: boolean;
   /** SITE_PRIVATE + valid admin session browsing the public site. */
   showStaffPreviewBanner?: boolean;
+  /** Valid admin session previewing /studio while STUDIO_PUBLIC_LAUNCH is off. */
+  showStudioStaffPreviewBanner?: boolean;
   recipes?: OverlayRecipe[];
 }) {
   const pathname = usePathname() || "";
@@ -29,9 +32,14 @@ export function PublicChrome({
     return children;
   }
 
+  const onStudioRoute = pathname === "/studio" || pathname.startsWith("/studio/");
+
   return (
     <>
-      {showStaffPreviewBanner ? <StaffPreviewBanner /> : null}
+      {showStaffPreviewBanner ? <StaffPreviewBanner sitePrivate /> : null}
+      {!showStaffPreviewBanner && showStudioStaffPreviewBanner && onStudioRoute ? (
+        <StaffPreviewBanner studioUnpublished />
+      ) : null}
       {showChrome ? <SiteHeader /> : null}
       {children}
       {showChrome ? <SiteFooter /> : null}

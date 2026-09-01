@@ -11,6 +11,7 @@ import { getAdminSession } from "@/lib/auth";
 import { isSitePrivate } from "@/lib/flags";
 import { getAllRecipes } from "@/lib/recipes";
 import { recipeSearchHaystack } from "@/lib/recipe-utils";
+import { isStudioPublicLaunchEnabled } from "@/lib/studio-public";
 import { siteGraphJsonLd } from "@/lib/schema";
 import "./globals.css";
 
@@ -100,8 +101,10 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const sitePrivate = isSitePrivate();
+  const admin = await getAdminSession();
   // Staff with a valid admin session unlock public chrome while Coming Soon stays on for visitors.
-  const staffPreview = sitePrivate && Boolean(await getAdminSession());
+  const staffPreview = sitePrivate && Boolean(admin);
+  const studioStaffPreview = Boolean(admin) && !isStudioPublicLaunchEnabled();
   const privateMode = sitePrivate && !staffPreview;
   const recipes = privateMode
     ? []
@@ -134,6 +137,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             hideTools={privateMode}
             showChrome={!privateMode}
             showStaffPreviewBanner={staffPreview}
+            showStudioStaffPreviewBanner={studioStaffPreview}
             recipes={recipes}
           >
             <main

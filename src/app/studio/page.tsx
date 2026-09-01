@@ -1,18 +1,29 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { StudioFeaturedLesson } from "@/components/studio/StudioFeaturedLesson";
 import { StudioFromSection } from "@/components/studio/StudioFromSection";
 import { StudioLessonTeaser } from "@/components/studio/StudioLessonTeaser";
 import { lessons, partitionStudioLessons } from "@/data/lessons";
 import { site } from "@/data/site";
+import { getAdminSession } from "@/lib/auth";
+import { studioRobotsNoIndex, visibleStudioLessons } from "@/lib/studio-public";
 
-export const metadata: Metadata = {
-  title: "Studio lessons",
-  description: `Kitchen fundamentals from ${site.name} — measuring, butter, ovens, and mise en place.`,
-  alternates: { canonical: "/studio" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "Studio lessons",
+    description: `Kitchen fundamentals from ${site.name} — measuring, butter, ovens, and mise en place.`,
+    alternates: { canonical: "/studio" },
+    robots: studioRobotsNoIndex() ? { index: false, follow: false } : undefined,
+  };
+}
 
-export default function StudioPage() {
-  const { featured, notes } = partitionStudioLessons(lessons);
+export default async function StudioPage() {
+  const admin = await getAdminSession();
+  const staffPreview = Boolean(admin);
+  const visible = visibleStudioLessons(lessons, staffPreview);
+  if (!visible.length) notFound();
+
+  const { featured, notes } = partitionStudioLessons(visible);
 
   return (
     <>

@@ -95,6 +95,8 @@ export type Lesson = {
   body: string[];
   /** One primary editorial type per lesson. */
   type: StudioLessonType;
+  /** Draft lessons stay internal until intentionally published. */
+  status: "draft" | "published";
   featured?: boolean;
   /** Legacy curated links; merged with database associations when present. */
   relatedRecipeSlugs?: string[];

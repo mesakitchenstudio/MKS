@@ -53,12 +53,6 @@ export default async function Home() {
               >
                 Browse recipes
               </Link>
-              <Link
-                href="/studio"
-                className={`rounded-full border border-sand/40 px-6 py-3 text-sm font-semibold text-cream hover:border-cream ${heroLinkFocus}`}
-              >
-                Studio lessons
-              </Link>
             </div>
           </div>
           {homepage.hero ? (

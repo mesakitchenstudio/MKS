@@ -3,9 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StudioRelatedRecipes } from "@/components/studio/StudioRelatedRecipes";
 import { getLessonBySlug, lessons } from "@/data/lessons";
+import { getAdminSession } from "@/lib/auth";
 import { getAllRecipes } from "@/lib/recipes";
 import { getRelatedRecipesForLesson } from "@/lib/studio-recipe-links";
 import { studioLessonTypeLabel } from "@/lib/studio-types";
+import { canViewStudioLesson, studioRobotsNoIndex } from "@/lib/studio-public";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -19,13 +21,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const lesson = getLessonBySlug(slug);
   if (!lesson) return { title: "Lesson" };
-  return { title: lesson.title, description: lesson.excerpt };
+  return {
+    title: lesson.title,
+    description: lesson.excerpt,
+    robots: studioRobotsNoIndex() ? { index: false, follow: false } : undefined,
+  };
 }
 
 export default async function LessonPage({ params }: Props) {
   const { slug } = await params;
   const lesson = getLessonBySlug(slug);
   if (!lesson) notFound();
+
+  const admin = await getAdminSession();
+  const staffPreview = Boolean(admin);
+  if (!canViewStudioLesson(lesson, staffPreview)) notFound();
 
   const related = await getRelatedRecipesForLesson(slug, await getAllRecipes());
 

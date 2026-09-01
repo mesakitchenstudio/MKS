@@ -64,7 +64,7 @@ export default async function AdminStudioPage({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">
-                    {studioLessonTypeLabel(lesson.type)}
+                    {studioLessonTypeLabel(lesson.type)} · {lesson.status}
                   </p>
                   <h2 id={`admin-studio-${lesson.slug}`} className="mt-1 font-serif text-2xl text-ink">
                     {lesson.title}

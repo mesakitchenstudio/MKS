@@ -5,6 +5,7 @@ import {
   isBlockedApiWhilePrivate,
   shouldGatePublicRequest,
 } from "@/lib/site-gate";
+import { shouldGateStudioRequest } from "@/lib/studio-public";
 
 /** Keep brand icons reachable while the public site is gated. */
 const PUBLIC_WHILE_PRIVATE = [
@@ -29,6 +30,9 @@ export function proxy(request: NextRequest) {
   }
 
   if (!isSitePrivate()) {
+    if (shouldGateStudioRequest(pathname, cookieHeader)) {
+      return NextResponse.rewrite(new URL("/coming-soon", request.url));
+    }
     return NextResponse.next();
   }
 

@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import type { Recipe } from "@/data/types";
 import { STUDIO_PUBLIC_LINK_LIMIT } from "@/lib/studio-recipe-link-utils";
 import type { StudioLessonSummary, StudioRecipeLinkRow } from "@/lib/studio-types";
+import { canViewStudioLesson, isStudioPublicLaunchEnabled } from "@/lib/studio-public";
 
 export type { StudioLessonSummary, StudioRecipeLinkRow };
 
@@ -80,10 +81,12 @@ export async function getRelatedRecipesForLesson(
 }
 
 export async function getRelatedLessonsForRecipe(recipeId: string): Promise<StudioLessonSummary[]> {
+  if (!isStudioPublicLaunchEnabled()) return [];
   const slugs = uniqueSlugs(await listLessonSlugsForRecipeId(recipeId)).slice(0, MAX_PUBLIC_LINKS);
   return slugs
     .map((slug) => getLessonBySlug(slug))
     .filter((lesson): lesson is Lesson => Boolean(lesson))
+    .filter((lesson) => canViewStudioLesson(lesson, false))
     .map(({ slug, title, excerpt, type }) => ({ slug, title, excerpt, type }));
 }
 

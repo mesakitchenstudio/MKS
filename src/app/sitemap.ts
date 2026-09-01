@@ -4,6 +4,7 @@ import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
 import { getAllCategories, getAllRecipes } from "@/lib/recipes";
 import { listPublishedSeries } from "@/lib/series";
+import { filterPubliclyVisibleLessons, isStudioPublicLaunchEnabled } from "@/lib/studio-public";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (isSitePrivate()) {
@@ -41,12 +42,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.75,
-    },
-    {
-      url: `${site.url}/studio`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.8,
     },
     {
       url: `${site.url}/about`,
@@ -95,12 +90,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }));
 
-  const lessonRoutes = lessons.map((lesson) => ({
-    url: `${site.url}/studio/${lesson.slug}`,
-    lastModified: now,
-    changeFrequency: "monthly" as const,
-    priority: 0.65,
-  }));
+  const lessonRoutes = isStudioPublicLaunchEnabled()
+    ? filterPubliclyVisibleLessons(lessons).map((lesson) => ({
+        url: `${site.url}/studio/${lesson.slug}`,
+        lastModified: now,
+        changeFrequency: "monthly" as const,
+        priority: 0.65,
+      }))
+    : [];
 
   return [...staticRoutes, ...recipeRoutes, ...categoryRoutes, ...seriesRoutes, ...lessonRoutes];
 }

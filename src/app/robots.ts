@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
+import { isStudioPublicLaunchEnabled } from "@/lib/studio-public";
 
 export default function robots(): MetadataRoute.Robots {
   if (isSitePrivate()) {
@@ -20,7 +21,15 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin", "/admin/", "/api/", "/profile", "/auth/", "/coming-soon"],
+        disallow: [
+          "/admin",
+          "/admin/",
+          "/api/",
+          "/profile",
+          "/auth/",
+          "/coming-soon",
+          ...(isStudioPublicLaunchEnabled() ? [] : ["/studio", "/studio/"]),
+        ],
       },
     ],
     sitemap: `${site.url}/sitemap.xml`,

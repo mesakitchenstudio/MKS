@@ -4,15 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { categories, megaMenu } from "@/data/categories";
+import { PUBLIC_HEADER_NAV, PUBLIC_MOBILE_NAV } from "@/lib/public-nav";
 import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
-
-const links = [
-  { href: "/recipes", label: "Recipes", mega: true },
-  { href: "/videos", label: "Videos" },
-  { href: "/studio", label: "Studio" },
-  { href: "/about", label: "About" },
-];
 
 export function SiteHeader() {
   const router = useRouter();
@@ -41,8 +35,8 @@ export function SiteHeader() {
         </span>
 
         <nav className="hidden items-center gap-1 md:flex">
-          {links.map((link) =>
-            link.mega ? (
+          {PUBLIC_HEADER_NAV.map((link) =>
+            "mega" in link && link.mega ? (
               <div
                 key={link.href}
                 className="relative"
@@ -102,15 +96,9 @@ export function SiteHeader() {
                 key={link.href}
                 href={link.href}
                 onClick={closeMenus}
-                aria-current={
-                  pathname === link.href || (link.href === "/studio" && pathname.startsWith("/studio/"))
-                    ? "page"
-                    : undefined
-                }
+                aria-current={pathname === link.href ? "page" : undefined}
                 className={`px-3 py-2 text-sm font-semibold tracking-wide hover:text-terracotta ${
-                  pathname === link.href || (link.href === "/studio" && pathname.startsWith("/studio/"))
-                    ? "text-terracotta"
-                    : "text-ink/80"
+                  pathname === link.href ? "text-terracotta" : "text-ink/80"
                 }`}
               >
                 {link.label}
@@ -157,33 +145,17 @@ export function SiteHeader() {
             />
           </form>
           <div className="flex flex-col gap-3 text-base font-semibold">
-            <Link href="/recipes" onClick={closeMenus}>
-              All recipes
-            </Link>
-            <Link
-              href="/videos"
-              onClick={closeMenus}
-              aria-current={pathname === "/videos" ? "page" : undefined}
-              className={pathname === "/videos" ? "text-terracotta" : undefined}
-            >
-              Videos
-            </Link>
-            <Link
-              href="/studio"
-              onClick={closeMenus}
-              aria-current={pathname === "/studio" || pathname.startsWith("/studio/") ? "page" : undefined}
-              className={
-                pathname === "/studio" || pathname.startsWith("/studio/") ? "text-terracotta" : undefined
-              }
-            >
-              Studio
-            </Link>
-            <Link href="/about" onClick={closeMenus}>
-              About
-            </Link>
-            <Link href="/contact" onClick={closeMenus}>
-              Contact
-            </Link>
+            {PUBLIC_MOBILE_NAV.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={closeMenus}
+                aria-current={pathname === link.href ? "page" : undefined}
+                className={pathname === link.href ? "text-terracotta" : undefined}
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
           <div className="mt-5 grid grid-cols-2 gap-4 border-t border-line pt-4">
             {megaMenu.map((column) => (

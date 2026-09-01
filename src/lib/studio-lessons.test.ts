@@ -25,6 +25,10 @@ describe("studio lessons", () => {
     assert.equal(getLessonBySlug("mise-en-place")?.type, "habit");
     assert.equal(studioLessonTypeLabel("technique"), "Technique");
   });
+
+  it("keeps placeholder lessons in draft until public launch", () => {
+    assert.ok(lessons.every((lesson) => lesson.status === "draft"));
+  });
 });
 
 describe("studio recipe links", () => {

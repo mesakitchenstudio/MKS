@@ -36,14 +36,9 @@ export function SiteFooter() {
 
         <div>
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-sand">
-            Studio
+            Site
           </p>
           <ul className="mt-3 space-y-2 text-sm">
-            <li>
-              <Link href="/studio" className="hover:text-terracotta">
-                Lessons
-              </Link>
-            </li>
             <li>
               <Link href="/about" className="hover:text-terracotta">
                 About
