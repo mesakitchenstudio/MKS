@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { categories } from "../src/data/categories";
+import { lessons } from "../src/data/lessons";
 import { recipes } from "../src/data/recipes";
 import { CORE_FIELDS, type FieldDefinition } from "../src/lib/fields";
 import { recipeToValues } from "../src/lib/recipe-map";
@@ -110,6 +111,27 @@ async function main() {
         },
       },
     });
+  }
+
+  for (const lesson of lessons) {
+    const slugs = lesson.relatedRecipeSlugs || [];
+    if (!slugs.length) continue;
+    const recipeRows = await prisma.recipe.findMany({
+      where: { slug: { in: slugs }, status: "published" },
+      select: { id: true, slug: true },
+    });
+    const bySlug = new Map(recipeRows.map((row) => [row.slug, row.id]));
+    let order = 0;
+    for (const slug of slugs) {
+      const recipeId = bySlug.get(slug);
+      if (!recipeId) continue;
+      await prisma.studioLessonRecipeLink.upsert({
+        where: { lessonSlug_recipeId: { lessonSlug: lesson.slug, recipeId } },
+        create: { lessonSlug: lesson.slug, recipeId, sortOrder: order },
+        update: { sortOrder: order },
+      });
+      order += 1;
+    }
   }
 }
 

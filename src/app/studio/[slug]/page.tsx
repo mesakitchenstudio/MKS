@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { lessons } from "@/data/lessons";
+import { StudioRelatedRecipes } from "@/components/studio/StudioRelatedRecipes";
+import { getLessonBySlug, lessons } from "@/data/lessons";
 import { getAllRecipes } from "@/lib/recipes";
+import { getRelatedRecipesForLesson } from "@/lib/studio-recipe-links";
+import { studioLessonTypeLabel } from "@/lib/studio-types";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -14,53 +17,37 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const lesson = lessons.find((item) => item.slug === slug);
+  const lesson = getLessonBySlug(slug);
   if (!lesson) return { title: "Lesson" };
   return { title: lesson.title, description: lesson.excerpt };
 }
 
 export default async function LessonPage({ params }: Props) {
   const { slug } = await params;
-  const lesson = lessons.find((item) => item.slug === slug);
+  const lesson = getLessonBySlug(slug);
   if (!lesson) notFound();
 
-  const relatedSlugs = lesson.relatedRecipeSlugs || [];
-  const related =
-    relatedSlugs.length === 0
-      ? []
-      : (await getAllRecipes()).filter((recipe) => relatedSlugs.includes(recipe.slug));
+  const related = await getRelatedRecipesForLesson(slug, await getAllRecipes());
 
   return (
     <article className="mx-auto max-w-2xl px-4 py-12 md:px-0">
-      <Link href="/studio" className="text-sm font-semibold text-terracotta">
+      <Link
+        href="/studio"
+        className="rounded-sm text-sm font-semibold text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+      >
         ← All lessons
       </Link>
-      <h1 className="mt-4 font-serif text-4xl md:text-5xl">{lesson.title}</h1>
+      <p className="mt-4 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
+        {studioLessonTypeLabel(lesson.type)}
+      </p>
+      <h1 className="mt-2 font-serif text-4xl md:text-5xl">{lesson.title}</h1>
       <p className="mt-4 text-lg leading-8 text-muted">{lesson.excerpt}</p>
       <div className="prose-mesa mt-8 text-base leading-8">
         {lesson.body.map((paragraph) => (
           <p key={paragraph}>{paragraph}</p>
         ))}
       </div>
-      {related.length > 0 ? (
-        <aside className="mt-12 border-t border-line pt-8">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-            Cook with this
-          </p>
-          <ul className="mt-4 space-y-2">
-            {related.map((recipe) => (
-              <li key={recipe.slug}>
-                <Link
-                  href={`/recipes/${recipe.slug}`}
-                  className="font-serif text-xl text-ink hover:text-terracotta"
-                >
-                  {recipe.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </aside>
-      ) : null}
+      <StudioRelatedRecipes recipes={related} />
     </article>
   );
 }

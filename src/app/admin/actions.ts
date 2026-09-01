@@ -1304,6 +1304,19 @@ export async function removeSeriesItemAction(formData: FormData) {
   redirect(`/admin/series/${seriesId}?saved=1`);
 }
 
+export async function saveStudioLessonLinksAction(formData: FormData) {
+  await requireAccess("content");
+  const lessonSlug = String(formData.get("lessonSlug") || "").trim();
+  const recipeIds = formData.getAll("recipeIds").map((value) => String(value).trim()).filter(Boolean);
+  const { replaceStudioLessonRecipeLinks } = await import("@/lib/studio-recipe-links");
+  await replaceStudioLessonRecipeLinks({ lessonSlug, recipeIds });
+  revalidatePath("/admin/studio");
+  revalidatePath("/studio");
+  revalidatePath(`/studio/${lessonSlug}`);
+  revalidatePath("/recipes", "layout");
+  redirect("/admin/studio?saved=1");
+}
+
 export async function keepRemovedSeriesItemAction(formData: FormData) {
   await requireEditor();
   const seriesId = String(formData.get("seriesId") || "").trim();

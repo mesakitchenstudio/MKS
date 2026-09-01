@@ -22,6 +22,7 @@ describe("admin mobile drawer navigation", () => {
       "Recipe types",
       "Categories",
       "Series",
+      "Studio",
       "Reviews",
       "Members",
       "Visitors",

@@ -86,12 +86,16 @@ export type Category = {
   group: "desserts" | "course" | "method" | "holiday";
 };
 
+import type { StudioLessonType } from "@/lib/studio-types";
+
 export type Lesson = {
   slug: string;
   title: string;
   excerpt: string;
   body: string[];
+  /** One primary editorial type per lesson. */
+  type: StudioLessonType;
   featured?: boolean;
-  /** Optional related published recipe slugs for cross-links. */
+  /** Legacy curated links; merged with database associations when present. */
   relatedRecipeSlugs?: string[];
 };

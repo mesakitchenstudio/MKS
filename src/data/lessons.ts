@@ -1,11 +1,10 @@
 import type { Lesson } from "./types";
 
-export const STUDIO_LESSON_CATEGORY = "Technique";
-
 export const lessons: Lesson[] = [
   {
     slug: "how-to-measure",
     title: "How to measure ingredients correctly",
+    type: "technique",
     excerpt:
       "A scale is kinder than a scoop. Here is how we measure in the studio so cakes stay tender.",
     featured: true,
@@ -20,6 +19,7 @@ export const lessons: Lesson[] = [
   {
     slug: "salted-vs-unsalted-butter",
     title: "Salted vs. unsalted butter",
+    type: "ingredient",
     excerpt: "We bake with unsalted butter so we can season the recipe ourselves.",
     relatedRecipeSlugs: ["chocolate-chunk-cookies"],
     body: [
@@ -32,6 +32,7 @@ export const lessons: Lesson[] = [
   {
     slug: "knowing-your-oven",
     title: "Knowing your oven",
+    type: "equipment",
     excerpt: "Ovens lie. An inexpensive thermometer is the most useful tool on the studio shelf.",
     relatedRecipeSlugs: ["chocolate-chunk-cookies"],
     body: [
@@ -44,6 +45,7 @@ export const lessons: Lesson[] = [
   {
     slug: "mise-en-place",
     title: "Mise en place: cooking without the scramble",
+    type: "habit",
     excerpt: "Read the recipe once. Set the station. Then turn on the heat.",
     relatedRecipeSlugs: ["weeknight-chile", "salsa-verde"],
     body: [
@@ -57,6 +59,10 @@ export const lessons: Lesson[] = [
 
 export function lessonHref(slug: string) {
   return `/studio/${slug}`;
+}
+
+export function getLessonBySlug(slug: string): Lesson | undefined {
+  return lessons.find((lesson) => lesson.slug === slug);
 }
 
 export function partitionStudioLessons(allLessons: Lesson[] = lessons) {

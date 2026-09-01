@@ -15,11 +15,12 @@ export function StudioFromSection() {
         </div>
         <div className="md:pt-8">
           <p className="max-w-xl text-base leading-7 text-muted">
-            We test recipes the way people actually cook: measuring twice, tasting as we go, and
-            paying attention to the small details that make a recipe easier the next time.
+            The lessons above are the habits we return to in the test kitchen: measuring with
+            precision, checking the oven, setting up the station, and choosing ingredients with
+            intention. They are how we make recipes easier the next time you cook them.
           </p>
-          <Link href="/about" className={`mt-5 ${studioTextLinkClass}`}>
-            About the studio
+          <Link href="/about#about-how-we-work" className={`mt-5 ${studioTextLinkClass}`}>
+            How we test recipes
             <StudioLinkArrow />
           </Link>
         </div>

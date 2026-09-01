@@ -16,20 +16,20 @@ export default function StudioPage() {
 
   return (
     <>
-      <div className="mx-auto max-w-6xl px-4 pt-12 md:px-6 md:pt-12">
+      <div className="mx-auto max-w-6xl px-4 pt-10 md:px-6 md:pt-10">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
           The studio
         </p>
         <h1 className="mt-2 font-serif text-4xl text-ink md:text-5xl">Lessons from the bench</h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-muted md:text-lg md:leading-8">
-          Practical technique notes from our kitchen — the small habits, methods, and details that
+          Practical lessons from our kitchen — techniques, ingredients, equipment, and habits that
           make everyday cooking more reliable.
         </p>
 
         <StudioFeaturedLesson lesson={featured} />
 
         <section
-          className="mt-10 pb-10 md:mt-12 md:pb-12"
+          className="mt-8 pb-10 md:mt-10 md:pb-12"
           aria-labelledby="studio-notes-heading"
         >
           <h2 id="studio-notes-heading" className="font-serif text-3xl text-ink md:text-4xl">

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { signOut as signOutGoogle } from "next-auth/react";
 import { clearMemberPresenceOnLogout, readSession, signOut } from "@/lib/auth-client";
 import { trackEvent } from "@/lib/analytics";
+import { shouldShowFloatingRecipeSearch } from "@/lib/public-search-ui";
 import { isLiked, readLikes, toggleLike, hydrateLikesFromProfile, type LikedRecipe } from "@/lib/likes";
 import { MemberSessionExpiredError } from "@/lib/auth-client";
 import { AuthModal } from "./AuthModal";
@@ -20,25 +21,21 @@ export function SetCurrentRecipe({ slug, title }: { slug: string; title: string 
 
 export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }) {
   const pathname = usePathname();
-  const isHome = pathname === "/";
   const isRecipeDetail = /^\/recipes\/[^/]+$/.test(pathname);
   const [showFloatingSearch, setShowFloatingSearch] = useState(false);
 
   useEffect(() => {
     function update() {
-      // Header already provides search; hide the floating control on recipe pages.
-      if (isRecipeDetail) {
-        setShowFloatingSearch(false);
-        return;
-      }
       const desktop = window.matchMedia("(min-width: 768px)").matches;
-      setShowFloatingSearch(!(isHome && desktop));
+      setShowFloatingSearch(
+        shouldShowFloatingRecipeSearch({ isRecipeDetail, isDesktop: desktop }),
+      );
     }
     update();
     const mq = window.matchMedia("(min-width: 768px)");
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
-  }, [isHome, isRecipeDetail]);
+  }, [isRecipeDetail]);
   const [current, setCurrent] = useState<LikedRecipe | null>(null);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState<LikedRecipe[]>([]);

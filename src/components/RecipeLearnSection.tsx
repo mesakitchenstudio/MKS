@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { RecipeStudioLessons } from "@/components/studio/RecipeStudioLessons";
+import type { StudioLessonSummary } from "@/lib/studio-types";
 
 function ChevronDown({ open }: { open: boolean }) {
   return (
@@ -23,16 +25,19 @@ export function RecipeLearnSection({
   whyItWorks,
   keyIngredients,
   tips,
+  studioLessons = [],
 }: {
   whyItWorks: string;
   keyIngredients: { name: string; note: string }[];
   tips: string[];
+  studioLessons?: StudioLessonSummary[];
 }) {
   const hasWhy = Boolean(whyItWorks.trim());
   const hasKeys = keyIngredients.length > 0;
   const hasTips = tips.length > 0;
+  const hasStudio = studioLessons.length > 0;
 
-  if (!hasWhy && !hasKeys && !hasTips) return null;
+  if (!hasWhy && !hasKeys && !hasTips && !hasStudio) return null;
 
   const summaryParts: string[] = [];
   if (hasKeys) {
@@ -43,12 +48,16 @@ export function RecipeLearnSection({
   if (hasTips) {
     summaryParts.push(`${tips.length} studio tip${tips.length === 1 ? "" : "s"}`);
   }
+  if (hasStudio) {
+    summaryParts.push(`${studioLessons.length} studio lesson${studioLessons.length === 1 ? "" : "s"}`);
+  }
 
   return (
     <RecipeLearnAccordion
       whyItWorks={whyItWorks}
       keyIngredients={keyIngredients}
       tips={tips}
+      studioLessons={studioLessons}
       summaryParts={summaryParts}
       hasWhy={hasWhy}
       hasKeys={hasKeys}
@@ -61,6 +70,7 @@ function RecipeLearnAccordion({
   whyItWorks,
   keyIngredients,
   tips,
+  studioLessons,
   summaryParts,
   hasWhy,
   hasKeys,
@@ -69,6 +79,7 @@ function RecipeLearnAccordion({
   whyItWorks: string;
   keyIngredients: { name: string; note: string }[];
   tips: string[];
+  studioLessons: StudioLessonSummary[];
   summaryParts: string[];
   hasWhy: boolean;
   hasKeys: boolean;
@@ -158,6 +169,7 @@ function RecipeLearnAccordion({
             </div>
           ) : null}
         </div>
+        <RecipeStudioLessons lessons={studioLessons} />
       </div>
     </section>
   );

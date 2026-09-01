@@ -1,43 +1,42 @@
 import Link from "next/link";
 import type { Lesson } from "@/data/types";
-import { STUDIO_LESSON_CATEGORY, lessonHref } from "@/data/lessons";
-import {
-  StudioLinkArrow,
-  studioTextLinkClass,
-  studioTitleLinkClass,
-} from "./studio-link";
+import { lessonHref } from "@/data/lessons";
+import { studioLessonTypeLabel } from "@/lib/studio-types";
+import { StudioLinkArrow, studioCardLinkClass } from "./studio-link";
 import { StudioMeasureVisual } from "./StudioMeasureVisual";
 
 export function StudioFeaturedLesson({ lesson }: { lesson: Lesson }) {
   const href = lessonHref(lesson.slug);
 
   return (
-    <section className="mt-8 md:mt-10" aria-labelledby="studio-featured-lesson">
-      <div className="flex flex-col gap-7 md:flex-row md:items-start md:gap-12 lg:gap-14">
-        <div className="shrink-0">
+    <section className="mt-6 md:mt-8" aria-labelledby="studio-featured-lesson">
+      <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-10 lg:gap-12">
+        <div className="shrink-0 md:pt-1">
           <StudioMeasureVisual />
         </div>
-        <div className="min-w-0 flex-1 md:max-w-lg md:pt-3 lg:pt-4">
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-olive/70">
-            01
-          </p>
-          <p className="mt-2 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
-            {STUDIO_LESSON_CATEGORY}
-          </p>
-          <h2
-            id="studio-featured-lesson"
-            className="mt-2 font-serif text-3xl leading-tight text-ink md:text-4xl"
-          >
-            <Link href={href} className={studioTitleLinkClass}>
+        <Link href={href} className={`min-w-0 flex-1 md:max-w-lg md:pt-2 lg:pt-3 ${studioCardLinkClass}`}>
+          <article>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-olive/70">
+              01
+            </p>
+            <p className="mt-2 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
+              {studioLessonTypeLabel(lesson.type)}
+            </p>
+            <h2
+              id="studio-featured-lesson"
+              className="mt-2 font-serif text-3xl leading-tight text-ink transition-colors duration-150 group-hover:text-terracotta group-focus-visible:text-terracotta md:text-4xl"
+            >
               {lesson.title}
-            </Link>
-          </h2>
-          <p className="mt-4 text-base leading-7 text-muted">{lesson.excerpt}</p>
-          <Link href={href} className={`mt-5 ${studioTextLinkClass}`}>
-            Read the lesson
-            <StudioLinkArrow />
-          </Link>
-        </div>
+            </h2>
+            <p className="mt-4 text-base leading-7 text-muted">{lesson.excerpt}</p>
+            <span
+              aria-hidden
+              className="mt-5 inline-flex items-center text-sm text-muted transition-[color,transform] duration-150 group-hover:translate-x-0.5 group-hover:text-terracotta group-focus-visible:text-terracotta motion-reduce:transform-none"
+            >
+              <StudioLinkArrow />
+            </span>
+          </article>
+        </Link>
       </div>
     </section>
   );

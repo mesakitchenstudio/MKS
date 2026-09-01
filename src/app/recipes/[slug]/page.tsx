@@ -32,6 +32,7 @@ import { formatAdminDate } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
 import { getWatchNextRecommendation } from "@/lib/youtube-data/watch-next";
 import { getSeriesLinksForRecipeSlug, getSeriesPeerRecipeSlugs } from "@/lib/series";
+import { getRelatedLessonsForRecipeSlug } from "@/lib/studio-recipe-links";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -95,10 +96,12 @@ export default async function RecipePage({ params }: Props) {
     fieldValueHasContent(field.value, field.kind),
   );
   const updated = formatAdminDate(recipe.updatedAt);
+  const studioLessons = await getRelatedLessonsForRecipeSlug(recipe.slug);
   const hasLearn =
     Boolean(recipe.whyItWorks.trim()) ||
     recipe.keyIngredients.length > 0 ||
-    recipe.tips.length > 0;
+    recipe.tips.length > 0 ||
+    studioLessons.length > 0;
 
   const baseYoutube = resolveRecipeYoutube(recipe);
   if (baseYoutube && !(baseYoutube.timestamps?.length ?? 0)) {
@@ -153,6 +156,7 @@ export default async function RecipePage({ params }: Props) {
           whyItWorks={recipe.whyItWorks}
           keyIngredients={recipe.keyIngredients}
           tips={recipe.tips}
+          studioLessons={studioLessons}
         />
 
         {youtube ? <RecipeWatchMethod /> : null}

@@ -58,6 +58,7 @@ model Recipe {
   aiMeta      String           @default("{}")
   categories  RecipeCategory[]
   seriesItems SeriesItem[]
+  studioLessonLinks StudioLessonRecipeLink[]
 }
 
 model AiRecipeGenerationCache {
@@ -509,4 +510,17 @@ model YouTubeAnalyticsTrafficDay {
   @@unique([scope, channelId, videoId, date, dimension, dimensionValue])
   @@index([channelId, date, dimension])
   @@index([videoId, date, dimension])
+}
+
+/** Curated many-to-many between static Studio lesson slugs and published recipes. */
+model StudioLessonRecipeLink {
+  lessonSlug String
+  recipeId   String
+  recipe     Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@id([lessonSlug, recipeId])
+  @@index([lessonSlug, sortOrder])
+  @@index([recipeId])
 }

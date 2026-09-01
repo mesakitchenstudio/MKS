@@ -40,6 +40,7 @@ export function buildAdminNavSections(role: AccessLevel): AdminNavSection[] {
         { href: "/admin/types", label: "Recipe types" },
         { href: "/admin/categories", label: "Categories" },
         { href: "/admin/series", label: "Series" },
+        { href: "/admin/studio", label: "Studio", match: "prefix" },
       ],
     });
     sections.push({
