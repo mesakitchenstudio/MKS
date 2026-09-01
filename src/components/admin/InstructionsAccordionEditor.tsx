@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { AiTargetedFillApplyPayload } from "@/components/admin/AiRecipeAssistant";
 import { EditorDragHandle, EditorRowActions } from "@/components/admin/EditorRowActions";
 import { FieldAiActionButton } from "@/components/admin/FieldAiActionButton";
@@ -16,6 +16,8 @@ import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtub
 import {
   formatInstructionChapterCoverageSummary,
   formatTimestampInput,
+  hasCanonicalInstructionChapters,
+  hasCanonicalStartTimestamp,
   instructionChapterCoverage,
   parseTimestampInput,
   resolveInstructionChapter,
@@ -140,7 +142,11 @@ function collapsedTimestampLabel(input: {
   stageAlignments?: RecipeStageAlignment[];
   legacyTimestamps?: RecipeYoutubeTimestamp[];
   videoDurationSeconds?: number;
+  canonicalMode?: boolean;
 }) {
+  if (input.canonicalMode && !hasCanonicalStartTimestamp(input.group)) {
+    return { text: "Timestamp missing", quiet: true, legacy: false };
+  }
   const resolved = resolveInstructionChapter({
     group: input.group,
     groupIndex: input.groupIndex,
@@ -233,6 +239,15 @@ export function InstructionsAccordionEditor({
   void onSetStartFromPlayhead;
   void onSetEndFromPlayhead;
 
+  const canonicalMode = useMemo(
+    () => hasCanonicalInstructionChapters(groups),
+    [groups],
+  );
+  const [startInputDrafts, setStartInputDrafts] = useState<Record<number, string>>({});
+  const [endInputDrafts, setEndInputDrafts] = useState<Record<number, string>>({});
+  const [startInputErrors, setStartInputErrors] = useState<Record<number, string>>({});
+  const [endInputErrors, setEndInputErrors] = useState<Record<number, string>>({});
+
   const totalSteps = useMemo(
     () => groups.reduce((sum, group) => sum + group.steps.length, 0),
     [groups],
@@ -256,29 +271,101 @@ export function InstructionsAccordionEditor({
   }
 
   function updateStartInput(groupIndex: number, raw: string) {
+    setStartInputDrafts((current) => ({ ...current, [groupIndex]: raw }));
     const trimmed = raw.trim();
     if (!trimmed) {
+      setStartInputErrors((current) => {
+        const next = { ...current };
+        delete next[groupIndex];
+        return next;
+      });
       onChapterFieldChange?.(groupIndex, "startTimestamp", undefined);
       patchGroup(groupIndex, { startTimestamp: undefined });
       return;
     }
     const parsed = parseTimestampInput(trimmed);
-    if (parsed == null) return;
+    if (parsed == null) {
+      setStartInputErrors((current) => ({
+        ...current,
+        [groupIndex]: "Enter a valid time (MM:SS or H:MM:SS).",
+      }));
+      return;
+    }
+    setStartInputErrors((current) => {
+      const next = { ...current };
+      delete next[groupIndex];
+      return next;
+    });
+    setStartInputDrafts((current) => {
+      const next = { ...current };
+      delete next[groupIndex];
+      return next;
+    });
     onChapterFieldChange?.(groupIndex, "startTimestamp", parsed);
     patchGroup(groupIndex, { startTimestamp: parsed });
   }
 
   function updateEndInput(groupIndex: number, raw: string) {
+    setEndInputDrafts((current) => ({ ...current, [groupIndex]: raw }));
     const trimmed = raw.trim();
     if (!trimmed) {
+      setEndInputErrors((current) => {
+        const next = { ...current };
+        delete next[groupIndex];
+        return next;
+      });
       onChapterFieldChange?.(groupIndex, "endTimestamp", undefined);
       patchGroup(groupIndex, { endTimestamp: undefined });
       return;
     }
     const parsed = parseTimestampInput(trimmed);
-    if (parsed == null) return;
+    if (parsed == null) {
+      setEndInputErrors((current) => ({
+        ...current,
+        [groupIndex]: "Enter a valid time (MM:SS or H:MM:SS).",
+      }));
+      return;
+    }
+    setEndInputErrors((current) => {
+      const next = { ...current };
+      delete next[groupIndex];
+      return next;
+    });
+    setEndInputDrafts((current) => {
+      const next = { ...current };
+      delete next[groupIndex];
+      return next;
+    });
     onChapterFieldChange?.(groupIndex, "endTimestamp", parsed);
     patchGroup(groupIndex, { endTimestamp: parsed });
+  }
+
+  function startInputDisplayValue(input: {
+    group: InstructionGroupWithChapters;
+    groupIndex: number;
+    timestampMeta: ReturnType<typeof collapsedTimestampLabel>;
+    resolved: ReturnType<typeof resolveInstructionChapter>;
+  }) {
+    if (startInputDrafts[input.groupIndex] !== undefined) {
+      return startInputDrafts[input.groupIndex]!;
+    }
+    if (typeof input.group.startTimestamp === "number") {
+      return formatTimestampInput(input.group.startTimestamp);
+    }
+    if (!canonicalMode && input.timestampMeta.legacy && input.resolved.startTimestamp != null) {
+      return formatTimestampInput(input.resolved.startTimestamp);
+    }
+    return "";
+  }
+
+  function endInputDisplayValue(group: InstructionGroupWithChapters, groupIndex: number) {
+    if (endInputDrafts[groupIndex] !== undefined) {
+      return endInputDrafts[groupIndex]!;
+    }
+    if (typeof group.endTimestamp === "number") {
+      return formatTimestampInput(group.endTimestamp);
+    }
+    return "";
   }
 
   function adoptLegacyTimestamp(groupIndex: number) {
@@ -328,6 +415,7 @@ export function InstructionsAccordionEditor({
           stageAlignments,
           legacyTimestamps,
           videoDurationSeconds,
+          canonicalMode,
         });
         const resolved = resolveInstructionChapter({
           group,
@@ -409,6 +497,16 @@ export function InstructionsAccordionEditor({
                       onClearFieldSuggestion={onClearFieldSuggestion}
                     />
                   ) : null}
+                  {groups.length > 1 ? (
+                    <EditorRowActions
+                      itemLabel={`instruction section ${groupIndex + 1}`}
+                      upDisabled={groupIndex === 0}
+                      downDisabled={groupIndex === groups.length - 1}
+                      onMoveUp={() => onChange(moveArrayItem(groups, groupIndex, groupIndex - 1))}
+                      onMoveDown={() => onChange(moveArrayItem(groups, groupIndex, groupIndex + 1))}
+                      onRemove={() => onChange(groups.filter((_, index) => index !== groupIndex))}
+                    />
+                  ) : null}
                 </div>
 
                 <div className="rounded-sm border border-line/60 bg-paper/40 p-3">
@@ -436,41 +534,50 @@ export function InstructionsAccordionEditor({
                       <input
                         id={startInputId}
                         data-recipe-field-path={`values.${parentKey}.${groupIndex}.startTimestamp`}
-                        value={
-                          typeof group.startTimestamp === "number"
-                            ? formatTimestampInput(group.startTimestamp)
-                            : timestampMeta.legacy && resolved.startTimestamp != null
-                              ? formatTimestampInput(resolved.startTimestamp)
-                              : ""
-                        }
+                        value={startInputDisplayValue({ group, groupIndex, timestampMeta, resolved })}
                         placeholder="00:00"
                         aria-label={`Video chapter start for section ${groupIndex + 1}`}
+                        aria-invalid={Boolean(startInputErrors[groupIndex])}
                         onChange={(event) => updateStartInput(groupIndex, event.target.value)}
-                        className={compactInputClass}
+                        className={`${compactInputClass}${startInputErrors[groupIndex] ? " border-terracotta/60" : ""}`}
                       />
-                      {timestampMeta.legacy && typeof group.startTimestamp !== "number" ? (
+                      {startInputErrors[groupIndex] ? (
+                        <span className="text-xs font-semibold text-terracotta" role="alert">
+                          {startInputErrors[groupIndex]}
+                        </span>
+                      ) : null}
+                      {!hasCanonicalStartTimestamp(group) &&
+                      resolved.startSource !== "canonical" &&
+                      resolved.startTimestamp != null ? (
                         <button
                           type="button"
                           className={`text-left text-xs font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
                           onClick={() => adoptLegacyTimestamp(groupIndex)}
                         >
                           Use as Mesa timestamp
+                          {!canonicalMode && resolved.startSource === "stage_alignment"
+                            ? " (legacy alignment)"
+                            : !canonicalMode && resolved.startSource === "legacy_timestamp"
+                              ? " (legacy timestamp)"
+                              : ""}
                         </button>
                       ) : null}
                     </label>
                     <label className="grid gap-1.5 text-sm">
                       <span className="font-semibold text-muted">End</span>
                       <input
-                        value={
-                          hasExplicitEnd && typeof group.endTimestamp === "number"
-                            ? formatTimestampInput(group.endTimestamp)
-                            : ""
-                        }
+                        value={endInputDisplayValue(group, groupIndex)}
                         placeholder={autoEnd ? `Auto: ${autoEnd}` : "Optional"}
                         aria-label={`Video chapter end for section ${groupIndex + 1}`}
+                        aria-invalid={Boolean(endInputErrors[groupIndex])}
                         onChange={(event) => updateEndInput(groupIndex, event.target.value)}
-                        className={compactInputClass}
+                        className={`${compactInputClass}${endInputErrors[groupIndex] ? " border-terracotta/60" : ""}`}
                       />
+                      {endInputErrors[groupIndex] ? (
+                        <span className="text-xs font-semibold text-terracotta" role="alert">
+                          {endInputErrors[groupIndex]}
+                        </span>
+                      ) : null}
                       {autoEnd && !hasExplicitEnd ? (
                         <span className="text-xs text-muted">Auto: {autoEnd}</span>
                       ) : null}

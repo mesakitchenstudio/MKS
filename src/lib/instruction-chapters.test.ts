@@ -278,6 +278,31 @@ test("chapter coverage counts mapped sections", () => {
   assert.equal(coverage.missingTimestamps, 1);
 });
 
+test("chapter coverage in canonical mode ignores legacy fallbacks", () => {
+  const coverage = instructionChapterCoverage(
+    [
+      { name: "A", steps: ["a"], startTimestamp: 12 },
+      { name: "B", steps: ["b"] },
+      { name: "C", steps: ["c"], startTimestamp: 197 },
+    ],
+    {
+      stageAlignments: [
+        {
+          instructionStageId: "stage-1",
+          instructionSectionTitle: "B",
+          videoStartSeconds: 64,
+          videoTimestampLabel: "1:04",
+          chapterTitle: "B",
+          confidence: "VERIFIED",
+          source: "manual",
+        },
+      ],
+    },
+  );
+  assert.equal(coverage.mappedSections, 2);
+  assert.equal(coverage.missingTimestamps, 1);
+});
+
 test("deriveStageAlignmentsFromCanonical builds stage ids by instruction order", () => {
   const rows = deriveStageAlignmentsFromCanonical([
     { name: "First", steps: ["a"], startTimestamp: 0 },

@@ -33,12 +33,11 @@ export function selectStageVideoHelp(
     : [];
 
   if (normalizedInstructions.length && hasCanonicalInstructionChapters(normalizedInstructions)) {
-    const fromCanonical = helpFromCanonicalInstructions(
+    return helpFromCanonicalInstructions(
       stages,
       normalizedInstructions,
       videoDurationSeconds,
     );
-    if (Object.keys(fromCanonical).length) return fromCanonical;
   }
 
   if (stageAlignments?.length) {

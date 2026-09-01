@@ -213,10 +213,16 @@ export function instructionChapterCoverage(
   },
 ): InstructionChapterCoverage {
   const totalSections = groups.length;
+  const canonicalMode = hasCanonicalInstructionChapters(groups);
   let mappedSections = 0;
   for (let index = 0; index < groups.length; index += 1) {
+    const group = groups[index]!;
+    if (canonicalMode) {
+      if (hasCanonicalStartTimestamp(group)) mappedSections += 1;
+      continue;
+    }
     const resolved = resolveInstructionChapter({
-      group: groups[index]!,
+      group,
       groupIndex: index,
       allGroups: groups,
       stageAlignments: context?.stageAlignments,
