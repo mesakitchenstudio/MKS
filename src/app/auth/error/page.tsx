@@ -8,8 +8,8 @@ const messages: Record<string, string> = {
   Verification: "That sign-in link is no longer valid. Please try again.",
   OAuthCallback: "Google returned an error finishing sign-in. Try again in a moment.",
   OAuthAccountNotLinked:
-    "This email is already registered with a different sign-in method. Use email and password, or the original Google account.",
-  Default: "Google sign-in did not complete. Please try again, or use email and password.",
+    "This email is already registered with email and password. Sign in with your password, or use Continue with Google on the account that originally used Google.",
+  Default: "Google sign-in didn't complete. Try again or use email.",
 };
 
 export default async function AuthErrorPage({

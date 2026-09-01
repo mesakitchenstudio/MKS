@@ -1,3 +1,4 @@
+import { MEMBER_EXISTING_ACCOUNT_API_ERROR } from "@/lib/auth-credentials";
 import { getDb } from "@/lib/db";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
 import { MEMBER_PRESENCE_STALE_MS, MEMBER_PRESENCE_WRITE_THROTTLE_MS, normalizePresenceSessionKey, presenceLastSeenForGraceDisconnect } from "@/lib/member-presence";
@@ -217,7 +218,7 @@ export async function registerEmailUser(input: {
   }
   const existing = await db.user.findUnique({ where: { email } });
   if (existing?.passwordHash) {
-    throw new Error("An account with that email already exists.");
+    throw new Error(MEMBER_EXISTING_ACCOUNT_API_ERROR);
   }
   const passwordHash = hashPassword(input.password);
   const name = input.name.trim() || email;

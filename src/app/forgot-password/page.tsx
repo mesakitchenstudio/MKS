@@ -11,7 +11,9 @@ export default async function ForgotPasswordPage({
       <div className="mx-auto max-w-md px-4 py-16">
         <div className="border border-line bg-paper p-8">
           <h1 className="font-serif text-3xl">Password updated</h1>
-          <p className="mt-2 text-sm text-muted">Use Sign in in the top-right corner to continue.</p>
+          <p className="mt-2 text-sm text-muted">
+            Your password has been changed. Please sign in again.
+          </p>
         </div>
       </div>
     );

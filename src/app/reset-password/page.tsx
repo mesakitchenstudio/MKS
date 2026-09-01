@@ -22,11 +22,11 @@ export default async function ResetPasswordPage({
         <div className="border border-line bg-paper p-8">
           <h1 className="font-serif text-3xl">Reset link invalid</h1>
           <p className="mt-2 text-sm text-muted">
-            That reset link is invalid or has expired. Request a new one.
+            This reset link isn&apos;t valid anymore. It may have expired or already been used.
           </p>
           <p className="mt-4 text-sm">
             <Link href="/forgot-password" className={`font-semibold text-terracotta ${authFocusRing}`}>
-              Request a reset link
+              Request a new reset link
             </Link>
           </p>
         </div>
