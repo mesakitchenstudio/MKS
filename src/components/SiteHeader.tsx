@@ -3,10 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { categories, megaMenu } from "@/data/categories";
+import { megaMenu } from "@/data/categories";
+import { buildRecipesUrl } from "@/lib/recipe-discovery";
 import { PUBLIC_HEADER_NAV, PUBLIC_MOBILE_NAV } from "@/lib/public-nav";
+import {
+  PRIMARY_CATEGORY_LABELS,
+  type PrimaryCategorySlug,
+} from "@/lib/recipe-primary-taxonomy";
 import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
+
+function primaryMegaLabel(slug: string) {
+  if (slug in PRIMARY_CATEGORY_LABELS) {
+    return PRIMARY_CATEGORY_LABELS[slug as PrimaryCategorySlug];
+  }
+  return slug;
+}
 
 export function SiteHeader() {
   const router = useRouter();
@@ -63,37 +75,31 @@ export function SiteHeader() {
                   </span>
                 </Link>
                 {megaOpen ? (
-                  <div className="absolute left-0 top-full z-20 w-[40rem] rounded-sm border border-line bg-paper p-6 shadow-lg">
-                    <div className="grid grid-cols-4 gap-6">
-                      {megaMenu.map((column) => (
-                        <div key={column.label}>
-                          <p className="mb-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
-                            {column.label}
-                          </p>
-                          <ul className="space-y-2">
-                            {column.slugs.map((slug) => {
-                              const category = categories.find((item) => item.slug === slug);
-                              if (!category) return null;
-                              return (
-                                <li key={slug}>
-                                  <Link
-                                    href={`/category/${slug}`}
-                                    onClick={closeMenus}
-                                    className="text-sm text-ink/80 hover:text-terracotta"
-                                  >
-                                    {category.name}
-                                  </Link>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="absolute left-0 top-full z-20 w-64 rounded-sm border border-line bg-paper p-5 shadow-lg">
+                    {megaMenu.map((column) => (
+                      <div key={column.label}>
+                        <p className="mb-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
+                          {column.label}
+                        </p>
+                        <ul className="space-y-2">
+                          {column.slugs.map((slug) => (
+                            <li key={slug}>
+                              <Link
+                                href={buildRecipesUrl({ category: slug })}
+                                onClick={closeMenus}
+                                className="text-sm text-ink/80 hover:text-terracotta"
+                              >
+                                {primaryMegaLabel(slug)}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                     <Link
                       href="/recipes"
                       onClick={closeMenus}
-                      className="mt-5 inline-block text-sm font-semibold text-terracotta hover:text-terracotta-dark"
+                      className="mt-4 inline-block text-sm font-semibold text-terracotta hover:text-terracotta-dark"
                     >
                       View all recipes →
                     </Link>
@@ -186,24 +192,24 @@ export function SiteHeader() {
               </Link>
             ))}
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-4 border-t border-line pt-4">
+          <div className="mt-5 border-t border-line pt-4">
             {megaMenu.map((column) => (
               <div key={column.label}>
                 <p className="mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
                   {column.label}
                 </p>
-                <ul className="space-y-1.5">
-                  {column.slugs.map((slug) => {
-                    const category = categories.find((item) => item.slug === slug);
-                    if (!category) return null;
-                    return (
-                      <li key={slug}>
-                        <Link href={`/category/${slug}`} onClick={closeMenus} className="text-sm text-ink/80">
-                          {category.name}
-                        </Link>
-                      </li>
-                    );
-                  })}
+                <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  {column.slugs.map((slug) => (
+                    <li key={slug}>
+                      <Link
+                        href={buildRecipesUrl({ category: slug })}
+                        onClick={closeMenus}
+                        className="text-sm text-ink/80"
+                      >
+                        {primaryMegaLabel(slug)}
+                      </Link>
+                    </li>
+                  ))}
                 </ul>
               </div>
             ))}

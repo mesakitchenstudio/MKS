@@ -95,19 +95,15 @@ export const categories: Category[] = [
 
 export const megaMenu = [
   {
-    label: "Desserts",
-    slugs: ["cakes", "cookies", "brownies-bars", "desserts"],
-  },
-  {
-    label: "Course",
-    slugs: ["breakfast", "breads", "main-dishes", "side-dishes", "drinks", "toppings"],
-  },
-  {
-    label: "Method",
-    slugs: ["oven", "stovetop", "no-bake"],
-  },
-  {
-    label: "Season",
-    slugs: ["summer", "weekend"],
+    label: "Recipes",
+    slugs: [
+      "breakfast",
+      "breads",
+      "main-dishes",
+      "side-dishes",
+      "desserts",
+      "drinks",
+      "toppings",
+    ],
   },
 ] as const;
