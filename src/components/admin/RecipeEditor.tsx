@@ -60,6 +60,7 @@ import {
   sectionForFieldKey,
   validateRecipeForPublish,
 } from "@/lib/recipe-editor-completeness";
+import { listPublishContentWarnings } from "@/lib/recipe-catalog-integrity";
 import {
   listMissingAiFillableFields,
 } from "@/lib/ai-recipe/missing-fields";
@@ -671,6 +672,11 @@ export function RecipeEditor({
   ]);
 
   const isPublished = normalizeStatus(status) === "published";
+
+  const publishContentWarnings = useMemo(
+    () => listPublishContentWarnings({ values }),
+    [values],
+  );
 
   const isDirty = useMemo(
     () =>
@@ -2300,6 +2306,21 @@ export function RecipeEditor({
                 ))}
               </ul>
             ) : null}
+          </div>
+        ) : null}
+
+        {publishContentWarnings.length > 0 ? (
+          <div
+            className="rounded-sm border border-olive/30 bg-olive/5 px-4 py-3"
+            role="status"
+            aria-live="polite"
+          >
+            <p className="text-sm font-semibold text-olive">Public catalog completeness</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
+              {publishContentWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
