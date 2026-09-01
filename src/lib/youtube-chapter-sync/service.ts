@@ -5,7 +5,6 @@ import { recipeLinkedVideoId } from "@/lib/youtube-data/recipe-link";
 import {
   buildYoutubeChapterExport,
   DEFAULT_SYNTHETIC_INTRO_LABEL,
-  formatYoutubeChapterBlock,
   mappedCanonicalSectionCount,
 } from "@/lib/youtube-chapter-sync/export";
 import {
@@ -14,15 +13,15 @@ import {
 } from "@/lib/youtube-chapter-sync/description-patch";
 import {
   canonicalChapterFingerprint,
+  chapterBlockHash,
   descriptionContentHash,
+  youtubeExportFingerprint,
 } from "@/lib/youtube-chapter-sync/fingerprints";
 import {
   createChapterSyncPreviewToken,
-  resolvePreviewToken,
-  storePreviewToken,
   verifyChapterSyncPreviewToken,
-  clearPreviewToken,
 } from "@/lib/youtube-chapter-sync/preview-token";
+import { rebuildChapterSyncApplyPlan } from "@/lib/youtube-chapter-sync/apply-snapshot";
 import {
   mergeChapterSyncMetadata,
   readChapterSyncMetadata,
@@ -96,6 +95,7 @@ export async function buildChapterSyncOAuthStatus(origin: string): Promise<Chapt
     connected,
     canReadAnalytics,
     canWrite,
+    writeScopeGranted: canWrite,
     reconnectUrl: canWrite ? undefined : reconnectUrl,
   };
 }
@@ -104,6 +104,7 @@ export type ChapterSyncPreviewResult =
   | {
       ok: true;
       previewId: string;
+      previewToken: string;
       videoId: string;
       videoTitle: string;
       export: ReturnType<typeof buildYoutubeChapterExport>;
@@ -229,20 +230,22 @@ export async function runChapterSyncPreview(input: {
     ),
   );
 
-  const { previewId, token, expiresAt } = createChapterSyncPreviewToken({
+  const { previewId, previewToken, expiresAt } = createChapterSyncPreviewToken({
     recipeId: recipe.id,
     videoId,
     introLabel,
     beforeHash,
     remoteEtag,
     canonicalFingerprint: fingerprint,
+    exportFingerprint: youtubeExportFingerprint(introLabel, exportResult.items),
     replacementStrategy: patch.strategy,
+    replacementBlockHash: chapterBlockHash(patch.existingChapterBlock ?? ""),
   });
-  storePreviewToken(previewId, token, expiresAt);
 
   return {
     ok: true,
     previewId,
+    previewToken,
     videoId,
     videoTitle,
     export: exportResult,
@@ -278,7 +281,7 @@ export type ChapterSyncApplyResult =
 
 export async function runChapterSyncApply(input: {
   recipeId: string;
-  previewId: string;
+  previewToken: string;
   adminId: string;
   adminLabel: string;
 }): Promise<ChapterSyncApplyResult> {
@@ -290,16 +293,7 @@ export async function runChapterSyncApply(input: {
     };
   }
 
-  const token = resolvePreviewToken(input.previewId);
-  if (!token) {
-    return {
-      ok: false,
-      code: "preview_missing",
-      message: "Preview not found or expired. Generate a new preview.",
-    };
-  }
-
-  const verified = verifyChapterSyncPreviewToken(token);
+  const verified = verifyChapterSyncPreviewToken(input.previewToken);
   if (!verified.ok) {
     return { ok: false, code: "preview_invalid", message: verified.reason };
   }
@@ -322,26 +316,13 @@ export async function runChapterSyncApply(input: {
     };
   }
 
-  const fingerprint = canonicalChapterFingerprint(
-    (await import("@/lib/instruction-chapters")).normalizeInstructionGroups(
-      recipe.values.instructions,
-    ),
-  );
-  if (fingerprint !== snapshot.canonicalFingerprint) {
-    return {
-      ok: false,
-      code: "canonical_changed",
-      message:
-        "Mesa chapters changed after this preview was generated. Generate a new preview.",
-    };
-  }
-
   const connection = await getAnalyticsConnectionPublic();
   if (!canWriteYoutubeVideoMetadata(connection.scopes)) {
     return {
       ok: false,
       code: "oauth_write",
-      message: "YouTube is connected for analytics, but editing permission is not enabled.",
+      message:
+        "YouTube is connected, but description editing permission was not granted. Reconnect and allow Mesa to update YouTube video descriptions.",
     };
   }
 
@@ -361,48 +342,21 @@ export async function runChapterSyncApply(input: {
     return { ok: false, code: "video_not_found", message: "Linked YouTube video was not found." };
   }
 
-  const currentHash = descriptionContentHash(remote.snippet.description);
-  if (currentHash !== snapshot.beforeHash) {
-    return {
-      ok: false,
-      code: "remote_drift",
-      message:
-        "The YouTube description changed after this preview was generated. Refresh the preview before updating.",
-    };
-  }
-
   const duration = videoDurationFromValues(recipe.values);
   const syncMeta = readChapterSyncMetadata(recipe.values);
-  const exportResult = buildYoutubeChapterExport({
-    videoId,
+  const rebuilt = rebuildChapterSyncApplyPlan({
+    snapshot,
     instructions: recipe.values.instructions,
     videoDurationSeconds: duration,
-    introLabel: snapshot.introLabel,
     remoteDescription: remote.snippet.description,
-  });
-
-  if (!exportResult.ready) {
-    const issue = exportResult.errors[0]?.message ?? "YouTube export is not ready.";
-    return { ok: false, code: "not_ready", message: issue };
-  }
-
-  if (snapshot.replacementStrategy === "ambiguous") {
-    return {
-      ok: false,
-      code: "ambiguous",
-      message:
-        "Mesa found multiple possible timestamp sections and will not choose automatically.",
-    };
-  }
-
-  const patch = buildDescriptionPatchPlan({
-    currentDescription: remote.snippet.description,
-    exportItems: exportResult.items,
     lastSyncedChapterBlock: syncMeta?.lastSyncedChapterBlock,
   });
 
-  if (patch.strategy === "already_in_sync") {
-    clearPreviewToken(input.previewId);
+  if (!rebuilt.ok) {
+    return { ok: false, code: rebuilt.code, message: rebuilt.message };
+  }
+
+  if (rebuilt.patchStrategy === "already_in_sync") {
     return {
       ok: true,
       videoId,
@@ -413,20 +367,15 @@ export async function runChapterSyncApply(input: {
     };
   }
 
-  const bytesCheck = validateProposedDescriptionBytes(patch.proposedDescription);
-  if (!bytesCheck.ok) {
-    return { ok: false, code: "byte_limit", message: bytesCheck.message ?? "Description too large." };
-  }
-
   const updated = await updateYoutubeVideoDescriptionOAuth({
     accessToken,
     video: remote,
-    nextDescription: patch.proposedDescription,
+    nextDescription: rebuilt.proposedDescription,
   });
 
   const verifiedRemote = await fetchYoutubeVideoSnippetOAuth(accessToken, videoId);
   const descriptionMatches =
-    verifiedRemote?.snippet.description === patch.proposedDescription;
+    verifiedRemote?.snippet.description === rebuilt.proposedDescription;
   const titleUnchanged = verifiedRemote?.snippet.title === remote.snippet.title;
   const categoryUnchanged = verifiedRemote?.snippet.categoryId === remote.snippet.categoryId;
   const tagsUnchanged =
@@ -442,13 +391,17 @@ export async function runChapterSyncApply(input: {
     };
   }
 
-  const chapterBlock = formatYoutubeChapterBlock(exportResult.items);
+  const fingerprint = canonicalChapterFingerprint(
+    (await import("@/lib/instruction-chapters")).normalizeInstructionGroups(
+      recipe.values.instructions,
+    ),
+  );
   const metadata = {
     videoId,
     lastSyncedAt: new Date().toISOString(),
     lastSyncedBy: input.adminLabel,
-    lastSyncedDescriptionHash: descriptionContentHash(patch.proposedDescription),
-    lastSyncedChapterBlock: chapterBlock,
+    lastSyncedDescriptionHash: descriptionContentHash(rebuilt.proposedDescription),
+    lastSyncedChapterBlock: rebuilt.generatedChapterBlock,
     lastSyncedCanonicalFingerprint: fingerprint,
     remoteEtag: verifiedRemote?.etag ?? updated.etag,
   };
@@ -464,8 +417,6 @@ export async function runChapterSyncApply(input: {
   } catch {
     metadataStored = false;
   }
-
-  clearPreviewToken(input.previewId);
 
   const warning =
     !metadataStored

@@ -15,6 +15,7 @@ import { youtubeWatchUrl } from "@/lib/youtube";
 type PreviewResponse = {
   ok: true;
   previewId: string;
+  previewToken: string;
   videoId: string;
   videoTitle: string;
   export: {
@@ -129,7 +130,7 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
       const response = await fetch("/api/admin/youtube/chapter-sync/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipeId, previewId: preview.previewId }),
+        body: JSON.stringify({ recipeId, previewToken: preview.previewToken }),
       });
       const payload = (await response.json()) as {
         ok?: boolean;
@@ -344,13 +345,14 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
 
           {!preview.oauth.canWrite ? (
             <p className="text-sm text-muted">
-              YouTube is connected for analytics, but editing permission is not enabled.{" "}
+              Reconnect YouTube and allow Mesa to update video descriptions to enable chapter
+              sync updates.{" "}
               {preview.oauth.reconnectUrl ? (
                 <a
                   href={preview.oauth.reconnectUrl}
                   className="font-semibold text-terracotta underline-offset-2 hover:underline"
                 >
-                  Reconnect YouTube with editing permission
+                  Reconnect YouTube with description editing
                 </a>
               ) : null}
             </p>

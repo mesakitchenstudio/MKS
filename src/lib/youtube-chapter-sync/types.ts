@@ -49,6 +49,8 @@ export type ChapterSyncPreviewOAuth = {
   connected: boolean;
   canReadAnalytics: boolean;
   canWrite: boolean;
+  /** Derived from stored granted scopes — not from ?write=1 request alone. */
+  writeScopeGranted: boolean;
   reconnectUrl?: string;
 };
 

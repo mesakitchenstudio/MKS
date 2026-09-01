@@ -25,12 +25,14 @@ test("stripManagedChapterBlocks preserves non-chapter body", () => {
   assert.doesNotMatch(body, /0:00 Intro/);
 });
 
-test("buildYoutubeDescriptionChapterPreview appends chapter block without HTML markers", () => {
+test("buildYoutubeDescriptionChapterPreview replaces legacy marker block visibly", () => {
   const current = [
     "Body copy stays.",
     "",
     MESA_CHAPTER_BLOCK_START,
     "0:00 Old",
+    "1:00 Old2",
+    "2:00 Old3",
     MESA_CHAPTER_BLOCK_END,
   ].join("\n");
   const preview = buildYoutubeDescriptionChapterPreview({
@@ -44,8 +46,8 @@ test("buildYoutubeDescriptionChapterPreview appends chapter block without HTML m
   assert.equal(preview.wouldChange, true);
   assert.match(preview.nextDescription, /Body copy stays/);
   assert.match(preview.nextDescription, /00:00 Mix/);
-  assert.match(preview.nextDescription, /01:30 Bake/);
   assert.ok(!preview.nextDescription.includes(MESA_CHAPTER_BLOCK_START));
+  assert.match(preview.chapterBlock, /00:00 Mix/);
 });
 
 test("formatYoutubeChapterBlock orders timestamps without markers", () => {

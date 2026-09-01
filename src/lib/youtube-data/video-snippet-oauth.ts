@@ -1,30 +1,19 @@
 import "server-only";
 import { YouTubeAnalyticsError } from "@/lib/youtube-analytics/errors";
+import {
+  buildWritableVideoSnippet,
+  parseYoutubeSnippetReadModel,
+  type YoutubeVideoSnippetRecord,
+  type WritableYoutubeVideoSnippet,
+} from "@/lib/youtube-data/video-snippet-write";
 
-export type YoutubeVideoSnippetRecord = {
-  id: string;
-  etag?: string;
-  snippet: {
-    title: string;
-    description: string;
-    categoryId: string;
-    tags?: string[];
-    defaultLanguage?: string;
-    defaultAudioLanguage?: string;
-    localized?: { title?: string; description?: string };
-    [key: string]: unknown;
-  };
-};
-
-const WRITABLE_SNIPPET_KEYS = [
-  "title",
-  "description",
-  "categoryId",
-  "tags",
-  "defaultLanguage",
-  "defaultAudioLanguage",
-  "localized",
-] as const;
+export {
+  buildWritableVideoSnippet,
+  parseYoutubeSnippetReadModel,
+  type WritableYoutubeVideoSnippet,
+  type YoutubeVideoSnippetRecord,
+  type YoutubeVideoSnippetReadModel,
+} from "@/lib/youtube-data/video-snippet-write";
 
 function sanitizeYoutubeApiError(body: unknown): string {
   if (!body || typeof body !== "object") return "YouTube API request failed.";
@@ -64,40 +53,11 @@ export async function fetchYoutubeVideoSnippetOAuth(
   const item = data.items?.[0];
   if (!item?.id || !item.snippet) return null;
 
-  const snippet = item.snippet;
   return {
     id: item.id,
     etag: item.etag ?? data.etag,
-    snippet: {
-      title: String(snippet.title ?? ""),
-      description: String(snippet.description ?? ""),
-      categoryId: String(snippet.categoryId ?? ""),
-      ...(Array.isArray(snippet.tags) ? { tags: snippet.tags.map(String) } : {}),
-      ...(snippet.defaultLanguage ? { defaultLanguage: String(snippet.defaultLanguage) } : {}),
-      ...(snippet.defaultAudioLanguage
-        ? { defaultAudioLanguage: String(snippet.defaultAudioLanguage) }
-        : {}),
-      ...(snippet.localized && typeof snippet.localized === "object"
-        ? { localized: snippet.localized as YoutubeVideoSnippetRecord["snippet"]["localized"] }
-        : {}),
-    },
+    snippet: parseYoutubeSnippetReadModel(item.snippet),
   };
-}
-
-export function mergeSnippetDescription(
-  current: YoutubeVideoSnippetRecord,
-  nextDescription: string,
-): YoutubeVideoSnippetRecord["snippet"] {
-  const merged: Record<string, unknown> = {};
-  for (const key of WRITABLE_SNIPPET_KEYS) {
-    if (key in current.snippet && current.snippet[key] !== undefined) {
-      merged[key] = current.snippet[key];
-    }
-  }
-  merged.description = nextDescription;
-  if (!merged.title) merged.title = current.snippet.title;
-  if (!merged.categoryId) merged.categoryId = current.snippet.categoryId;
-  return merged as YoutubeVideoSnippetRecord["snippet"];
 }
 
 export async function updateYoutubeVideoDescriptionOAuth(input: {
@@ -105,10 +65,10 @@ export async function updateYoutubeVideoDescriptionOAuth(input: {
   video: YoutubeVideoSnippetRecord;
   nextDescription: string;
 }): Promise<YoutubeVideoSnippetRecord> {
-  const snippet = mergeSnippetDescription(input.video, input.nextDescription);
+  const writable = buildWritableVideoSnippet(input.video.snippet, input.nextDescription);
   const body = {
     id: input.video.id,
-    snippet,
+    snippet: writable,
   };
 
   const url = new URL("https://www.googleapis.com/youtube/v3/videos");
@@ -139,23 +99,17 @@ export async function updateYoutubeVideoDescriptionOAuth(input: {
     throw new YouTubeAnalyticsError("api_error", "YouTube did not return updated video metadata.");
   }
 
-  const row = data.snippet;
   return {
     id: data.id,
     etag: data.etag,
-    snippet: {
-      title: String(row.title ?? snippet.title),
-      description: String(row.description ?? input.nextDescription),
-      categoryId: String(row.categoryId ?? snippet.categoryId),
-      ...(Array.isArray(row.tags)
-        ? { tags: row.tags.map(String) }
-        : snippet.tags
-          ? { tags: snippet.tags }
-          : {}),
-      ...(row.defaultLanguage ? { defaultLanguage: String(row.defaultLanguage) } : {}),
-      ...(row.defaultAudioLanguage
-        ? { defaultAudioLanguage: String(row.defaultAudioLanguage) }
-        : {}),
-    },
+    snippet: parseYoutubeSnippetReadModel(data.snippet),
   };
+}
+
+/** @deprecated Use buildWritableVideoSnippet from video-snippet-write */
+export function mergeSnippetDescription(
+  current: YoutubeVideoSnippetRecord,
+  nextDescription: string,
+): WritableYoutubeVideoSnippet {
+  return buildWritableVideoSnippet(current.snippet, nextDescription);
 }

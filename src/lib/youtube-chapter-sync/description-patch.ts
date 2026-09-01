@@ -24,11 +24,40 @@ function parseChapterLineSeconds(line: string): number | null {
   return chapters[0]?.time ?? null;
 }
 
-/** Legacy Mesa HTML marker blocks (strip only; never written in PR6). */
+/** Legacy Mesa HTML marker blocks — replaced as a visible unit in preview diff. */
 export const LEGACY_MESA_BLOCK_START = "<!-- mesa-chapters:start -->";
 export const LEGACY_MESA_BLOCK_END = "<!-- mesa-chapters:end -->";
 
-function stripLegacyMesaBlocks(description: string): string {
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Find legacy Mesa HTML marker blocks in the raw description.
+ * Spans include the marker comments — removal is visible in preview diff.
+ */
+export function findLegacyMesaMarkerBlocks(description: string): DetectedChapterBlock[] {
+  const blocks: DetectedChapterBlock[] = [];
+  const pattern = new RegExp(
+    `${escapeRegExp(LEGACY_MESA_BLOCK_START)}[\\s\\S]*?${escapeRegExp(LEGACY_MESA_BLOCK_END)}`,
+    "g",
+  );
+  let match: RegExpExecArray | null = pattern.exec(description);
+  while (match) {
+    const text = match[0];
+    blocks.push({
+      start: match.index,
+      end: match.index + text.length,
+      text,
+      lineCount: text.split(/\r?\n/).filter((line) => line.trim()).length,
+    });
+    match = pattern.exec(description);
+  }
+  return blocks;
+}
+
+/** @deprecated Legacy helper — prefer findLegacyMesaMarkerBlocks. */
+export function stripLegacyMesaHtmlMarkers(description: string): string {
   return description.replace(
     new RegExp(
       `${escapeRegExp(LEGACY_MESA_BLOCK_START)}[\\s\\S]*?${escapeRegExp(LEGACY_MESA_BLOCK_END)}\\s*`,
@@ -38,25 +67,15 @@ function stripLegacyMesaBlocks(description: string): string {
   );
 }
 
-/** Remove legacy Mesa HTML marker blocks only (never written in PR6). */
-export function stripLegacyMesaHtmlMarkers(description: string): string {
-  return stripLegacyMesaBlocks(description);
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /**
  * Detect contiguous runs of chapter-format lines (conservative).
  * Requires at least 3 consecutive chapter lines with ascending timestamps.
  */
 export function detectChapterBlocks(description: string): DetectedChapterBlock[] {
-  const normalized = stripLegacyMesaBlocks(description);
   const lineStarts: number[] = [];
   let offset = 0;
-  const lines = normalized.split(/\r?\n/);
-  const eol = normalized.includes("\r\n") ? "\r\n" : "\n";
+  const lines = description.split(/\r?\n/);
+  const eol = description.includes("\r\n") ? "\r\n" : "\n";
 
   for (let i = 0; i < lines.length; i += 1) {
     lineStarts.push(offset);
@@ -89,13 +108,13 @@ export function detectChapterBlocks(description: string): DetectedChapterBlock[]
     }
 
     const start = lineStarts[runStart] ?? 0;
-    let end = normalized.length;
+    let end = description.length;
     if (endLineExclusive < lines.length) {
-      end = lineStarts[endLineExclusive] ?? normalized.length;
+      end = lineStarts[endLineExclusive] ?? description.length;
     } else {
-      end = normalized.length;
+      end = description.length;
     }
-    let text = normalized.slice(start, end);
+    let text = description.slice(start, end);
     text = text.replace(/(\r?\n)+$/, "");
     blocks.push({
       start,
@@ -200,6 +219,29 @@ export function buildDescriptionPatchPlan(input: {
         existingBlock: input.lastSyncedChapterBlock,
       });
     }
+  }
+
+  const legacyBlocks = findLegacyMesaMarkerBlocks(current);
+  if (legacyBlocks.length > 1) {
+    return finishPlan({
+      strategy: "ambiguous",
+      current,
+      proposed: current,
+      generatedChapterBlock,
+    });
+  }
+  if (legacyBlocks.length === 1) {
+    const block = legacyBlocks[0]!;
+    const proposed =
+      current.slice(0, block.start) + generatedChapterBlock + current.slice(block.end);
+    return finishPlan({
+      strategy: "replace_detected",
+      current,
+      proposed,
+      generatedChapterBlock,
+      existingBlock: block.text,
+      existingBlockLineCount: block.lineCount,
+    });
   }
 
   const blocks = detectChapterBlocks(current);

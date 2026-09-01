@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { InstructionGroupWithChapters } from "@/lib/instruction-chapters";
 import { hasCanonicalStartTimestamp } from "@/lib/instruction-chapters";
+import type { YoutubeChapterExportItem } from "@/lib/youtube-chapter-sync/types";
 
 /** Fingerprint of canonical chapter fields only (for sync stale detection). */
 export function canonicalChapterFingerprint(groups: InstructionGroupWithChapters[]): string {
@@ -24,5 +25,21 @@ export function descriptionContentHash(description: string): string {
 }
 
 export function chapterBlockHash(block: string): string {
+  if (!block) return "";
   return createHash("sha256").update(block).digest("hex").slice(0, 24);
+}
+
+/** Deterministic fingerprint of the export used for preview/apply reconciliation. */
+export function youtubeExportFingerprint(
+  introLabel: string,
+  items: YoutubeChapterExportItem[],
+): string {
+  const payload = [
+    introLabel.trim(),
+    ...items.map(
+      (item) =>
+        `${item.timestamp}|${item.label.trim()}|${item.source}|${item.instructionIndex ?? ""}`,
+    ),
+  ].join("\n");
+  return createHash("sha256").update(payload).digest("hex").slice(0, 24);
 }

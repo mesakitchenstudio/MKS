@@ -9,6 +9,7 @@ import {
 export { YT_ANALYTICS_SCOPES, YT_CHAPTER_SYNC_SCOPES } from "@/lib/youtube-analytics/oauth-scopes";
 
 export const OAUTH_STATE_COOKIE = "mesa_yt_analytics_oauth_state";
+export const OAUTH_WRITE_REQUEST_COOKIE = "mesa_yt_oauth_write_requested";
 
 export function youtubeAnalyticsOAuthClient() {
   const clientId = process.env.AUTH_GOOGLE_ID?.trim() ?? "";

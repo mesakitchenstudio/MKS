@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  let body: { recipeId?: string; previewId?: string };
+  let body: { recipeId?: string; previewToken?: string; previewId?: string };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -19,10 +19,10 @@ export async function POST(request: Request) {
   }
 
   const recipeId = String(body.recipeId ?? "").trim();
-  const previewId = String(body.previewId ?? "").trim();
-  if (!recipeId || !previewId) {
+  const previewToken = String(body.previewToken ?? body.previewId ?? "").trim();
+  if (!recipeId || !previewToken) {
     return NextResponse.json(
-      { error: "recipeId and previewId are required." },
+      { error: "recipeId and previewToken are required." },
       { status: 400 },
     );
   }
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const adminLabel = admin.email || admin.name || admin.id;
   const result = await runChapterSyncApply({
     recipeId,
-    previewId,
+    previewToken,
     adminId: admin.id,
     adminLabel,
   });
@@ -45,7 +45,10 @@ export async function POST(request: Request) {
               result.code === "canonical_changed" ||
               result.code === "video_changed" ||
               result.code === "preview_invalid" ||
-              result.code === "preview_missing"
+              result.code === "preview_mismatch" ||
+              result.code === "export_changed" ||
+              result.code === "strategy_changed" ||
+              result.code === "block_changed"
             ? 409
             : 400;
     return NextResponse.json({ ok: false, error: result.message, code: result.code }, { status });

@@ -8,6 +8,7 @@ import {
   YT_ANALYTICS_SCOPES,
   YT_WRITE_SCOPE,
 } from "@/lib/youtube-analytics/oauth-scopes";
+import { youtubeChapterSyncEnabled } from "@/lib/youtube-chapter-sync/sync-metadata";
 
 test("analytics-only connection → canWrite false", () => {
   const scopes = YT_ANALYTICS_SCOPES.join(" ");
@@ -28,4 +29,17 @@ test("reconnect union preserves Analytics scopes", () => {
   for (const required of YT_ANALYTICS_SCOPES) {
     assert.ok(scopes.includes(required));
   }
+});
+
+test("canWrite requires granted scope in token — not request flag alone", () => {
+  const analyticsOnly = "https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/youtube.readonly";
+  assert.equal(canWriteYoutubeVideoMetadata(analyticsOnly), false);
+  assert.equal(canWriteYoutubeVideoMetadata(""), false);
+});
+
+test("youtubeChapterSyncEnabled defaults false when unset", () => {
+  const prior = process.env.YOUTUBE_CHAPTER_SYNC_ENABLED;
+  delete process.env.YOUTUBE_CHAPTER_SYNC_ENABLED;
+  assert.equal(youtubeChapterSyncEnabled(), false);
+  if (prior !== undefined) process.env.YOUTUBE_CHAPTER_SYNC_ENABLED = prior;
 });

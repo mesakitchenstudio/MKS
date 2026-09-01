@@ -116,6 +116,37 @@ test("patch J: already identical → in sync", () => {
   assert.equal(plan.strategy, "already_in_sync");
 });
 
+test("legacy Mesa HTML marker block replaced as visible unit in preview diff", () => {
+  const current = [
+    "Body copy stays.",
+    "",
+    "<!-- mesa-chapters:start -->",
+    "0:00 Old",
+    "1:00 Old2",
+    "2:00 Old3",
+    "<!-- mesa-chapters:end -->",
+  ].join("\n");
+  const plan = buildDescriptionPatchPlan({ currentDescription: current, exportItems });
+  assert.equal(plan.strategy, "replace_detected");
+  assert.match(plan.existingChapterBlock ?? "", /mesa-chapters:start/);
+  assert.match(plan.proposedDescription, /Body copy stays/);
+  assert.doesNotMatch(plan.proposedDescription, /mesa-chapters:start/);
+  assert.ok(plan.proposedDescription.startsWith("Body copy stays."));
+});
+
+test("legacy marker elsewhere is not silently stripped outside chapter span", () => {
+  const markerOnly = "Unrelated <!-- mesa-chapters:start --> note without end marker.";
+  const blocks = detectChapterBlocks(markerOnly);
+  assert.equal(blocks.length, 0);
+  const plan = buildDescriptionPatchPlan({
+    currentDescription: markerOnly,
+    exportItems,
+  });
+  assert.equal(plan.strategy, "append");
+  assert.match(plan.proposedDescription, /Unrelated/);
+  assert.match(plan.proposedDescription, /mesa-chapters:start/);
+});
+
 test("findExactBlockSpan rejects ambiguous duplicate blocks", () => {
   const text = "aaa\nbbb\naaa";
   assert.equal(findExactBlockSpan(text, "aaa"), null);

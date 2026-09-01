@@ -7,9 +7,11 @@ import {
   exchangeAuthorizationCode,
   hashOAuthState,
   OAUTH_STATE_COOKIE,
+  OAUTH_WRITE_REQUEST_COOKIE,
 } from "@/lib/youtube-analytics/oauth";
 import { analyticsErrorMessage } from "@/lib/youtube-analytics/errors";
 import { syncYoutubeAnalytics } from "@/lib/youtube-analytics/sync";
+import { canWriteYoutubeVideoMetadata } from "@/lib/youtube-analytics/oauth-scopes";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -63,27 +65,42 @@ export async function GET(request: Request) {
 
   try {
     const tokens = await exchangeAuthorizationCode({ origin, code });
+    const writeRequested = jar.get(OAUTH_WRITE_REQUEST_COOKIE)?.value === "1";
+    jar.delete(OAUTH_WRITE_REQUEST_COOKIE);
+    const grantedScopes = tokens.scope?.trim() || "";
+    const writeGranted = canWriteYoutubeVideoMetadata(grantedScopes);
+
     const saved = await saveAnalyticsConnection({
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token!,
-      scopes: tokens.scope,
+      scopes: grantedScopes,
       adminId: admin.id,
     });
 
     const syncResult = await syncYoutubeAnalytics({ days: 90 });
     jar.delete(OAUTH_STATE_COOKIE);
+
+    const notices: string[] = [];
+    if (writeRequested && !writeGranted) {
+      notices.push(
+        "Google did not grant permission to update YouTube video descriptions. Reconnect and approve that permission to enable chapter sync updates.",
+      );
+    }
+    if (!syncResult.ok && syncResult.error) {
+      notices.push(syncResult.error);
+    } else if (syncResult.ok && syncResult.videoMetricsStatus === "API_ERROR") {
+      notices.push(
+        "Per-video YouTube Analytics could not be loaded. Public YouTube data is still available.",
+      );
+    }
+
     return redirectToYoutube(origin, {
       analyticsConnected: saved.channelTitle || "Mesa Kitchen Studio",
-      ...(syncResult.ok
-        ? syncResult.videoMetricsStatus === "API_ERROR"
-          ? {
-              analyticsNotice:
-                "Per-video YouTube Analytics could not be loaded. Public YouTube data is still available.",
-            }
-          : {}
-        : { analyticsNotice: syncResult.error }),
+      ...(writeRequested && writeGranted ? { analyticsWriteGranted: "1" } : {}),
+      ...(notices.length ? { analyticsNotice: notices.join(" ") } : {}),
     });
   } catch (error) {
+    jar.delete(OAUTH_WRITE_REQUEST_COOKIE);
     jar.delete(OAUTH_STATE_COOKIE);
     return redirectToYoutube(origin, { analyticsError: analyticsErrorMessage(error) });
   }

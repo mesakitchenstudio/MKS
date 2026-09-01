@@ -1,8 +1,13 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { ChapterBlockReplacementStrategy } from "@/lib/youtube-chapter-sync/types";
 
+/**
+ * Stateless, tamper-evident preview snapshot (v2).
+ * Apply verifies this token and rebuilds the write payload server-side.
+ * No process-local storage — safe for Vercel serverless / multi-instance deploys.
+ */
 export type ChapterSyncPreviewPayload = {
-  v: 1;
+  v: 2;
   previewId: string;
   recipeId: string;
   videoId: string;
@@ -10,7 +15,11 @@ export type ChapterSyncPreviewPayload = {
   beforeHash: string;
   remoteEtag: string | null;
   canonicalFingerprint: string;
+  exportFingerprint: string;
   replacementStrategy: ChapterBlockReplacementStrategy;
+  /** Hash of the replaceable block text at preview time; empty string for append. */
+  replacementBlockHash: string;
+  generatedAt: number;
   expiresAt: number;
 };
 
@@ -40,15 +49,17 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export function createChapterSyncPreviewToken(
-  input: Omit<ChapterSyncPreviewPayload, "v" | "previewId" | "expiresAt"> & {
+  input: Omit<ChapterSyncPreviewPayload, "v" | "previewId" | "generatedAt" | "expiresAt"> & {
     previewId?: string;
     ttlMs?: number;
+    generatedAt?: number;
   },
-): { previewId: string; token: string; expiresAt: number } {
+): { previewId: string; previewToken: string; expiresAt: number; generatedAt: number } {
   const previewId = input.previewId ?? randomBytes(12).toString("hex");
-  const expiresAt = Date.now() + (input.ttlMs ?? PREVIEW_TTL_MS);
+  const generatedAt = input.generatedAt ?? Date.now();
+  const expiresAt = generatedAt + (input.ttlMs ?? PREVIEW_TTL_MS);
   const payload: ChapterSyncPreviewPayload = {
-    v: 1,
+    v: 2,
     previewId,
     recipeId: input.recipeId,
     videoId: input.videoId,
@@ -56,18 +67,21 @@ export function createChapterSyncPreviewToken(
     beforeHash: input.beforeHash,
     remoteEtag: input.remoteEtag,
     canonicalFingerprint: input.canonicalFingerprint,
+    exportFingerprint: input.exportFingerprint,
     replacementStrategy: input.replacementStrategy,
+    replacementBlockHash: input.replacementBlockHash,
+    generatedAt,
     expiresAt,
   };
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const token = `${payloadB64}.${sign(payloadB64)}`;
-  return { previewId, token, expiresAt };
+  const previewToken = `${payloadB64}.${sign(payloadB64)}`;
+  return { previewId, previewToken, expiresAt, generatedAt };
 }
 
 export function verifyChapterSyncPreviewToken(
-  token: string,
+  previewToken: string,
 ): { ok: true; payload: ChapterSyncPreviewPayload } | { ok: false; reason: string } {
-  const [payloadB64, signature] = token.split(".");
+  const [payloadB64, signature] = previewToken.split(".");
   if (!payloadB64 || !signature) {
     return { ok: false, reason: "Invalid preview token." };
   }
@@ -85,11 +99,14 @@ export function verifyChapterSyncPreviewToken(
     const payload = JSON.parse(
       Buffer.from(payloadB64, "base64url").toString(),
     ) as ChapterSyncPreviewPayload;
-    if (payload.v !== 1) {
+    if (payload.v !== 2) {
       return { ok: false, reason: "Unsupported preview token version." };
     }
     if (!payload.previewId || !payload.recipeId || !payload.videoId) {
       return { ok: false, reason: "Preview token is missing required fields." };
+    }
+    if (!payload.exportFingerprint || !payload.replacementStrategy) {
+      return { ok: false, reason: "Preview token is incomplete." };
     }
     if (Date.now() >= payload.expiresAt) {
       return { ok: false, reason: "This preview has expired. Generate a new preview." };
@@ -98,34 +115,4 @@ export function verifyChapterSyncPreviewToken(
   } catch {
     return { ok: false, reason: "Preview token could not be parsed." };
   }
-}
-
-const previewTokenById = new Map<string, { token: string; expiresAt: number }>();
-
-export function storePreviewToken(previewId: string, token: string, expiresAt: number) {
-  previewTokenById.set(previewId, { token, expiresAt });
-  if (previewTokenById.size > 500) {
-    const now = Date.now();
-    for (const [id, row] of previewTokenById) {
-      if (row.expiresAt <= now) previewTokenById.delete(id);
-    }
-  }
-}
-
-export function resolvePreviewToken(previewId: string): string | null {
-  const row = previewTokenById.get(previewId);
-  if (!row) return null;
-  if (Date.now() >= row.expiresAt) {
-    previewTokenById.delete(previewId);
-    return null;
-  }
-  return row.token;
-}
-
-export function clearPreviewToken(previewId: string) {
-  previewTokenById.delete(previewId);
-}
-
-export function clearAllPreviewTokensForTests() {
-  previewTokenById.clear();
 }

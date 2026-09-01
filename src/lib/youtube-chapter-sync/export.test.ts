@@ -75,12 +75,12 @@ test("export E: readiness requires >= 3 chapters", () => {
   assert.equal(readiness.ready, false);
 });
 
-test("export F: readiness requires ascending timestamps", () => {
+test("export F: readiness rejects duplicate timestamps", () => {
   const readiness = evaluateYoutubeExportReadiness({
     items: [
       { timestamp: 0, label: "A", source: "synthetic_intro" },
       { timestamp: 30, label: "B", source: "mesa_section" },
-      { timestamp: 20, label: "C", source: "mesa_section" },
+      { timestamp: 30, label: "C", source: "mesa_section" },
     ],
   });
   assert.equal(readiness.ready, false);

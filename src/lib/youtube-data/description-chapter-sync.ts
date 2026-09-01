@@ -8,7 +8,6 @@ import {
   detectChapterBlocks,
   LEGACY_MESA_BLOCK_END,
   LEGACY_MESA_BLOCK_START,
-  stripLegacyMesaHtmlMarkers,
 } from "@/lib/youtube-chapter-sync/description-patch";
 import { youtubeChapterSyncEnabled } from "@/lib/youtube-chapter-sync/sync-metadata";
 
@@ -75,9 +74,8 @@ export function buildYoutubeDescriptionChapterPreview(input: {
     })),
   });
 
-  const normalizedDescription = stripLegacyMesaHtmlMarkers(input.currentDescription);
   const patch = buildDescriptionPatchPlan({
-    currentDescription: normalizedDescription,
+    currentDescription: input.currentDescription,
     exportItems: exportResult.items,
   });
 
