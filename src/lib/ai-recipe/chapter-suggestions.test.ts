@@ -59,6 +59,7 @@ test("buildDeterministicChapterSuggestions fills missing section from stage alig
   const evidence = collectChapterSuggestionEvidence({
     videoId: "abc123",
     values: {
+      instructions: baguetteGroups,
       youtube: {
         duration: "6:21",
         stageAlignments: [
@@ -84,12 +85,14 @@ test("buildDeterministicChapterSuggestions fills missing section from stage alig
   assert.equal(suggestions[0]!.instructionIndex, 4);
   assert.equal(suggestions[0]!.startTimestamp, 265);
   assert.equal(suggestions[0]!.status, "suggested");
+  assert.equal(suggestions[0]!.stageAlignmentLineage, "legacy_ai_video");
 });
 
 test("noSuggestion when evidence cannot match section", () => {
   const evidence = collectChapterSuggestionEvidence({
     videoId: "abc123",
     values: {
+      instructions: baguetteGroups,
       youtube: {
         stageAlignments: [
           {
@@ -152,6 +155,7 @@ test("default selection checks missing high/medium and skips existing canonical"
   const evidence = collectChapterSuggestionEvidence({
     videoId: "abc123",
     values: {
+      instructions: baguetteGroups,
       youtube: {
         stageAlignments: [
           {
@@ -197,6 +201,7 @@ test("apply selected updates only chosen sections locally", () => {
         startTimestamp: 265,
         confidence: "medium",
         source: "stage_alignment",
+        stageAlignmentLineage: "legacy_ai_video",
         status: "suggested",
       },
     ],
@@ -210,19 +215,36 @@ test("apply selected updates only chosen sections locally", () => {
   if (result.ok) {
     assert.equal(result.groups[4]!.startTimestamp, 265);
     assert.equal(result.groups[0]!.startTimestamp, 12);
-    assert.ok(result.provenancePaths["values.instructions.4.startTimestamp"]);
+    assert.equal(
+      result.provenancePaths["values.instructions.4.startTimestamp"]?.source,
+      "from_video",
+    );
   }
 });
 
 test("provenance maps cached video evidence to from_video", () => {
   assert.equal(suggestionSourceToFieldSource("cached_video"), "from_video");
   assert.equal(suggestionSourceToFieldSource("semantic_inference"), "inferred");
+  assert.equal(
+    suggestionSourceToFieldSource("stage_alignment", { stageAlignmentLineage: "legacy_ai_video" }),
+    "from_video",
+  );
+  assert.equal(
+    suggestionSourceToFieldSource("stage_alignment", { stageAlignmentLineage: "manual_unknown" }),
+    "inferred",
+  );
+  assert.equal(
+    suggestionSourceToFieldSource("stage_alignment", { stageAlignmentLineage: "unknown_legacy" }),
+    "inferred",
+  );
+  assert.equal(suggestionSourceToFieldSource("youtube_chapter_hint"), "inferred");
 });
 
 test("conflict flagged when suggested timestamp is before previous section", () => {
   const evidence = collectChapterSuggestionEvidence({
     videoId: "abc123",
     values: {
+      instructions: baguetteGroups,
       youtube: {
         stageAlignments: [
           {
@@ -256,6 +278,7 @@ test("locked field is not default-selected", () => {
   const evidence = collectChapterSuggestionEvidence({
     videoId: "abc123",
     values: {
+      instructions: baguetteGroups,
       youtube: {
         stageAlignments: [
           {
@@ -292,4 +315,136 @@ test("locked field is not default-selected", () => {
     aiMeta,
   });
   assert.equal(defaults.find((row) => row.instructionIndex === 4), undefined);
+});
+
+test("derived canonical stageAlignment is excluded from suggestion evidence", () => {
+  const groups = [
+    { name: "Section A", steps: ["a"], startTimestamp: 265 },
+    { name: "Section B", steps: ["b"] },
+  ];
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "abc123",
+    values: {
+      instructions: groups,
+      youtube: {
+        stageAlignments: [
+          {
+            instructionStageId: "stage-0",
+            instructionSectionTitle: "Section A",
+            videoStartSeconds: 265,
+            videoTimestampLabel: "4:25",
+            chapterTitle: "Section A",
+            confidence: "VERIFIED",
+            source: "manual",
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(evidence.stageAlignments.length, 0);
+});
+
+test("staff canonical timestamp cannot round-trip as from_video via derived stageAlignment", () => {
+  const groups = [
+    { name: "Staff Section", steps: ["mix"], startTimestamp: 120 },
+    { name: "Missing Section", steps: ["shape"] },
+  ];
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "abc123",
+    values: {
+      instructions: groups,
+      youtube: {
+        stageAlignments: [
+          {
+            instructionStageId: "stage-0",
+            instructionSectionTitle: "Staff Section",
+            videoStartSeconds: 120,
+            videoTimestampLabel: "2:00",
+            chapterTitle: "Staff Section",
+            confidence: "VERIFIED",
+            source: "manual",
+          },
+          {
+            instructionStageId: "stage-1",
+            instructionSectionTitle: "Missing Section",
+            videoStartSeconds: 200,
+            videoTimestampLabel: "3:20",
+            chapterTitle: "Missing Section",
+            confidence: "VERIFIED",
+            source: "manual",
+          },
+        ],
+      },
+    },
+  });
+  const suggestions = buildDeterministicChapterSuggestions({
+    groups,
+    evidence,
+    mode: "missing",
+  });
+  assert.equal(suggestions.length, 1);
+  assert.equal(suggestions[0]!.instructionIndex, 1);
+  assert.equal(suggestions[0]!.stageAlignmentLineage, "manual_unknown");
+  const result = applySelectedChapterSuggestions({
+    groups,
+    batch: {
+      requestId: "r1",
+      generatedAt: new Date().toISOString(),
+      mode: "missing",
+      instructionSnapshotFingerprint: instructionSnapshotFingerprint(groups),
+      suggestions,
+    },
+    selections: [{ instructionIndex: 1, applyStart: true, applyChapterLabel: false }],
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(
+      result.provenancePaths["values.instructions.1.startTimestamp"]?.source,
+      "inferred",
+    );
+  }
+});
+
+test("cached full-video chapter match applies as from_video", () => {
+  const groups = [{ name: "Shape loaves", steps: ["shape"] }];
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "abc123",
+    values: { instructions: groups, youtube: { duration: "8:00" } },
+    cacheRaw: {
+      youtubeMetadata: {
+        chapters: [
+          {
+            time: "4:25",
+            label: "Shape loaves",
+            confidence: "VERIFIED",
+            sourceNote: "Shaping segment in video",
+          },
+        ],
+      },
+    },
+  });
+  const suggestions = buildDeterministicChapterSuggestions({
+    groups,
+    evidence,
+    mode: "missing",
+  });
+  assert.equal(suggestions[0]!.source, "cached_video");
+  const result = applySelectedChapterSuggestions({
+    groups,
+    batch: {
+      requestId: "r2",
+      generatedAt: new Date().toISOString(),
+      mode: "missing",
+      instructionSnapshotFingerprint: instructionSnapshotFingerprint(groups),
+      suggestions,
+    },
+    selections: [{ instructionIndex: 0, applyStart: true, applyChapterLabel: false }],
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(
+      result.provenancePaths["values.instructions.0.startTimestamp"]?.source,
+      "from_video",
+    );
+  }
 });

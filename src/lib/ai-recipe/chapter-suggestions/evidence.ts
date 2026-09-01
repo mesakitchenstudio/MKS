@@ -6,12 +6,20 @@ import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtub
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
 import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
+import {
+  classifyStageAlignmentEvidence,
+  usableStageAlignmentEvidence,
+  type ClassifiedStageAlignmentEvidence,
+} from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
+import { normalizeInstructionGroups } from "@/lib/instruction-chapters";
+
+export type { ClassifiedStageAlignmentEvidence, StageAlignmentEvidenceLineage } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
 
 export type ChapterSuggestionEvidenceBundle = {
   videoId: string;
   videoDurationSeconds?: number;
   cachedGeminiChapters: NormalizedAiYoutubeChapter[];
-  stageAlignments: RecipeStageAlignment[];
+  stageAlignments: ClassifiedStageAlignmentEvidence[];
   youtubeDescriptionChapters: NormalizedAiYoutubeChapter[];
   legacyTimestamps: RecipeYoutubeTimestamp[];
   videoContext: RecipeAiVideoContext | null;
@@ -22,7 +30,7 @@ export type ChapterSuggestionEvidenceBundle = {
 export function hasUsableChapterEvidence(bundle: ChapterSuggestionEvidenceBundle): boolean {
   return (
     bundle.cachedGeminiChapters.length > 0 ||
-    bundle.stageAlignments.some((row) => row.videoStartSeconds >= 0) ||
+    bundle.stageAlignments.length > 0 ||
     bundle.youtubeDescriptionChapters.length > 0 ||
     bundle.legacyTimestamps.length > 0 ||
     Boolean(bundle.videoContext?.instructionStageEvidence?.length)
@@ -59,11 +67,15 @@ export function collectChapterSuggestionEvidence(input: {
     }
   }
 
-  const stageAlignments =
+  const rawStageAlignments =
     blob?.stageAlignments?.length
       ? blob.stageAlignments
       : parseStageAlignments(rawYoutube?.stageAlignments ?? []);
-  if (stageAlignments.length) evidenceSources.push("stage_alignments");
+  const groups = normalizeInstructionGroups(input.values.instructions);
+  const classifiedStageAlignments = usableStageAlignmentEvidence(
+    classifyStageAlignmentEvidence({ alignments: rawStageAlignments, groups }),
+  );
+  if (classifiedStageAlignments.length) evidenceSources.push("stage_alignments");
 
   const legacyTimestamps = blob?.timestamps?.length
     ? blob.timestamps
@@ -89,7 +101,7 @@ export function collectChapterSuggestionEvidence(input: {
     videoId: input.videoId,
     videoDurationSeconds: videoDurationSeconds ?? undefined,
     cachedGeminiChapters,
-    stageAlignments,
+    stageAlignments: classifiedStageAlignments,
     youtubeDescriptionChapters,
     legacyTimestamps,
     videoContext,

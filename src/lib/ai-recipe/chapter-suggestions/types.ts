@@ -28,6 +28,8 @@ export type ChapterTimestampSuggestionItem = {
   reason?: string;
   status: ChapterSuggestionStatus;
   conflictReason?: string;
+  /** Set when source is stage_alignment — drives safe apply provenance. */
+  stageAlignmentLineage?: import("@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence").StageAlignmentEvidenceLineage;
 };
 
 export type ChapterSuggestionBatch = {

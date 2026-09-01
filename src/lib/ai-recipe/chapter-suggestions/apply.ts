@@ -22,16 +22,25 @@ import type {
   ChapterTimestampSuggestionItem,
   ApplyChapterSuggestionsResult,
 } from "@/lib/ai-recipe/chapter-suggestions/types";
+import type { StageAlignmentEvidenceLineage } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
+import { stageAlignmentLineageIsVideoDerived } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
 
 export function suggestionSourceToFieldSource(
   source: ChapterSuggestionSource,
+  options?: { stageAlignmentLineage?: StageAlignmentEvidenceLineage },
 ): FieldSource {
   switch (source) {
     case "cached_video":
     case "transcript":
       return "from_video";
     case "stage_alignment":
-      return "from_video";
+      if (
+        options?.stageAlignmentLineage &&
+        stageAlignmentLineageIsVideoDerived(options.stageAlignmentLineage)
+      ) {
+        return "from_video";
+      }
+      return "inferred";
     default:
       return "inferred";
   }
@@ -192,7 +201,9 @@ export function applySelectedChapterSuggestions(input: {
       } else if (suggestion.startTimestamp != null) {
         group.startTimestamp = suggestion.startTimestamp;
         provenancePaths[startPath] = {
-          source: suggestionSourceToFieldSource(suggestion.source),
+          source: suggestionSourceToFieldSource(suggestion.source, {
+            stageAlignmentLineage: suggestion.stageAlignmentLineage,
+          }),
           value: suggestion.startTimestamp,
         };
         appliedCount += 1;
@@ -208,7 +219,9 @@ export function applySelectedChapterSuggestions(input: {
       } else {
         group.chapterLabel = suggestion.suggestedChapterLabel.trim();
         provenancePaths[labelPath] = {
-          source: suggestionSourceToFieldSource(suggestion.source),
+          source: suggestionSourceToFieldSource(suggestion.source, {
+            stageAlignmentLineage: suggestion.stageAlignmentLineage,
+          }),
           value: group.chapterLabel,
         };
         appliedCount += 1;

@@ -1,5 +1,4 @@
 import type { AiConfidence } from "@/lib/ai-recipe/types";
-import type { RecipeStageAlignment } from "@/data/youtube-types";
 import type { NormalizedAiYoutubeChapter } from "@/lib/ai-recipe/youtube-chapters";
 import {
   formatTimestampInput,
@@ -16,6 +15,7 @@ import type {
   ChapterTimestampSuggestionItem,
 } from "@/lib/ai-recipe/chapter-suggestions/types";
 import type { ChapterSuggestionEvidenceBundle } from "@/lib/ai-recipe/chapter-suggestions/evidence";
+import type { StageAlignmentEvidenceLineage } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
 
 type MatchCandidate = {
   startTimestamp: number;
@@ -26,6 +26,7 @@ type MatchCandidate = {
   reason?: string;
   suggestedChapterLabel?: string;
   alignmentConfidence?: AiConfidence;
+  stageAlignmentLineage?: StageAlignmentEvidenceLineage;
 };
 
 function normalizeTitle(value: string) {
@@ -71,17 +72,38 @@ function aiConfidenceToSuggestion(confidence: AiConfidence): ChapterSuggestionCo
   return "low";
 }
 
-function findStageAlignment(
+function findClassifiedStageAlignment(
   groupIndex: number,
   group: InstructionGroupWithChapters,
-  alignments: RecipeStageAlignment[],
-): RecipeStageAlignment | undefined {
+  classified: ChapterSuggestionEvidenceBundle["stageAlignments"],
+) {
   const id = `stage-${groupIndex}`;
   const title = String(group.name ?? "").trim().toLowerCase();
   return (
-    alignments.find((row) => row.instructionStageId === id) ??
-    alignments.find((row) => row.instructionSectionTitle.toLowerCase().trim() === title)
+    classified.find(
+      (row) =>
+        row.groupIndex === groupIndex ||
+        row.alignment.instructionStageId === id ||
+        row.alignment.instructionSectionTitle.toLowerCase().trim() === title,
+    ) ?? null
   );
+}
+
+function stageAlignmentEvidenceText(
+  lineage: StageAlignmentEvidenceLineage,
+  seconds: number,
+): string {
+  const clock = formatTimestampInput(seconds);
+  switch (lineage) {
+    case "legacy_ai_video":
+      return `AI video analysis stage alignment at ${clock}`;
+    case "youtube_description_hint":
+      return `Stage alignment from YouTube description near ${clock}`;
+    case "manual_unknown":
+      return `Legacy manual stage alignment at ${clock}`;
+    default:
+      return `Legacy stage alignment reference at ${clock}`;
+  }
 }
 
 function matchCachedChapter(
@@ -242,17 +264,23 @@ export function buildDeterministicChapterSuggestions(input: {
     const fingerprint = instructionSectionFingerprint(group, index);
     const candidates: MatchCandidate[] = [];
 
-    const alignment = findStageAlignment(index, group, evidence.stageAlignments);
-    if (alignment && alignment.videoStartSeconds >= 0) {
+    const classifiedAlignment = findClassifiedStageAlignment(
+      index,
+      group,
+      evidence.stageAlignments,
+    );
+    if (classifiedAlignment && classifiedAlignment.alignment.videoStartSeconds >= 0) {
+      const alignment = classifiedAlignment.alignment;
       candidates.push({
         startTimestamp: alignment.videoStartSeconds,
         confidence: aiConfidenceToSuggestion(alignment.confidence),
         source: "stage_alignment",
         alignmentConfidence: alignment.confidence,
-        evidence:
-          alignment.source === "youtube_description_hint"
-            ? `Stage alignment from YouTube description near ${formatTimestampInput(alignment.videoStartSeconds)}`
-            : `Existing AI stage alignment at ${formatTimestampInput(alignment.videoStartSeconds)}`,
+        stageAlignmentLineage: classifiedAlignment.lineage,
+        evidence: stageAlignmentEvidenceText(
+          classifiedAlignment.lineage,
+          alignment.videoStartSeconds,
+        ),
         reason: "Instruction-stage alignment evidence",
         suggestedChapterLabel: alignment.chapterTitle || alignment.instructionSectionTitle,
       });
@@ -319,6 +347,7 @@ export function buildDeterministicChapterSuggestions(input: {
       reason: best.reason,
       status,
       conflictReason,
+      stageAlignmentLineage: best.stageAlignmentLineage,
     });
   }
 
@@ -332,13 +361,19 @@ export function buildDeterministicChapterSuggestions(input: {
       const fingerprint = instructionSectionFingerprint(group, index);
       const candidates: MatchCandidate[] = [];
 
-      const alignment = findStageAlignment(index, group, evidence.stageAlignments);
-      if (alignment && alignment.videoStartSeconds >= 0) {
+      const classifiedAlignment = findClassifiedStageAlignment(
+        index,
+        group,
+        evidence.stageAlignments,
+      );
+      if (classifiedAlignment && classifiedAlignment.alignment.videoStartSeconds >= 0) {
+        const alignment = classifiedAlignment.alignment;
         candidates.push({
           startTimestamp: alignment.videoStartSeconds,
           confidence: aiConfidenceToSuggestion(alignment.confidence),
           source: "stage_alignment",
           alignmentConfidence: alignment.confidence,
+          stageAlignmentLineage: classifiedAlignment.lineage,
           evidence: `Comparison reference at ${formatTimestampInput(alignment.videoStartSeconds)}`,
           reason: "Comparison against current canonical timestamp",
         });
@@ -380,6 +415,7 @@ export function buildDeterministicChapterSuggestions(input: {
         reason: best.reason,
         status,
         conflictReason,
+        stageAlignmentLineage: best.stageAlignmentLineage,
       });
       proposedStarts.set(index, startTimestamp);
     }
