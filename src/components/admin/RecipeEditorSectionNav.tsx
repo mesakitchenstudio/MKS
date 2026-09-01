@@ -9,8 +9,9 @@ export type RecipeEditorSectionLink = {
   /** Required fields currently unsatisfied in this section. */
   missingCount?: number;
   missingLabels?: string[];
-  /** Populated AI/inferred/estimated fields that may need review. */
+  /** Populated AI content awaiting staff review. */
   reviewCount?: number;
+  reviewLabels?: string[];
 };
 
 export const RecipeEditorSectionNav = forwardRef<
@@ -21,6 +22,7 @@ export const RecipeEditorSectionNav = forwardRef<
     scrollMarginTop: number;
     onNavigate: (sectionId: string) => void;
     onNavigateToMissing?: (sectionId: string) => void;
+    onNavigateToReview?: (sectionId: string) => void;
     activeSectionId?: string;
     compact?: boolean;
   }
@@ -31,6 +33,7 @@ export const RecipeEditorSectionNav = forwardRef<
     scrollMarginTop,
     onNavigate,
     onNavigateToMissing,
+    onNavigateToReview,
     activeSectionId,
     compact = false,
   },
@@ -59,19 +62,24 @@ export const RecipeEditorSectionNav = forwardRef<
           const isActive = activeSectionId === section.id;
           const missing = section.missingCount ?? 0;
           const review = section.reviewCount ?? 0;
-          const complete = missing === 0;
           const missingSummary =
             missing > 0 && section.missingLabels?.length
               ? section.missingLabels.join(", ")
+              : undefined;
+          const reviewSummary =
+            review > 0 && section.reviewLabels?.length
+              ? section.reviewLabels.join(", ")
               : undefined;
           const missingTitle = missingSummary
             ? `Missing required: ${missingSummary}. Click to jump to the first missing field.`
             : missing > 0
               ? `${missing} required field${missing === 1 ? "" : "s"} missing. Click to jump to the first missing field.`
               : undefined;
-          const missingAriaLabel = missingSummary
-            ? `${missing} required field${missing === 1 ? "" : "s"} missing in ${section.label}: ${missingSummary}. Go to first missing field.`
-            : `${missing} required field${missing === 1 ? "" : "s"} missing in ${section.label}. Go to first missing field.`;
+          const reviewTitle = reviewSummary
+            ? `Needs review: ${reviewSummary}. Click to jump to the first review item.`
+            : review > 0
+              ? `${review} field${review === 1 ? "" : "s"} need review. Click to jump to the first review item.`
+              : undefined;
 
           return (
             <li key={section.id} className="shrink-0">
@@ -91,29 +99,36 @@ export const RecipeEditorSectionNav = forwardRef<
                   }`}
                 >
                   {section.label}
-                  {complete ? (
-                    <span className="ml-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-olive/80">
-                      ✓
-                    </span>
-                  ) : null}
                 </button>
-                {!complete ? (
+                {missing > 0 ? (
                   <button
                     type="button"
-                    onClick={() =>
-                      (onNavigateToMissing ?? onNavigate)(section.id)
-                    }
+                    onClick={() => (onNavigateToMissing ?? onNavigate)(section.id)}
                     title={missingTitle}
-                    aria-label={missingAriaLabel}
+                    aria-label={
+                      missingSummary
+                        ? `${missing} required missing in ${section.label}: ${missingSummary}`
+                        : `${missing} required missing in ${section.label}`
+                    }
                     className={`rounded-sm px-1.5 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-terracotta underline-offset-2 transition-colors duration-150 motion-reduce:transition-none hover:bg-terracotta/10 hover:text-terracotta hover:underline ${adminFocusRing}`}
                   >
                     {missing} missing
                   </button>
                 ) : null}
                 {review > 0 ? (
-                  <span className="px-1.5 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-muted">
+                  <button
+                    type="button"
+                    onClick={() => (onNavigateToReview ?? onNavigate)(section.id)}
+                    title={reviewTitle}
+                    aria-label={
+                      reviewSummary
+                        ? `${review} need review in ${section.label}: ${reviewSummary}`
+                        : `${review} need review in ${section.label}`
+                    }
+                    className={`rounded-sm px-1.5 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-muted underline-offset-2 transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-ink hover:underline ${adminFocusRing}`}
+                  >
                     {review} review
-                  </span>
+                  </button>
                 ) : null}
               </div>
             </li>

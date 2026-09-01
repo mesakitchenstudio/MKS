@@ -1,5 +1,7 @@
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { emptyAiSummary, tallyConfidence } from "@/lib/ai-recipe/types";
+import { buildProvenanceAfterAiApply } from "@/lib/ai-recipe/field-state";
+import { applyValueAtEditorPath, readValueAtEditorPath } from "@/lib/apply-editor-path";
 
 /**
  * Apply a targeted AI fill draft into editor state without touching unrelated fields.
@@ -29,7 +31,7 @@ export function mergeTargetedFillIntoEditor(input: {
   aiMeta: RecipeAiMeta | null;
 } {
   const allowed = new Set(input.requestedPaths);
-  const nextValues = { ...input.current.values };
+  let nextValues = { ...input.current.values };
   let title = input.current.title;
   let excerpt = input.current.excerpt;
   let categoryIds = [...(input.current.categoryIds ?? [])];
@@ -50,9 +52,14 @@ export function mergeTargetedFillIntoEditor(input: {
   for (const path of allowed) {
     if (path === "excerpt" || path === "categoryIds") continue;
     if (!path.startsWith("values.")) continue;
-    const key = path.slice("values.".length);
-    if (key in input.draft.values) {
-      nextValues[key] = input.draft.values[key];
+    const remainder = path.slice("values.".length);
+    const isNested = remainder.includes(".");
+    const topKey = remainder.split(".")[0] ?? "";
+    const draftValue = isNested
+      ? readValueAtEditorPath(input.draft.values, path)
+      : input.draft.values[topKey];
+    if (draftValue !== undefined) {
+      nextValues = applyValueAtEditorPath(nextValues, path, draftValue);
     }
   }
 
@@ -80,13 +87,16 @@ export function mergeTargetedFillIntoEditor(input: {
           : path === "categoryIds"
             ? categoryIds
             : path.startsWith("values.")
-              ? nextValues[path.slice(7)]
+              ? readValueAtEditorPath(nextValues, path)
               : undefined;
-    fieldProvenance[path] = {
-      aiGenerated: true,
-      aiGeneratedValue: value,
-      humanModifiedAfterGeneration: false,
-    };
+    const previous = input.aiMeta.fieldProvenance?.[path];
+    const annotation = input.confidenceByPath[path];
+    fieldProvenance[path] = buildProvenanceAfterAiApply({
+      path,
+      value,
+      confidence: annotation?.confidence,
+      previous,
+    });
   }
 
   return {
@@ -112,7 +122,7 @@ export function extractTargetedFieldValue(input: {
   if (input.path === "excerpt") return input.draft.excerpt;
   if (input.path === "categoryIds") return input.draft.categoryIds ?? [];
   if (input.path.startsWith("values.")) {
-    return input.draft.values[input.path.slice("values.".length)];
+    return readValueAtEditorPath(input.draft.values, input.path);
   }
   return undefined;
 }

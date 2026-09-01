@@ -37,6 +37,7 @@ import {
   clearRecipeYoutubeLinkInDb,
 } from "@/lib/youtube-data/video-selector";
 import { createAndPopulateRecipeFromYoutubeVideo } from "@/lib/youtube-data/create-recipe-from-video";
+import { applyServerStaffVerification } from "@/lib/recipe-staff-verify";
 import type { RecipeTypeConfidence } from "@/lib/ai-recipe/classify-recipe-type";
 
 async function requireEditor() {
@@ -434,6 +435,30 @@ export async function saveRecipeAction(formData: FormData) {
   } catch {
     aiMeta = existing?.aiMeta || "{}";
   }
+
+  const actor = await getAdminSession();
+  const staffIdentity = actor?.email || actor?.name || actor?.id || "unknown";
+  const schemaFields = fields.map(
+    (field): import("@/lib/ai-recipe/schema-version").SchemaField => ({
+      key: field.key,
+      label: field.label,
+      kind: field.kind,
+      required: field.required,
+      helpText: field.helpText,
+      options: JSON.parse(field.options || "[]") as string[],
+    }),
+  );
+  const staffVerifyResult = applyServerStaffVerification({
+    aiMetaRaw: aiMeta,
+    previousAiMetaRaw: existing?.aiMeta,
+    staffIdentity,
+    title,
+    excerpt,
+    categoryIds,
+    values,
+    fields: schemaFields,
+  });
+  aiMeta = staffVerifyResult.aiMeta;
 
   const data = {
     title,

@@ -80,11 +80,18 @@ export function AiRecipeAssistant({
   current,
   missingCount,
   missingFields = [],
+  blockingMissingCount = 0,
+  aiFillableCount,
+  needsReviewCount = 0,
+  confirmedCount = 0,
+  fromVideoCount = 0,
   onApply,
   onTargetedFill,
   onReviewEstimated,
   onMarkVerified,
   onDownloadJson,
+  onNavigateMissing,
+  onNavigateReview,
 }: {
   typeId: string;
   recipeId?: string;
@@ -103,11 +110,18 @@ export function AiRecipeAssistant({
   };
   missingCount: number;
   missingFields?: MissingAiField[];
+  blockingMissingCount?: number;
+  aiFillableCount?: number;
+  needsReviewCount?: number;
+  confirmedCount?: number;
+  fromVideoCount?: number;
   onApply: (payload: AiGenerateApplyPayload) => void;
   onTargetedFill: (payload: AiTargetedFillApplyPayload) => void;
   onReviewEstimated?: () => void;
   onMarkVerified?: () => void;
   onDownloadJson?: () => void;
+  onNavigateMissing?: () => void;
+  onNavigateReview?: () => void;
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(true);
@@ -118,6 +132,7 @@ export function AiRecipeAssistant({
   const [error, setError] = useState("");
   const [fillMessage, setFillMessage] = useState("");
   const [applyDialog, setApplyDialog] = useState<ApplyDialogKind>(null);
+  const [verifyConfirmOpen, setVerifyConfirmOpen] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);
   const [destructiveReplaceOpen, setDestructiveReplaceOpen] = useState(false);
   const [pendingReplaceMode, setPendingReplaceMode] = useState<AiMergeMode | null>(null);
@@ -141,9 +156,58 @@ export function AiRecipeAssistant({
     hasSuccessfulGeneration && currentVideoId && lastVideoId && currentVideoId !== lastVideoId,
   );
 
-  const summary = aiMeta?.summary;
-  const verified = summary?.verified ?? 0;
-  const inferred = summary?.inferred ?? 0;
+  const fillEligibleCount = aiFillableCount ?? missingCount;
+
+  const statusSummary = (
+    <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-0.5">
+      {blockingMissingCount > 0 ? (
+        onNavigateMissing ? (
+          <button
+            type="button"
+            onClick={onNavigateMissing}
+            className={`font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
+          >
+            {blockingMissingCount} missing
+          </button>
+        ) : (
+          <span>{blockingMissingCount} missing</span>
+        )
+      ) : null}
+      {blockingMissingCount > 0 && needsReviewCount > 0 ? <span>·</span> : null}
+      {needsReviewCount > 0 ? (
+        onNavigateReview ? (
+          <button
+            type="button"
+            onClick={onNavigateReview}
+            className={`font-semibold text-ink underline-offset-2 hover:underline ${adminFocusRing}`}
+          >
+            {needsReviewCount} need review
+          </button>
+        ) : (
+          <span>{needsReviewCount} need review</span>
+        )
+      ) : null}
+      {(blockingMissingCount > 0 || needsReviewCount > 0) && confirmedCount > 0 ? <span>·</span> : null}
+      {confirmedCount > 0 ? <span>{confirmedCount} confirmed</span> : null}
+      {!blockingMissingCount && !needsReviewCount && !confirmedCount && fromVideoCount > 0 ? (
+        <span>{fromVideoCount} from video</span>
+      ) : null}
+    </span>
+  );
+
+  function handleMarkStaffVerified() {
+    if (blockingMissingCount > 0) return;
+    if (needsReviewCount > 0) {
+      setVerifyConfirmOpen(true);
+      return;
+    }
+    onMarkVerified?.();
+  }
+
+  function confirmMarkStaffVerified() {
+    setVerifyConfirmOpen(false);
+    onMarkVerified?.();
+  }
 
   useEffect(() => {
     if (!busy) {
@@ -364,7 +428,9 @@ export function AiRecipeAssistant({
             AI recipe assistant
           </p>
           <p className="mt-1 text-sm text-muted">
-            {verified} verified · {inferred} inferred · {missingCount} missing
+            {blockingMissingCount > 0 || needsReviewCount > 0 || confirmedCount > 0 || fromVideoCount > 0
+              ? statusSummary
+              : "Ready for review"}
           </p>
         </div>
         <span className="text-sm font-semibold text-muted">{open ? "Hide" : "Show"}</span>
@@ -394,14 +460,14 @@ export function AiRecipeAssistant({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={anyBusy || disabled || !typeId || missingCount === 0}
+              disabled={anyBusy || disabled || !typeId || fillEligibleCount === 0}
               onClick={() => setFillPreviewOpen((open) => !open)}
               className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
             >
               {fillBusy
                 ? "Filling missing fields…"
-                : missingCount > 0
-                  ? `✦ Fill ${missingCount} missing field${missingCount === 1 ? "" : "s"}`
+                : fillEligibleCount > 0
+                  ? `✦ Fill ${fillEligibleCount} missing field${fillEligibleCount === 1 ? "" : "s"}`
                   : "Fill missing fields"}
             </button>
             {!hasSuccessfulGeneration || isNewSourceVideo ? (
@@ -482,10 +548,16 @@ export function AiRecipeAssistant({
               {aiMeta.verificationStatus !== "verified" && onMarkVerified ? (
                 <button
                   type="button"
-                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-                  onClick={onMarkVerified}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
+                  disabled={blockingMissingCount > 0}
+                  title={
+                    blockingMissingCount > 0
+                      ? "Resolve all required missing fields before verifying this recipe."
+                      : undefined
+                  }
+                  onClick={handleMarkStaffVerified}
                 >
-                  Mark recipe verified
+                  Mark staff verified
                 </button>
               ) : null}
             </div>
@@ -663,6 +735,37 @@ export function AiRecipeAssistant({
                   }}
                 >
                   Replace anyway
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {verifyConfirmOpen ? (
+            <div
+              className="mt-4 rounded-sm border border-line bg-cream/40 px-3 py-3"
+              role="dialog"
+              aria-label="Confirm staff verification"
+            >
+              <p className="text-sm font-semibold text-ink">
+                {needsReviewCount} AI-generated field{needsReviewCount === 1 ? "" : "s"} still need review.
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                Continue reviewing or confirm the remaining fields as staff verified?
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                  onClick={() => setVerifyConfirmOpen(false)}
+                >
+                  Keep reviewing
+                </button>
+                <button
+                  type="button"
+                  className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                  onClick={confirmMarkStaffVerified}
+                >
+                  Confirm staff verified
                 </button>
               </div>
             </div>

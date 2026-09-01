@@ -197,3 +197,41 @@ test("buildTargetedFieldContext for title excludes copying YouTube title", () =>
   assert.match(String(context.taskNote ?? ""), /Do NOT copy the YouTube video title/i);
   assert.ok(Array.isArray(context.ingredients));
 });
+
+test("granular ingredient paths support targeted AI", () => {
+  assert.equal(isRecipeFieldAiSupported("values.ingredients.0.name", typeFields), true);
+  assert.equal(isRecipeFieldAiSupported("values.ingredients.0.items.0.amount", typeFields), true);
+  assert.equal(isRecipeFieldAiSupported("values.ingredients.0.items.0.item", typeFields), true);
+  assert.equal(isRecipeFieldAiSupported("values.ingredients.0.items.0.notes", typeFields), true);
+  assert.equal(getRecipeFieldAiDef("values.ingredients.0.items.0.amount", typeFields)?.label, "Ingredient amount");
+});
+
+test("evergreen holiday targeted fill defaults to Year-round", () => {
+  const parsed = normalizeFieldAiResponse({
+    path: "values.holiday",
+    raw: null,
+    def: getRecipeFieldAiDef("values.holiday", typeFields),
+  });
+  assert.equal(parsed, "Year-round");
+  const def = getRecipeFieldAiDef("values.holiday", typeFields);
+  const neutral = normalizeFieldAiResponse({
+    path: "values.holiday",
+    raw: { value: "not seasonal / everyday" },
+    def: def ? { ...def, options: ["Year-round", "Christmas"] } : null,
+  });
+  assert.equal(neutral, "Year-round");
+});
+
+test("category AI resolves names to existing Mesa category IDs only", () => {
+  const parsed = normalizeFieldAiResponse({
+    path: "categoryIds",
+    raw: { categoryIds: ["Bread", "cat-oven", "Imaginary"] },
+    def: getRecipeFieldAiDef("categoryIds", typeFields),
+    allowedCategoryIds: new Set(["cat-bread", "cat-oven"]),
+    categories: [
+      { id: "cat-bread", name: "Bread", slug: "bread", group: "Type" },
+      { id: "cat-oven", name: "Oven", slug: "oven", group: "Method" },
+    ],
+  });
+  assert.deepEqual(parsed, ["cat-bread", "cat-oven"]);
+});

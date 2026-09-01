@@ -16,9 +16,12 @@ import {
 import {
   buildRecipeAiFieldRegistry,
   confidenceForFieldDef,
+  getRecipeFieldAiDef,
+  normalizeFieldAiResponse,
   sourceNoteForFieldDef,
   type FieldAiIntent,
 } from "@/lib/ai-recipe/field-ai-registry";
+import { readValueAtEditorPath, applyValueAtEditorPath } from "@/lib/apply-editor-path";
 import { generateTargetedRecipeFields } from "@/lib/ai-recipe/targeted-gemini";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { youtubeVideoId } from "@/lib/youtube";
@@ -144,7 +147,7 @@ function resolveRequestedFields(input: {
           ? token
           : `values.${token}`;
 
-    const def = registry.get(path);
+    const def = getRecipeFieldAiDef(path, input.typeFields);
     if (!def || def.strategy === "none" || def.strategy === "source_owned") continue;
 
     const value =
@@ -154,7 +157,9 @@ function resolveRequestedFields(input: {
           ? input.current.excerpt
           : path === "categoryIds"
             ? input.current.categoryIds ?? []
-            : input.current.values[def.key];
+            : path.startsWith("values.")
+              ? readValueAtEditorPath(input.current.values, path)
+              : input.current.values[def.key];
 
     if (
       !isFieldEligibleForTargetedFill({
@@ -202,12 +207,14 @@ function applyReturnedFields(input: {
   requested: MissingAiField[];
   returned: Record<string, unknown>;
   registry: Map<string, import("@/lib/ai-recipe/field-ai-registry").RecipeAiFieldDef>;
+  allowedCategoryIds?: Set<string>;
+  categories?: import("@/lib/ai-recipe/schema-version").SchemaCategory[];
 }): {
   draft: TargetedFillSuccess["draft"];
   confidenceByPath: RecipeAiMeta["confidenceByPath"];
 } {
   const confidenceByPath: RecipeAiMeta["confidenceByPath"] = {};
-  const nextValues = { ...input.current.values };
+  let nextValues = { ...input.current.values };
   let title = input.current.title;
   let excerpt = input.current.excerpt;
   let categoryIds = [...(input.current.categoryIds ?? [])];
@@ -252,11 +259,38 @@ function applyReturnedFields(input: {
     }
 
     if (target.path === "categoryIds") {
-      const ids = Array.isArray(value) ? value.map((id) => String(id)) : [];
+      const resolved = normalizeFieldAiResponse({
+        path: "categoryIds",
+        raw: value,
+        def: def ?? null,
+        allowedCategoryIds: input.allowedCategoryIds ?? new Set(),
+        categories: input.categories,
+      });
+      const ids = Array.isArray(resolved) ? resolved.map((id) => String(id)) : [];
       if (!ids.length) continue;
       const existing = new Set(categoryIds);
       categoryIds = [...categoryIds, ...ids.filter((id) => !existing.has(id))];
       confidenceByPath.categoryIds = {
+        confidence: confidenceForFieldDef(def ?? null),
+        sourceNote: sourceNoteForFieldDef(def ?? null),
+      };
+      continue;
+    }
+
+    const nested = target.path.startsWith("values.") && target.path.slice("values.".length).includes(".");
+    const normalizedValue =
+      nested && typeof value === "string"
+        ? value.trim() || null
+        : nested
+          ? value
+          : value;
+
+    if (nested) {
+      if (normalizedValue == null || (typeof normalizedValue === "string" && !normalizedValue.trim())) {
+        continue;
+      }
+      nextValues = applyValueAtEditorPath(nextValues, target.path, normalizedValue);
+      confidenceByPath[target.path] = {
         confidence: confidenceForFieldDef(def ?? null),
         sourceNote: sourceNoteForFieldDef(def ?? null),
       };
@@ -398,6 +432,8 @@ export async function runTargetedRecipeFill(
       requested,
       returned: cacheHints,
       registry,
+      allowedCategoryIds: new Set(schemaCategories.map((category) => category.id)),
+      categories: schemaCategories,
     });
     const filledPaths = Object.keys(fromCache.confidenceByPath);
     if (filledPaths.length === requested.length) {
@@ -427,7 +463,11 @@ export async function runTargetedRecipeFill(
     if (row.path === "title") currentValuesByPath.title = input.current.title;
     else if (row.path === "excerpt") currentValuesByPath.excerpt = input.current.excerpt;
     else if (row.path === "categoryIds") currentValuesByPath.categoryIds = input.current.categoryIds ?? [];
-    else currentValuesByPath[row.path] = input.current.values[row.key];
+    else if (row.path.startsWith("values.")) {
+      currentValuesByPath[row.path] = readValueAtEditorPath(input.current.values, row.path);
+    } else {
+      currentValuesByPath[row.path] = input.current.values[row.key];
+    }
   }
 
   const generated = await generateTargetedRecipeFields({
@@ -472,6 +512,8 @@ export async function runTargetedRecipeFill(
     requested,
     returned: generated.fields,
     registry,
+    allowedCategoryIds: new Set(schemaCategories.map((category) => category.id)),
+    categories: schemaCategories,
   });
 
   console.info("[ai-fill]", {

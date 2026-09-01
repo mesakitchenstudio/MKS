@@ -200,7 +200,111 @@ export function getRecipeFieldAiDef(
   typeFields: SchemaField[],
 ): RecipeAiFieldDef | null {
   const registry = buildRecipeAiFieldRegistry(typeFields);
-  return registry.get(path) ?? null;
+  const direct = registry.get(path);
+  if (direct) return direct;
+
+  const instructionSection = path.match(/^values\.instructions\.(\d+)\.name$/);
+  if (instructionSection) {
+    return {
+      path,
+      key: "instructions",
+      label: "Instruction section title",
+      kind: "text",
+      strategy: "gemini_semantic",
+      section: "content",
+      confidenceOnGenerate: "HIGH_CONFIDENCE_INFERENCE",
+      requiresPreviewWhenPopulated: true,
+    };
+  }
+
+  const instructionStep = path.match(/^values\.instructions\.(\d+)\.steps\.(\d+)$/);
+  if (instructionStep) {
+    return {
+      path,
+      key: "instructions",
+      label: "Instruction step",
+      kind: "textarea",
+      strategy: "gemini_semantic",
+      section: "content",
+      confidenceOnGenerate: "HIGH_CONFIDENCE_INFERENCE",
+      requiresPreviewWhenPopulated: true,
+    };
+  }
+
+  const faqChild = path.match(/^values\.faqs\.(\d+)\.(name|note)$/);
+  if (faqChild) {
+    return {
+      path,
+      key: "faqs",
+      label: faqChild[2] === "name" ? "FAQ question" : "FAQ answer",
+      kind: "namedNotes",
+      strategy: "gemini_named_notes",
+      section: "content",
+      confidenceOnGenerate: "HIGH_CONFIDENCE_INFERENCE",
+      requiresPreviewWhenPopulated: true,
+    };
+  }
+
+  const keyIngredientChild = path.match(/^values\.keyIngredients\.(\d+)\.(name|note)$/);
+  if (keyIngredientChild) {
+    return {
+      path,
+      key: "keyIngredients",
+      label: keyIngredientChild[2] === "name" ? "Key ingredient" : "Why it matters",
+      kind: "namedNotes",
+      strategy: "gemini_named_notes",
+      section: "content",
+      confidenceOnGenerate: "HIGH_CONFIDENCE_INFERENCE",
+      requiresPreviewWhenPopulated: true,
+    };
+  }
+
+  const youtubeHook = path === "values.youtube.hook";
+  if (youtubeHook) {
+    return {
+      path,
+      key: "youtube",
+      label: "Video hook",
+      kind: "textarea",
+      strategy: "gemini_semantic",
+      section: "media",
+      confidenceOnGenerate: "HIGH_CONFIDENCE_INFERENCE",
+      requiresPreviewWhenPopulated: true,
+    };
+  }
+
+  const ingredientGroupName = path.match(/^values\.ingredients\.(\d+)\.name$/);
+  if (ingredientGroupName) {
+    return {
+      path,
+      key: "ingredients",
+      label: "Ingredient group title",
+      kind: "text",
+      strategy: "gemini_semantic",
+      section: "content",
+      confidenceOnGenerate: "HIGH_CONFIDENCE_INFERENCE",
+      requiresPreviewWhenPopulated: true,
+    };
+  }
+
+  const ingredientCell = path.match(/^values\.ingredients\.(\d+)\.items\.(\d+)\.(amount|item|notes)$/);
+  if (ingredientCell) {
+    const cell = ingredientCell[3] as "amount" | "item" | "notes";
+    const label =
+      cell === "amount" ? "Ingredient amount" : cell === "item" ? "Ingredient name" : "Ingredient notes";
+    return {
+      path,
+      key: "ingredients",
+      label,
+      kind: "text",
+      strategy: "gemini_semantic",
+      section: "content",
+      confidenceOnGenerate: "HIGH_CONFIDENCE_INFERENCE",
+      requiresPreviewWhenPopulated: true,
+    };
+  }
+
+  return null;
 }
 
 export function isRecipeFieldAiSupported(path: string, typeFields: SchemaField[]): boolean {
@@ -485,7 +589,111 @@ export function buildTargetedFieldContext(input: {
             ? (input.currentValue as { name?: string }[])[0]?.name
             : undefined,
       };
-    default:
+    default: {
+      const instructionSection = path.match(/^values\.instructions\.(\d+)\.name$/);
+      if (instructionSection) {
+        const index = Number(instructionSection[1]);
+        const sections = Array.isArray(current.values.instructions)
+          ? (current.values.instructions as { name?: string; steps?: string[] }[])
+          : [];
+        return {
+          ...base,
+          title: current.title,
+          sectionIndex: index,
+          existingSteps: sections[index]?.steps ?? [],
+          neighboringSections: sections.map((section) => section.name).filter(Boolean),
+          instructions: instructionSummary(current.values),
+        };
+      }
+      const instructionStep = path.match(/^values\.instructions\.(\d+)\.steps\.(\d+)$/);
+      if (instructionStep) {
+        const sectionIndex = Number(instructionStep[1]);
+        const stepIndex = Number(instructionStep[2]);
+        const sections = Array.isArray(current.values.instructions)
+          ? (current.values.instructions as { name?: string; steps?: string[] }[])
+          : [];
+        const section = sections[sectionIndex];
+        return {
+          ...base,
+          title: current.title,
+          sectionName: section?.name,
+          sectionIndex,
+          stepIndex,
+          priorStep: section?.steps?.[stepIndex - 1],
+          nextStep: section?.steps?.[stepIndex + 1],
+          instructions: instructionSummary(current.values),
+        };
+      }
+      const faqNote = path.match(/^values\.faqs\.(\d+)\.note$/);
+      if (faqNote) {
+        const rows = Array.isArray(current.values.faqs)
+          ? (current.values.faqs as { name?: string; note?: string }[])
+          : [];
+        return {
+          ...base,
+          title: current.title,
+          faqQuestion: rows[Number(faqNote[1])]?.name,
+          ingredients: ingredientSummary(current.values),
+        };
+      }
+      const keyIngredientNote = path.match(/^values\.keyIngredients\.(\d+)\.note$/);
+      if (keyIngredientNote) {
+        const rows = Array.isArray(current.values.keyIngredients)
+          ? (current.values.keyIngredients as { name?: string; note?: string }[])
+          : [];
+        return {
+          ...base,
+          title: current.title,
+          ingredientName: rows[Number(keyIngredientNote[1])]?.name,
+          ingredients: ingredientSummary(current.values),
+        };
+      }
+      const ingredientGroupName = path.match(/^values\.ingredients\.(\d+)\.name$/);
+      if (ingredientGroupName) {
+        const groupIndex = Number(ingredientGroupName[1]);
+        const groups = Array.isArray(current.values.ingredients)
+          ? (current.values.ingredients as { name?: string; items?: { item?: string; amount?: string; notes?: string }[] }[])
+          : [];
+        return {
+          ...base,
+          title: current.title,
+          servings: current.values.servings,
+          servingsUnit: current.values.servingsUnit,
+          groupIndex,
+          groupItems: groups[groupIndex]?.items ?? [],
+          neighboringGroupNames: groups.map((group) => group.name).filter(Boolean),
+          allIngredients: ingredientSummary(current.values),
+          instructions: instructionSummary(current.values),
+          taskNote: "Generate ONLY the requested group title. Do not rewrite other groups or rows.",
+        };
+      }
+      const ingredientCell = path.match(/^values\.ingredients\.(\d+)\.items\.(\d+)\.(amount|item|notes)$/);
+      if (ingredientCell) {
+        const groupIndex = Number(ingredientCell[1]);
+        const rowIndex = Number(ingredientCell[2]);
+        const cell = ingredientCell[3];
+        const groups = Array.isArray(current.values.ingredients)
+          ? (current.values.ingredients as { name?: string; items?: { item?: string; amount?: string; notes?: string }[] }[])
+          : [];
+        const group = groups[groupIndex];
+        const row = group?.items?.[rowIndex];
+        return {
+          ...base,
+          title: current.title,
+          servings: current.values.servings,
+          servingsUnit: current.values.servingsUnit,
+          groupName: group?.name,
+          groupIndex,
+          rowIndex,
+          cell,
+          currentRow: row,
+          siblingRows: (group?.items ?? []).filter((_, index) => index !== rowIndex),
+          allIngredients: ingredientSummary(current.values),
+          instructions: instructionSummary(current.values),
+          taskNote:
+            "Generate ONLY the requested ingredient cell (amount, name, or notes). Do not modify neighboring rows.",
+        };
+      }
       if (def?.strategy === "gemini_numeric") {
         return {
           ...base,
@@ -517,6 +725,7 @@ export function buildTargetedFieldContext(input: {
         ingredients: ingredientSummary(current.values).slice(0, 10),
         instructions: instructionSummary(current.values),
       };
+    }
   }
 }
 
@@ -603,26 +812,83 @@ function normalizeNutritionValue(raw: unknown): Record<string, number> | null {
   return any ? out : null;
 }
 
+function evergreenHolidayValue(options: string[] | undefined): string {
+  if (options?.length) {
+    const match = options.find((option) => /year.?round|all year|anytime|everyday/i.test(option));
+    if (match) return match;
+  }
+  return "Year-round";
+}
+
+function resolveCategoryIdsFromAiResponse(input: {
+  raw: unknown;
+  allowedCategoryIds: Set<string>;
+  categories?: SchemaCategory[];
+}): string[] | null {
+  const tokens = Array.isArray(input.raw)
+    ? input.raw
+    : Array.isArray((input.raw as { categoryIds?: unknown }).categoryIds)
+      ? (input.raw as { categoryIds: unknown[] }).categoryIds
+      : typeof input.raw === "object" && input.raw !== null && "value" in (input.raw as object)
+        ? extractRawValue(input.raw)
+        : input.raw != null
+          ? [input.raw]
+          : [];
+
+  if (!Array.isArray(tokens)) return null;
+
+  const byName = new Map(
+    (input.categories ?? []).map((category) => [category.name.trim().toLowerCase(), category.id]),
+  );
+  const bySlug = new Map(
+    (input.categories ?? []).map((category) => [category.slug.trim().toLowerCase(), category.id]),
+  );
+
+  const resolved: string[] = [];
+  for (const token of tokens) {
+    const text = String(token ?? "").trim();
+    if (!text) continue;
+    if (input.allowedCategoryIds.has(text)) {
+      resolved.push(text);
+      continue;
+    }
+    const byLabel = byName.get(text.toLowerCase());
+    if (byLabel && input.allowedCategoryIds.has(byLabel)) {
+      resolved.push(byLabel);
+      continue;
+    }
+    const slugKey = text.toLowerCase().replace(/\s+/g, "-");
+    const bySlugId = bySlug.get(slugKey);
+    if (bySlugId && input.allowedCategoryIds.has(bySlugId)) {
+      resolved.push(bySlugId);
+    }
+  }
+
+  const unique = [...new Set(resolved)];
+  return unique.length ? unique : null;
+}
+
 export function normalizeFieldAiResponse(input: {
   path: string;
   raw: unknown;
   def?: RecipeAiFieldDef | null;
   allowedCategoryIds?: Set<string>;
+  categories?: SchemaCategory[];
 }): unknown | null {
   const { path, raw, def } = input;
-  if (raw == null) return null;
+  if (raw == null) {
+    if (path === "values.holiday" || def?.key === "holiday") {
+      return evergreenHolidayValue(def?.options);
+    }
+    return null;
+  }
 
   if (path === "categoryIds" || def?.strategy === "gemini_categories") {
-    const ids = Array.isArray(raw)
-      ? raw
-      : Array.isArray((raw as { categoryIds?: unknown }).categoryIds)
-        ? (raw as { categoryIds: unknown[] }).categoryIds
-        : [];
-    const allowed = input.allowedCategoryIds;
-    const filtered = ids
-      .map((id) => String(id ?? "").trim())
-      .filter((id) => id && (!allowed || allowed.has(id)));
-    return filtered.length ? filtered : null;
+    return resolveCategoryIdsFromAiResponse({
+      raw,
+      allowedCategoryIds: input.allowedCategoryIds ?? new Set(),
+      categories: input.categories,
+    });
   }
 
   if (path === "values.tags" || def?.strategy === "gemini_tags") {
@@ -646,8 +912,15 @@ export function normalizeFieldAiResponse(input: {
     return n;
   }
 
-  if (def?.strategy === "gemini_select") {
-    return normalizeSelectValue(raw, def.options, def.kind);
+  if (def?.strategy === "gemini_select" || path === "values.holiday" || def?.key === "holiday") {
+    const holidayKind =
+      path === "values.holiday" || def?.key === "holiday" ? "select" : def?.kind ?? "text";
+    const selected = normalizeSelectValue(raw, def?.options, holidayKind);
+    if (selected) return selected;
+    if (path === "values.holiday" || def?.key === "holiday") {
+      return evergreenHolidayValue(def?.options);
+    }
+    return null;
   }
 
   const extracted = extractRawValue(raw);
@@ -658,10 +931,11 @@ export function normalizeFieldAiResponse(input: {
 }
 
 export function confidenceForFieldDef(def: RecipeAiFieldDef | null): AiConfidence {
+  if (def?.strategy === "gemini_nutrition") return "ESTIMATED";
   return def?.confidenceOnGenerate ?? "HIGH_CONFIDENCE_INFERENCE";
 }
 
 export function sourceNoteForFieldDef(def: RecipeAiFieldDef | null): string {
-  if (def?.strategy === "gemini_nutrition") return "Per serving estimate — verify";
+  if (def?.strategy === "gemini_nutrition") return "Estimate — verify";
   return "Targeted AI fill";
 }

@@ -199,7 +199,7 @@ function parseVideoContext(raw: unknown): RecipeAiVideoContext | undefined {
 export function confidenceLabel(confidence: AiConfidence): string {
   switch (confidence) {
     case "VERIFIED":
-      return "Verified from video";
+      return "From video";
     case "HIGH_CONFIDENCE_INFERENCE":
       return "Inferred";
     case "ESTIMATED":
@@ -207,4 +207,15 @@ export function confidenceLabel(confidence: AiConfidence): string {
     case "UNKNOWN":
       return "Needs input";
   }
+}
+
+/** Tallies for assistant display — semantic labels applied in UI. */
+export function assistantCountLabels(summary: RecipeAiMeta["summary"]) {
+  return {
+    fromVideo: summary.verified,
+    needsReview: summary.inferred + summary.estimated + summary.unknown,
+    inferred: summary.inferred,
+    estimated: summary.estimated,
+    unknown: summary.unknown,
+  };
 }

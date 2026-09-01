@@ -10,6 +10,15 @@ import {
   type AiTargetedFillApplyPayload,
 } from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
+import { EditorIssueNavigator } from "@/components/admin/EditorIssueNavigator";
+import { EditorDragHandle, EditorRowActions } from "@/components/admin/EditorRowActions";
+import { EditorStickyActionBar } from "@/components/admin/EditorStickyActionBar";
+import { FaqAccordionEditor } from "@/components/admin/FaqAccordionEditor";
+import { FieldOverflowMenu } from "@/components/admin/FieldOverflowMenu";
+import { InstructionsAccordionEditor } from "@/components/admin/InstructionsAccordionEditor";
+import { KeyIngredientsCompactEditor } from "@/components/admin/KeyIngredientsCompactEditor";
+import { StudioTipsCompactEditor } from "@/components/admin/StudioTipsCompactEditor";
+import { UtensilsChipEditor } from "@/components/admin/UtensilsChipEditor";
 import { FieldAiFieldActions } from "@/components/admin/FieldAiFieldActions";
 import { FieldAiSuggestionPanel } from "@/components/admin/FieldAiSuggestionPanel";
 import { MissingRequiredFieldFrame } from "@/components/admin/MissingRequiredFieldFrame";
@@ -31,10 +40,19 @@ import {
   tallyConfidence,
   type RecipeAiMeta,
 } from "@/lib/ai-recipe/types";
-import { recipeFieldAnchorId } from "@/lib/recipe-editor-field-anchor";
+import { recipeFieldAnchorId, parseGranularEditorPath, recipeEditorAnchorId } from "@/lib/recipe-editor-field-anchor";
+import {
+  buildEditorIssueQueues,
+  defaultInstructionGroupToExpand,
+  editorSectionDomId,
+  firstIssueForSection,
+  type EditorIssue,
+  type EditorIssueKind,
+} from "@/lib/recipe-editor-navigation";
 import {
   countMissingRequiredBySection,
   countReviewableBySection,
+  evaluateEditorRecipeFields,
   listMissingRequiredFields,
   listReviewableFields,
   missingRequiredForSection,
@@ -53,10 +71,13 @@ import {
   fieldPathHasContent,
   getRecipeFieldAiDef,
   isRecipeFieldAiSupported,
+  resolveFieldAiActionLabel,
   type FieldAiIntent,
 } from "@/lib/ai-recipe/field-ai-registry";
+import { resolveFieldReviewState, buildProvenanceAfterConfirm, buildProvenanceAfterLock, buildProvenanceAfterUnlock, isFieldLocked } from "@/lib/ai-recipe/field-state";
+import type { AiFieldProvenance } from "@/lib/ai-recipe/field-tracking";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
-import { EditorStatusBadge } from "@/components/admin/EditorStatusBadge";
+import { FieldAiActionButton } from "@/components/admin/FieldAiActionButton";
 import {
   adminDangerButtonClass,
   adminFocusRing,
@@ -459,11 +480,18 @@ export function RecipeEditor({
   const [categoryIds, setCategoryIds] = useState(initial.categoryIds);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pulsingFieldKey, setPulsingFieldKey] = useState<string | null>(null);
+  const [pulsingPath, setPulsingPath] = useState<string | null>(null);
+  const [instructionExpandedGroups, setInstructionExpandedGroups] = useState<Record<number, boolean>>({});
+  const [faqExpandedRows, setFaqExpandedRows] = useState<Record<number, boolean>>({});
+  const [keyIngredientExpandedIndex, setKeyIngredientExpandedIndex] = useState<number | null>(null);
+  const [issueWorkflow, setIssueWorkflow] = useState<{ kind: EditorIssueKind; index: number } | null>(null);
+  const [stickyActionsVisible, setStickyActionsVisible] = useState(false);
+  const [categoryGroupCollapsed, setCategoryGroupCollapsed] = useState<Record<string, boolean>>({});
+  const instructionsInitializedRef = useRef(false);
   const pulseTimeoutRef = useRef<number | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [publishAlert, setPublishAlert] = useState("");
   const [aiMeta, setAiMeta] = useState<RecipeAiMeta | null>(initial.aiMeta ?? null);
-  const [reviewCursor, setReviewCursor] = useState(0);
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     hydrateEditorValues(fields, initial.values),
   );
@@ -531,6 +559,21 @@ export function RecipeEditor({
     [specialistKeySet],
   );
 
+  const fieldEvaluation = useMemo(
+    () =>
+      evaluateEditorRecipeFields({
+        fields,
+        title,
+        excerpt,
+        categoryIds,
+        values,
+        aiMeta,
+        resolveSection: resolveEditorSection,
+        typeFields: fields,
+      }),
+    [aiMeta, categoryIds, excerpt, fields, resolveEditorSection, title, values],
+  );
+
   const requiredMissing = useMemo(
     () =>
       listMissingRequiredFields({
@@ -570,6 +613,33 @@ export function RecipeEditor({
     return missingRequiredForSection(requiredMissing, section).map((row) => row.label);
   }
 
+  function reviewLabelsForSection(section: "basics" | "details" | "content" | "media" | "advanced") {
+    return fieldEvaluation.nodes
+      .filter((node) => node.needsReview && node.section === section)
+      .map((node) => node.label);
+  }
+
+  const issueQueues = useMemo(
+    () => buildEditorIssueQueues(fieldEvaluation.nodes),
+    [fieldEvaluation.nodes],
+  );
+
+  const evaluatorMissingPaths = useMemo(
+    () => new Set(fieldEvaluation.nodes.filter((node) => node.blocking).map((node) => node.path)),
+    [fieldEvaluation.nodes],
+  );
+
+  const evaluatorReviewPaths = useMemo(
+    () => new Set(fieldEvaluation.nodes.filter((node) => node.needsReview).map((node) => node.path)),
+    [fieldEvaluation.nodes],
+  );
+
+  const activeIssueList = issueWorkflow
+    ? issueWorkflow.kind === "missing"
+      ? issueQueues.missing
+      : issueQueues.review
+    : [];
+
   const missingFieldKeySet = useMemo(
     () => new Set(requiredMissing.map((row) => row.key)),
     [requiredMissing],
@@ -583,6 +653,7 @@ export function RecipeEditor({
         missingCount: requiredMissingBySection.basics,
         missingLabels: missingLabelsForSection("basics"),
         reviewCount: reviewableBySection.basics,
+        reviewLabels: reviewLabelsForSection("basics"),
       },
     ];
     if (detailFields.length) {
@@ -592,6 +663,7 @@ export function RecipeEditor({
         missingCount: requiredMissingBySection.details,
         missingLabels: missingLabelsForSection("details"),
         reviewCount: reviewableBySection.details,
+        reviewLabels: reviewLabelsForSection("details"),
       });
     }
     if (contentFields.length) {
@@ -601,6 +673,7 @@ export function RecipeEditor({
         missingCount: requiredMissingBySection.content,
         missingLabels: missingLabelsForSection("content"),
         reviewCount: reviewableBySection.content,
+        reviewLabels: reviewLabelsForSection("content"),
       });
     }
     if (mediaFields.length) {
@@ -610,6 +683,7 @@ export function RecipeEditor({
         missingCount: requiredMissingBySection.media,
         missingLabels: missingLabelsForSection("media"),
         reviewCount: reviewableBySection.media,
+        reviewLabels: reviewLabelsForSection("media"),
       });
     }
     if (advancedFields.length || specialistFields.length) {
@@ -619,6 +693,7 @@ export function RecipeEditor({
         missingCount: requiredMissingBySection.advanced,
         missingLabels: missingLabelsForSection("advanced"),
         reviewCount: reviewableBySection.advanced,
+        reviewLabels: reviewLabelsForSection("advanced"),
       });
     }
     return links;
@@ -626,6 +701,7 @@ export function RecipeEditor({
     advancedFields.length,
     contentFields.length,
     detailFields.length,
+    fieldEvaluation.nodes,
     mediaFields.length,
     requiredMissing,
     requiredMissingBySection,
@@ -707,13 +783,74 @@ export function RecipeEditor({
   }, []);
 
   useEffect(() => {
+    if (instructionsInitializedRef.current) return;
+    const groups = Array.isArray(values.instructions)
+      ? (values.instructions as { name?: string; steps: string[] }[])
+      : [];
+    if (!groups.length) return;
+    const attentionPaths = [...evaluatorMissingPaths, ...evaluatorReviewPaths];
+    const openIndex = defaultInstructionGroupToExpand(groups.length, "instructions", attentionPaths);
+    setInstructionExpandedGroups({ [openIndex]: true });
+    instructionsInitializedRef.current = true;
+  }, [evaluatorMissingPaths, evaluatorReviewPaths, values.instructions]);
+
+  useEffect(() => {
+    const header = stickyHeaderRef.current;
+    if (!header) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) setStickyActionsVisible(!entry.isIntersecting);
+      },
+      { threshold: 0, rootMargin: "-1px 0px 0px 0px" },
+    );
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!issueWorkflow) return;
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (event.key === "n" || event.key === "N") {
+        event.preventDefault();
+        navigateIssueByOffset(1);
+      } else if (event.key === "p" || event.key === "P") {
+        event.preventDefault();
+        navigateIssueByOffset(-1);
+      } else if (event.key === "c" || event.key === "C") {
+        if (!issueWorkflow) return;
+        const issue = activeIssueList[issueWorkflow.index];
+        if (issue) {
+          event.preventDefault();
+          confirmFieldAtPath(issue.path);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeIssueList, issueWorkflow]);
+
+  useEffect(() => {
     const hash = window.location.hash.slice(1);
     if (!hash.startsWith("field-")) return;
     const target = document.getElementById(hash);
+    const path = target?.getAttribute("data-recipe-field-path");
     const fieldKey = target?.getAttribute("data-recipe-field");
-    if (!fieldKey) return;
     const timer = window.setTimeout(() => {
-      scrollToField(fieldKey, { pulse: true, updateHash: false });
+      if (path) {
+        scrollToEditorPath(path, { pulse: true, updateHash: false });
+      } else if (fieldKey) {
+        scrollToField(fieldKey, { pulse: true, updateHash: false });
+      }
     }, 240);
     return () => window.clearTimeout(timer);
   }, []);
@@ -819,15 +956,169 @@ export function RecipeEditor({
     return ADVANCED_KEYS.includes(fieldKey as (typeof ADVANCED_KEYS)[number]) || specialistKeySet.has(fieldKey);
   }
 
-  function triggerFieldPulse(fieldKey: string) {
+  function triggerFieldPulse(fieldKey: string, path?: string) {
     if (pulseTimeoutRef.current !== null) {
       window.clearTimeout(pulseTimeoutRef.current);
     }
     setPulsingFieldKey(fieldKey);
+    setPulsingPath(path ?? null);
     pulseTimeoutRef.current = window.setTimeout(() => {
       setPulsingFieldKey(null);
+      setPulsingPath(null);
       pulseTimeoutRef.current = null;
     }, 1600);
+  }
+
+  function expandForPath(path: string) {
+    const hints = parseGranularEditorPath(path);
+    if (hints.instructionGroupIndex !== undefined) {
+      setInstructionExpandedGroups((current) => ({
+        ...current,
+        [hints.instructionGroupIndex!]: true,
+      }));
+    }
+    if (hints.faqIndex !== undefined) {
+      setFaqExpandedRows((current) => ({ ...current, [hints.faqIndex!]: true }));
+    }
+    if (hints.keyIngredientIndex !== undefined) {
+      setKeyIngredientExpandedIndex(hints.keyIngredientIndex);
+    }
+    const topKey =
+      hints.topKey === "title" || hints.topKey === "excerpt" || hints.topKey === "categoryIds"
+        ? hints.topKey
+        : hints.topKey;
+    if (fieldNeedsAdvancedOpen(topKey)) {
+      setAdvancedOpen(true);
+    }
+  }
+
+  function scrollToEditorPath(
+    path: string,
+    options: { pulse?: boolean; updateHash?: boolean; fieldKey?: string } = {},
+  ) {
+    expandForPath(path);
+    const sectionNode = fieldEvaluation.nodes.find((node) => node.path === path);
+    const sectionId = sectionNode ? editorSectionDomId(sectionNode.section) : undefined;
+    if (sectionId) {
+      scrollToSection(sectionId);
+    }
+
+    const fieldKey =
+      options.fieldKey ??
+      (path === "title" || path === "excerpt" || path === "categoryIds"
+        ? path
+        : path.startsWith("values.")
+          ? path.slice("values.".length).split(".")[0] ?? ""
+          : path);
+
+    const scroll = () => {
+      const anchorId = recipeEditorAnchorId(path, fieldKey);
+      const target =
+        document.getElementById(anchorId) ??
+        document.querySelector<HTMLElement>(`[data-recipe-field-path="${path}"]`);
+      if (!target) return false;
+
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      target.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+
+      if (options.updateHash !== false) {
+        window.history.replaceState(null, "", `#${anchorId}`);
+      }
+
+      if (options.pulse) {
+        triggerFieldPulse(fieldKey, path);
+      }
+
+      window.setTimeout(
+        () => {
+          const focusable = target.querySelector<HTMLElement>(
+            "input:not([type='hidden']):not([type='file']), textarea, select, button:not([type='submit'])",
+          );
+          focusable?.focus({ preventScroll: true });
+        },
+        prefersReducedMotion ? 0 : 320,
+      );
+      return true;
+    };
+
+    const delay = hintsNeedExpansion(path) ? 140 : fieldNeedsAdvancedOpen(fieldKey) ? 120 : 80;
+    window.setTimeout(() => {
+      if (!scroll()) {
+        window.setTimeout(scroll, 120);
+      }
+    }, delay);
+  }
+
+  function hintsNeedExpansion(path: string) {
+    const hints = parseGranularEditorPath(path);
+    return (
+      hints.instructionGroupIndex !== undefined ||
+      hints.faqIndex !== undefined ||
+      hints.keyIngredientIndex !== undefined
+    );
+  }
+
+  function navigateToIssue(issue: EditorIssue, workflow?: { kind: EditorIssueKind; index: number }) {
+    if (workflow) setIssueWorkflow(workflow);
+    scrollToEditorPath(issue.path, { pulse: true, updateHash: true, fieldKey: issue.key });
+  }
+
+  function startIssueWorkflow(kind: EditorIssueKind, startIndex = 0) {
+    const list = kind === "missing" ? issueQueues.missing : issueQueues.review;
+    if (!list.length) return;
+    const index = Math.min(Math.max(startIndex, 0), list.length - 1);
+    setIssueWorkflow({ kind, index });
+    navigateToIssue(list[index]!, { kind, index });
+  }
+
+  function navigateIssueByOffset(offset: number) {
+    if (!issueWorkflow) return;
+    const list = issueWorkflow.kind === "missing" ? issueQueues.missing : issueQueues.review;
+    if (!list.length) return;
+    const nextIndex = Math.min(Math.max(issueWorkflow.index + offset, 0), list.length - 1);
+    setIssueWorkflow({ kind: issueWorkflow.kind, index: nextIndex });
+    navigateToIssue(list[nextIndex]!);
+  }
+
+  function navigateToSectionMissing(sectionId: string) {
+    const sectionKey = SECTION_ID_TO_EDITOR[sectionId];
+    if (!sectionKey) {
+      scrollToSection(sectionId);
+      return;
+    }
+    const issue = firstIssueForSection(issueQueues, sectionKey, "missing");
+    if (issue) {
+      const index = issueQueues.missing.indexOf(issue);
+      startIssueWorkflow("missing", index >= 0 ? index : 0);
+      return;
+    }
+    scrollToSection(sectionId);
+  }
+
+  function navigateToSectionReview(sectionId: string) {
+    const sectionKey = SECTION_ID_TO_EDITOR[sectionId];
+    if (!sectionKey) {
+      scrollToSection(sectionId);
+      return;
+    }
+    const issue = firstIssueForSection(issueQueues, sectionKey, "review");
+    if (issue) {
+      const index = issueQueues.review.indexOf(issue);
+      startIssueWorkflow("review", index >= 0 ? index : 0);
+      return;
+    }
+    scrollToSection(sectionId);
+  }
+
+  function scrollToField(
+    fieldKey: string,
+    options: { pulse?: boolean; updateHash?: boolean } = {},
+  ) {
+    const path =
+      fieldKey === "title" || fieldKey === "excerpt" || fieldKey === "categoryIds"
+        ? fieldKey
+        : `values.${fieldKey}`;
+    scrollToEditorPath(path, { ...options, fieldKey });
   }
 
   function scrollToSection(sectionId: string) {
@@ -836,29 +1127,6 @@ export function RecipeEditor({
     if (!target) return;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     target.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
-  }
-
-  function navigateToSectionMissing(sectionId: string) {
-    const sectionKey = SECTION_ID_TO_EDITOR[sectionId];
-    const missing = sectionKey
-      ? missingRequiredForSection(requiredMissing, sectionKey)
-      : [];
-
-    if (sectionId === SECTION_ADVANCED && missing.length > 0) {
-      setAdvancedOpen(true);
-    }
-
-    scrollToSection(sectionId);
-
-    const firstKey = missing[0]?.key;
-    if (!firstKey) return;
-
-    window.setTimeout(
-      () => {
-        scrollToField(firstKey, { pulse: true, updateHash: true });
-      },
-      sectionId === SECTION_ADVANCED ? 120 : 80,
-    );
   }
 
   function missingFieldAiPath(key: string) {
@@ -883,47 +1151,6 @@ export function RecipeEditor({
         onGenerateField={handleGenerateMissingField}
       />
     );
-  }
-
-  function scrollToField(
-    fieldKey: string,
-    options: { pulse?: boolean; updateHash?: boolean } = {},
-  ) {
-    if (fieldNeedsAdvancedOpen(fieldKey)) {
-      setAdvancedOpen(true);
-    }
-
-    const scroll = () => {
-      const target = document.getElementById(recipeFieldAnchorId(fieldKey));
-      if (!target) return false;
-
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      target.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
-
-      if (options.updateHash !== false) {
-        const hash = `#${recipeFieldAnchorId(fieldKey)}`;
-        window.history.replaceState(null, "", hash);
-      }
-
-      if (options.pulse) {
-        triggerFieldPulse(fieldKey);
-      }
-
-      window.setTimeout(
-        () => {
-          const focusable = target.querySelector<HTMLElement>(
-            "input:not([type='hidden']):not([type='file']), textarea, select, button:not([type='submit'])",
-          );
-          focusable?.focus({ preventScroll: true });
-        },
-        prefersReducedMotion ? 0 : 320,
-      );
-      return true;
-    };
-
-    if (!scroll()) {
-      window.setTimeout(scroll, fieldNeedsAdvancedOpen(fieldKey) ? 120 : 0);
-    }
   }
 
   function setField(key: string, value: unknown) {
@@ -974,24 +1201,64 @@ export function RecipeEditor({
     [title, excerpt, categoryIds, values, fields],
   );
 
-  const reviewPaths = useMemo(() => {
-    if (!aiMeta?.confidenceByPath) return [] as string[];
-    return Object.entries(aiMeta.confidenceByPath)
-      .filter(
-        ([, annotation]) =>
-          annotation.confidence === "ESTIMATED" || annotation.confidence === "UNKNOWN",
-      )
-      .map(([path]) => path);
-  }, [aiMeta]);
+  function provenanceValueForPath(path: string): unknown {
+    if (path === "title") return title;
+    if (path === "excerpt") return excerpt;
+    if (path === "categoryIds") return categoryIds;
+    const key = path.startsWith("values.") ? path.slice("values.".length).split(".")[0] : path;
+    return key ? values[key] : undefined;
+  }
 
-  function pathToFieldKey(path: string) {
-    if (path === "title" || path === "slug" || path === "excerpt" || path === "categoryIds") {
-      return path;
+  function patchFieldProvenance(path: string, builder: (previous?: AiFieldProvenance) => AiFieldProvenance) {
+    setAiMeta((current) => {
+      if (!current) return current;
+      const previous = current.fieldProvenance?.[path];
+      return {
+        ...current,
+        fieldProvenance: {
+          ...(current.fieldProvenance ?? {}),
+          [path]: builder(previous),
+        },
+      };
+    });
+  }
+
+  function lockFieldAtPath(path: string) {
+    patchFieldProvenance(path, (previous) =>
+      buildProvenanceAfterLock({
+        path,
+        value: provenanceValueForPath(path),
+        previous,
+      }),
+    );
+  }
+
+  function unlockFieldAtPath(path: string) {
+    patchFieldProvenance(path, (previous) =>
+      buildProvenanceAfterUnlock({
+        path,
+        value: provenanceValueForPath(path),
+        previous,
+      }),
+    );
+  }
+
+  function confirmFieldAtPath(path: string) {
+    patchFieldProvenance(path, (previous) =>
+      buildProvenanceAfterConfirm({
+        path,
+        value: provenanceValueForPath(path),
+        previous,
+      }),
+    );
+  }
+
+  function attemptUpdateRecipe() {
+    if (isPublished) {
+      attemptPublish();
+    } else {
+      attemptSaveDraft();
     }
-    if (path.startsWith("values.")) {
-      return path.slice("values.".length).split(".")[0] || "";
-    }
-    return "";
   }
 
   function applyAiDraft(payload: AiGenerateApplyPayload) {
@@ -1073,8 +1340,9 @@ export function RecipeEditor({
         aiMeta?.heroImageYoutubeVideoId ??
         payload.meta.heroImageYoutubeVideoId,
     });
-    setReviewCursor(0);
+    setIssueWorkflow(null);
     setAdvancedOpen(true);
+    instructionsInitializedRef.current = false;
 
     // Derive Mesa canonical stage ↔ video alignments from instruction groups + chapter evidence.
     const instructionGroups = Array.isArray(withHero.values.instructions)
@@ -1142,7 +1410,7 @@ export function RecipeEditor({
     if (path === "title") return "Title";
     if (path === "excerpt") return "Excerpt";
     if (path === "categoryIds") return "Categories";
-    return fields.find((field) => field.key === key)?.label ?? key;
+    return getRecipeFieldAiDef(path, fields)?.label ?? fields.find((field) => field.key === key)?.label ?? key;
   }
 
   function clearFieldSuggestion(path: string) {
@@ -1165,14 +1433,6 @@ export function RecipeEditor({
   }
 
   async function runFieldAi(path: string, key: string, intent: FieldAiIntent = "generate") {
-    setFieldAiBusy(path);
-    setFieldAiNotice((current) => {
-      const next = { ...current };
-      delete next[path];
-      return next;
-    });
-    if (key === "tags") setTagOptimizeBusy(true);
-
     const kind =
       path === "title"
         ? "text"
@@ -1180,7 +1440,8 @@ export function RecipeEditor({
           ? "textarea"
           : path === "categoryIds"
             ? "categories"
-            : fields.find((field) => field.key === key)?.kind;
+            : fields.find((field) => field.key === key)?.kind ??
+              getRecipeFieldAiDef(path, fields)?.kind;
     const currentValue = currentFieldValue(path, key);
     const hasContent = fieldPathHasContent({
       path,
@@ -1189,6 +1450,37 @@ export function RecipeEditor({
       excerpt,
       categoryIds,
     });
+    const reviewState = resolveFieldReviewState(path, aiMeta);
+    if (reviewState === "locked") {
+      setFieldAiNotice((current) => ({
+        ...current,
+        [path]: "This field is locked. Unlock it before regenerating.",
+      }));
+      return;
+    }
+    if (
+      reviewState === "edited" &&
+      hasContent &&
+      intent !== "alternative"
+    ) {
+      const label = fieldLabelForPath(path, key);
+      if (
+        !window.confirm(
+          `This field was edited by staff. Replace "${label}" with a new AI suggestion?`,
+        )
+      ) {
+        return;
+      }
+    }
+
+    setFieldAiBusy(path);
+    setFieldAiNotice((current) => {
+      const next = { ...current };
+      delete next[path];
+      return next;
+    });
+    if (key === "tags") setTagOptimizeBusy(true);
+
     const effectiveIntent: FieldAiIntent =
       intent === "generate" && hasContent ? "improve" : intent;
 
@@ -1246,6 +1538,17 @@ export function RecipeEditor({
       });
 
       const suggestionValue = extractTargetedFieldValue({ path, draft: merged });
+
+      if (
+        (path === "values.holiday" || key === "holiday") &&
+        !String(suggestionValue ?? "").trim()
+      ) {
+        setFieldAiNotice((current) => ({
+          ...current,
+          [path]: "No specific season or holiday suggested.",
+        }));
+        return;
+      }
 
       if (path === "categoryIds" && hasContent) {
         const mergedIds = merged.categoryIds ?? [];
@@ -1356,17 +1659,7 @@ export function RecipeEditor({
   }
 
   function reviewEstimatedFields() {
-    if (!reviewPaths.length) return;
-    const path = reviewPaths[reviewCursor % reviewPaths.length];
-    const key = pathToFieldKey(path);
-    setReviewCursor((current) => current + 1);
-    if (!key) return;
-    const advancedKeys = new Set([
-      ...ADVANCED_KEYS,
-      ...specialistFields.map((field) => field.key),
-    ]);
-    if (advancedKeys.has(key)) setAdvancedOpen(true);
-    scrollToField(key);
+    startIssueWorkflow("review");
   }
 
   function downloadAiJson() {
@@ -1547,6 +1840,20 @@ export function RecipeEditor({
             ) : undefined
           }
         />
+        {aiMeta ? (
+          <div className="-mt-1 flex justify-end">
+            <FieldOverflowMenu
+              path={fieldPath}
+              label={displayLabel}
+              aiMeta={aiMeta}
+              canRunAi={showFieldAi && !isFieldLocked(fieldPath, aiMeta)}
+              onRunAi={(intent) => void runFieldAi(fieldPath, field.key, intent)}
+              onLock={() => lockFieldAtPath(fieldPath)}
+              onUnlock={() => unlockFieldAtPath(fieldPath)}
+              onConfirm={() => confirmFieldAtPath(fieldPath)}
+            />
+          </div>
+        ) : null}
         {field.key === "youtube" ? (
           <YoutubeMetadataEditor
             value={values[field.key]}
@@ -1615,6 +1922,40 @@ export function RecipeEditor({
             compact={compact}
             emphasis={emphasis}
             invalid={Boolean(fieldErrors[field.key])}
+            typeFields={fields}
+            fieldAiBusy={fieldAiBusy}
+            fieldSuggestions={fieldSuggestions}
+            fieldAiNotice={fieldAiNotice}
+            onRunFieldAi={(path, _parentKey, intent) => void runFieldAi(path, field.key, intent)}
+            onApplyFieldSuggestion={applyFieldSuggestion}
+            onClearFieldSuggestion={clearFieldSuggestion}
+            instructionExpandedGroups={instructionExpandedGroups}
+            onInstructionToggle={(groupIndex) =>
+              setInstructionExpandedGroups((current) => ({
+                ...current,
+                [groupIndex]: !current[groupIndex],
+              }))
+            }
+            onInstructionExpandAll={() => {
+              const groups = Array.isArray(values.instructions)
+                ? (values.instructions as { steps: string[] }[])
+                : [];
+              const next: Record<number, boolean> = {};
+              groups.forEach((_, index) => {
+                next[index] = true;
+              });
+              setInstructionExpandedGroups(next);
+            }}
+            onInstructionCollapseAll={() => setInstructionExpandedGroups({})}
+            faqExpandedRows={faqExpandedRows}
+            onFaqToggle={(index) =>
+              setFaqExpandedRows((current) => ({ ...current, [index]: !current[index] }))
+            }
+            keyIngredientExpandedIndex={keyIngredientExpandedIndex}
+            onKeyIngredientExpand={setKeyIngredientExpandedIndex}
+            pulsingPath={pulsingPath}
+            reviewPaths={evaluatorReviewPaths}
+            missingPaths={evaluatorMissingPaths}
           />
         )}
         {fieldAiBusy === fieldPath && !fieldSuggestions[fieldPath] ? (
@@ -1651,6 +1992,16 @@ export function RecipeEditor({
     );
   }
 
+  const documentStateLabel = isDirty && !saved ? "Unsaved changes" : "Saved";
+  const publicationLabel = isPublished ? "Published" : "Draft";
+  const reviewStateLabel =
+    aiMeta?.generatedByAI && aiMeta.verificationStatus === "verified"
+      ? "Staff verified"
+      : aiMeta?.generatedByAI
+        ? "AI draft"
+        : null;
+  const previewHref = slug.trim() ? `/recipes/${slug.trim()}` : undefined;
+
   return (
     <>
       <div
@@ -1672,26 +2023,22 @@ export function RecipeEditor({
                   {typeName}
                 </span>
               </div>
+              <p className="mt-1 text-xs font-semibold text-muted">
+                {documentStateLabel}
+                <span className="mx-2 text-line">·</span>
+                {publicationLabel}
+                {reviewStateLabel ? (
+                  <>
+                    <span className="mx-2 text-line">·</span>
+                    {reviewStateLabel}
+                  </>
+                ) : null}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              {saved ? <span className="text-sm text-olive">Saved.</span> : null}
-              {isDirty && !saved ? (
-                <span className="text-xs font-semibold text-muted">Unsaved changes</span>
-              ) : null}
-              <EditorStatusBadge published={isPublished} />
-              {aiMeta?.generatedByAI && aiMeta.verificationStatus !== "verified" ? (
-                <span className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-terracotta">
-                  AI draft — not verified
-                </span>
-              ) : null}
-              {aiMeta?.generatedByAI && aiMeta.verificationStatus === "verified" ? (
-                <span className="rounded-sm border border-olive/30 bg-olive/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-olive">
-                  Verified
-                </span>
-              ) : null}
-              {slug.trim() ? (
+              {previewHref ? (
                 <Link
-                  href={`/recipes/${slug.trim()}`}
+                  href={previewHref}
                   target="_blank"
                   rel="noreferrer"
                   className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
@@ -1715,17 +2062,31 @@ export function RecipeEditor({
                     role="menu"
                     className="absolute right-0 z-50 mt-1 min-w-[12rem] border border-line bg-paper py-1 shadow-sm"
                   >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={`flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta ${adminFocusRing}`}
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        attemptSaveDraft();
-                      }}
-                    >
-                      {draftActionLabel}
-                    </button>
+                    {isPublished ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta ${adminFocusRing}`}
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          attemptSaveDraft();
+                        }}
+                      >
+                        Move to draft
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta ${adminFocusRing}`}
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          attemptPublish();
+                        }}
+                      >
+                        Publish
+                      </button>
+                    )}
                     {aiMeta ? (
                       <button
                         type="button"
@@ -1749,10 +2110,10 @@ export function RecipeEditor({
               </div>
               <button
                 type="button"
-                onClick={attemptPublish}
+                onClick={attemptUpdateRecipe}
                 className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
               >
-                {publishButtonLabel}
+                Update recipe
               </button>
             </div>
           </div>
@@ -1769,11 +2130,11 @@ export function RecipeEditor({
           ) : null}
           <button
             type="button"
-            onClick={attemptPublish}
-            aria-label={publishButtonLabel}
+            onClick={attemptUpdateRecipe}
+            aria-label="Update recipe"
             className={`${adminPrimaryButtonClass} h-9 px-4 text-sm ${adminFocusRing}`}
           >
-            {mobileCompactPublishLabel}
+            Update
           </button>
         </div>
       </div>
@@ -1820,13 +2181,20 @@ export function RecipeEditor({
           linkedVideoId={youtubeVideoId(String(values.youtubeUrl ?? ""))}
           aiMeta={aiMeta}
           current={{ title, slug, excerpt, categoryIds, values }}
-          missingCount={missingFields.counts.missing}
+          missingCount={missingFields.missing.length}
           missingFields={missingFields.missing}
+          blockingMissingCount={fieldEvaluation.counts.blockingMissing}
+          aiFillableCount={fieldEvaluation.counts.aiFillableEmpty}
+          needsReviewCount={fieldEvaluation.counts.needsReview}
+          confirmedCount={fieldEvaluation.counts.confirmed}
+          fromVideoCount={fieldEvaluation.counts.fromVideo}
           onApply={applyAiDraft}
           onTargetedFill={applyTargetedFill}
           onReviewEstimated={reviewEstimatedFields}
           onMarkVerified={markAiVerified}
           onDownloadJson={downloadAiJson}
+          onNavigateMissing={() => startIssueWorkflow("missing")}
+          onNavigateReview={() => startIssueWorkflow("review")}
         />
 
         {publishAlert ? (
@@ -1861,9 +2229,21 @@ export function RecipeEditor({
           scrollMarginTop={scrollOffset}
           onNavigate={scrollToSection}
           onNavigateToMissing={navigateToSectionMissing}
+          onNavigateToReview={navigateToSectionReview}
           activeSectionId={activeSectionId}
           compact={mobileHeaderCompact}
         />
+
+        {issueWorkflow && activeIssueList.length > 0 ? (
+          <EditorIssueNavigator
+            issues={activeIssueList}
+            index={issueWorkflow.index}
+            label={issueWorkflow.kind === "missing" ? "Missing field" : "Review field"}
+            onPrevious={() => navigateIssueByOffset(-1)}
+            onNext={() => navigateIssueByOffset(1)}
+            onClose={() => setIssueWorkflow(null)}
+          />
+        ) : null}
 
         <EditorSection
           id={SECTION_BASICS}
@@ -2061,13 +2441,50 @@ export function RecipeEditor({
                     />
                   </div>
                 </div>
-                <div className="grid gap-4">
-                  {categoryGroups.map((group) => (
-                    <div key={group.group}>
-                      <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
-                        {group.label}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
+                {categoryIds.length > 0 ? (
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {categoryIds.map((id) => {
+                      const category = categories.find((row) => row.id === id);
+                      if (!category) return null;
+                      return (
+                        <span
+                          key={id}
+                          className="inline-flex items-center rounded-sm border border-terracotta/40 bg-terracotta/5 px-2 py-1 text-sm font-semibold text-ink"
+                        >
+                          {category.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                <div className="grid gap-3">
+                  {categoryGroups.map((group) => {
+                    const hasSelected = group.categories.some((category) =>
+                      categoryIds.includes(category.id),
+                    );
+                    const collapsed = categoryGroupCollapsed[group.group] ?? !hasSelected;
+                    return (
+                    <div key={group.group} className="border border-line/70">
+                      <button
+                        type="button"
+                        aria-expanded={!collapsed}
+                        className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-cream/40 ${adminFocusRing}`}
+                        onClick={() =>
+                          setCategoryGroupCollapsed((current) => ({
+                            ...current,
+                            [group.group]: !(current[group.group] ?? !hasSelected),
+                          }))
+                        }
+                      >
+                        <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+                          {group.label}
+                        </span>
+                        <span className="text-xs text-muted">
+                          {hasSelected ? "Selected" : collapsed ? "Show" : "Hide"}
+                        </span>
+                      </button>
+                      {!collapsed ? (
+                      <div className="flex flex-wrap gap-2 border-t border-line/70 px-3 py-3">
                         {group.categories.map((category) => {
                           const selected = categoryIds.includes(category.id);
                           return (
@@ -2089,8 +2506,10 @@ export function RecipeEditor({
                           );
                         })}
                       </div>
+                      ) : null}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
                 {fieldSuggestions.categoryIds ? (
                   <FieldAiSuggestionPanel
@@ -2279,12 +2698,17 @@ export function RecipeEditor({
           </section>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3 border-t border-line pt-6">
-          <button type="button" onClick={attemptSaveDraft} className={`${adminSecondaryButtonClass} ${adminFocusRing}`}>
-            {draftActionLabel}
-          </button>
-        </div>
       </form>
+
+      <EditorStickyActionBar
+        visible={stickyActionsVisible}
+        isDirty={isDirty}
+        saved={Boolean(saved)}
+        isPublished={isPublished}
+        publishLabel="Update recipe"
+        previewHref={previewHref}
+        onPublish={attemptUpdateRecipe}
+      />
 
       {moveToDraftOpen ? (
         <div
@@ -2370,6 +2794,85 @@ export function RecipeEditor({
   );
 }
 
+function GranularFieldAiSlot({
+  path,
+  parentKey,
+  value,
+  kind,
+  typeFields,
+  fieldAiBusy,
+  fieldSuggestions,
+  fieldAiNotice,
+  onRunFieldAi,
+  onApplyFieldSuggestion,
+  onClearFieldSuggestion,
+}: {
+  path: string;
+  parentKey: string;
+  value: unknown;
+  kind?: string;
+  typeFields: Field[];
+  fieldAiBusy: string | null;
+  fieldSuggestions: Record<
+    string,
+    {
+      currentValue: unknown;
+      suggestion: unknown;
+      pending: AiTargetedFillApplyPayload;
+    }
+  >;
+  fieldAiNotice: Record<string, string>;
+  onRunFieldAi: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
+  onApplyFieldSuggestion: (path: string) => void;
+  onClearFieldSuggestion: (path: string) => void;
+}) {
+  if (!isRecipeFieldAiSupported(path, typeFields)) return null;
+
+  const def = getRecipeFieldAiDef(path, typeFields);
+  const resolvedKind = def?.kind ?? kind;
+  const hasContent = fieldPathHasContent({ path, kind: resolvedKind, value });
+  const label = resolveFieldAiActionLabel({
+    path,
+    kind: resolvedKind,
+    strategy: def?.strategy,
+    hasContent,
+  });
+  const suggestion = fieldSuggestions[path];
+  const notice = fieldAiNotice[path];
+  const busy = fieldAiBusy === path;
+
+  return (
+    <div className="grid gap-1.5">
+      <FieldAiActionButton label={label} busy={busy} onClick={() => onRunFieldAi(path, parentKey)} />
+      {busy && !suggestion ? (
+        <p className="text-xs text-muted" role="status">
+          Generating suggestion…
+        </p>
+      ) : null}
+      {suggestion ? (
+        <FieldAiSuggestionPanel
+          currentValue={suggestion.currentValue}
+          suggestion={suggestion.suggestion}
+          busy={busy}
+          onUseSuggestion={() => onApplyFieldSuggestion(path)}
+          onTryAnother={() => onRunFieldAi(path, parentKey, "alternative")}
+          onKeepCurrent={() => onClearFieldSuggestion(path)}
+        />
+      ) : null}
+      {notice ? (
+        <p
+          className={`text-xs font-semibold ${
+            notice === "AI SUGGESTION — REVIEW" ? "text-olive" : "text-terracotta"
+          }`}
+          role="status"
+        >
+          {notice}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function KindInput({
   fieldKey,
   kind,
@@ -2379,6 +2882,24 @@ function KindInput({
   compact = false,
   emphasis = false,
   invalid = false,
+  typeFields,
+  fieldAiBusy = null,
+  fieldSuggestions = {},
+  fieldAiNotice = {},
+  onRunFieldAi,
+  onApplyFieldSuggestion,
+  onClearFieldSuggestion,
+  instructionExpandedGroups = {},
+  onInstructionToggle,
+  onInstructionExpandAll,
+  onInstructionCollapseAll,
+  faqExpandedRows = {},
+  onFaqToggle,
+  keyIngredientExpandedIndex = null,
+  onKeyIngredientExpand,
+  pulsingPath = null,
+  reviewPaths = new Set<string>(),
+  missingPaths = new Set<string>(),
 }: {
   fieldKey: string;
   kind: string;
@@ -2388,6 +2909,31 @@ function KindInput({
   compact?: boolean;
   emphasis?: boolean;
   invalid?: boolean;
+  typeFields?: Field[];
+  fieldAiBusy?: string | null;
+  fieldSuggestions?: Record<
+    string,
+    {
+      currentValue: unknown;
+      suggestion: unknown;
+      pending: AiTargetedFillApplyPayload;
+    }
+  >;
+  fieldAiNotice?: Record<string, string>;
+  onRunFieldAi?: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
+  onApplyFieldSuggestion?: (path: string) => void;
+  onClearFieldSuggestion?: (path: string) => void;
+  instructionExpandedGroups?: Record<number, boolean>;
+  onInstructionToggle?: (groupIndex: number) => void;
+  onInstructionExpandAll?: () => void;
+  onInstructionCollapseAll?: () => void;
+  faqExpandedRows?: Record<number, boolean>;
+  onFaqToggle?: (index: number) => void;
+  keyIngredientExpandedIndex?: number | null;
+  onKeyIngredientExpand?: (index: number | null) => void;
+  pulsingPath?: string | null;
+  reviewPaths?: Set<string>;
+  missingPaths?: Set<string>;
 }) {
   const inputClass = `${compact ? compactInputClass : adminInputClass}${invalid ? ` ${inputErrorClass}` : ""}`;
   const textAreaRows = emphasis ? 6 : 5;
@@ -2489,8 +3035,15 @@ function KindInput({
     const items = Array.isArray(value) ? (value as string[]) : [];
     return <TagsChipEditor value={items} onChange={(next) => onChange(next)} />;
   }
+  if (fieldKey === "utensils") {
+    const items = Array.isArray(value) ? (value as string[]) : [];
+    return <UtensilsChipEditor value={items} onChange={(next) => onChange(next)} />;
+  }
   if (kind === "list") {
     const items = Array.isArray(value) ? (value as string[]) : [];
+    if (fieldKey === "tips") {
+      return <StudioTipsCompactEditor items={items} onChange={(next) => onChange(next)} />;
+    }
     return (
       <ListEditor
         items={items}
@@ -2502,9 +3055,54 @@ function KindInput({
   }
   if (kind === "namedNotes") {
     const items = Array.isArray(value) ? (value as { name?: string; note?: string }[]) : [];
-    const variant =
-      fieldKey === "faqs" ? "faq" : fieldKey === "keyIngredients" ? "keyIngredients" : "default";
-    return <NamedNotesEditor items={items} onChange={onChange} variant={variant} />;
+    if (fieldKey === "faqs" && typeFields && onFaqToggle) {
+      return (
+        <FaqAccordionEditor
+          items={items}
+          onChange={onChange}
+          parentKey={fieldKey}
+          typeFields={typeFields}
+          fieldAiBusy={fieldAiBusy}
+          fieldSuggestions={fieldSuggestions}
+          fieldAiNotice={fieldAiNotice}
+          onRunFieldAi={onRunFieldAi}
+          onApplyFieldSuggestion={onApplyFieldSuggestion}
+          onClearFieldSuggestion={onClearFieldSuggestion}
+          expandedRows={faqExpandedRows}
+          onToggleRow={onFaqToggle}
+          pulsingPath={pulsingPath}
+        />
+      );
+    }
+    if (fieldKey === "keyIngredients" && typeFields) {
+      return (
+        <KeyIngredientsCompactEditor
+          items={items}
+          onChange={onChange}
+          parentKey={fieldKey}
+          typeFields={typeFields}
+          fieldAiBusy={fieldAiBusy}
+          fieldSuggestions={fieldSuggestions}
+          fieldAiNotice={fieldAiNotice}
+          onRunFieldAi={onRunFieldAi}
+          onApplyFieldSuggestion={onApplyFieldSuggestion}
+          onClearFieldSuggestion={onClearFieldSuggestion}
+          pulsingPath={pulsingPath}
+          expandedIndex={keyIngredientExpandedIndex}
+          onExpandedIndexChange={onKeyIngredientExpand}
+        />
+      );
+    }
+    return (
+      <ListEditor
+        items={items.map((item) => item.name ?? "")}
+        onChange={(next) =>
+          onChange(next.map((name) => ({ name, note: "" })))
+        }
+        placeholder="Item"
+        compact={compact}
+      />
+    );
   }
   if (kind === "ingredients") {
     const groups = Array.isArray(value)
@@ -2517,12 +3115,40 @@ function KindInput({
           items: Array.isArray(group.items) ? group.items : [],
         }))}
         onChange={onChange}
+        parentKey={fieldKey}
+        typeFields={typeFields}
+        fieldAiBusy={fieldAiBusy}
+        fieldSuggestions={fieldSuggestions}
+        fieldAiNotice={fieldAiNotice}
+        onRunFieldAi={onRunFieldAi}
+        onApplyFieldSuggestion={onApplyFieldSuggestion}
+        onClearFieldSuggestion={onClearFieldSuggestion}
       />
     );
   }
   if (kind === "instructions") {
     const groups = Array.isArray(value) ? (value as { name?: string; steps: string[] }[]) : [];
-    return <InstructionsEditor groups={groups} onChange={onChange} />;
+    return (
+      <InstructionsAccordionEditor
+        groups={groups}
+        onChange={onChange}
+        parentKey={fieldKey}
+        typeFields={typeFields ?? []}
+        fieldAiBusy={fieldAiBusy}
+        fieldSuggestions={fieldSuggestions}
+        fieldAiNotice={fieldAiNotice}
+        onRunFieldAi={onRunFieldAi}
+        onApplyFieldSuggestion={onApplyFieldSuggestion}
+        onClearFieldSuggestion={onClearFieldSuggestion}
+        expandedGroups={instructionExpandedGroups}
+        onToggleGroup={onInstructionToggle ?? (() => undefined)}
+        onExpandAll={onInstructionExpandAll ?? (() => undefined)}
+        onCollapseAll={onInstructionCollapseAll ?? (() => undefined)}
+        reviewPaths={reviewPaths}
+        missingPaths={missingPaths}
+        pulsingPath={pulsingPath}
+      />
+    );
   }
   if (kind === "nutrition") {
     const row = (value || {}) as { calories?: number; carbs?: number; protein?: number; fat?: number };
@@ -2638,10 +3264,33 @@ function NamedNotesEditor({
   items,
   onChange,
   variant,
+  parentKey,
+  typeFields,
+  fieldAiBusy = null,
+  fieldSuggestions = {},
+  fieldAiNotice = {},
+  onRunFieldAi,
+  onApplyFieldSuggestion,
+  onClearFieldSuggestion,
 }: {
   items: { name?: string; note?: string }[];
   onChange: (value: unknown) => void;
   variant: "faq" | "keyIngredients" | "default";
+  parentKey: string;
+  typeFields?: Field[];
+  fieldAiBusy?: string | null;
+  fieldSuggestions?: Record<
+    string,
+    {
+      currentValue: unknown;
+      suggestion: unknown;
+      pending: AiTargetedFillApplyPayload;
+    }
+  >;
+  fieldAiNotice?: Record<string, string>;
+  onRunFieldAi?: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
+  onApplyFieldSuggestion?: (path: string) => void;
+  onClearFieldSuggestion?: (path: string) => void;
 }) {
   const placeholders =
     variant === "faq"
@@ -2652,33 +3301,71 @@ function NamedNotesEditor({
 
   return (
     <div className="grid gap-3">
-      {items.map((item, index) => (
+      {items.map((item, index) => {
+        const namePath = `values.${parentKey}.${index}.name`;
+        const notePath = `values.${parentKey}.${index}.note`;
+        return (
         <div key={index} className="grid gap-2 border-t border-line/70 pt-3 first:border-t-0 first:pt-0 md:grid-cols-2">
-          <input
-            value={item.name || ""}
-            placeholder={placeholders.name}
-            aria-label={`${placeholders.name} ${index + 1}`}
-            onChange={(event) => {
-              const next = [...items];
-              next[index] = { ...item, name: event.target.value };
-              onChange(next);
-            }}
-            className={compactInputClass}
-          />
-          <textarea
-            value={item.note || ""}
-            placeholder={placeholders.note}
-            rows={2}
-            aria-label={`${placeholders.note} ${index + 1}`}
-            onChange={(event) => {
-              const next = [...items];
-              next[index] = { ...item, note: event.target.value };
-              onChange(next);
-            }}
-            className={`${adminInputClass} h-auto min-h-[4.5rem] resize-y`}
-          />
+          <div className="grid gap-1.5">
+            <input
+              value={item.name || ""}
+              placeholder={placeholders.name}
+              aria-label={`${placeholders.name} ${index + 1}`}
+              onChange={(event) => {
+                const next = [...items];
+                next[index] = { ...item, name: event.target.value };
+                onChange(next);
+              }}
+              className={compactInputClass}
+            />
+            {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
+              <GranularFieldAiSlot
+                path={namePath}
+                parentKey={parentKey}
+                value={item.name ?? ""}
+                kind="namedNotes"
+                typeFields={typeFields}
+                fieldAiBusy={fieldAiBusy}
+                fieldSuggestions={fieldSuggestions}
+                fieldAiNotice={fieldAiNotice}
+                onRunFieldAi={onRunFieldAi}
+                onApplyFieldSuggestion={onApplyFieldSuggestion}
+                onClearFieldSuggestion={onClearFieldSuggestion}
+              />
+            ) : null}
+          </div>
+          <div className="grid gap-1.5">
+            <textarea
+              value={item.note || ""}
+              placeholder={placeholders.note}
+              rows={2}
+              aria-label={`${placeholders.note} ${index + 1}`}
+              onChange={(event) => {
+                const next = [...items];
+                next[index] = { ...item, note: event.target.value };
+                onChange(next);
+              }}
+              className={`${adminInputClass} h-auto min-h-[4.5rem] resize-y`}
+            />
+            {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
+              <GranularFieldAiSlot
+                path={notePath}
+                parentKey={parentKey}
+                value={item.note ?? ""}
+                kind="namedNotes"
+                typeFields={typeFields}
+                fieldAiBusy={fieldAiBusy}
+                fieldSuggestions={fieldSuggestions}
+                fieldAiNotice={fieldAiNotice}
+                onRunFieldAi={onRunFieldAi}
+                onApplyFieldSuggestion={onApplyFieldSuggestion}
+                onClearFieldSuggestion={onClearFieldSuggestion}
+              />
+            ) : null}
+          </div>
         </div>
-      ))}
+      );
+      })}
       <button
         type="button"
         className={editorTextAction}
@@ -2693,9 +3380,32 @@ function NamedNotesEditor({
 function IngredientsEditor({
   groups,
   onChange,
+  parentKey,
+  typeFields,
+  fieldAiBusy = null,
+  fieldSuggestions = {},
+  fieldAiNotice = {},
+  onRunFieldAi,
+  onApplyFieldSuggestion,
+  onClearFieldSuggestion,
 }: {
   groups: { name?: string; items: { item: string; amount: string; notes?: string }[] }[];
   onChange: (value: unknown) => void;
+  parentKey: string;
+  typeFields?: Field[];
+  fieldAiBusy?: string | null;
+  fieldSuggestions?: Record<
+    string,
+    {
+      currentValue: unknown;
+      suggestion: unknown;
+      pending: AiTargetedFillApplyPayload;
+    }
+  >;
+  fieldAiNotice?: Record<string, string>;
+  onRunFieldAi?: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
+  onApplyFieldSuggestion?: (path: string) => void;
+  onClearFieldSuggestion?: (path: string) => void;
 }) {
   function update(next: typeof groups) {
     onChange(next);
@@ -2705,7 +3415,7 @@ function IngredientsEditor({
     <div className="grid gap-5">
       {groups.map((group, groupIndex) => (
         <div key={groupIndex} className="grid gap-3 border-t border-line/70 pt-4 first:border-t-0 first:pt-0">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-start gap-2">
             <input
               value={group.name || ""}
               placeholder="Group name (optional)"
@@ -2717,12 +3427,26 @@ function IngredientsEditor({
               }}
               className={`${compactInputClass} max-w-md flex-1`}
             />
+            {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
+              <GranularFieldAiSlot
+                path={`values.${parentKey}.${groupIndex}.name`}
+                parentKey={parentKey}
+                value={group.name ?? ""}
+                kind="text"
+                typeFields={typeFields}
+                fieldAiBusy={fieldAiBusy}
+                fieldSuggestions={fieldSuggestions}
+                fieldAiNotice={fieldAiNotice}
+                onRunFieldAi={onRunFieldAi}
+                onApplyFieldSuggestion={onApplyFieldSuggestion}
+                onClearFieldSuggestion={onClearFieldSuggestion}
+              />
+            ) : null}
             {groups.length > 1 ? (
-              <ReorderControls
+              <EditorRowActions
                 itemLabel={`ingredient group ${groupIndex + 1}`}
                 upDisabled={groupIndex === 0}
                 downDisabled={groupIndex === groups.length - 1}
-                hideReorderWhenStatic
                 showRemove={false}
                 onMoveUp={() => update(moveArrayItem(groups, groupIndex, groupIndex - 1))}
                 onMoveDown={() => update(moveArrayItem(groups, groupIndex, groupIndex + 1))}
@@ -2738,52 +3462,103 @@ function IngredientsEditor({
           {group.items.map((item, itemIndex) => (
             <div
               key={itemIndex}
-              className="grid gap-2 md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_auto] md:items-center"
+              className="grid gap-2 md:grid-cols-[auto_8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_auto] md:items-start"
             >
-              <input
-                value={item.amount}
-                placeholder="Amount"
-                aria-label={`Amount for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                onChange={(event) => {
-                  const next = [...groups];
-                  const items = [...group.items];
-                  items[itemIndex] = { ...item, amount: event.target.value };
-                  next[groupIndex] = { ...group, items };
-                  update(next);
-                }}
-                className={compactInputClass}
-              />
-              <input
-                value={item.item}
-                placeholder="Ingredient"
-                aria-label={`Ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                onChange={(event) => {
-                  const next = [...groups];
-                  const items = [...group.items];
-                  items[itemIndex] = { ...item, item: event.target.value };
-                  next[groupIndex] = { ...group, items };
-                  update(next);
-                }}
-                className={compactInputClass}
-              />
-              <input
-                value={item.notes || ""}
-                placeholder="Notes"
-                aria-label={`Notes for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                onChange={(event) => {
-                  const next = [...groups];
-                  const items = [...group.items];
-                  items[itemIndex] = { ...item, notes: event.target.value };
-                  next[groupIndex] = { ...group, items };
-                  update(next);
-                }}
-                className={compactInputClass}
-              />
-              <ReorderControls
+              <EditorDragHandle label={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`} />
+              <div className="grid gap-1.5">
+                <input
+                  value={item.amount}
+                  placeholder="Amount"
+                  aria-label={`Amount for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                  onChange={(event) => {
+                    const next = [...groups];
+                    const items = [...group.items];
+                    items[itemIndex] = { ...item, amount: event.target.value };
+                    next[groupIndex] = { ...group, items };
+                    update(next);
+                  }}
+                  className={compactInputClass}
+                />
+                {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
+                  <GranularFieldAiSlot
+                    path={`values.${parentKey}.${groupIndex}.items.${itemIndex}.amount`}
+                    parentKey={parentKey}
+                    value={item.amount}
+                    kind="text"
+                    typeFields={typeFields}
+                    fieldAiBusy={fieldAiBusy}
+                    fieldSuggestions={fieldSuggestions}
+                    fieldAiNotice={fieldAiNotice}
+                    onRunFieldAi={onRunFieldAi}
+                    onApplyFieldSuggestion={onApplyFieldSuggestion}
+                    onClearFieldSuggestion={onClearFieldSuggestion}
+                  />
+                ) : null}
+              </div>
+              <div className="grid gap-1.5">
+                <input
+                  value={item.item}
+                  placeholder="Ingredient"
+                  aria-label={`Ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                  onChange={(event) => {
+                    const next = [...groups];
+                    const items = [...group.items];
+                    items[itemIndex] = { ...item, item: event.target.value };
+                    next[groupIndex] = { ...group, items };
+                    update(next);
+                  }}
+                  className={compactInputClass}
+                />
+                {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
+                  <GranularFieldAiSlot
+                    path={`values.${parentKey}.${groupIndex}.items.${itemIndex}.item`}
+                    parentKey={parentKey}
+                    value={item.item}
+                    kind="text"
+                    typeFields={typeFields}
+                    fieldAiBusy={fieldAiBusy}
+                    fieldSuggestions={fieldSuggestions}
+                    fieldAiNotice={fieldAiNotice}
+                    onRunFieldAi={onRunFieldAi}
+                    onApplyFieldSuggestion={onApplyFieldSuggestion}
+                    onClearFieldSuggestion={onClearFieldSuggestion}
+                  />
+                ) : null}
+              </div>
+              <div className="grid gap-1.5">
+                <input
+                  value={item.notes || ""}
+                  placeholder="Notes"
+                  aria-label={`Notes for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                  onChange={(event) => {
+                    const next = [...groups];
+                    const items = [...group.items];
+                    items[itemIndex] = { ...item, notes: event.target.value };
+                    next[groupIndex] = { ...group, items };
+                    update(next);
+                  }}
+                  className={compactInputClass}
+                />
+                {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
+                  <GranularFieldAiSlot
+                    path={`values.${parentKey}.${groupIndex}.items.${itemIndex}.notes`}
+                    parentKey={parentKey}
+                    value={item.notes ?? ""}
+                    kind="text"
+                    typeFields={typeFields}
+                    fieldAiBusy={fieldAiBusy}
+                    fieldSuggestions={fieldSuggestions}
+                    fieldAiNotice={fieldAiNotice}
+                    onRunFieldAi={onRunFieldAi}
+                    onApplyFieldSuggestion={onApplyFieldSuggestion}
+                    onClearFieldSuggestion={onClearFieldSuggestion}
+                  />
+                ) : null}
+              </div>
+              <EditorRowActions
                 itemLabel={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
                 upDisabled={itemIndex === 0}
                 downDisabled={itemIndex === group.items.length - 1}
-                hideReorderWhenStatic
                 onMoveUp={() => {
                   const next = [...groups];
                   next[groupIndex] = {
@@ -2842,47 +3617,108 @@ function IngredientsEditor({
 function InstructionsEditor({
   groups,
   onChange,
+  parentKey,
+  typeFields,
+  fieldAiBusy = null,
+  fieldSuggestions = {},
+  fieldAiNotice = {},
+  onRunFieldAi,
+  onApplyFieldSuggestion,
+  onClearFieldSuggestion,
 }: {
   groups: { name?: string; steps: string[] }[];
   onChange: (value: unknown) => void;
+  parentKey: string;
+  typeFields?: Field[];
+  fieldAiBusy?: string | null;
+  fieldSuggestions?: Record<
+    string,
+    {
+      currentValue: unknown;
+      suggestion: unknown;
+      pending: AiTargetedFillApplyPayload;
+    }
+  >;
+  fieldAiNotice?: Record<string, string>;
+  onRunFieldAi?: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
+  onApplyFieldSuggestion?: (path: string) => void;
+  onClearFieldSuggestion?: (path: string) => void;
 }) {
-  let stepCounter = 0;
+  const stepOffsetByGroup = groups.map((_, index) =>
+    groups.slice(0, index).reduce((total, prior) => total + prior.steps.length, 0),
+  );
 
   return (
     <div className="grid gap-5">
-      {groups.map((group, groupIndex) => (
+      {groups.map((group, groupIndex) => {
+        const namePath = `values.${parentKey}.${groupIndex}.name`;
+        return (
         <div key={groupIndex} className="grid gap-3">
-          <input
-            value={group.name || ""}
-            placeholder="Section name (optional)"
-            onChange={(event) => {
-              const next = [...groups];
-              next[groupIndex] = { ...group, name: event.target.value };
-              onChange(next);
-            }}
-            className={`${compactInputClass} max-w-md`}
-          />
+          <div className="flex flex-wrap items-start gap-2">
+            <input
+              value={group.name || ""}
+              placeholder="Section name (optional)"
+              onChange={(event) => {
+                const next = [...groups];
+                next[groupIndex] = { ...group, name: event.target.value };
+                onChange(next);
+              }}
+              className={`${compactInputClass} max-w-md flex-1`}
+            />
+            {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
+              <GranularFieldAiSlot
+                path={namePath}
+                parentKey={parentKey}
+                value={group.name ?? ""}
+                kind="text"
+                typeFields={typeFields}
+                fieldAiBusy={fieldAiBusy}
+                fieldSuggestions={fieldSuggestions}
+                fieldAiNotice={fieldAiNotice}
+                onRunFieldAi={onRunFieldAi}
+                onApplyFieldSuggestion={onApplyFieldSuggestion}
+                onClearFieldSuggestion={onClearFieldSuggestion}
+              />
+            ) : null}
+          </div>
           {group.steps.map((step, stepIndex) => {
-            stepCounter += 1;
-            const stepNumber = stepCounter;
+            const stepPath = `values.${parentKey}.${groupIndex}.steps.${stepIndex}`;
+            const stepNumber = (stepOffsetByGroup[groupIndex] ?? 0) + stepIndex + 1;
             return (
               <div key={stepIndex} className="flex flex-col gap-2 sm:flex-row sm:gap-3">
                 <span className="shrink-0 text-xs font-semibold tabular-nums text-muted sm:mt-2.5 sm:w-5">
                   {stepNumber}
                 </span>
-                <textarea
-                  value={step}
-                  rows={2}
-                  aria-label={`Step ${stepNumber}${group.name ? ` in ${group.name}` : ""}`}
-                  onChange={(event) => {
-                    const next = [...groups];
-                    const steps = [...group.steps];
-                    steps[stepIndex] = event.target.value;
-                    next[groupIndex] = { ...group, steps };
-                    onChange(next);
-                  }}
-                  className={`${adminInputClass} h-auto min-h-[4.5rem] flex-1 resize-y sm:min-h-[2.75rem]`}
-                />
+                <div className="grid min-w-0 flex-1 gap-1.5">
+                  <textarea
+                    value={step}
+                    rows={2}
+                    aria-label={`Step ${stepNumber}${group.name ? ` in ${group.name}` : ""}`}
+                    onChange={(event) => {
+                      const next = [...groups];
+                      const steps = [...group.steps];
+                      steps[stepIndex] = event.target.value;
+                      next[groupIndex] = { ...group, steps };
+                      onChange(next);
+                    }}
+                    className={`${adminInputClass} h-auto min-h-[4.5rem] flex-1 resize-y sm:min-h-[2.75rem]`}
+                  />
+                  {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
+                    <GranularFieldAiSlot
+                      path={stepPath}
+                      parentKey={parentKey}
+                      value={step}
+                      kind="textarea"
+                      typeFields={typeFields}
+                      fieldAiBusy={fieldAiBusy}
+                      fieldSuggestions={fieldSuggestions}
+                      fieldAiNotice={fieldAiNotice}
+                      onRunFieldAi={onRunFieldAi}
+                      onApplyFieldSuggestion={onApplyFieldSuggestion}
+                      onClearFieldSuggestion={onClearFieldSuggestion}
+                    />
+                  ) : null}
+                </div>
                 <ReorderControls
                   itemLabel={`step ${stepNumber}${group.name ? ` in ${group.name}` : ""}`}
                   upDisabled={stepIndex === 0}
@@ -2926,7 +3762,8 @@ function InstructionsEditor({
             + Add step
           </button>
         </div>
-      ))}
+      );
+      })}
       <button
         type="button"
         className={editorTextAction}

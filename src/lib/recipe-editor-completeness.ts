@@ -1,6 +1,7 @@
 import { fieldValueHasContent } from "@/lib/field-content";
-import { recipeFieldIsEmpty } from "@/lib/ai-recipe/field-ai-registry";
+import { evaluateRecipeFields } from "@/lib/recipe-editor-field-state";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
+import type { SchemaField } from "@/lib/ai-recipe/schema-version";
 import { youtubeVideoId } from "@/lib/youtube";
 import {
   validateYoutubeMetadataEditorState,
@@ -126,35 +127,32 @@ export function listMissingRequiredFields(input: {
   fields: EditorFieldShape[];
   title: string;
   values: Record<string, unknown>;
+  excerpt?: string;
+  categoryIds?: string[];
+  aiMeta?: RecipeAiMeta | null;
   resolveSection?: (key: string) => EditorSectionId;
+  typeFields?: SchemaField[];
 }): MissingRequiredField[] {
-  const missing: MissingRequiredField[] = [];
   const sectionFor = input.resolveSection ?? sectionForFieldKey;
-
-  if (!String(input.title ?? "").trim()) {
-    missing.push({
-      path: "title",
-      key: "title",
-      label: "Title",
-      kind: "text",
-      section: "basics",
-    });
-  }
-
-  for (const field of input.fields) {
-    if (!field.required) continue;
-    const value = input.values[field.key];
-    if (isRequiredFieldSatisfied(field, value)) continue;
-    missing.push({
-      path: `values.${field.key}`,
-      key: field.key,
-      label: field.label,
-      kind: field.kind,
-      section: sectionFor(field.key),
-    });
-  }
-
-  return missing;
+  const evaluation = evaluateRecipeFields({
+    fields: input.fields,
+    title: input.title,
+    excerpt: input.excerpt ?? "",
+    categoryIds: input.categoryIds ?? [],
+    values: input.values,
+    aiMeta: input.aiMeta,
+    resolveSection: sectionFor,
+    typeFields: input.typeFields,
+  });
+  return evaluation.nodes
+    .filter((node) => node.blocking)
+    .map((node) => ({
+      path: node.path,
+      key: node.key,
+      label: node.label,
+      kind: node.kind,
+      section: node.section,
+    }));
 }
 
 export function countMissingRequiredBySection(missing: MissingRequiredField[]) {
@@ -190,36 +188,57 @@ export function listReviewableFields(input: {
   values: Record<string, unknown>;
   aiMeta?: RecipeAiMeta | null;
   resolveSection?: (key: string) => EditorSectionId;
+  typeFields?: SchemaField[];
 }): ReviewableField[] {
-  const meta = input.aiMeta;
-  if (!meta?.confidenceByPath) return [];
-
-  const reviewable: ReviewableField[] = [];
   const sectionFor = input.resolveSection ?? sectionForFieldKey;
-  const pushIfReviewable = (path: string, key: string, label: string, value: unknown, kind: string) => {
-    const annotation = meta.confidenceByPath[path];
-    if (!annotation) return;
-    if (annotation.confidence === "VERIFIED") return;
-    if (recipeFieldIsEmpty({ path, kind, value, title: input.title, excerpt: input.excerpt, categoryIds: input.categoryIds })) {
-      return;
-    }
-    reviewable.push({
-      path,
-      key,
-      label,
-      section: sectionFor(key),
-      confidence: annotation.confidence,
-    });
-  };
+  const evaluation = evaluateRecipeFields({
+    fields: input.fields,
+    title: input.title,
+    excerpt: input.excerpt,
+    categoryIds: input.categoryIds,
+    values: input.values,
+    aiMeta: input.aiMeta,
+    resolveSection: sectionFor,
+    typeFields: input.typeFields,
+  });
+  return evaluation.nodes
+    .filter((node) => node.needsReview)
+    .map((node) => ({
+      path: node.path,
+      key: node.key,
+      label: node.label,
+      section: node.section,
+      confidence:
+        node.source === "from_video"
+          ? "VERIFIED"
+          : node.source === "inferred"
+            ? "HIGH_CONFIDENCE_INFERENCE"
+            : node.source === "staff"
+              ? "ESTIMATED"
+              : "UNKNOWN",
+    }));
+}
 
-  pushIfReviewable("title", "title", "Title", input.title, "text");
-  pushIfReviewable("excerpt", "excerpt", "Excerpt", input.excerpt, "textarea");
-
-  for (const field of input.fields) {
-    pushIfReviewable(`values.${field.key}`, field.key, field.label, input.values[field.key], field.kind);
-  }
-
-  return reviewable;
+export function evaluateEditorRecipeFields(input: {
+  fields: EditorFieldShape[];
+  title: string;
+  excerpt: string;
+  categoryIds: string[];
+  values: Record<string, unknown>;
+  aiMeta?: RecipeAiMeta | null;
+  resolveSection?: (key: string) => EditorSectionId;
+  typeFields?: SchemaField[];
+}) {
+  return evaluateRecipeFields({
+    fields: input.fields,
+    title: input.title,
+    excerpt: input.excerpt,
+    categoryIds: input.categoryIds,
+    values: input.values,
+    aiMeta: input.aiMeta,
+    resolveSection: input.resolveSection ?? sectionForFieldKey,
+    typeFields: input.typeFields,
+  });
 }
 
 export function countReviewableBySection(reviewable: ReviewableField[]) {

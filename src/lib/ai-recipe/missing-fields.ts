@@ -4,6 +4,8 @@ import {
   recipeFieldIsEmpty,
   type RecipeAiFieldDef,
 } from "@/lib/ai-recipe/field-ai-registry";
+import { isFieldProtectedFromBulkAi } from "@/lib/ai-recipe/field-state";
+import { evaluateRecipeFields } from "@/lib/recipe-editor-field-state";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
 
 /** Keys excluded from automatic Fill missing (structural / source-owned). */
@@ -42,8 +44,9 @@ function confidenceAt(meta: RecipeAiMeta | null | undefined, path: string) {
   return meta?.confidenceByPath?.[path]?.confidence;
 }
 
-function isHumanLocked(meta: RecipeAiMeta | null | undefined, path: string): boolean {
-  return Boolean(meta?.fieldProvenance?.[path]?.humanModifiedAfterGeneration);
+function isWholeProtectedKey(path: string, key: string): boolean {
+  if (!PROTECTED_AI_FILL_KEYS.has(key)) return false;
+  return path === key || path === `values.${key}`;
 }
 
 function isVerifiedPath(meta: RecipeAiMeta | null | undefined, path: string): boolean {
@@ -78,7 +81,7 @@ function pushIfMissing(
   const { def, meta } = input;
   if (def.strategy === "none" || def.strategy === "source_owned") return;
   if (PROTECTED_AI_FILL_KEYS.has(def.key)) return;
-  if (isHumanLocked(meta, def.path)) return;
+  if (isFieldProtectedFromBulkAi(def.path, meta)) return;
 
   const empty = recipeFieldIsEmpty({
     path: def.path,
@@ -104,6 +107,15 @@ function pushIfMissing(
   });
 }
 
+function isTargetedOnlyGranularPath(path: string): boolean {
+  return (
+    /^values\.ingredients\.\d+/.test(path) ||
+    /^values\.instructions\.\d+/.test(path) ||
+    /^values\.faqs\.\d+/.test(path) ||
+    /^values\.keyIngredients\.\d+/.test(path)
+  );
+}
+
 /**
  * Canonical list of AI-fillable fields that are empty or marked Needs input (UNKNOWN).
  * Driven by the central recipe AI field registry.
@@ -118,36 +130,49 @@ export function listMissingAiFillableFields(input: {
   aiMeta?: RecipeAiMeta | null;
 }): MissingAiFieldsResult {
   const meta = input.aiMeta ?? null;
-  const missing: MissingAiField[] = [];
-  const registry = buildRecipeAiFieldRegistry(input.fields);
+  const editorFields = input.fields.map((field) => ({
+    key: field.key,
+    label: field.label,
+    kind: field.kind,
+    required: field.required,
+  }));
 
-  for (const def of registry.values()) {
-    if (def.key === "slug") continue;
-    pushIfMissing(missing, {
-      def,
-      value: valueForPath({
-        path: def.path,
-        key: def.key,
-        title: input.title,
-        excerpt: input.excerpt,
-        categoryIds: input.categoryIds,
-        values: input.values,
-      }),
-      meta,
-      title: input.title,
-      excerpt: input.excerpt,
-      categoryIds: input.categoryIds,
-    });
-  }
+  const evaluation = evaluateRecipeFields({
+    fields: editorFields,
+    title: input.title,
+    excerpt: input.excerpt,
+    categoryIds: input.categoryIds ?? [],
+    values: input.values,
+    aiMeta: meta,
+    typeFields: input.fields,
+  });
 
-  const summary = meta?.summary;
+  const missing: MissingAiField[] = evaluation.nodes
+    .filter((node) => node.aiFillEligible && !isTargetedOnlyGranularPath(node.path))
+    .map((node) => ({
+      path: node.path,
+      key: node.key,
+      label: node.label,
+      kind: node.kind,
+      reason:
+        node.completeness === "partial" ||
+        (node.completeness === "filled" && node.aiFillEligible)
+          ? ("needs_input" as const)
+          : ("empty" as const),
+      section: node.section,
+      strategy:
+        node.aiStrategy && node.aiStrategy !== "none" && node.aiStrategy !== "source_owned"
+          ? node.aiStrategy
+          : undefined,
+    }));
+
   return {
     missing,
     counts: {
       missing: missing.length,
-      verified: summary?.verified ?? 0,
-      inferred: summary?.inferred ?? 0,
-      estimated: summary?.estimated ?? 0,
+      verified: evaluation.counts.fromVideo,
+      inferred: evaluation.counts.needsReview,
+      estimated: 0,
     },
   };
 }
@@ -166,8 +191,8 @@ export function isFieldEligibleForTargetedFill(input: {
 }): boolean {
   const meta = input.aiMeta ?? null;
   if (input.key === "slug") return false;
-  if (PROTECTED_AI_FILL_KEYS.has(input.key)) return false;
-  if (isHumanLocked(meta, input.path)) return false;
+  if (isWholeProtectedKey(input.path, input.key)) return false;
+  if (isFieldProtectedFromBulkAi(input.path, meta) && !input.allowRepopulate) return false;
 
   const empty = recipeFieldIsEmpty({
     path: input.path,
