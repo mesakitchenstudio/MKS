@@ -1,16 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { categories } from "../data/categories.ts";
-import { homepageCollectionSlugMap } from "../data/homepage.ts";
 import { recipes } from "../data/recipes.ts";
+import { homepageCollectionSlugMap } from "../data/homepage.ts";
 import {
   applyDiscoveryFilters,
-  browsableCategoriesWithCounts,
   buildRecipesUrl,
   parseDiscoveryParams,
-  PRIMARY_BROWSE_GROUPS,
+  recipeMatchesDiscoveryCategory,
   sortRecipeList,
 } from "./recipe-discovery.ts";
+import {
+  PRIMARY_CATEGORY_SLUGS,
+  PRIMARY_PUBLIC_FILTERS,
+  recipeMatchesPrimaryCategory,
+  recipePrimaryCategoryDisplayLabel,
+  resolveRecipePrimaryCategorySlug,
+} from "./recipe-primary-taxonomy.ts";
 
 describe("recipe discovery", () => {
   const collectionMap = homepageCollectionSlugMap();
@@ -41,12 +46,17 @@ describe("recipe discovery", () => {
   it("filters desserts across dessert categories", () => {
     const result = applyDiscoveryFilters(recipes, { category: "desserts" }, collectionMap);
     assert.ok(
-      result.every((recipe) =>
-        recipe.categories.some((slug) =>
-          ["desserts", "cookies", "cakes", "brownies-bars"].includes(slug),
-        ),
-      ),
+      result.every((recipe) => recipeMatchesDiscoveryCategory(recipe, "desserts")),
     );
+  });
+
+  it("intersects search and category filters", () => {
+    const filtered = applyDiscoveryFilters(
+      recipes,
+      { q: "weeknight chile", category: "main-dishes" },
+      collectionMap,
+    );
+    assert.deepEqual(filtered.map((recipe) => recipe.slug), ["weeknight-chile"]);
   });
 
   it("sorts alphabetically", () => {
@@ -58,8 +68,8 @@ describe("recipe discovery", () => {
     assert.equal(buildRecipesUrl({}), "/recipes");
     assert.equal(buildRecipesUrl({ sort: "latest" }), "/recipes");
     assert.equal(
-      buildRecipesUrl({ q: "chicken", category: "main-dishes", sort: "fastest" }),
-      "/recipes?q=chicken&category=main-dishes&sort=fastest",
+      buildRecipesUrl({ q: "chicken", category: "main-dishes", sort: "alpha" }),
+      "/recipes?q=chicken&category=main-dishes&sort=alpha",
     );
   });
 
@@ -67,17 +77,79 @@ describe("recipe discovery", () => {
     const result = applyDiscoveryFilters(recipes, { collection: "missing" }, collectionMap);
     assert.equal(result.length, 0);
   });
+});
 
-  it("lists browsable categories with counts and skips empty ones", () => {
-    const items = browsableCategoriesWithCounts(
-      categories,
-      recipes,
-      ["cookies", "cakes", "oven", "does-not-exist"],
-      { groups: PRIMARY_BROWSE_GROUPS },
-    );
-    assert.ok(items.every((item) => item.count > 0));
-    assert.equal(items[0]?.slug, "cookies");
-    assert.ok(items.some((item) => item.slug === "cakes"));
-    assert.ok(!items.some((item) => item.slug === "oven"));
+describe("primary public taxonomy", () => {
+  it("uses one primary filter vocabulary without dessert children as peers", () => {
+    const labels = PRIMARY_PUBLIC_FILTERS.map((item) => item.label);
+    assert.deepEqual(labels, [
+      "All",
+      "Breakfast",
+      "Breads",
+      "Main Dishes",
+      "Side Dishes",
+      "Desserts",
+      "Drinks",
+      "Condiments",
+    ]);
+    assert.ok(!labels.includes("Cakes"));
+    assert.ok(!labels.includes("Cookies"));
+    assert.ok(!labels.includes("Brownies & Bars"));
+  });
+
+  it("maps bread type recipes into Breads even when course text differs", () => {
+    const breadTypeRecipe = {
+      ...recipes.find((recipe) => recipe.slug === "herb-focaccia")!,
+      categories: ["breakfast", "oven"],
+      course: "Bread",
+      typeName: "Bread",
+    };
+    assert.equal(resolveRecipePrimaryCategorySlug(breadTypeRecipe), "breads");
+    assert.equal(recipePrimaryCategoryDisplayLabel(breadTypeRecipe), "Breads");
+    assert.equal(recipeMatchesPrimaryCategory(breadTypeRecipe, "breads"), true);
+  });
+
+  it("counts breads by type and category membership", () => {
+    const collectionMap = homepageCollectionSlugMap();
+    const breadLike = {
+      ...recipes[0],
+      slug: "bakery-baguettes",
+      title: "Bakery-Style French Baguettes",
+      categories: ["oven"],
+      course: "Bread",
+      typeName: "Bread",
+    };
+    const all = [...recipes, breadLike];
+    const breads = applyDiscoveryFilters(all, { category: "breads" }, collectionMap);
+    assert.ok(breads.some((recipe) => recipe.slug === "herb-focaccia"));
+    assert.ok(breads.some((recipe) => recipe.slug === "bakery-baguettes"));
+  });
+
+  it("uses primary labels on cards instead of raw course text", () => {
+    const focaccia = recipes.find((recipe) => recipe.slug === "herb-focaccia");
+    assert.ok(focaccia);
+    assert.equal(recipePrimaryCategoryDisplayLabel(focaccia!), "Breads");
+    const chile = recipes.find((recipe) => recipe.slug === "weeknight-chile");
+    assert.ok(chile);
+    assert.equal(recipePrimaryCategoryDisplayLabel(chile!), "Main Dishes");
+  });
+
+  it("maps condiments from toppings slug", () => {
+    const salsa = recipes.find((recipe) => recipe.slug === "salsa-verde");
+    assert.ok(salsa);
+    assert.equal(resolveRecipePrimaryCategorySlug(salsa!), "toppings");
+    assert.equal(recipePrimaryCategoryDisplayLabel(salsa!), "Condiments");
+  });
+
+  it("exposes footer-aligned primary slugs", () => {
+    assert.deepEqual([...PRIMARY_CATEGORY_SLUGS], [
+      "breakfast",
+      "breads",
+      "main-dishes",
+      "side-dishes",
+      "desserts",
+      "drinks",
+      "toppings",
+    ]);
   });
 });

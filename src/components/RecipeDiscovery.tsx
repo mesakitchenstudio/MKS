@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Recipe } from "@/data/types";
 import { RecipeGridCard } from "@/components/RecipeGridCard";
@@ -8,6 +8,7 @@ import {
   DISCOVERY_CATEGORIES,
   DISCOVERY_SORTS,
   buildRecipesUrl,
+  primaryCategoryLabel,
   type RecipeDiscoveryParams,
 } from "@/lib/recipe-discovery";
 
@@ -21,27 +22,18 @@ export function RecipeDiscovery({
   recipes,
   params,
   collectionTitles,
-  categoryLabels = {},
 }: {
   recipes: Recipe[];
   params: RecipeDiscoveryParams;
   collectionTitles: Record<string, string>;
-  categoryLabels?: Record<string, string>;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(params.q ?? "");
   const activeCategory = params.category ?? "all";
   const activeSort = params.sort ?? "latest";
   const collectionTitle = params.collection ? collectionTitles[params.collection] : undefined;
-  const categoryLabel = params.category
-    ? categoryLabels[params.category] ||
-      DISCOVERY_CATEGORIES.find((item) => item.id === params.category)?.label ||
-      params.category
-    : undefined;
-
-  useEffect(() => {
-    setQuery(params.q ?? "");
-  }, [params.q]);
+  const categoryLabel = params.category ? primaryCategoryLabel(params.category) : undefined;
+  const hasFilters = Boolean(params.q || params.category || params.collection || params.sort);
 
   const contentConstraints = useMemo(() => {
     let count = 0;
@@ -65,7 +57,6 @@ export function RecipeDiscovery({
   }
 
   function onCategorySelect(categoryId: string) {
-    // Same category dimension as Browse by category — replace, do not intersect.
     navigate({
       ...params,
       category: categoryId === "all" ? undefined : categoryId,
@@ -103,9 +94,14 @@ export function RecipeDiscovery({
     });
   }
 
+  function clearAllFilters() {
+    setQuery("");
+    navigate({});
+  }
+
   return (
     <div>
-      <form onSubmit={onSearchSubmit} className="mt-5 max-w-xl">
+      <form onSubmit={onSearchSubmit} className="mt-5 max-w-xl" key={params.q ?? "no-query"}>
         <label htmlFor="recipes-search" className="sr-only">
           Search recipes
         </label>
@@ -116,10 +112,11 @@ export function RecipeDiscovery({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search by title, ingredient, category, or tag"
-            className={`h-10 min-w-0 flex-1 rounded-full border border-line bg-paper px-4 text-sm text-ink outline-none placeholder:text-muted focus:border-olive focus:ring-2 focus:ring-olive/15 ${controlFocus}`}
+            className={`h-10 min-w-0 flex-1 rounded-full border border-line bg-paper px-4 text-base text-ink outline-none placeholder:text-muted focus:border-olive focus:ring-2 focus:ring-olive/15 sm:text-sm ${controlFocus}`}
           />
           <button
             type="submit"
+            aria-label="Search recipes"
             className={`inline-flex h-10 shrink-0 items-center rounded-full bg-ink px-4 text-sm font-semibold text-cream transition-colors hover:bg-ink/90 ${controlFocus}`}
           >
             Search
@@ -131,11 +128,13 @@ export function RecipeDiscovery({
         <div
           className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1"
           role="group"
-          aria-label="Refine by course"
+          aria-label="Recipe category"
         >
           {DISCOVERY_CATEGORIES.map((category) => {
             const isChipSelected =
-              category.id === "all" ? !params.category && !params.collection : activeCategory === category.id;
+              category.id === "all"
+                ? !params.category && !params.collection
+                : activeCategory === category.id;
             return (
               <button
                 key={category.id}
@@ -230,7 +229,19 @@ export function RecipeDiscovery({
         </div>
       ) : null}
 
-      <p className="mt-4 text-sm text-muted" aria-live="polite">
+      {hasFilters ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className={`text-sm font-semibold text-terracotta hover:text-terracotta-dark ${controlFocus}`}
+          >
+            Clear filters
+          </button>
+        </div>
+      ) : null}
+
+      <p className="mt-4 text-sm text-muted" aria-live="polite" role="status">
         {recipes.length} {recipes.length === 1 ? "recipe" : "recipes"}
         {params.q && !showContext ? ` matching “${params.q}”` : ""}
       </p>
@@ -242,20 +253,36 @@ export function RecipeDiscovery({
           ))}
         </div>
       ) : (
-        <div className="mt-10 max-w-md">
-          <p className="font-serif text-2xl text-ink">No recipes found.</p>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Try another search or clear the current filters.
-          </p>
-          {contentConstraints > 0 ? (
-            <button
-              type="button"
-              onClick={clearAllContentFilters}
-              className={`mt-4 text-sm font-semibold text-terracotta hover:text-terracotta-dark ${controlFocus}`}
-            >
-              {contentConstraints > 1 ? "Clear all" : "Clear filters"}
-            </button>
-          ) : null}
+        <div className="mt-10 max-w-md" role="status" aria-live="polite">
+          {params.q ? (
+            <>
+              <p className="font-serif text-2xl text-ink">No recipes matched “{params.q}”.</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Try another ingredient or clear the filters.
+              </p>
+            </>
+          ) : categoryLabel ? (
+            <>
+              <p className="font-serif text-2xl text-ink">No {categoryLabel} recipes yet.</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Try another category or clear the filters.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-serif text-2xl text-ink">No recipes found.</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Try another search or clear the filters.
+              </p>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className={`mt-4 text-sm font-semibold text-terracotta hover:text-terracotta-dark ${controlFocus}`}
+          >
+            Clear filters
+          </button>
         </div>
       )}
     </div>

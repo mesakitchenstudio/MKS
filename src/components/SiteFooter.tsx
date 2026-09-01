@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { categories } from "@/data/categories";
 import { site } from "@/data/site";
 import { Logo } from "./Logo";
 import { NewsletterForm } from "./NewsletterForm";
-
-const footerCategories = categories.filter((category) =>
-  ["cakes", "cookies", "breakfast", "main-dishes", "breads", "desserts"].includes(
-    category.slug,
-  ),
-);
+import { buildRecipesUrl } from "@/lib/recipe-discovery";
+import {
+  PRIMARY_CATEGORY_LABELS,
+  PRIMARY_CATEGORY_SLUGS,
+} from "@/lib/recipe-primary-taxonomy";
 
 export function SiteFooter() {
   return (
@@ -24,10 +22,13 @@ export function SiteFooter() {
             Explore
           </p>
           <ul className="mt-3 space-y-2 text-sm">
-            {footerCategories.map((category) => (
-              <li key={category.slug}>
-                <Link href={`/category/${category.slug}`} className="hover:text-terracotta">
-                  {category.name}
+            {PRIMARY_CATEGORY_SLUGS.map((slug) => (
+              <li key={slug}>
+                <Link
+                  href={buildRecipesUrl({ category: slug })}
+                  className="hover:text-terracotta"
+                >
+                  {PRIMARY_CATEGORY_LABELS[slug]}
                 </Link>
               </li>
             ))}

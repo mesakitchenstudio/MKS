@@ -1,7 +1,13 @@
 import type { Recipe } from "@/data/types";
-import { filterRecipes, totalMinutes } from "@/lib/recipe-utils";
+import {
+  PRIMARY_CATEGORY_LABELS,
+  PRIMARY_PUBLIC_FILTERS,
+  type PrimaryCategorySlug,
+  recipeMatchesPrimaryCategory,
+} from "@/lib/recipe-primary-taxonomy";
+import { filterRecipes } from "@/lib/recipe-utils";
 
-export type RecipeSort = "latest" | "alpha" | "fastest";
+export type RecipeSort = "latest" | "alpha";
 
 export type RecipeDiscoveryParams = {
   q?: string;
@@ -10,23 +16,12 @@ export type RecipeDiscoveryParams = {
   sort?: RecipeSort;
 };
 
-export const DISCOVERY_CATEGORIES = [
-  { id: "all", label: "All" },
-  { id: "breakfast", label: "Breakfast" },
-  { id: "main-dishes", label: "Main dishes" },
-  { id: "side-dishes", label: "Sides" },
-  { id: "desserts", label: "Desserts" },
-  { id: "drinks", label: "Drinks" },
-  { id: "breads", label: "Breads" },
-] as const;
+export const DISCOVERY_CATEGORIES = PRIMARY_PUBLIC_FILTERS;
 
 export const DISCOVERY_SORTS: { id: RecipeSort; label: string }[] = [
   { id: "latest", label: "Latest" },
   { id: "alpha", label: "A–Z" },
-  { id: "fastest", label: "Fastest" },
 ];
-
-const DESSERT_SLUGS = new Set(["desserts", "cookies", "cakes", "brownies-bars"]);
 
 export function parseDiscoveryParams(
   input: Record<string, string | string[] | undefined> | URLSearchParams,
@@ -44,7 +39,7 @@ export function parseDiscoveryParams(
     q: get("q")?.trim() || undefined,
     category: category && category !== "all" ? category : undefined,
     collection: get("collection")?.trim() || undefined,
-    sort: sort === "alpha" || sort === "fastest" ? sort : sort === "latest" ? "latest" : undefined,
+    sort: sort === "alpha" ? "alpha" : sort === "latest" ? "latest" : undefined,
   };
 }
 
@@ -58,9 +53,13 @@ export function buildRecipesUrl(params: RecipeDiscoveryParams) {
   return query ? `/recipes?${query}` : "/recipes";
 }
 
+function isPrimaryCategorySlug(value: string): value is PrimaryCategorySlug {
+  return value in PRIMARY_CATEGORY_LABELS;
+}
+
 function matchesCategory(recipe: Recipe, category: string) {
-  if (category === "desserts") {
-    return recipe.categories.some((slug) => DESSERT_SLUGS.has(slug));
+  if (isPrimaryCategorySlug(category)) {
+    return recipeMatchesPrimaryCategory(recipe, category);
   }
   return recipe.categories.includes(category);
 }
@@ -69,49 +68,10 @@ export function recipeMatchesDiscoveryCategory(recipe: Recipe, category: string)
   return matchesCategory(recipe, category);
 }
 
-/** Primary public browse taxonomy — excludes method/holiday facets. */
-export const PRIMARY_BROWSE_GROUPS = ["desserts", "course"] as const;
-
-export function browsableCategoriesWithCounts(
-  categories: { slug: string; name: string; group: string }[],
-  recipes: Recipe[],
-  preferredOrder: string[] = [],
-  options?: { groups?: readonly string[] },
-) {
-  const allowedGroups = options?.groups ? new Set(options.groups) : null;
-  const bySlug = new Map(categories.map((category) => [category.slug, category]));
-  const ordered: string[] = [];
-  for (const slug of preferredOrder) {
-    if (bySlug.has(slug) && !ordered.includes(slug)) ordered.push(slug);
-  }
-  for (const category of categories) {
-    if (!ordered.includes(category.slug)) ordered.push(category.slug);
-  }
-
-  return ordered
-    .map((slug) => {
-      const category = bySlug.get(slug);
-      if (!category) return null;
-      if (allowedGroups && !allowedGroups.has(category.group)) return null;
-      const count = recipes.filter((recipe) => matchesCategory(recipe, slug)).length;
-      if (!count) return null;
-      return {
-        slug,
-        name: category.name,
-        group: category.group,
-        count,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
-}
-
 export function sortRecipeList(recipes: Recipe[], sort: RecipeSort = "latest") {
   const list = [...recipes];
   if (sort === "alpha") {
     return list.sort((a, b) => a.title.localeCompare(b.title));
-  }
-  if (sort === "fastest") {
-    return list.sort((a, b) => totalMinutes(a) - totalMinutes(b));
   }
   return list.sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -154,4 +114,9 @@ export function applyDiscoveryFilters(
 
 export function hasActiveDiscoveryFilters(params: RecipeDiscoveryParams) {
   return Boolean(params.q || params.category || params.collection || params.sort);
+}
+
+export function primaryCategoryLabel(slug: string) {
+  if (isPrimaryCategorySlug(slug)) return PRIMARY_CATEGORY_LABELS[slug];
+  return slug;
 }

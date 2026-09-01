@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Recipe } from "@/data/types";
 import { RecipeImage } from "@/components/RecipeImage";
+import { recipePrimaryCategoryDisplayLabel } from "@/lib/recipe-primary-taxonomy";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 
 const linkFocus =
@@ -58,7 +59,7 @@ export function RecipeGridCard({
           discovery ? "mt-2 text-[0.65rem]" : "mt-3 text-[0.7rem]"
         }`}
       >
-        {recipe.course}
+        {recipePrimaryCategoryDisplayLabel(recipe)}
       </p>
       <h3
         className={`mt-0.5 line-clamp-2 font-serif leading-snug text-ink group-hover:text-terracotta group-focus-visible:text-terracotta ${

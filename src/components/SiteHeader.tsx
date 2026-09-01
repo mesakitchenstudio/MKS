@@ -20,6 +20,15 @@ export function SiteHeader() {
     setMegaOpen(false);
   }
 
+  const onRecipesPage = pathname === "/recipes";
+
+  function focusPageSearch() {
+    closeMenus();
+    const field = document.getElementById("recipes-search");
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    field?.focus();
+  }
+
   function onSearch(event: FormEvent) {
     event.preventDefault();
     const next = query.trim();
@@ -107,18 +116,28 @@ export function SiteHeader() {
           )}
         </nav>
 
-        <form onSubmit={onSearch} className="ml-auto hidden items-center md:flex">
-          <label className="sr-only" htmlFor="header-search">
+        {onRecipesPage ? (
+          <button
+            type="button"
+            onClick={focusPageSearch}
+            className="ml-auto hidden rounded-full border border-line bg-cream/60 px-4 py-2 text-sm font-semibold text-ink/80 transition-colors hover:border-terracotta hover:text-terracotta md:inline-flex focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+          >
             Search recipes
-          </label>
-          <input
-            id="header-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search recipes"
-            className="w-48 rounded-full border border-line bg-cream/60 px-4 py-2 text-sm outline-none ring-terracotta/30 placeholder:text-muted focus:w-64 focus:border-terracotta focus:ring-2"
-          />
-        </form>
+          </button>
+        ) : (
+          <form onSubmit={onSearch} className="ml-auto hidden items-center md:flex">
+            <label className="sr-only" htmlFor="header-search">
+              Search recipes
+            </label>
+            <input
+              id="header-search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search recipes"
+              className="w-48 rounded-full border border-line bg-cream/60 px-4 py-2 text-sm outline-none ring-terracotta/30 placeholder:text-muted focus:w-64 focus:border-terracotta focus:ring-2"
+            />
+          </form>
+        )}
 
         <div className="ml-auto flex items-center gap-3 md:ml-4">
           <AccountMenu />
@@ -136,14 +155,24 @@ export function SiteHeader() {
 
       {open ? (
         <div className="border-t border-line bg-paper px-4 py-5 md:hidden">
-          <form onSubmit={onSearch} className="mb-4">
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search recipes"
-              className="w-full rounded-full border border-line bg-cream/60 px-4 py-2 text-sm outline-none focus:border-terracotta"
-            />
-          </form>
+          {onRecipesPage ? (
+            <button
+              type="button"
+              onClick={focusPageSearch}
+              className="mb-4 w-full rounded-full border border-line bg-cream/60 px-4 py-2 text-sm font-semibold text-ink/80"
+            >
+              Search recipes
+            </button>
+          ) : (
+            <form onSubmit={onSearch} className="mb-4">
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search recipes"
+                className="w-full rounded-full border border-line bg-cream/60 px-4 py-2 text-sm outline-none focus:border-terracotta"
+              />
+            </form>
+          )}
           <div className="flex flex-col gap-3 text-base font-semibold">
             {PUBLIC_MOBILE_NAV.map((link) => (
               <Link

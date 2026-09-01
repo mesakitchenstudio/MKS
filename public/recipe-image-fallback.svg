@@ -1,5 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="">
-  <rect width="800" height="600" fill="#e8e0d4"/>
-  <rect x="320" y="240" width="160" height="120" rx="4" fill="#d4ccc0"/>
-  <path d="M360 300 L400 260 L440 300 L400 340 Z" fill="#c9bfb0"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="640" viewBox="0 0 800 640" role="img" aria-label="">
+  <rect width="800" height="640" fill="#e8e0d4"/>
+  <rect x="48" y="48" width="704" height="464" fill="#f3ece4" rx="2"/>
+  <text
+    x="400"
+    y="300"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="26"
+    fill="#8a7f6e"
+    font-style="italic"
+  >
+    Mesa Kitchen Studio
+  </text>
+  <text
+    x="400"
+    y="336"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="14"
+    fill="#a89a88"
+  >
+    Recipe photo coming soon
+  </text>
 </svg>

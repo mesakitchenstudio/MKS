@@ -1,16 +1,9 @@
 import type { Metadata } from "next";
 import { RecipeDiscovery } from "@/components/RecipeDiscovery";
-import { RecipesCategoryBrowse } from "@/components/RecipesCategoryBrowse";
-import { megaMenu } from "@/data/categories";
 import { homepageCollectionSlugMap, homepageCollectionTitles } from "@/data/homepage";
 import { site } from "@/data/site";
-import {
-  PRIMARY_BROWSE_GROUPS,
-  applyDiscoveryFilters,
-  browsableCategoriesWithCounts,
-  parseDiscoveryParams,
-} from "@/lib/recipe-discovery";
-import { getAllCategories, getAllRecipes } from "@/lib/recipes";
+import { applyDiscoveryFilters, parseDiscoveryParams } from "@/lib/recipe-discovery";
+import { getAllRecipes } from "@/lib/recipes";
 
 export const revalidate = 300;
 
@@ -43,18 +36,9 @@ export default async function RecipesPage({
 }) {
   const raw = await searchParams;
   const params = parseDiscoveryParams(raw);
-  const [recipes, categories] = await Promise.all([getAllRecipes(), getAllCategories()]);
+  const recipes = await getAllRecipes();
   const collectionMap = homepageCollectionSlugMap();
   const filtered = applyDiscoveryFilters(recipes, params, collectionMap);
-  const preferredOrder = megaMenu
-    .filter((group) => group.label === "Desserts" || group.label === "Course")
-    .flatMap((group) => [...group.slugs]);
-  const browseItems = browsableCategoriesWithCounts(categories, recipes, preferredOrder, {
-    groups: PRIMARY_BROWSE_GROUPS,
-  });
-  const categoryLabels = Object.fromEntries(
-    categories.map((category) => [category.slug, category.name]),
-  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
@@ -62,12 +46,6 @@ export default async function RecipesPage({
       <p className="mt-3 max-w-2xl text-muted">
         Tested recipes for everyday cooking, baking, drinks, sides, and the table.
       </p>
-
-      <RecipesCategoryBrowse
-        items={browseItems}
-        activeCategory={params.category}
-        currentParams={params}
-      />
 
       <section
         className="mt-8 border-t border-line pt-8 md:mt-10 md:pt-9"
@@ -80,7 +58,6 @@ export default async function RecipesPage({
           recipes={filtered}
           params={params}
           collectionTitles={homepageCollectionTitles()}
-          categoryLabels={categoryLabels}
         />
       </section>
     </div>
