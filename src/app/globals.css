@@ -38,6 +38,33 @@ body {
   font-family: var(--font-sans);
 }
 
+@keyframes mesa-missing-field-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--terracotta) 0%, transparent);
+  }
+  40% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--terracotta) 20%, transparent);
+    border-color: color-mix(in srgb, var(--terracotta) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--terracotta) 0%, transparent);
+  }
+}
+
+.mesa-missing-field-pulse {
+  animation: mesa-missing-field-pulse 1.6s ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .mesa-missing-field-pulse {
+    animation: none;
+  }
+}
+
 ::selection {
   background: color-mix(in srgb, var(--terracotta) 28%, white);
 }

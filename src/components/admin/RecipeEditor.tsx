@@ -12,6 +12,8 @@ import {
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
 import { FieldAiFieldActions } from "@/components/admin/FieldAiFieldActions";
 import { FieldAiSuggestionPanel } from "@/components/admin/FieldAiSuggestionPanel";
+import { MissingRequiredFieldFrame } from "@/components/admin/MissingRequiredFieldFrame";
+import { SectionCompletenessBanner } from "@/components/admin/SectionCompletenessBanner";
 import { TagsChipEditor } from "@/components/admin/TagsChipEditor";
 import { YoutubeMetadataEditor } from "@/components/admin/YoutubeMetadataEditor";
 import { RecipeYoutubeConnection } from "@/components/admin/RecipeYoutubeConnection";
@@ -29,8 +31,17 @@ import {
   tallyConfidence,
   type RecipeAiMeta,
 } from "@/lib/ai-recipe/types";
+import { recipeFieldAnchorId } from "@/lib/recipe-editor-field-anchor";
 import {
-  countMissingBySection,
+  countMissingRequiredBySection,
+  countReviewableBySection,
+  listMissingRequiredFields,
+  listReviewableFields,
+  missingRequiredForSection,
+  sectionForFieldKey,
+  validateRecipeForPublish,
+} from "@/lib/recipe-editor-completeness";
+import {
   listMissingAiFillableFields,
 } from "@/lib/ai-recipe/missing-fields";
 import {
@@ -82,6 +93,17 @@ const SECTION_DETAILS = "recipe-section-details";
 const SECTION_CONTENT = "recipe-section-content";
 const SECTION_MEDIA = "recipe-section-media";
 const SECTION_ADVANCED = "recipe-section-advanced";
+
+const SECTION_ID_TO_EDITOR: Record<
+  string,
+  "basics" | "details" | "content" | "media" | "advanced"
+> = {
+  [SECTION_BASICS]: "basics",
+  [SECTION_DETAILS]: "details",
+  [SECTION_CONTENT]: "content",
+  [SECTION_MEDIA]: "media",
+  [SECTION_ADVANCED]: "advanced",
+};
 
 const YIELD_KEYS = ["servings", "servingsUnit"] as const;
 const TIMING_KEYS = ["prepMinutes", "bakeMinutes", "restMinutes"] as const;
@@ -144,78 +166,6 @@ const removeActionClass =
   "shrink-0 self-center text-xs font-semibold text-muted/75 transition-colors duration-150 motion-reduce:transition-none hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
 const fieldErrorClass = "mt-1.5 text-xs font-semibold text-terracotta";
-
-function isRequiredFieldValueValid(field: Field, value: unknown): boolean {
-  if (!field.required) return true;
-
-  switch (field.kind) {
-    case "textarea":
-    case "text":
-    case "image":
-      return String(value ?? "").trim().length > 0;
-    case "number":
-    case "minutes":
-      return typeof value === "number" && !Number.isNaN(value);
-    case "select":
-      return String(value ?? "").trim().length > 0;
-    case "boolean":
-    case "nutrition":
-      return true;
-    case "gallery":
-    case "list":
-    case "tags": {
-      const items = Array.isArray(value) ? (value as string[]) : [];
-      return items.some((item) => item.trim().length > 0);
-    }
-    case "namedNotes": {
-      const items = Array.isArray(value) ? (value as { name?: string; note?: string }[]) : [];
-      return items.some((item) => String(item.name ?? "").trim().length > 0);
-    }
-    case "ingredients": {
-      const groups = Array.isArray(value)
-        ? (value as { items: { item: string }[] }[])
-        : [];
-      return groups.some((group) =>
-        group.items.some((item) => String(item.item ?? "").trim().length > 0),
-      );
-    }
-    case "instructions": {
-      const groups = Array.isArray(value) ? (value as { steps: string[] }[]) : [];
-      return groups.some((group) => group.steps.some((step) => step.trim().length > 0));
-    }
-    default:
-      return String(value ?? "").trim().length > 0;
-  }
-}
-
-function validateForPublish(
-  title: string,
-  fields: Field[],
-  values: Record<string, unknown>,
-): Record<string, string> {
-  const errors: Record<string, string> = {};
-  if (!title.trim()) {
-    errors.title = "Title is required before publishing.";
-  }
-  for (const field of fields) {
-    if (!field.required) continue;
-    if (!isRequiredFieldValueValid(field, values[field.key])) {
-      errors[field.key] = `${field.label} is required before publishing.`;
-    }
-  }
-  const youtubeUrl = String(values.youtubeUrl ?? "").trim();
-  if (youtubeUrl && !youtubeVideoId(youtubeUrl)) {
-    errors.youtubeUrl = "Enter a valid YouTube watch or youtu.be URL.";
-  }
-  const youtubeState = values.youtube as YoutubeMetadataEditorState | undefined;
-  if (youtubeState && typeof youtubeState === "object") {
-    const youtubeIssues = validateYoutubeMetadataEditorState(youtubeState);
-    if (youtubeIssues.length) {
-      errors.youtube = youtubeIssues[0]?.message ?? "Fix YouTube metadata before publishing.";
-    }
-  }
-  return errors;
-}
 
 function bakeTimeDisplayLabel(typeName: string, fieldLabel: string) {
   const lower = typeName.toLowerCase();
@@ -508,6 +458,8 @@ export function RecipeEditor({
   const [seasonal, setSeasonal] = useState(initial.seasonal);
   const [categoryIds, setCategoryIds] = useState(initial.categoryIds);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [pulsingFieldKey, setPulsingFieldKey] = useState<string | null>(null);
+  const pulseTimeoutRef = useRef<number | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [publishAlert, setPublishAlert] = useState("");
   const [aiMeta, setAiMeta] = useState<RecipeAiMeta | null>(initial.aiMeta ?? null);
@@ -565,29 +517,108 @@ export function RecipeEditor({
       }),
     [aiMeta, categoryIds, excerpt, fields, slug, title, values],
   );
-  const missingBySection = useMemo(
-    () => countMissingBySection(missingFields.missing),
-    [missingFields.missing],
+
+  const specialistKeySet = useMemo(
+    () => new Set(specialistFields.map((field) => field.key)),
+    [specialistFields],
+  );
+
+  const resolveEditorSection = useMemo(
+    () => (key: string) =>
+      specialistKeySet.has(key)
+        ? ("advanced" as const)
+        : sectionForFieldKey(key),
+    [specialistKeySet],
+  );
+
+  const requiredMissing = useMemo(
+    () =>
+      listMissingRequiredFields({
+        fields,
+        title,
+        values,
+        resolveSection: resolveEditorSection,
+      }),
+    [fields, resolveEditorSection, title, values],
+  );
+
+  const requiredMissingBySection = useMemo(
+    () => countMissingRequiredBySection(requiredMissing),
+    [requiredMissing],
+  );
+
+  const reviewableFields = useMemo(
+    () =>
+      listReviewableFields({
+        fields,
+        title,
+        excerpt,
+        categoryIds,
+        values,
+        aiMeta,
+        resolveSection: resolveEditorSection,
+      }),
+    [aiMeta, categoryIds, excerpt, fields, resolveEditorSection, title, values],
+  );
+
+  const reviewableBySection = useMemo(
+    () => countReviewableBySection(reviewableFields),
+    [reviewableFields],
+  );
+
+  function missingLabelsForSection(section: "basics" | "details" | "content" | "media" | "advanced") {
+    return missingRequiredForSection(requiredMissing, section).map((row) => row.label);
+  }
+
+  const missingFieldKeySet = useMemo(
+    () => new Set(requiredMissing.map((row) => row.key)),
+    [requiredMissing],
   );
 
   const sectionLinks = useMemo(() => {
     const links: RecipeEditorSectionLink[] = [
-      { id: SECTION_BASICS, label: "Basics", missingCount: missingBySection.basics },
+      {
+        id: SECTION_BASICS,
+        label: "Basics",
+        missingCount: requiredMissingBySection.basics,
+        missingLabels: missingLabelsForSection("basics"),
+        reviewCount: reviewableBySection.basics,
+      },
     ];
     if (detailFields.length) {
-      links.push({ id: SECTION_DETAILS, label: "Details", missingCount: missingBySection.details });
+      links.push({
+        id: SECTION_DETAILS,
+        label: "Details",
+        missingCount: requiredMissingBySection.details,
+        missingLabels: missingLabelsForSection("details"),
+        reviewCount: reviewableBySection.details,
+      });
     }
     if (contentFields.length) {
-      links.push({ id: SECTION_CONTENT, label: "Content", missingCount: missingBySection.content });
+      links.push({
+        id: SECTION_CONTENT,
+        label: "Content",
+        missingCount: requiredMissingBySection.content,
+        missingLabels: missingLabelsForSection("content"),
+        reviewCount: reviewableBySection.content,
+      });
     }
     if (mediaFields.length) {
-      links.push({ id: SECTION_MEDIA, label: "Media", missingCount: missingBySection.media });
+      links.push({
+        id: SECTION_MEDIA,
+        label: "Media",
+        missingCount: requiredMissingBySection.media,
+        missingLabels: missingLabelsForSection("media"),
+        reviewCount: reviewableBySection.media,
+      });
     }
     if (advancedFields.length || specialistFields.length) {
       links.push({
         id: SECTION_ADVANCED,
         label: "Advanced",
-        missingCount: missingBySection.advanced,
+        missingCount: requiredMissingBySection.advanced,
+        missingLabels: missingLabelsForSection("advanced"),
+        reviewCount: reviewableBySection.advanced,
       });
     }
     return links;
@@ -596,11 +627,9 @@ export function RecipeEditor({
     contentFields.length,
     detailFields.length,
     mediaFields.length,
-    missingBySection.advanced,
-    missingBySection.basics,
-    missingBySection.content,
-    missingBySection.details,
-    missingBySection.media,
+    requiredMissing,
+    requiredMissingBySection,
+    reviewableBySection,
     specialistFields.length,
   ]);
 
@@ -668,6 +697,26 @@ export function RecipeEditor({
       window.removeEventListener("resize", updateScrollOffset);
     };
   }, [sectionLinks.length]);
+
+  useEffect(() => {
+    return () => {
+      if (pulseTimeoutRef.current !== null) {
+        window.clearTimeout(pulseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash.startsWith("field-")) return;
+    const target = document.getElementById(hash);
+    const fieldKey = target?.getAttribute("data-recipe-field");
+    if (!fieldKey) return;
+    const timer = window.setTimeout(() => {
+      scrollToField(fieldKey, { pulse: true, updateHash: false });
+    }, 240);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const sentinel = headerSentinelRef.current;
@@ -766,6 +815,21 @@ export function RecipeEditor({
     [scrollOffset],
   );
 
+  function fieldNeedsAdvancedOpen(fieldKey: string) {
+    return ADVANCED_KEYS.includes(fieldKey as (typeof ADVANCED_KEYS)[number]) || specialistKeySet.has(fieldKey);
+  }
+
+  function triggerFieldPulse(fieldKey: string) {
+    if (pulseTimeoutRef.current !== null) {
+      window.clearTimeout(pulseTimeoutRef.current);
+    }
+    setPulsingFieldKey(fieldKey);
+    pulseTimeoutRef.current = window.setTimeout(() => {
+      setPulsingFieldKey(null);
+      pulseTimeoutRef.current = null;
+    }, 1600);
+  }
+
   function scrollToSection(sectionId: string) {
     setActiveSectionId(sectionId);
     const target = document.getElementById(sectionId);
@@ -774,22 +838,92 @@ export function RecipeEditor({
     target.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
   }
 
-  function scrollToField(fieldKey: string) {
-    const target = document.getElementById(`recipe-field-${fieldKey}`);
-    if (!target) return;
+  function navigateToSectionMissing(sectionId: string) {
+    const sectionKey = SECTION_ID_TO_EDITOR[sectionId];
+    const missing = sectionKey
+      ? missingRequiredForSection(requiredMissing, sectionKey)
+      : [];
 
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    target.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+    if (sectionId === SECTION_ADVANCED && missing.length > 0) {
+      setAdvancedOpen(true);
+    }
+
+    scrollToSection(sectionId);
+
+    const firstKey = missing[0]?.key;
+    if (!firstKey) return;
 
     window.setTimeout(
       () => {
-        const focusable = target.querySelector<HTMLElement>(
-          "input:not([type='hidden']):not([type='file']), textarea, select, button:not([type='submit'])",
-        );
-        focusable?.focus({ preventScroll: true });
+        scrollToField(firstKey, { pulse: true, updateHash: true });
       },
-      prefersReducedMotion ? 0 : 320,
+      sectionId === SECTION_ADVANCED ? 120 : 80,
     );
+  }
+
+  function missingFieldAiPath(key: string) {
+    return key === "title" || key === "excerpt" || key === "categoryIds" ? key : `values.${key}`;
+  }
+
+  function canGenerateMissingField(key: string) {
+    return isRecipeFieldAiSupported(missingFieldAiPath(key), fields);
+  }
+
+  function handleGenerateMissingField(path: string, key: string) {
+    void runFieldAi(path, key);
+  }
+
+  function renderSectionCompletenessBanner(section: "basics" | "details" | "content" | "media" | "advanced") {
+    const missing = missingRequiredForSection(requiredMissing, section);
+    return (
+      <SectionCompletenessBanner
+        missing={missing}
+        onJumpToField={(key) => scrollToField(key, { pulse: true, updateHash: true })}
+        canGenerateField={canGenerateMissingField}
+        onGenerateField={handleGenerateMissingField}
+      />
+    );
+  }
+
+  function scrollToField(
+    fieldKey: string,
+    options: { pulse?: boolean; updateHash?: boolean } = {},
+  ) {
+    if (fieldNeedsAdvancedOpen(fieldKey)) {
+      setAdvancedOpen(true);
+    }
+
+    const scroll = () => {
+      const target = document.getElementById(recipeFieldAnchorId(fieldKey));
+      if (!target) return false;
+
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      target.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+
+      if (options.updateHash !== false) {
+        const hash = `#${recipeFieldAnchorId(fieldKey)}`;
+        window.history.replaceState(null, "", hash);
+      }
+
+      if (options.pulse) {
+        triggerFieldPulse(fieldKey);
+      }
+
+      window.setTimeout(
+        () => {
+          const focusable = target.querySelector<HTMLElement>(
+            "input:not([type='hidden']):not([type='file']), textarea, select, button:not([type='submit'])",
+          );
+          focusable?.focus({ preventScroll: true });
+        },
+        prefersReducedMotion ? 0 : 320,
+      );
+      return true;
+    };
+
+    if (!scroll()) {
+      window.setTimeout(scroll, fieldNeedsAdvancedOpen(fieldKey) ? 120 : 0);
+    }
   }
 
   function setField(key: string, value: unknown) {
@@ -1306,7 +1440,7 @@ export function RecipeEditor({
   }
 
   function attemptPublish() {
-    const errors = validateForPublish(title, fields, values);
+    const errors = validateRecipeForPublish({ title, fields, values });
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const count = Object.keys(errors).length;
@@ -1321,7 +1455,7 @@ export function RecipeEditor({
         ...specialistFields.map((field) => field.key),
       ]);
       if (advancedKeys.has(firstKey)) setAdvancedOpen(true);
-      scrollToField(firstKey);
+      scrollToField(firstKey, { pulse: true, updateHash: true });
       return;
     }
     setFieldErrors({});
@@ -1384,9 +1518,12 @@ export function RecipeEditor({
     }
 
     return (
-      <div
+      <MissingRequiredFieldFrame
         key={field.key}
-        id={`recipe-field-${field.key}`}
+        fieldKey={field.key}
+        label={displayLabel}
+        isMissing={missingFieldKeySet.has(field.key)}
+        isPulsing={pulsingFieldKey === field.key}
         style={scrollTargetStyle}
         className={isWide ? "md:col-span-2" : ""}
       >
@@ -1510,7 +1647,7 @@ export function RecipeEditor({
             {fieldErrors[field.key]}
           </p>
         ) : null}
-      </div>
+      </MissingRequiredFieldFrame>
     );
   }
 
@@ -1723,6 +1860,7 @@ export function RecipeEditor({
           stickyTop={headerHeight}
           scrollMarginTop={scrollOffset}
           onNavigate={scrollToSection}
+          onNavigateToMissing={navigateToSectionMissing}
           activeSectionId={activeSectionId}
           compact={mobileHeaderCompact}
         />
@@ -1733,8 +1871,17 @@ export function RecipeEditor({
           title="Basics"
           description="Identity, summary, and discovery settings."
         >
+          {renderSectionCompletenessBanner("basics")}
           <div className="grid gap-4 md:grid-cols-2">
-            <label id="recipe-field-title" className="grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
+            <MissingRequiredFieldFrame
+              fieldKey="title"
+              label="Title"
+              isMissing={missingFieldKeySet.has("title")}
+              isPulsing={pulsingFieldKey === "title"}
+              className="grid gap-1.5 md:col-span-2"
+              style={scrollTargetStyle}
+            >
+            <label className="grid gap-1.5">
               <span className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-ink">
@@ -1802,6 +1949,7 @@ export function RecipeEditor({
                 </p>
               ) : null}
             </label>
+            </MissingRequiredFieldFrame>
             <label id="recipe-field-slug" className="grid gap-1.5" style={scrollTargetStyle}>
               <span className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-sm font-semibold text-ink">Slug</span>
@@ -1983,6 +2131,7 @@ export function RecipeEditor({
             title="Recipe details"
             description="Times, yield, and metadata shown on the public recipe card."
           >
+            {renderSectionCompletenessBanner("details")}
             <div className="grid gap-8">
               {pickFieldsOrdered(detailFields, YIELD_KEYS).length ? (
                 <DetailSubgroup label="Yield">
@@ -2031,6 +2180,7 @@ export function RecipeEditor({
             description="The story, ingredients, and method — the heart of the recipe."
             emphasis
           >
+            {renderSectionCompletenessBanner("content")}
             <div className="grid gap-6 md:grid-cols-2">
               {contentFields.map((field) => {
                 const emphasis =
@@ -2059,6 +2209,7 @@ export function RecipeEditor({
             title="Media"
             description="Hero image and Mesa YouTube video connection."
           >
+            {renderSectionCompletenessBanner("media")}
             <RecipeYoutubeConnection
               recipeId={recipeId}
               values={values}
@@ -2108,11 +2259,13 @@ export function RecipeEditor({
                 id="recipe-advanced-panel"
                 role="region"
                 aria-labelledby="recipe-advanced-toggle"
-                className="grid gap-5 border-t border-line px-5 py-5 md:grid-cols-2 md:px-6"
+                className="border-t border-line px-5 py-5 md:px-6"
               >
+                {renderSectionCompletenessBanner("advanced")}
+                <div className="grid gap-5 md:grid-cols-2">
                 {advancedFields.map((field) =>
                   field.key === "youtube" ? (
-                    <div key={field.key} id={`recipe-field-${field.key}`} className="md:col-span-2">
+                    <div key={field.key} className="md:col-span-2">
                       {renderField(field)}
                     </div>
                   ) : (
@@ -2120,6 +2273,7 @@ export function RecipeEditor({
                   ),
                 )}
                 {specialistFields.map((field) => renderField(field))}
+                </div>
               </div>
             ) : null}
           </section>

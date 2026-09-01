@@ -6,8 +6,11 @@ import { adminFocusRing } from "@/lib/admin-ui";
 export type RecipeEditorSectionLink = {
   id: string;
   label: string;
-  /** Missing AI-fillable fields in this section (from listMissingAiFillableFields). */
+  /** Required fields currently unsatisfied in this section. */
   missingCount?: number;
+  missingLabels?: string[];
+  /** Populated AI/inferred/estimated fields that may need review. */
+  reviewCount?: number;
 };
 
 export const RecipeEditorSectionNav = forwardRef<
@@ -17,11 +20,20 @@ export const RecipeEditorSectionNav = forwardRef<
     stickyTop: number;
     scrollMarginTop: number;
     onNavigate: (sectionId: string) => void;
+    onNavigateToMissing?: (sectionId: string) => void;
     activeSectionId?: string;
     compact?: boolean;
   }
 >(function RecipeEditorSectionNav(
-  { sections, stickyTop, scrollMarginTop, onNavigate, activeSectionId, compact = false },
+  {
+    sections,
+    stickyTop,
+    scrollMarginTop,
+    onNavigate,
+    onNavigateToMissing,
+    activeSectionId,
+    compact = false,
+  },
   ref,
 ) {
   if (!sections.length) return null;
@@ -46,31 +58,64 @@ export const RecipeEditorSectionNav = forwardRef<
         {sections.map((section) => {
           const isActive = activeSectionId === section.id;
           const missing = section.missingCount ?? 0;
-          const status =
-            missing > 0 ? `${missing} missing` : missing === 0 ? "✓" : "";
+          const review = section.reviewCount ?? 0;
+          const complete = missing === 0;
+          const missingSummary =
+            missing > 0 && section.missingLabels?.length
+              ? section.missingLabels.join(", ")
+              : undefined;
+          const missingTitle = missingSummary
+            ? `Missing required: ${missingSummary}. Click to jump to the first missing field.`
+            : missing > 0
+              ? `${missing} required field${missing === 1 ? "" : "s"} missing. Click to jump to the first missing field.`
+              : undefined;
+          const missingAriaLabel = missingSummary
+            ? `${missing} required field${missing === 1 ? "" : "s"} missing in ${section.label}: ${missingSummary}. Go to first missing field.`
+            : `${missing} required field${missing === 1 ? "" : "s"} missing in ${section.label}. Go to first missing field.`;
+
           return (
             <li key={section.id} className="shrink-0">
-              <button
-                type="button"
-                onClick={() => onNavigate(section.id)}
-                aria-current={isActive ? "location" : undefined}
-                className={`rounded-sm px-2.5 py-1.5 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none hover:bg-paper hover:text-terracotta ${adminFocusRing} ${
-                  isActive
-                    ? "text-terracotta underline decoration-terracotta decoration-2 underline-offset-[0.35rem]"
-                    : "text-muted"
+              <div
+                className={`inline-flex max-w-full items-center rounded-sm ${
+                  isActive ? "bg-paper/60" : ""
                 }`}
               >
-                <span>{section.label}</span>
-                {status ? (
-                  <span
-                    className={`ml-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] ${
-                      missing > 0 ? "text-terracotta/80" : "text-olive/80"
-                    }`}
+                <button
+                  type="button"
+                  onClick={() => onNavigate(section.id)}
+                  aria-current={isActive ? "location" : undefined}
+                  className={`rounded-sm px-2.5 py-1.5 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none hover:bg-paper hover:text-terracotta ${adminFocusRing} ${
+                    isActive
+                      ? "text-terracotta underline decoration-terracotta decoration-2 underline-offset-[0.35rem]"
+                      : "text-muted"
+                  }`}
+                >
+                  {section.label}
+                  {complete ? (
+                    <span className="ml-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-olive/80">
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+                {!complete ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      (onNavigateToMissing ?? onNavigate)(section.id)
+                    }
+                    title={missingTitle}
+                    aria-label={missingAriaLabel}
+                    className={`rounded-sm px-1.5 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-terracotta underline-offset-2 transition-colors duration-150 motion-reduce:transition-none hover:bg-terracotta/10 hover:text-terracotta hover:underline ${adminFocusRing}`}
                   >
-                    {status}
+                    {missing} missing
+                  </button>
+                ) : null}
+                {review > 0 ? (
+                  <span className="px-1.5 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-muted">
+                    {review} review
                   </span>
                 ) : null}
-              </button>
+              </div>
             </li>
           );
         })}
