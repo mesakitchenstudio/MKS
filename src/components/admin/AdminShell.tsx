@@ -205,9 +205,9 @@ export function AdminShell({
             role="dialog"
             aria-modal="true"
             aria-label="Admin navigation"
-            className={`relative flex h-full ${adminMobileDrawerWidthClass} flex-col border-r border-line bg-paper shadow-none`}
+            className={`relative z-10 flex h-dvh max-h-dvh min-h-0 ${adminMobileDrawerWidthClass} flex-col overflow-hidden border-r border-line bg-paper shadow-none`}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-line/80 px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line/80 px-4 py-3">
               <Logo href={identity.homeHref} aside="Admin" className="scale-[0.92] origin-left" />
               <button
                 ref={closeButtonRef}

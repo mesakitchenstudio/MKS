@@ -243,8 +243,24 @@ test("buildAdminNavSections hides unauthorized areas", async () => {
   );
   assert.equal(canAccess("members", "content"), false);
   const owner = buildAdminNavSections("owner");
-  assert.ok(owner.some((section) => section.items.some((item) => item.href === "/admin/staff")));
-  assert.ok(owner.some((section) => section.items.some((item) => item.href === "/admin/series")));
+  assert.deepEqual(
+    owner.flatMap((section) => section.items.map((item) => item.href)),
+    [
+      "/admin",
+      "/admin/types",
+      "/admin/categories",
+      "/admin/series",
+      "/admin/reviews",
+      "/admin/members",
+      "/admin/visitors",
+      "/admin/youtube",
+      "/admin/staff",
+    ],
+  );
+  assert.deepEqual(
+    owner.map((section) => section.label),
+    ["Content", "Community", "Audience", "Administration"],
+  );
 });
 
 test("persisted Team Access role overrides stale session cookie role", () => {
