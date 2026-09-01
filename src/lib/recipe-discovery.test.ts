@@ -152,4 +152,45 @@ describe("primary public taxonomy", () => {
       "toppings",
     ]);
   });
+
+  it("uses editorial course/type for iced horchata primary, not category order", () => {
+    const horchata = recipes.find((recipe) => recipe.slug === "iced-horchata-coffee");
+    assert.ok(horchata);
+    assert.equal(recipePrimaryCategoryDisplayLabel(horchata!), "Drinks");
+    assert.equal(resolveRecipePrimaryCategorySlug(horchata!), "drinks");
+    assert.equal(recipeMatchesPrimaryCategory(horchata!, "drinks"), true);
+    assert.equal(recipeMatchesPrimaryCategory(horchata!, "breakfast"), true);
+  });
+
+  it("does not change primary label when category slug order changes", () => {
+    const base = recipes.find((recipe) => recipe.slug === "iced-horchata-coffee")!;
+    const drinksFirst = { ...base, categories: ["drinks", "breakfast", "no-bake", "summer"] };
+    const breakfastFirst = { ...base, categories: ["breakfast", "drinks", "no-bake", "summer"] };
+    assert.equal(resolveRecipePrimaryCategorySlug(drinksFirst), "drinks");
+    assert.equal(resolveRecipePrimaryCategorySlug(breakfastFirst), "drinks");
+    assert.equal(recipePrimaryCategoryDisplayLabel(drinksFirst), "Drinks");
+    assert.equal(recipePrimaryCategoryDisplayLabel(breakfastFirst), "Drinks");
+  });
+
+  it("prefers RecipeType over competing primary category slugs", () => {
+    const fromType = {
+      ...recipes[0],
+      slug: "typed-drink",
+      course: "Breakfast",
+      categories: ["breakfast", "drinks"],
+      typeName: "Drink",
+    };
+    assert.equal(resolveRecipePrimaryCategorySlug(fromType), "drinks");
+    assert.equal(recipePrimaryCategoryDisplayLabel(fromType), "Drinks");
+    assert.equal(recipeMatchesPrimaryCategory(fromType, "breakfast"), true);
+    assert.equal(recipeMatchesPrimaryCategory(fromType, "drinks"), true);
+  });
+
+  it("keeps dessert child union filtering functional", () => {
+    const collectionMap = homepageCollectionSlugMap();
+    const desserts = applyDiscoveryFilters(recipes, { category: "desserts" }, collectionMap);
+    assert.ok(desserts.some((recipe) => recipe.categories.includes("cookies")));
+    assert.ok(desserts.some((recipe) => recipe.categories.includes("cakes")));
+    assert.ok(desserts.some((recipe) => recipe.categories.includes("brownies-bars")));
+  });
 });

@@ -39,8 +39,55 @@ export const PRIMARY_PUBLIC_FILTERS = [
   })),
 ] as const;
 
+/**
+ * FILTER SEMANTICS (public /recipes chips):
+ * A recipe may match multiple primary filters when it carries multiple associations
+ * (category slug, RecipeType, or legacy course). Example: iced horchata may appear
+ * under both Breakfast and Drinks filters.
+ *
+ * CARD SEMANTICS:
+ * Exactly one intentional primary label per card, resolved via editorial signals
+ * below — never by arbitrary category-array order.
+ */
+
+/** CMS RecipeType.name → public primary slug (editorial intent). */
+const RECIPE_TYPE_TO_PRIMARY: Record<string, PrimaryCategorySlug> = {
+  breakfast: "breakfast",
+  bread: "breads",
+  main: "main-dishes",
+  side: "side-dishes",
+  dessert: "desserts",
+  cake: "desserts",
+  cookie: "desserts",
+  drink: "drinks",
+  condiment: "toppings",
+};
+
+/** Legacy values.course → public primary slug when type is unavailable. */
+const COURSE_TO_PRIMARY: Record<string, PrimaryCategorySlug> = {
+  breakfast: "breakfast",
+  bread: "breads",
+  breads: "breads",
+  main: "main-dishes",
+  side: "side-dishes",
+  dessert: "desserts",
+  drink: "drinks",
+  drinks: "drinks",
+  condiment: "toppings",
+};
+
 function normalizedTypeName(recipe: Recipe) {
   return recipe.typeName?.trim().toLowerCase() ?? "";
+}
+
+function primaryFromRecipeType(recipe: Recipe): PrimaryCategorySlug | undefined {
+  const key = normalizedTypeName(recipe);
+  return key ? RECIPE_TYPE_TO_PRIMARY[key] : undefined;
+}
+
+function primaryFromCourse(recipe: Recipe): PrimaryCategorySlug | undefined {
+  const key = recipe.course.trim().toLowerCase();
+  return key ? COURSE_TO_PRIMARY[key] : undefined;
 }
 
 export function isBreadRecipe(recipe: Recipe) {
@@ -59,6 +106,7 @@ export function isCondimentRecipe(recipe: Recipe) {
   return normalizedTypeName(recipe) === "condiment";
 }
 
+/** Whether a recipe should appear under a primary filter chip (may match several). */
 export function recipeMatchesPrimaryCategory(recipe: Recipe, slug: PrimaryCategorySlug): boolean {
   switch (slug) {
     case "breads":
@@ -80,14 +128,26 @@ export function recipeMatchesPrimaryCategory(recipe: Recipe, slug: PrimaryCatego
   }
 }
 
-/** One display label per card — aligns type/category, not free-text course. */
+/**
+ * One intentional primary label per card.
+ * Priority: RecipeType → values.course → type/category compatibility fallbacks.
+ */
 export function resolveRecipePrimaryCategorySlug(recipe: Recipe): PrimaryCategorySlug | undefined {
+  const fromType = primaryFromRecipeType(recipe);
+  if (fromType) return fromType;
+
+  const fromCourse = primaryFromCourse(recipe);
+  if (fromCourse) return fromCourse;
+
   if (isBreadRecipe(recipe)) return "breads";
   if (isDessertRecipe(recipe)) return "desserts";
-  for (const slug of PRIMARY_CATEGORY_SLUGS) {
-    if (slug === "breads" || slug === "desserts") continue;
-    if (recipeMatchesPrimaryCategory(recipe, slug)) return slug;
-  }
+  if (isCondimentRecipe(recipe)) return "toppings";
+
+  const directPrimary = PRIMARY_CATEGORY_SLUGS.filter((slug) =>
+    recipe.categories.includes(slug),
+  );
+  if (directPrimary.length === 1) return directPrimary[0];
+
   return undefined;
 }
 
@@ -95,4 +155,9 @@ export function recipePrimaryCategoryDisplayLabel(recipe: Recipe): string {
   const slug = resolveRecipePrimaryCategorySlug(recipe);
   if (slug) return PRIMARY_CATEGORY_LABELS[slug];
   return recipe.course.trim() || "Recipe";
+}
+
+/** List every primary filter a recipe legitimately matches (for audits). */
+export function listMatchedPrimaryCategorySlugs(recipe: Recipe): PrimaryCategorySlug[] {
+  return PRIMARY_CATEGORY_SLUGS.filter((slug) => recipeMatchesPrimaryCategory(recipe, slug));
 }
