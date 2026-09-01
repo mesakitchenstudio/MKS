@@ -20,6 +20,8 @@ type AdminSidebarNavProps = {
   deployInfo: AdminDeployInfo;
   onNavigate?: () => void;
   id?: string;
+  /** Mobile drawer: scroll sections + account together so short viewports keep full nav reachable. */
+  compactScroll?: boolean;
 };
 
 function SidebarLink({
@@ -64,6 +66,100 @@ function SidebarLink({
   );
 }
 
+function NavSections({
+  sections,
+  onNavigate,
+}: {
+  sections: AdminNavSection[];
+  onNavigate?: () => void;
+}) {
+  return (
+    <>
+      {sections.map((section) => (
+        <div key={section.id}>
+          <p className={adminSidebarSectionLabelClass}>{section.label}</p>
+          <ul className="m-0 list-none space-y-0.5 p-0">
+            {section.items.map((item) => (
+              <li key={item.href}>
+                <SidebarLink
+                  href={item.href}
+                  label={item.label}
+                  match={item.match}
+                  onNavigate={onNavigate}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Scroll container for mobile drawer — exported for layout regression tests. */
+export const adminMobileDrawerNavScrollClass =
+  "min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]";
+
+const compactScrollFooterClass = "mt-4 border-t border-line/80 pt-4";
+
+function AccountFooter({
+  displayName,
+  roleLabel,
+  deployInfo,
+  onNavigate,
+}: {
+  displayName: string;
+  roleLabel: string;
+  deployInfo: AdminDeployInfo;
+  onNavigate?: () => void;
+}) {
+  return (
+    <div className={compactScrollFooterClass}>
+      <p className="px-3 text-xs leading-snug text-muted">
+        <span className="block font-semibold text-ink/85">{displayName}</span>
+        <span>{roleLabel}</span>
+      </p>
+      <p
+        className="mt-2 px-3 font-mono text-[0.65rem] leading-snug tracking-wide text-muted"
+        title={
+          deployInfo.fullSha
+            ? `Deployed commit ${deployInfo.fullSha} (${deployInfo.envLabel})`
+            : "Local development build"
+        }
+      >
+        Build {formatAdminDeployLine(deployInfo)}
+      </p>
+
+      <p className={`${adminSidebarSectionLabelClass} mt-3`}>Account</p>
+      <ul className="m-0 list-none space-y-0.5 p-0">
+        <li>
+          <SidebarLink href="/admin/profile" label="Profile" match="prefix" onNavigate={onNavigate} />
+        </li>
+        <li>
+          <SidebarLink
+            href="/"
+            label="View site"
+            match="exact"
+            onNavigate={onNavigate}
+            muted
+            leavesAdmin
+          />
+        </li>
+        <li>
+          <form action="/admin/logout" method="post">
+            <button
+              type="submit"
+              className={`${adminSidebarLinkClass} ${adminFocusRing} w-full border-l-2 border-transparent text-left text-muted hover:bg-cream/80 hover:text-terracotta`}
+            >
+              Log out
+            </button>
+          </form>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 export function AdminSidebarNav({
   sections,
   displayName,
@@ -71,27 +167,28 @@ export function AdminSidebarNav({
   deployInfo,
   onNavigate,
   id,
+  compactScroll = false,
 }: AdminSidebarNavProps) {
+  if (compactScroll) {
+    return (
+      <nav id={id} aria-label="Admin" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className={adminMobileDrawerNavScrollClass}>
+          <NavSections sections={sections} onNavigate={onNavigate} />
+          <AccountFooter
+            displayName={displayName}
+            roleLabel={roleLabel}
+            deployInfo={deployInfo}
+            onNavigate={onNavigate}
+          />
+        </div>
+      </nav>
+    );
+  }
+
   return (
-    <nav id={id} aria-label="Admin" className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-        {sections.map((section) => (
-          <div key={section.id}>
-            <p className={adminSidebarSectionLabelClass}>{section.label}</p>
-            <ul className="m-0 list-none space-y-0.5 p-0">
-              {section.items.map((item) => (
-                <li key={item.href}>
-                  <SidebarLink
-                    href={item.href}
-                    label={item.label}
-                    match={item.match}
-                    onNavigate={onNavigate}
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+    <nav id={id} aria-label="Admin" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-4">
+        <NavSections sections={sections} onNavigate={onNavigate} />
       </div>
 
       <div className="shrink-0 border-t border-line/80 px-3 py-4">

@@ -78,6 +78,11 @@ export function buildAdminNavSections(role: AccessLevel): AdminNavSection[] {
   return sections;
 }
 
+/** Flat item labels for tests and diagnostics — navigation is route/query independent. */
+export function flattenAdminNavItemLabels(sections: AdminNavSection[]): string[] {
+  return sections.flatMap((section) => section.items.map((item) => item.label));
+}
+
 export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/profile")) return adminWorkspaceNarrow;
   if (
