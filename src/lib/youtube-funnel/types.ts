@@ -39,7 +39,7 @@ export type YoutubeFunnelDashboard = {
       playOutcomeLabel: string;
       watchOutcomeLabel: string;
       subscribeOutcomeLabel: string;
-      continuedOutcomeLabel: string;
+      multiVideoVisitorsLabel: string;
     }
   >;
   noVideoTraffic: FunnelNoVideoTrafficRow[];

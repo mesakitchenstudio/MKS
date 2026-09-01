@@ -63,3 +63,17 @@ export const FUNNEL_RATE_LABELS = {
   subscribeRate: "Subscribe CTA visitor rate",
   continuedRate: "Continued-viewing rate",
 } as const;
+
+/** Recipe-table column: intersection of recipe pageview visitors with site-wide multi-video set. */
+export const RECIPE_MULTI_VIDEO_VISITORS_LABEL = "Multi-video visitors";
+
+export const RECIPE_MULTI_VIDEO_VISITORS_HELP =
+  "Visitors to this recipe who also interacted with at least two distinct Mesa videos during the selected period. This does not necessarily mean the additional interaction occurred directly after this recipe.";
+
+/** Recipe-level multi-video count: X of Y visitors (no rate — not sequential attribution). */
+export function formatRecipeMultiVideoVisitorsLabel(
+  multiVideoVisitors: number,
+  recipeVisitorDenominator: number,
+): string {
+  return `${multiVideoVisitors} of ${recipeVisitorDenominator} visitors`;
+}

@@ -17,9 +17,12 @@ import {
 } from "@/lib/youtube-funnel/aggregate";
 import {
   formatContinuedViewingOutcome,
+  formatRecipeMultiVideoVisitorsLabel,
   formatRecipeVisitorOutcome,
   FUNNEL_LOW_SAMPLE_THRESHOLD,
   isFunnelLowSample,
+  RECIPE_MULTI_VIDEO_VISITORS_HELP,
+  RECIPE_MULTI_VIDEO_VISITORS_LABEL,
 } from "@/lib/youtube-funnel/funnel-display";
 import { analyticsDateRange } from "@/lib/youtube-analytics/ranges";
 
@@ -184,7 +187,7 @@ describe("youtube-funnel aggregate", () => {
     assert.equal(continuedViewingVisitorIds(events).size, 1);
   });
 
-  it("aggregates recipe rows by visitors descending with visitor-first labels", () => {
+  it("aggregates recipe rows with multi-video visitors intersecting pageview visitors", () => {
     const events = [
       { visitorId: "v1", name: "recipe_video_play", recipeSlug: "a", youtubeVideoId: "vid1", targetVideoId: "" },
       { visitorId: "v2", name: "recipe_video_play", recipeSlug: "b", youtubeVideoId: "vid2", targetVideoId: "" },
@@ -208,6 +211,7 @@ describe("youtube-funnel aggregate", () => {
     assert.equal(rows[0]?.recipeSlug, "b");
     assert.equal(rows[0]?.uniquePageviewVisitors, 2);
     assert.equal(rows[0]?.uniqueContinuedVisitors, 1);
+    assert.equal(formatRecipeMultiVideoVisitorsLabel(1, 2), "1 of 2 visitors");
     assert.equal(rows[1]?.uniquePlayVisitors, 1);
   });
 
@@ -254,5 +258,12 @@ describe("youtube-funnel display", () => {
     assert.equal(isFunnelLowSample(19), true);
     assert.equal(isFunnelLowSample(FUNNEL_LOW_SAMPLE_THRESHOLD), false);
     assert.equal(isFunnelLowSample(0), false);
+  });
+
+  it("names recipe-level multi-video metric without implying sequence from that recipe", () => {
+    assert.equal(RECIPE_MULTI_VIDEO_VISITORS_LABEL, "Multi-video visitors");
+    assert.match(RECIPE_MULTI_VIDEO_VISITORS_HELP, /does not necessarily mean the additional interaction occurred directly after this recipe/i);
+    assert.equal(formatRecipeMultiVideoVisitorsLabel(2, 12), "2 of 12 visitors");
+    assert.doesNotMatch(formatRecipeMultiVideoVisitorsLabel(2, 12), /%/);
   });
 });

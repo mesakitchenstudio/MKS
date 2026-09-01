@@ -12,6 +12,7 @@ import {
   funnelDateWindow,
 } from "@/lib/youtube-funnel/aggregate";
 import {
+  formatRecipeMultiVideoVisitorsLabel,
   formatRecipeVisitorOutcome,
 } from "@/lib/youtube-funnel/funnel-display";
 import type { FunnelNoVideoTrafficRow, YoutubeFunnelDashboard } from "@/lib/youtube-funnel/types";
@@ -241,7 +242,7 @@ export async function loadYoutubeFunnelDashboard(input?: {
         row.uniqueSubscribeVisitors,
         row.uniquePageviewVisitors,
       ),
-      continuedOutcomeLabel: formatRecipeOutcomeLabel(
+      multiVideoVisitorsLabel: formatRecipeMultiVideoVisitorsLabel(
         row.uniqueContinuedVisitors,
         row.uniquePageviewVisitors,
       ),

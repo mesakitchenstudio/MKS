@@ -9,6 +9,8 @@ import {
   formatRecipeVisitorOutcome,
   FUNNEL_METHODOLOGY,
   isFunnelLowSample,
+  RECIPE_MULTI_VIDEO_VISITORS_HELP,
+  RECIPE_MULTI_VIDEO_VISITORS_LABEL,
 } from "@/lib/youtube-funnel/funnel-display";
 import type { YoutubeFunnelDashboard } from "@/lib/youtube-funnel/types";
 import { ANALYTICS_RANGE_DAYS, type AnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
@@ -275,7 +277,7 @@ export function YoutubeFunnelPanel({
             </h3>
             <p className="mt-1 text-sm text-muted">
               Visitor counts use each recipe&apos;s unique visitors as the denominator. Sorted by
-              visitors descending.
+              visitors descending. {RECIPE_MULTI_VIDEO_VISITORS_HELP}
             </p>
           </div>
           <div
@@ -326,7 +328,7 @@ export function YoutubeFunnelPanel({
                       Subscribe
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
-                      Continued
+                      {RECIPE_MULTI_VIDEO_VISITORS_LABEL}
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
                       Action
@@ -354,7 +356,7 @@ export function YoutubeFunnelPanel({
                         <td className="px-4 py-3">{row.playOutcomeLabel}</td>
                         <td className="px-4 py-3">{row.watchOutcomeLabel}</td>
                         <td className="px-4 py-3">{row.subscribeOutcomeLabel}</td>
-                        <td className="px-4 py-3">{row.continuedOutcomeLabel}</td>
+                        <td className="px-4 py-3">{row.multiVideoVisitorsLabel}</td>
                         <td className="px-4 py-3">
                           <Link
                             href={`/admin/youtube/videos/${row.youtubeVideoId}?range=${funnel.rangeDays}`}
@@ -393,8 +395,8 @@ export function YoutubeFunnelPanel({
                       <dd>{row.watchOutcomeLabel}</dd>
                       <dt className="text-muted">Subscribe</dt>
                       <dd>{row.subscribeOutcomeLabel}</dd>
-                      <dt className="text-muted">Continued</dt>
-                      <dd>{row.continuedOutcomeLabel}</dd>
+                      <dt className="text-muted">{RECIPE_MULTI_VIDEO_VISITORS_LABEL}</dt>
+                      <dd>{row.multiVideoVisitorsLabel}</dd>
                     </dl>
                     <Link
                       href={`/admin/youtube/videos/${row.youtubeVideoId}?range=${funnel.rangeDays}`}
@@ -517,10 +519,14 @@ export function YoutubeFunnelPanel({
             for context but are never used as rate denominators.
           </p>
           <p>
-            <strong className="text-ink">Continued-viewing formula:</strong> unique visitors who
-            interacted with ≥2 distinct Mesa youtubeVideoIds ÷ unique visitors with ≥1 qualifying
-            interaction (embedded play, Watch on YouTube, or Watch Next). Qualifying interactions use
-            source and target video IDs from watch-next events.
+            <strong className="text-ink">Continued-viewing formula (site-wide):</strong> unique
+            visitors who interacted with ≥2 distinct Mesa youtubeVideoIds ÷ unique visitors with ≥1
+            qualifying interaction (embedded play, Watch on YouTube, or Watch Next). Qualifying
+            interactions use source and target video IDs from watch-next events.
+          </p>
+          <p>
+            <strong className="text-ink">{RECIPE_MULTI_VIDEO_VISITORS_LABEL} (recipe table):</strong>{" "}
+            {RECIPE_MULTI_VIDEO_VISITORS_HELP}
           </p>
           <p>
             <strong className="text-ink">UTC / include today:</strong> the selected window ends on

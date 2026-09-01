@@ -47,6 +47,7 @@ export type FunnelRecipeRow = {
   uniqueSubscribeVisitors: number;
   subscribeCtr: number | null;
   uniqueChapterVisitors: number;
+  /** Recipe pageview visitors who are also in the site-wide multi-video visitor set (not sequence-attributed). */
   uniqueContinuedVisitors: number;
   continuedWatchActions: number;
   watchNextClicks: number;
