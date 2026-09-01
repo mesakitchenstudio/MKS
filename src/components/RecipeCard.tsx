@@ -15,6 +15,7 @@ import {
 } from "@/lib/recipe-instructions";
 import { selectStageVideoHelp, type StageVideoHelp } from "@/lib/recipe-stage-video-help";
 import { timestampForStep } from "@/lib/recipe-youtube";
+import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideoOptional } from "@/components/youtube/RecipeVideoContext";
@@ -236,8 +237,15 @@ function RecipeCookingWorkspaceInner({
         ? fetchedChapters
         : propChapters;
   const clientStageVideoHelp = useMemo(
-    () => selectStageVideoHelp(stages, chapters, youtube?.stageAlignments),
-    [stages, chapters, youtube?.stageAlignments],
+    () =>
+      selectStageVideoHelp(
+        stages,
+        chapters,
+        youtube?.stageAlignments,
+        recipe.instructions,
+        youtube?.duration ? parseTimestampInput(youtube.duration) ?? undefined : undefined,
+      ),
+    [stages, chapters, youtube?.stageAlignments, youtube?.duration, recipe.instructions],
   );
   const stageVideoHelp =
     youtube?.stageAlignments?.length && Object.keys(clientStageVideoHelp).length

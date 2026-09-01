@@ -12,8 +12,18 @@ import {
   resolveFieldAiActionLabel,
   type FieldAiIntent,
 } from "@/lib/ai-recipe/field-ai-registry";
+import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtube-types";
+import {
+  formatInstructionChapterCoverageSummary,
+  formatTimestampInput,
+  instructionChapterCoverage,
+  parseTimestampInput,
+  resolveInstructionChapter,
+  type InstructionChapterValidationIssue,
+  type InstructionGroupWithChapters,
+} from "@/lib/instruction-chapters";
 import { recipeGranularAnchorId } from "@/lib/recipe-editor-field-anchor";
-import { adminFocusRing, adminInputClass, adminTertiaryButtonClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminInputClass } from "@/lib/admin-ui";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
 
 const compactInputClass =
@@ -123,6 +133,38 @@ function sectionStatusLabel(input: {
   return parts.join(" · ");
 }
 
+function collapsedTimestampLabel(input: {
+  group: InstructionGroupWithChapters;
+  groupIndex: number;
+  allGroups: InstructionGroupWithChapters[];
+  stageAlignments?: RecipeStageAlignment[];
+  legacyTimestamps?: RecipeYoutubeTimestamp[];
+  videoDurationSeconds?: number;
+}) {
+  const resolved = resolveInstructionChapter({
+    group: input.group,
+    groupIndex: input.groupIndex,
+    allGroups: input.allGroups,
+    stageAlignments: input.stageAlignments,
+    legacyTimestamps: input.legacyTimestamps,
+    videoDurationSeconds: input.videoDurationSeconds,
+  });
+  if (resolved.startTimestamp == null) {
+    return { text: "Timestamp missing", quiet: true, legacy: false };
+  }
+  const clock = formatTimestampInput(resolved.startTimestamp);
+  if (resolved.startSource !== "canonical") {
+    const legacyLabel =
+      resolved.startSource === "stage_alignment"
+        ? "Legacy alignment"
+        : resolved.startSource === "legacy_timestamp"
+          ? "Legacy timestamp"
+          : undefined;
+    return { text: `${clock}${legacyLabel ? ` · ${legacyLabel}` : ""}`, quiet: false, legacy: true };
+  }
+  return { text: clock, quiet: false, legacy: false };
+}
+
 export function InstructionsAccordionEditor({
   groups,
   onChange,
@@ -141,8 +183,16 @@ export function InstructionsAccordionEditor({
   reviewPaths = new Set(),
   missingPaths = new Set(),
   pulsingPath = null,
+  videoDurationSeconds,
+  stageAlignments = [],
+  legacyTimestamps = [],
+  chapterValidationIssues = [],
+  onChapterFieldChange,
+  onPlayTimestamp,
+  onSetStartFromPlayhead,
+  onSetEndFromPlayhead,
 }: {
-  groups: { name?: string; steps: string[] }[];
+  groups: InstructionGroupWithChapters[];
   onChange: (value: unknown) => void;
   parentKey: string;
   typeFields: SchemaField[];
@@ -166,7 +216,23 @@ export function InstructionsAccordionEditor({
   reviewPaths?: Set<string>;
   missingPaths?: Set<string>;
   pulsingPath?: string | null;
+  videoDurationSeconds?: number;
+  stageAlignments?: RecipeStageAlignment[];
+  legacyTimestamps?: RecipeYoutubeTimestamp[];
+  chapterValidationIssues?: InstructionChapterValidationIssue[];
+  onChapterFieldChange?: (
+    groupIndex: number,
+    field: "chapterLabel" | "startTimestamp" | "endTimestamp",
+    value: string | number | undefined,
+  ) => void;
+  onPlayTimestamp?: (seconds: number) => void;
+  onSetStartFromPlayhead?: (groupIndex: number) => void;
+  onSetEndFromPlayhead?: (groupIndex: number) => void;
 }) {
+  void onPlayTimestamp;
+  void onSetStartFromPlayhead;
+  void onSetEndFromPlayhead;
+
   const totalSteps = useMemo(
     () => groups.reduce((sum, group) => sum + group.steps.length, 0),
     [groups],
@@ -175,6 +241,60 @@ export function InstructionsAccordionEditor({
     groups.slice(0, index).reduce((total, prior) => total + prior.steps.length, 0),
   );
 
+  const coverageSummary = useMemo(() => {
+    const coverage = instructionChapterCoverage(groups, {
+      stageAlignments,
+      legacyTimestamps,
+    });
+    return formatInstructionChapterCoverageSummary(coverage);
+  }, [groups, legacyTimestamps, stageAlignments]);
+
+  function patchGroup(groupIndex: number, patch: Partial<InstructionGroupWithChapters>) {
+    const next = [...groups];
+    next[groupIndex] = { ...groups[groupIndex]!, ...patch };
+    onChange(next);
+  }
+
+  function updateStartInput(groupIndex: number, raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      onChapterFieldChange?.(groupIndex, "startTimestamp", undefined);
+      patchGroup(groupIndex, { startTimestamp: undefined });
+      return;
+    }
+    const parsed = parseTimestampInput(trimmed);
+    if (parsed == null) return;
+    onChapterFieldChange?.(groupIndex, "startTimestamp", parsed);
+    patchGroup(groupIndex, { startTimestamp: parsed });
+  }
+
+  function updateEndInput(groupIndex: number, raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      onChapterFieldChange?.(groupIndex, "endTimestamp", undefined);
+      patchGroup(groupIndex, { endTimestamp: undefined });
+      return;
+    }
+    const parsed = parseTimestampInput(trimmed);
+    if (parsed == null) return;
+    onChapterFieldChange?.(groupIndex, "endTimestamp", parsed);
+    patchGroup(groupIndex, { endTimestamp: parsed });
+  }
+
+  function adoptLegacyTimestamp(groupIndex: number) {
+    const resolved = resolveInstructionChapter({
+      group: groups[groupIndex]!,
+      groupIndex,
+      allGroups: groups,
+      stageAlignments,
+      legacyTimestamps,
+      videoDurationSeconds,
+    });
+    if (resolved.startTimestamp == null || resolved.startSource === "canonical") return;
+    onChapterFieldChange?.(groupIndex, "startTimestamp", resolved.startTimestamp);
+    patchGroup(groupIndex, { startTimestamp: resolved.startTimestamp });
+  }
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 pb-3">
@@ -182,6 +302,8 @@ export function InstructionsAccordionEditor({
           <span className="font-semibold text-ink">{totalSteps} steps</span>
           <span className="mx-1.5">·</span>
           {groups.length} section{groups.length === 1 ? "" : "s"}
+          <span className="mx-1.5">·</span>
+          {coverageSummary}
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={editorTextAction} onClick={onCollapseAll}>
@@ -199,6 +321,29 @@ export function InstructionsAccordionEditor({
         const stepCount = group.steps.length;
         const status = sectionStatusLabel({ groupIndex, reviewPaths, missingPaths, parentKey });
         const namePath = `values.${parentKey}.${groupIndex}.name`;
+        const timestampMeta = collapsedTimestampLabel({
+          group,
+          groupIndex,
+          allGroups: groups,
+          stageAlignments,
+          legacyTimestamps,
+          videoDurationSeconds,
+        });
+        const resolved = resolveInstructionChapter({
+          group,
+          groupIndex,
+          allGroups: groups,
+          stageAlignments,
+          legacyTimestamps,
+          videoDurationSeconds,
+        });
+        const groupIssues = chapterValidationIssues.filter((issue) => issue.groupIndex === groupIndex);
+        const startInputId = recipeGranularAnchorId(`values.${parentKey}.${groupIndex}.startTimestamp`);
+        const hasExplicitEnd = typeof group.endTimestamp === "number";
+        const autoEnd =
+          !hasExplicitEnd && resolved.endTimestamp != null
+            ? formatTimestampInput(resolved.endTimestamp)
+            : null;
 
         return (
           <div key={groupIndex} className="border border-line/80 bg-cream/20">
@@ -219,26 +364,36 @@ export function InstructionsAccordionEditor({
                 <span className="mt-0.5 block text-xs text-muted">
                   {stepCount} step{stepCount === 1 ? "" : "s"}
                   {status ? <span className="text-terracotta/90"> · {status}</span> : null}
-                  <span className="invisible ml-2 sm:visible">· Timestamp —</span>
+                  <span
+                    className={
+                      timestampMeta.quiet
+                        ? " text-muted/80"
+                        : timestampMeta.legacy
+                          ? " text-olive/90"
+                          : ""
+                    }
+                  >
+                    {" "}
+                    · {timestampMeta.text}
+                  </span>
                 </span>
               </span>
             </button>
 
             {expanded ? (
-              <div className="grid gap-3 border-t border-line/70 px-3 pb-4 pt-3">
+              <div className="grid gap-4 border-t border-line/70 px-3 pb-4 pt-3">
                 <div className="flex flex-wrap items-start gap-2">
-                  <input
-                    id={recipeGranularAnchorId(namePath)}
-                    value={group.name || ""}
-                    placeholder="Section name (optional)"
-                    aria-label={`Instruction section ${groupIndex + 1} title`}
-                    onChange={(event) => {
-                      const next = [...groups];
-                      next[groupIndex] = { ...group, name: event.target.value };
-                      onChange(next);
-                    }}
-                    className={`${compactInputClass} max-w-md flex-1`}
-                  />
+                  <label className="grid min-w-0 flex-1 gap-1.5 text-sm">
+                    <span className="font-semibold text-ink">Section title</span>
+                    <input
+                      id={recipeGranularAnchorId(namePath)}
+                      value={group.name || ""}
+                      placeholder="Section name (optional)"
+                      aria-label={`Instruction section ${groupIndex + 1} title`}
+                      onChange={(event) => patchGroup(groupIndex, { name: event.target.value })}
+                      className={`${compactInputClass} max-w-md`}
+                    />
+                  </label>
                   {onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
                     <GranularFieldAiSlot
                       path={namePath}
@@ -254,6 +409,84 @@ export function InstructionsAccordionEditor({
                       onClearFieldSuggestion={onClearFieldSuggestion}
                     />
                   ) : null}
+                </div>
+
+                <div className="rounded-sm border border-line/60 bg-paper/40 p-3">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+                    Video chapter
+                  </p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <label className="grid gap-1.5 text-sm md:col-span-1">
+                      <span className="font-semibold text-muted">Chapter label</span>
+                      <input
+                        value={group.chapterLabel ?? ""}
+                        placeholder={sectionTitle}
+                        aria-label={`Chapter label for section ${groupIndex + 1}`}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          onChapterFieldChange?.(groupIndex, "chapterLabel", value);
+                          patchGroup(groupIndex, { chapterLabel: value });
+                        }}
+                        className={compactInputClass}
+                      />
+                      <span className="text-xs text-muted">Leave blank to use the section title.</span>
+                    </label>
+                    <label className="grid gap-1.5 text-sm">
+                      <span className="font-semibold text-muted">Start</span>
+                      <input
+                        id={startInputId}
+                        data-recipe-field-path={`values.${parentKey}.${groupIndex}.startTimestamp`}
+                        value={
+                          typeof group.startTimestamp === "number"
+                            ? formatTimestampInput(group.startTimestamp)
+                            : timestampMeta.legacy && resolved.startTimestamp != null
+                              ? formatTimestampInput(resolved.startTimestamp)
+                              : ""
+                        }
+                        placeholder="00:00"
+                        aria-label={`Video chapter start for section ${groupIndex + 1}`}
+                        onChange={(event) => updateStartInput(groupIndex, event.target.value)}
+                        className={compactInputClass}
+                      />
+                      {timestampMeta.legacy && typeof group.startTimestamp !== "number" ? (
+                        <button
+                          type="button"
+                          className={`text-left text-xs font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
+                          onClick={() => adoptLegacyTimestamp(groupIndex)}
+                        >
+                          Use as Mesa timestamp
+                        </button>
+                      ) : null}
+                    </label>
+                    <label className="grid gap-1.5 text-sm">
+                      <span className="font-semibold text-muted">End</span>
+                      <input
+                        value={
+                          hasExplicitEnd && typeof group.endTimestamp === "number"
+                            ? formatTimestampInput(group.endTimestamp)
+                            : ""
+                        }
+                        placeholder={autoEnd ? `Auto: ${autoEnd}` : "Optional"}
+                        aria-label={`Video chapter end for section ${groupIndex + 1}`}
+                        onChange={(event) => updateEndInput(groupIndex, event.target.value)}
+                        className={compactInputClass}
+                      />
+                      {autoEnd && !hasExplicitEnd ? (
+                        <span className="text-xs text-muted">Auto: {autoEnd}</span>
+                      ) : null}
+                    </label>
+                  </div>
+                  {groupIssues.map((issue) => (
+                    <p
+                      key={`${issue.code}-${issue.message}`}
+                      className={`mt-2 text-xs font-semibold ${
+                        issue.severity === "error" ? "text-terracotta" : "text-muted"
+                      }`}
+                      role={issue.severity === "error" ? "alert" : "status"}
+                    >
+                      {issue.message}
+                    </p>
+                  ))}
                 </div>
 
                 {group.steps.map((step, stepIndex) => {

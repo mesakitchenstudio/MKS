@@ -29,6 +29,13 @@ import {
 import { hashPassword } from "@/lib/passwords";
 import { removeMemberByEmail } from "@/lib/accounts";
 import { enrichRecipeValuesYoutubeFromDescription } from "@/lib/youtube-description";
+import {
+  enrichRecipeValuesWithDerivedChapters,
+  normalizeInstructionGroups,
+  validateInstructionChapters,
+} from "@/lib/instruction-chapters";
+import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
+import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
@@ -417,6 +424,27 @@ export async function saveRecipeAction(formData: FormData) {
   if (typeof values.bakeMinutes === "number" && values.cookMinutes == null) {
     values.cookMinutes = values.bakeMinutes;
   }
+
+  const instructionGroups = normalizeInstructionGroups(values.instructions);
+  const youtubeBlob = parseRecipeYoutubeBlob(values.youtube);
+  const videoDurationSeconds = youtubeBlob?.duration
+    ? parseTimestampInput(String(youtubeBlob.duration)) ?? undefined
+    : undefined;
+  const chapterValidation = validateInstructionChapters({
+    groups: instructionGroups,
+    videoDurationSeconds,
+  });
+  const chapterErrors = chapterValidation.filter((issue) => issue.severity === "error");
+  if (chapterErrors.length) {
+    const message = chapterErrors[0]?.message ?? "Instruction chapter timestamps are invalid.";
+    redirect(
+      id
+        ? `/admin/recipes/${id}?error=chapters&detail=${encodeURIComponent(message)}`
+        : `/admin/recipes/new?type=${typeId}&error=chapters&detail=${encodeURIComponent(message)}`,
+    );
+  }
+
+  Object.assign(values, enrichRecipeValuesWithDerivedChapters(values));
 
   try {
     await enrichRecipeValuesYoutubeFromDescription(values);

@@ -90,8 +90,17 @@ import { ADMIN_IMAGE_FORMAT_HELP, RECIPE_HERO_IMAGE_HELP } from "@/lib/admin-upl
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
 import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS, slugify } from "@/lib/fields";
 import { fieldValueHasContent } from "@/lib/field-content";
+import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtube-types";
+import {
+  hasCanonicalInstructionChapters,
+  normalizeInstructionGroups,
+  validateInstructionChapters,
+  type InstructionChapterValidationIssue,
+} from "@/lib/instruction-chapters";
+import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { youtubeVideoId } from "@/lib/youtube";
 import {
+  parseTimestampInput,
   serializeYoutubeMetadataEditorState,
   validateYoutubeMetadataEditorState,
   youtubeMetadataToEditorState,
@@ -1206,6 +1215,36 @@ export function RecipeEditor({
     [title, excerpt, categoryIds, values, fields],
   );
 
+  const instructionChapterContext = useMemo(() => {
+    const groups = normalizeInstructionGroups(values.instructions);
+    const blob = parseRecipeYoutubeBlob(values.youtube);
+    const videoDurationSeconds = blob?.duration
+      ? parseTimestampInput(String(blob.duration)) ?? undefined
+      : undefined;
+    const stageAlignments = (blob?.stageAlignments ?? []) as RecipeStageAlignment[];
+    const legacyTimestamps = (blob?.timestamps ?? []) as RecipeYoutubeTimestamp[];
+    const chapterValidationIssues = validateInstructionChapters({
+      groups,
+      videoDurationSeconds,
+    });
+    return {
+      videoDurationSeconds,
+      stageAlignments,
+      legacyTimestamps,
+      chapterValidationIssues,
+      canonicalChaptersActive: hasCanonicalInstructionChapters(groups),
+    };
+  }, [values.instructions, values.youtube]);
+
+  function handleInstructionChapterFieldChange(
+    groupIndex: number,
+    field: "chapterLabel" | "startTimestamp" | "endTimestamp",
+    value: string | number | undefined,
+  ) {
+    const path = `values.instructions.${groupIndex}.${field}`;
+    setAiMeta((meta) => noteHumanEditorChange(meta, path, value));
+  }
+
   function provenanceValueForPath(path: string): unknown {
     if (path === "title") return title;
     if (path === "excerpt") return excerpt;
@@ -1349,20 +1388,23 @@ export function RecipeEditor({
     setAdvancedOpen(true);
     instructionsInitializedRef.current = false;
 
-    // Derive Mesa canonical stage ↔ video alignments from instruction groups + chapter evidence.
-    const instructionGroups = Array.isArray(withHero.values.instructions)
-      ? (withHero.values.instructions as { name?: string }[])
-      : [];
-    if (instructionGroups.some((group) => String(group.name ?? "").trim())) {
-      void import("@/lib/ai-recipe/stage-alignments").then(
-        ({ buildStageAlignmentsFromAnalysis, applyStageAlignmentsToYoutubeBlob }) => {
-          void import("@/lib/recipe-youtube").then(({ parseRecipeYoutubeBlob }) => {
-            const stages = instructionGroups
-              .map((group, index) => ({
-                id: `stage-${index}`,
-                name: String(group.name ?? "").trim() || `Stage ${index + 1}`,
-              }))
-              .filter((stage) => stage.name);
+    // Derive Mesa compatibility stage ↔ video alignments from instruction groups + chapter evidence.
+    const instructionGroups = normalizeInstructionGroups(withHero.values.instructions);
+    if (
+      hasCanonicalInstructionChapters(instructionGroups) ||
+      !instructionGroups.some((group) => String(group.name ?? "").trim())
+    ) {
+      return;
+    }
+    void import("@/lib/ai-recipe/stage-alignments").then(
+      ({ buildStageAlignmentsFromAnalysis, applyStageAlignmentsToYoutubeBlob }) => {
+        void import("@/lib/recipe-youtube").then(({ parseRecipeYoutubeBlob }) => {
+          const stages = instructionGroups
+            .map((group, index) => ({
+              id: `stage-${index}`,
+              name: String(group.name ?? "").trim() || `Stage ${index + 1}`,
+            }))
+            .filter((stage) => stage.name);
             const blob = parseRecipeYoutubeBlob(withHero.values.youtube);
             const hintChapters = (blob?.timestamps ?? []).map((row) => ({
               time: row.time,
@@ -1390,10 +1432,9 @@ export function RecipeEditor({
                 youtube: applyStageAlignmentsToYoutubeBlob(currentBlob, alignments),
               };
             });
-          });
-        },
-      );
-    }
+        });
+      },
+    );
   }
 
   function applyTargetedFill(payload: AiTargetedFillApplyPayload) {
@@ -1868,6 +1909,7 @@ export function RecipeEditor({
               clearFieldError();
             }}
             confidenceByPath={aiMeta?.confidenceByPath}
+            canonicalChaptersActive={instructionChapterContext.canonicalChaptersActive}
             invalidPaths={
               fieldErrors[field.key]
                 ? new Set(
@@ -1962,6 +2004,11 @@ export function RecipeEditor({
             pulsingPath={pulsingPath}
             reviewPaths={evaluatorReviewPaths}
             missingPaths={evaluatorMissingPaths}
+            videoDurationSeconds={instructionChapterContext.videoDurationSeconds}
+            stageAlignments={instructionChapterContext.stageAlignments}
+            legacyTimestamps={instructionChapterContext.legacyTimestamps}
+            chapterValidationIssues={instructionChapterContext.chapterValidationIssues}
+            onChapterFieldChange={handleInstructionChapterFieldChange}
           />
         )}
         {fieldAiBusy === fieldPath && !fieldSuggestions[fieldPath] ? (
@@ -2907,6 +2954,11 @@ function KindInput({
   pulsingPath = null,
   reviewPaths = new Set<string>(),
   missingPaths = new Set<string>(),
+  videoDurationSeconds,
+  stageAlignments = [],
+  legacyTimestamps = [],
+  chapterValidationIssues = [],
+  onChapterFieldChange,
 }: {
   fieldKey: string;
   kind: string;
@@ -2941,6 +2993,15 @@ function KindInput({
   pulsingPath?: string | null;
   reviewPaths?: Set<string>;
   missingPaths?: Set<string>;
+  videoDurationSeconds?: number;
+  stageAlignments?: RecipeStageAlignment[];
+  legacyTimestamps?: RecipeYoutubeTimestamp[];
+  chapterValidationIssues?: InstructionChapterValidationIssue[];
+  onChapterFieldChange?: (
+    groupIndex: number,
+    field: "chapterLabel" | "startTimestamp" | "endTimestamp",
+    value: string | number | undefined,
+  ) => void;
 }) {
   const inputClass = `${compact ? compactInputClass : adminInputClass}${invalid ? ` ${inputErrorClass}` : ""}`;
   const textAreaRows = emphasis ? 6 : 5;
@@ -3154,6 +3215,11 @@ function KindInput({
         reviewPaths={reviewPaths}
         missingPaths={missingPaths}
         pulsingPath={pulsingPath}
+        videoDurationSeconds={videoDurationSeconds}
+        stageAlignments={stageAlignments}
+        legacyTimestamps={legacyTimestamps}
+        chapterValidationIssues={chapterValidationIssues}
+        onChapterFieldChange={onChapterFieldChange}
       />
     );
   }

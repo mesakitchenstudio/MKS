@@ -66,6 +66,16 @@ export function parseGranularEditorPath(path: string): GranularPathHints {
     };
   }
 
+  const instructionChapter = path.match(
+    /^values\.instructions\.(\d+)\.(chapterLabel|startTimestamp|endTimestamp)$/,
+  );
+  if (instructionChapter) {
+    return {
+      topKey: "instructions",
+      instructionGroupIndex: Number(instructionChapter[1]),
+    };
+  }
+
   const faqChild = path.match(/^values\.faqs\.(\d+)\.(name|note)$/);
   if (faqChild) {
     return {

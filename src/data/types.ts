@@ -15,6 +15,12 @@ export type IngredientGroup = {
 export type InstructionGroup = {
   name?: string;
   steps: string[];
+  /** Optional shorter video-facing chapter title; falls back to `name`. */
+  chapterLabel?: string;
+  /** Video chapter start in seconds. */
+  startTimestamp?: number;
+  /** Optional explicit end in seconds; otherwise derived at runtime. */
+  endTimestamp?: number;
 };
 
 export type Nutrition = {

@@ -231,6 +231,21 @@ export function getRecipeFieldAiDef(
     };
   }
 
+  const instructionChapterLabel = path.match(/^values\.instructions\.(\d+)\.chapterLabel$/);
+  if (instructionChapterLabel) {
+    return {
+      path,
+      key: "instructions",
+      label: "Video chapter label",
+      kind: "text",
+      // Registered for a future phase; no AI controls until generation ships.
+      strategy: "none",
+      section: "content",
+      confidenceOnGenerate: "HIGH_CONFIDENCE_INFERENCE",
+      requiresPreviewWhenPopulated: true,
+    };
+  }
+
   const faqChild = path.match(/^values\.faqs\.(\d+)\.(name|note)$/);
   if (faqChild) {
     return {

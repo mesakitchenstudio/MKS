@@ -1,5 +1,6 @@
 import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
 import { aiChaptersToTimestamps } from "@/lib/ai-recipe/youtube-chapters";
+import { hasCanonicalInstructionChapters, normalizeInstructionGroups } from "@/lib/instruction-chapters";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { isRecipeAiVerified } from "@/lib/ai-recipe/field-tracking";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
@@ -464,6 +465,11 @@ export function applySyncedDescriptionChaptersToValues(
   aiMeta?: RecipeAiMeta | null,
 ): Record<string, unknown> {
   if (chaptersAreHumanLocked(aiMeta)) {
+    return values;
+  }
+
+  const instructions = normalizeInstructionGroups(values.instructions);
+  if (hasCanonicalInstructionChapters(instructions)) {
     return values;
   }
 
