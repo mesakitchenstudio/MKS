@@ -24,11 +24,6 @@ export function AiConfidenceBadge({
       className={`inline-flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-[0.08em] ${styles[confidence]}`}
       title={title}
     >
-      {confidence === "VERIFIED" ? (
-        <span aria-hidden className="text-[0.7rem]">
-          ✓
-        </span>
-      ) : null}
       <span>{confidenceLabel(confidence)}</span>
     </span>
   );

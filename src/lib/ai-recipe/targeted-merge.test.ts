@@ -100,3 +100,55 @@ test("mergeTargetedFillIntoEditor merges category suggestions without removing m
   });
   assert.deepEqual(result.categoryIds, ["cat-breads", "cat-oven"]);
 });
+
+test("mergeTargetedFillIntoEditor updates only one ingredient cell", () => {
+  const result = mergeTargetedFillIntoEditor({
+    current: {
+      title: "Baguette",
+      slug: "baguette",
+      excerpt: "",
+      categoryIds: [],
+      values: {
+        ingredients: [
+          {
+            name: "Dough",
+            items: [
+              { item: "warm water", amount: "", notes: "around 30°C / 86°F" },
+              { item: "flour", amount: "500 g", notes: "" },
+            ],
+          },
+        ],
+      },
+    },
+    draft: {
+      excerpt: "",
+      values: {
+        ingredients: [
+          {
+            name: "Dough",
+            items: [
+              { item: "warm water", amount: "290 ml", notes: "" },
+              { item: "flour", amount: "", notes: "" },
+            ],
+          },
+        ],
+      },
+    },
+    requestedPaths: ["values.ingredients.0.items.0.amount"],
+    confidenceByPath: {
+      "values.ingredients.0.items.0.amount": {
+        confidence: "HIGH_CONFIDENCE_INFERENCE",
+        sourceNote: "Targeted AI fill",
+      },
+    },
+    aiMeta: meta(),
+  });
+
+  const groups = result.values.ingredients as {
+    items: { item: string; amount: string; notes?: string }[];
+  }[];
+  assert.equal(groups[0]?.items[0]?.amount, "290 ml");
+  assert.equal(groups[0]?.items[0]?.item, "warm water");
+  assert.equal(groups[0]?.items[0]?.notes, "around 30°C / 86°F");
+  assert.equal(groups[0]?.items[1]?.amount, "500 g");
+});

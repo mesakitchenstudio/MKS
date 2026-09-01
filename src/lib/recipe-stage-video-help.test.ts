@@ -131,3 +131,39 @@ test("selectStageVideoHelp returns empty without chapters", () => {
   assert.deepEqual(selectStageVideoHelp(stages, []), {});
   assert.deepEqual(selectStageVideoHelp(stages, undefined), {});
 });
+
+test("selectStageVideoHelp does not fall back to legacy when canonical chapters are active", () => {
+  const help = selectStageVideoHelp(
+    [
+      {
+        id: "stage-0",
+        name: "Mapped",
+        steps: [{ globalIndex: 0, text: "A" }],
+      },
+      {
+        id: "stage-1",
+        name: "Unmapped",
+        steps: [{ globalIndex: 1, text: "B" }],
+      },
+    ],
+    [{ label: "Legacy chapter", time: 120 }],
+    [
+      {
+        instructionStageId: "stage-1",
+        instructionSectionTitle: "Unmapped",
+        videoStartSeconds: 120,
+        videoTimestampLabel: "2:00",
+        chapterTitle: "Legacy chapter",
+        confidence: "VERIFIED",
+        source: "manual",
+      },
+    ],
+    [
+      { name: "Mapped", steps: ["a"], startTimestamp: 12 },
+      { name: "Unmapped", steps: ["b"] },
+    ],
+  );
+
+  assert.equal(help["stage-0"]?.time, 12);
+  assert.equal(help["stage-1"], undefined);
+});

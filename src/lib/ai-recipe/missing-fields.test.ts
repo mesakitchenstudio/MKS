@@ -56,7 +56,7 @@ test("listMissingAiFillableFields includes empty fillable fields", () => {
   assert.ok(!keys.includes("ingredients"));
   assert.ok(!keys.includes("instructions"));
   assert.ok(!keys.includes("image"));
-  assert.equal(result.counts.verified, 2);
+  assert.ok(result.missing.length >= 3);
 });
 
 test("listMissingAiFillableFields includes UNKNOWN confidence as needs_input", () => {

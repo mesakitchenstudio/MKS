@@ -23,6 +23,7 @@ import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-
 import { resolveRecipeYoutube, resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
 import { recipeInstructionStages } from "@/lib/recipe-instructions";
 import { selectStageVideoHelp } from "@/lib/recipe-stage-video-help";
+import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { fieldValueHasContent, formatPublicExtraFieldValue } from "@/lib/field-content";
 import { publicExtrasForPage, readerExtraLabel } from "@/lib/recipe-timing";
 import { getContinuedViewingRecipeSlug, getRankedRelatedRecipes } from "@/lib/recipe-related";
@@ -124,6 +125,8 @@ export default async function RecipePage({ params }: Props) {
         recipeInstructionStages(recipe),
         youtube.timestamps,
         youtube.stageAlignments,
+        recipe.instructions,
+        parseDurationSecondsFromDisplay(youtube.duration),
       )
     : {};
 
@@ -279,4 +282,9 @@ function ExtraValue({
       {formatPublicExtraFieldValue({ key: keyName, kind, value })}
     </p>
   );
+}
+
+function parseDurationSecondsFromDisplay(duration?: string) {
+  if (!duration?.trim()) return undefined;
+  return parseTimestampInput(duration) ?? undefined;
 }

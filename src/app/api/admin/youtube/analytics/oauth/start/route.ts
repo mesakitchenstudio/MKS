@@ -7,6 +7,7 @@ import {
   createOAuthState,
   hashOAuthState,
   OAUTH_STATE_COOKIE,
+  OAUTH_WRITE_REQUEST_COOKIE,
 } from "@/lib/youtube-analytics/oauth";
 import { analyticsErrorMessage } from "@/lib/youtube-analytics/errors";
 
@@ -27,9 +28,11 @@ export async function GET(request: Request) {
 
   try {
     const state = createOAuthState();
+    const includeWriteScope = new URL(request.url).searchParams.get("write") === "1";
     const authUrl = buildAnalyticsAuthUrl({
       origin: requestOrigin(request),
       state,
+      includeWriteScope,
     });
 
     const jar = await cookies();
@@ -40,6 +43,17 @@ export async function GET(request: Request) {
       path: "/",
       maxAge: 60 * 10,
     });
+    if (includeWriteScope) {
+      jar.set(OAUTH_WRITE_REQUEST_COOKIE, "1", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL),
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 10,
+      });
+    } else {
+      jar.delete(OAUTH_WRITE_REQUEST_COOKIE);
+    }
     return NextResponse.redirect(authUrl);
   } catch (error) {
     const message = analyticsErrorMessage(error);

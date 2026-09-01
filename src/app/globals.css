@@ -60,9 +60,29 @@ body {
     scroll-behavior: auto;
   }
 
-  .mesa-missing-field-pulse {
+  .mesa-missing-field-pulse,
+  .mesa-nav-field-pulse {
     animation: none;
   }
+}
+
+@keyframes mesa-nav-field-pulse {
+  0% {
+    background-color: color-mix(in srgb, var(--terracotta) 0%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--terracotta) 0%, transparent);
+  }
+  35% {
+    background-color: color-mix(in srgb, var(--terracotta) 10%, var(--cream));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--terracotta) 18%, transparent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--terracotta) 0%, transparent);
+  }
+}
+
+.mesa-nav-field-pulse {
+  animation: mesa-nav-field-pulse 1.4s ease-out 1;
 }
 
 ::selection {

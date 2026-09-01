@@ -2,8 +2,14 @@
 
 type YtPlayerStateChangeEvent = { data: number };
 
-type YtPlayer = {
+export type YtPlayer = {
   destroy?: () => void;
+  seekTo?: (seconds: number, allowSeekAhead?: boolean) => void;
+  playVideo?: () => void;
+  pauseVideo?: () => void;
+  getCurrentTime?: () => number;
+  getDuration?: () => number;
+  getPlayerState?: () => number;
 };
 
 type YtNamespace = {

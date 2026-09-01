@@ -149,6 +149,7 @@ export async function generateTargetedRecipeFields(input: {
           raw,
           def: field.def,
           allowedCategoryIds,
+          categories: input.categories,
         });
         if (normalized == null) continue;
         if (field.path === "values.tags" && Array.isArray(normalized)) {

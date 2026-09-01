@@ -16,6 +16,12 @@ import {
   parseYoutubeDescriptionChapters,
 } from "@/lib/youtube-description";
 import { parseStageAlignments } from "@/lib/ai-recipe/stage-alignments";
+import {
+  normalizeInstructionGroups,
+  resolvePublicChapterTimestamps,
+  deriveStageAlignmentsFromCanonical,
+  hasCanonicalInstructionChapters,
+} from "@/lib/instruction-chapters";
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -194,34 +200,62 @@ export function applyDescriptionChaptersToResolvedYoutube(
 
 /** Resolve recipe YouTube metadata, importing description chapters when the DB has none. */
 export async function resolveRecipeYoutubeForDisplay(
-  recipe: Pick<Recipe, "slug" | "title" | "youtubeUrl" | "youtube">,
+  recipe: Pick<Recipe, "slug" | "title" | "youtubeUrl" | "youtube" | "instructions">,
 ): Promise<ResolvedRecipeYoutube | null> {
   const base = resolveRecipeYoutube(recipe);
-  if (!base || (base.timestamps?.length ?? 0) > 0) return base;
+  if (!base) return null;
+
+  const instructions = normalizeInstructionGroups(recipe.instructions);
+  const resolvedTimestamps = resolvePublicChapterTimestamps({
+    instructions,
+    stageAlignments: base.stageAlignments,
+    legacyTimestamps: base.timestamps,
+    videoDurationSeconds: parseDurationSeconds(base.duration),
+  });
+
+  let merged: ResolvedRecipeYoutube = {
+    ...base,
+    timestamps: resolvedTimestamps.length ? resolvedTimestamps : base.timestamps,
+  };
+
+  if (hasCanonicalInstructionChapters(instructions)) {
+    merged = {
+      ...merged,
+      stageAlignments: deriveStageAlignmentsFromCanonical(instructions),
+    };
+  }
+
+  if ((merged.timestamps?.length ?? 0) > 0) return merged;
 
   try {
     const loaded = await loadYoutubeChapterTimestampsForVideo(base.videoId);
     if (!loaded.timestamps.length) {
-      if (loaded.durationSeconds && !base.duration) {
+      if (loaded.durationSeconds && !merged.duration) {
         return {
-          ...base,
+          ...merged,
           duration: formatTimestampInput(loaded.durationSeconds),
         };
       }
-      return base;
+      return merged;
     }
     return {
-      ...base,
+      ...merged,
       duration:
-        base.duration ||
+        merged.duration ||
         (loaded.durationSeconds != null && loaded.durationSeconds > 0
           ? formatTimestampInput(loaded.durationSeconds)
           : undefined),
       timestamps: loaded.timestamps,
     };
   } catch {
-    return base;
+    return merged;
   }
+}
+
+function parseDurationSeconds(duration: string | undefined): number | undefined {
+  if (!duration?.trim()) return undefined;
+  const parsed = parseTimestampInput(duration);
+  return parsed ?? undefined;
 }
 
 export function hasRecipeYoutube(recipe: Pick<Recipe, "youtubeUrl" | "youtube">) {

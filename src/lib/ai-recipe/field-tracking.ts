@@ -3,6 +3,11 @@ import type { AiMergeMode } from "@/lib/ai-recipe/normalize";
 import { isAiFillableFieldKey } from "@/lib/ai-recipe/schema-version";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
 import {
+  buildProvenanceAfterStaffEdit,
+  isFieldLocked,
+  isFieldProtectedFromBulkAi,
+} from "@/lib/ai-recipe/field-state";
+import {
   serializeYoutubeMetadataEditorState,
   youtubeMetadataToEditorState,
   type YoutubeMetadataEditorState,
@@ -12,6 +17,16 @@ export type AiFieldProvenance = {
   aiGenerated: true;
   aiGeneratedValue: unknown;
   humanModifiedAfterGeneration: boolean;
+  reviewState?: import("@/lib/ai-recipe/field-state").FieldReviewState;
+  source?: import("@/lib/ai-recipe/field-state").FieldSource;
+  originalAi?: {
+    value: unknown;
+    source?: import("@/lib/ai-recipe/field-state").FieldSource;
+    confidence?: import("@/lib/ai-recipe/types").AiConfidence;
+    generatedAt?: string;
+  };
+  /** Review state preserved when a field is locked, restored on unlock. */
+  lockedFromReviewState?: import("@/lib/ai-recipe/field-state").FieldReviewState;
 };
 
 export function stableJsonValue(value: unknown): string {
@@ -29,17 +44,24 @@ export function aiValuesEqual(a: unknown, b: unknown): boolean {
 export function markFieldHumanModified(
   meta: RecipeAiMeta | null,
   path: string,
+  nextValue?: unknown,
 ): RecipeAiMeta | null {
   if (!meta?.fieldProvenance?.[path]) return meta;
-  if (meta.fieldProvenance[path].humanModifiedAfterGeneration) return meta;
+  const previous = meta.fieldProvenance[path];
+  if (previous.reviewState === "locked") return meta;
+  if (previous.reviewState === "edited" && previous.humanModifiedAfterGeneration) return meta;
+
+  const snapshot = buildProvenanceAfterStaffEdit({
+    path,
+    nextValue: nextValue ?? previous.aiGeneratedValue,
+    previous,
+  });
+
   return {
     ...meta,
     fieldProvenance: {
       ...meta.fieldProvenance,
-      [path]: {
-        ...meta.fieldProvenance[path],
-        humanModifiedAfterGeneration: true,
-      },
+      [path]: snapshot,
     },
   };
 }
@@ -59,7 +81,7 @@ export function noteHumanEditorChange(
   const nextEmpty = isBlankAiStructuredValue(nextValue);
   if (previousEmpty && nextEmpty) return meta;
 
-  return markFieldHumanModified(meta, path);
+  return markFieldHumanModified(meta, path, nextValue);
 }
 
 /** Empty ingredient/instruction/namedNotes placeholders (including stacks of blank groups). */
@@ -114,13 +136,15 @@ export function canReplaceFieldOnRegenerate(
   path: string,
   meta: RecipeAiMeta | null | undefined,
   isEmpty = false,
+  explicitOverride = false,
 ): boolean {
   if (!meta) return false;
-  if (isRecipeAiVerified(meta)) return false;
+  if (isRecipeAiVerified(meta) && !explicitOverride) return false;
+  if (isFieldLocked(path, meta)) return false;
+  if (isFieldProtectedFromBulkAi(path, meta) && !explicitOverride && !isEmpty) return false;
   const provenance = meta.fieldProvenance?.[path];
-  if (!provenance?.aiGenerated) return false;
-  // Genuine human edits are preserved — blank placeholder "edits" are not.
-  if (provenance.humanModifiedAfterGeneration && !isEmpty) return false;
+  if (!provenance?.aiGenerated) return isEmpty;
+  if (provenance.humanModifiedAfterGeneration && !isEmpty && !explicitOverride) return false;
   return true;
 }
 
@@ -129,11 +153,19 @@ export function shouldApplyDraftField(input: {
   mode: AiMergeMode;
   meta: RecipeAiMeta | null | undefined;
   isEmpty: boolean;
+  explicitOverride?: boolean;
 }): boolean {
-  const { path, mode, meta, isEmpty } = input;
-  if (mode === "fill_empty") return isEmpty;
-  if (mode === "replace_all_ai_fillable") return true;
-  if (mode === "replace_previous_ai") return canReplaceFieldOnRegenerate(path, meta, isEmpty);
+  const { path, mode, meta, isEmpty, explicitOverride = false } = input;
+  if (isFieldLocked(path, meta)) return false;
+  if (mode === "fill_empty") {
+    if (isFieldProtectedFromBulkAi(path, meta)) return false;
+    return isEmpty;
+  }
+  if (mode === "replace_all_ai_fillable") {
+    if (isFieldProtectedFromBulkAi(path, meta) && !explicitOverride) return false;
+    return true;
+  }
+  if (mode === "replace_previous_ai") return canReplaceFieldOnRegenerate(path, meta, isEmpty, explicitOverride);
   return false;
 }
 

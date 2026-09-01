@@ -1,6 +1,12 @@
 import type { RecipeInstructionStage } from "@/lib/recipe-instructions";
 import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtube-types";
 import { isConfidentStageAlignment } from "@/lib/ai-recipe/stage-alignments";
+import {
+  type InstructionGroupWithChapters,
+  hasCanonicalInstructionChapters,
+  normalizeInstructionGroups,
+  resolveInstructionChapter,
+} from "@/lib/instruction-chapters";
 
 export type StageVideoHelp = {
   time: number;
@@ -17,7 +23,23 @@ export function selectStageVideoHelp(
   stages: RecipeInstructionStage[],
   timestamps: RecipeYoutubeTimestamp[] | undefined,
   stageAlignments?: RecipeStageAlignment[] | undefined,
+  instructions?: InstructionGroupWithChapters[] | readonly InstructionGroupWithChapters[],
+  videoDurationSeconds?: number,
 ): Record<string, StageVideoHelp> {
+  const normalizedInstructions = instructions
+    ? normalizeInstructionGroups(instructions).filter((group) =>
+        group.steps.some((step) => step.trim()),
+      )
+    : [];
+
+  if (normalizedInstructions.length && hasCanonicalInstructionChapters(normalizedInstructions)) {
+    return helpFromCanonicalInstructions(
+      stages,
+      normalizedInstructions,
+      videoDurationSeconds,
+    );
+  }
+
   if (stageAlignments?.length) {
     const fromAlignments = helpFromStageAlignments(stages, stageAlignments);
     if (Object.keys(fromAlignments).length) return fromAlignments;
@@ -48,6 +70,34 @@ export function selectStageVideoHelp(
     result[stage.id] = toHelp(best.chapter);
   }
 
+  return result;
+}
+
+function helpFromCanonicalInstructions(
+  stages: RecipeInstructionStage[],
+  groups: InstructionGroupWithChapters[],
+  videoDurationSeconds?: number,
+): Record<string, StageVideoHelp> {
+  const result: Record<string, StageVideoHelp> = {};
+  for (const stage of stages) {
+    const match = stage.id.match(/^stage-(\d+)$/);
+    const groupIndex = match ? Number(match[1]) : -1;
+    const group = groups[groupIndex];
+    if (!group) continue;
+    const resolved = resolveInstructionChapter({
+      group,
+      groupIndex,
+      allGroups: groups,
+      videoDurationSeconds,
+    });
+    if (resolved.startTimestamp == null) continue;
+    result[stage.id] = {
+      time: resolved.startTimestamp,
+      label: resolved.label,
+      chapterLabel: resolved.label,
+      linkLabel: buildLinkLabel(resolved.label, resolved.startTimestamp),
+    };
+  }
   return result;
 }
 

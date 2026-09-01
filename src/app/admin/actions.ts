@@ -29,6 +29,13 @@ import {
 import { hashPassword } from "@/lib/passwords";
 import { removeMemberByEmail } from "@/lib/accounts";
 import { enrichRecipeValuesYoutubeFromDescription } from "@/lib/youtube-description";
+import {
+  enrichRecipeValuesWithDerivedChapters,
+  normalizeInstructionGroups,
+  validateInstructionChapters,
+} from "@/lib/instruction-chapters";
+import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
+import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
@@ -37,6 +44,7 @@ import {
   clearRecipeYoutubeLinkInDb,
 } from "@/lib/youtube-data/video-selector";
 import { createAndPopulateRecipeFromYoutubeVideo } from "@/lib/youtube-data/create-recipe-from-video";
+import { applyServerStaffVerification } from "@/lib/recipe-staff-verify";
 import type { RecipeTypeConfidence } from "@/lib/ai-recipe/classify-recipe-type";
 
 async function requireEditor() {
@@ -417,6 +425,27 @@ export async function saveRecipeAction(formData: FormData) {
     values.cookMinutes = values.bakeMinutes;
   }
 
+  const instructionGroups = normalizeInstructionGroups(values.instructions);
+  const youtubeBlob = parseRecipeYoutubeBlob(values.youtube);
+  const videoDurationSeconds = youtubeBlob?.duration
+    ? parseTimestampInput(String(youtubeBlob.duration)) ?? undefined
+    : undefined;
+  const chapterValidation = validateInstructionChapters({
+    groups: instructionGroups,
+    videoDurationSeconds,
+  });
+  const chapterErrors = chapterValidation.filter((issue) => issue.severity === "error");
+  if (chapterErrors.length) {
+    const message = chapterErrors[0]?.message ?? "Instruction chapter timestamps are invalid.";
+    redirect(
+      id
+        ? `/admin/recipes/${id}?error=chapters&detail=${encodeURIComponent(message)}`
+        : `/admin/recipes/new?type=${typeId}&error=chapters&detail=${encodeURIComponent(message)}`,
+    );
+  }
+
+  Object.assign(values, enrichRecipeValuesWithDerivedChapters(values));
+
   try {
     await enrichRecipeValuesYoutubeFromDescription(values);
   } catch (error) {
@@ -434,6 +463,30 @@ export async function saveRecipeAction(formData: FormData) {
   } catch {
     aiMeta = existing?.aiMeta || "{}";
   }
+
+  const actor = await getAdminSession();
+  const staffIdentity = actor?.email || actor?.name || actor?.id || "unknown";
+  const schemaFields = fields.map(
+    (field): import("@/lib/ai-recipe/schema-version").SchemaField => ({
+      key: field.key,
+      label: field.label,
+      kind: field.kind,
+      required: field.required,
+      helpText: field.helpText,
+      options: JSON.parse(field.options || "[]") as string[],
+    }),
+  );
+  const staffVerifyResult = applyServerStaffVerification({
+    aiMetaRaw: aiMeta,
+    previousAiMetaRaw: existing?.aiMeta,
+    staffIdentity,
+    title,
+    excerpt,
+    categoryIds,
+    values,
+    fields: schemaFields,
+  });
+  aiMeta = staffVerifyResult.aiMeta;
 
   const data = {
     title,

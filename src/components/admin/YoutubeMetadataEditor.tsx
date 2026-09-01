@@ -122,11 +122,14 @@ export function YoutubeMetadataEditor({
   onChange,
   confidenceByPath,
   invalidPaths,
+  canonicalChaptersActive = false,
 }: {
   value: unknown;
   onChange: (state: YoutubeMetadataEditorState) => void;
   confidenceByPath?: Record<string, { confidence: AiConfidence; sourceNote?: string }>;
   invalidPaths?: Set<string>;
+  /** When true, instruction sections own Mesa chapters — legacy rows are read-only reference. */
+  canonicalChaptersActive?: boolean;
 }) {
   const rawPanelId = useId();
   const state = youtubeMetadataToEditorState(value);
@@ -220,13 +223,24 @@ export function YoutubeMetadataEditor({
 
       <section className="rounded-sm border border-line/80 bg-cream/20 p-4">
         <SectionHeading
-          title="Video chapters"
-          description="Optional timestamps for “Watch by step” on the public recipe. Use MM:SS or H:MM:SS."
+          title={canonicalChaptersActive ? "Legacy video chapters" : "Video chapters"}
+          description={
+            canonicalChaptersActive
+              ? "Mesa chapters are edited on instruction sections. These rows are kept for compatibility and reference only."
+              : "Optional timestamps for “Watch by step” on the public recipe. Use MM:SS or H:MM:SS."
+          }
           confidence={confidenceAt(confidenceByPath, "values.youtube.timestamps")?.confidence}
           sourceNote={confidenceAt(confidenceByPath, "values.youtube.timestamps")?.sourceNote}
         />
 
+        {canonicalChaptersActive ? (
+          <p className="mb-3 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
+            Legacy / source reference
+          </p>
+        ) : null}
+
         {(() => {
+          if (canonicalChaptersActive) return null;
           const chapterSourceNote =
             confidenceAt(confidenceByPath, "values.youtube.timestamps")?.sourceNote ?? "";
           const syncedFromYoutube =
@@ -246,9 +260,11 @@ export function YoutubeMetadataEditor({
                 <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-[0.08em] text-muted">
                   <th className="pb-2 pr-3 font-semibold">Time</th>
                   <th className="pb-2 pr-3 font-semibold">Label</th>
-                  <th className="pb-2 font-semibold">
-                    <span className="sr-only">Actions</span>
-                  </th>
+                  {!canonicalChaptersActive ? (
+                    <th className="pb-2 font-semibold">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -261,27 +277,35 @@ export function YoutubeMetadataEditor({
                   return (
                     <tr key={`chapter-${index}`} className="border-b border-line/70 align-top">
                       <td className="py-2 pr-3">
-                        <input
-                          type="text"
-                          value={row.timeInput}
-                          onChange={(event) => patchTimestamp(index, { timeInput: event.target.value })}
-                          placeholder="00:13"
-                          className={`${inputClass}${invalidPaths?.has(timePath) ? " border-terracotta/60" : ""}`}
-                          aria-label={`Chapter ${index + 1} time`}
-                          aria-invalid={invalidPaths?.has(timePath) ?? false}
-                        />
+                        {canonicalChaptersActive ? (
+                          <span className="tabular-nums text-ink">{row.timeInput || "—"}</span>
+                        ) : (
+                          <input
+                            type="text"
+                            value={row.timeInput}
+                            onChange={(event) => patchTimestamp(index, { timeInput: event.target.value })}
+                            placeholder="00:13"
+                            className={`${inputClass}${invalidPaths?.has(timePath) ? " border-terracotta/60" : ""}`}
+                            aria-label={`Chapter ${index + 1} time`}
+                            aria-invalid={invalidPaths?.has(timePath) ?? false}
+                          />
+                        )}
                       </td>
                       <td className="py-2 pr-3">
                         <div className="space-y-1">
-                          <input
-                            type="text"
-                            value={row.label}
-                            onChange={(event) => patchTimestamp(index, { label: event.target.value })}
-                            placeholder="Mixing liquid & yeast"
-                            className={`${inputClass}${invalidPaths?.has(labelPath) ? " border-terracotta/60" : ""}`}
-                            aria-label={`Chapter ${index + 1} label`}
-                            aria-invalid={invalidPaths?.has(labelPath) ?? false}
-                          />
+                          {canonicalChaptersActive ? (
+                            <span className="text-ink">{row.label || "—"}</span>
+                          ) : (
+                            <input
+                              type="text"
+                              value={row.label}
+                              onChange={(event) => patchTimestamp(index, { label: event.target.value })}
+                              placeholder="Mixing liquid & yeast"
+                              className={`${inputClass}${invalidPaths?.has(labelPath) ? " border-terracotta/60" : ""}`}
+                              aria-label={`Chapter ${index + 1} label`}
+                              aria-invalid={invalidPaths?.has(labelPath) ?? false}
+                            />
+                          )}
                           {rowConfidence ? (
                             <AiConfidenceBadge
                               confidence={rowConfidence.confidence}
@@ -290,24 +314,26 @@ export function YoutubeMetadataEditor({
                           ) : null}
                         </div>
                       </td>
-                      <td className="py-2">
-                        <ReorderRowControls
-                          label={`chapter ${index + 1}`}
-                          index={index}
-                          total={state.timestamps.length}
-                          onMoveUp={() =>
-                            patch({ timestamps: moveItem(state.timestamps, index, index - 1) })
-                          }
-                          onMoveDown={() =>
-                            patch({ timestamps: moveItem(state.timestamps, index, index + 1) })
-                          }
-                          onRemove={() =>
-                            patch({
-                              timestamps: state.timestamps.filter((_, rowIndex) => rowIndex !== index),
-                            })
-                          }
-                        />
-                      </td>
+                      {!canonicalChaptersActive ? (
+                        <td className="py-2">
+                          <ReorderRowControls
+                            label={`chapter ${index + 1}`}
+                            index={index}
+                            total={state.timestamps.length}
+                            onMoveUp={() =>
+                              patch({ timestamps: moveItem(state.timestamps, index, index - 1) })
+                            }
+                            onMoveDown={() =>
+                              patch({ timestamps: moveItem(state.timestamps, index, index + 1) })
+                            }
+                            onRemove={() =>
+                              patch({
+                                timestamps: state.timestamps.filter((_, rowIndex) => rowIndex !== index),
+                              })
+                            }
+                          />
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 })}
@@ -318,17 +344,19 @@ export function YoutubeMetadataEditor({
           <p className="text-sm text-muted">No chapters yet.</p>
         )}
 
-        <button
-          type="button"
-          className={`mt-3 ${secondaryBtn} ${adminFocusRing}`}
-          onClick={() =>
-            patch({
-              timestamps: [...state.timestamps, { timeInput: "", label: "" }],
-            })
-          }
-        >
-          + Add chapter
-        </button>
+        {!canonicalChaptersActive ? (
+          <button
+            type="button"
+            className={`mt-3 ${secondaryBtn} ${adminFocusRing}`}
+            onClick={() =>
+              patch({
+                timestamps: [...state.timestamps, { timeInput: "", label: "" }],
+              })
+            }
+          >
+            + Add chapter
+          </button>
+        ) : null}
 
         <div className="mt-4 rounded-sm border border-dashed border-line/80 bg-paper/60 px-3 py-3">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
