@@ -76,6 +76,7 @@ import {
   type FieldAiIntent,
 } from "@/lib/ai-recipe/field-ai-registry";
 import { resolveFieldReviewState, buildProvenanceAfterConfirm, buildProvenanceAfterLock, buildProvenanceAfterUnlock, isFieldLocked } from "@/lib/ai-recipe/field-state";
+import { buildProvenanceAfterChapterSuggestionApply } from "@/lib/ai-recipe/chapter-suggestions/apply";
 import type { AiFieldProvenance } from "@/lib/ai-recipe/field-tracking";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
 import { FieldAiActionButton } from "@/components/admin/FieldAiActionButton";
@@ -1246,6 +1247,29 @@ export function RecipeEditor({
     setAiMeta((meta) => noteHumanEditorChange(meta, path, value));
   }
 
+  function handleApplyChapterSuggestions(input: {
+    groups: import("@/lib/instruction-chapters").InstructionGroupWithChapters[];
+    provenancePaths: Record<
+      string,
+      { source: import("@/lib/ai-recipe/field-state").FieldSource; value: unknown }
+    >;
+  }) {
+    setField("instructions", input.groups);
+    setAiMeta((meta) => {
+      if (!meta) return meta;
+      const fieldProvenance = { ...(meta.fieldProvenance ?? {}) };
+      for (const [path, row] of Object.entries(input.provenancePaths)) {
+        fieldProvenance[path] = buildProvenanceAfterChapterSuggestionApply({
+          path,
+          value: row.value,
+          source: row.source,
+          previous: fieldProvenance[path],
+        });
+      }
+      return { ...meta, fieldProvenance };
+    });
+  }
+
   function handleNavigateChapterIssue(groupIndex: number) {
     setInstructionExpandedGroups((current) => ({ ...current, [groupIndex]: true }));
     void scrollToEditorPath(`values.instructions.${groupIndex}.startTimestamp`, {
@@ -2009,6 +2033,11 @@ export function RecipeEditor({
             chapterValidationIssues={instructionChapterContext.chapterValidationIssues}
             onChapterFieldChange={handleInstructionChapterFieldChange}
             onNavigateChapterIssue={handleNavigateChapterIssue}
+            typeId={typeId}
+            youtubeUrl={String(values.youtubeUrl ?? "")}
+            title={title}
+            aiMeta={aiMeta}
+            onApplyChapterSuggestions={handleApplyChapterSuggestions}
           />
         ) : (
           <KindInput

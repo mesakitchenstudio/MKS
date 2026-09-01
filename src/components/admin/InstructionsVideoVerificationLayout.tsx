@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ChapterTimestampSuggestionsPanel } from "@/components/admin/ChapterTimestampSuggestionsPanel";
 import { InstructionVideoWorkspace } from "@/components/admin/InstructionVideoWorkspace";
 import {
   InstructionVideoWorkspaceProvider,
@@ -24,6 +25,8 @@ import {
 import { recipeLinkedVideoId } from "@/lib/youtube-data/recipe-link";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
+import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
+import type { FieldSource } from "@/lib/ai-recipe/field-state";
 import { adminFocusRing } from "@/lib/admin-ui";
 
 type Props = {
@@ -63,6 +66,14 @@ type Props = {
     value: string | number | undefined,
   ) => void;
   onNavigateChapterIssue?: (groupIndex: number) => void;
+  typeId: string;
+  youtubeUrl?: string;
+  title: string;
+  aiMeta?: RecipeAiMeta | null;
+  onApplyChapterSuggestions?: (input: {
+    groups: InstructionGroupWithChapters[];
+    provenancePaths: Record<string, { source: FieldSource; value: unknown }>;
+  }) => void;
 };
 
 function VideoPanelRestoreButton() {
@@ -219,6 +230,11 @@ export function InstructionsVideoVerificationLayout({
   chapterValidationIssues = [],
   onChapterFieldChange,
   onNavigateChapterIssue,
+  typeId,
+  youtubeUrl,
+  title,
+  aiMeta,
+  onApplyChapterSuggestions,
 }: Props) {
   const groups = useMemo(
     () => normalizeInstructionGroups(values.instructions),
@@ -348,6 +364,19 @@ export function InstructionsVideoVerificationLayout({
         >
           {warningCount} chapter timing warning{warningCount === 1 ? "" : "s"}
         </button>
+      ) : null}
+
+      {onApplyChapterSuggestions ? (
+        <ChapterTimestampSuggestionsPanel
+          groups={groups}
+          typeId={typeId}
+          youtubeUrl={youtubeUrl}
+          title={title}
+          values={values}
+          aiMeta={aiMeta}
+          videoDurationSeconds={videoDurationSeconds}
+          onApplySuggestions={onApplyChapterSuggestions}
+        />
       ) : null}
 
       <InstructionsVideoVerificationBody

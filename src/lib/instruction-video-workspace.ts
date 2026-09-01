@@ -90,14 +90,7 @@ export function findCanonicalSectionAtPlayhead(input: {
   return null;
 }
 
-export type ChapterTimestampSuggestion = {
-  instructionIndex: number;
-  chapterLabel?: string;
-  startTimestamp?: number;
-  endTimestamp?: number;
-  confidence?: number;
-  evidence?: string;
-};
+export type ChapterTimestampSuggestion = import("@/lib/ai-recipe/chapter-suggestions/types").ChapterTimestampSuggestionItem;
 
 export function validateEndTimestampFromPlayhead(input: {
   startTimestamp?: number;
