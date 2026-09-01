@@ -4,11 +4,10 @@ import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = readFileSync(path.join(root, "prisma", "schema.prisma"), "utf8");
+const sqliteDatasource =
+  /datasource db \{\r?\n  provider = "sqlite"\r?\n  url\s+= env\("DATABASE_URL"\)\r?\n\}/;
 const production = source.replace(
-  `datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}`,
+  sqliteDatasource,
   `datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
