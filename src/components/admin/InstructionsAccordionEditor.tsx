@@ -25,6 +25,10 @@ import {
   type InstructionChapterValidationIssue,
   type InstructionGroupWithChapters,
 } from "@/lib/instruction-chapters";
+import {
+  END_BEFORE_START_MESSAGE,
+  validateExplicitEndTimestamp,
+} from "@/lib/instruction-video-workspace";
 import { recipeGranularAnchorId } from "@/lib/recipe-editor-field-anchor";
 import { adminFocusRing, adminInputClass } from "@/lib/admin-ui";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
@@ -199,7 +203,7 @@ export function InstructionsAccordionEditor({
   onSetEndFromPlayhead,
   onClearStartTimestamp,
   onClearEndTimestamp,
-  endPlayheadFeedback = null,
+  endPlayheadFeedbackByGroup = {},
 }: {
   groups: InstructionGroupWithChapters[];
   onChange: (value: unknown) => void;
@@ -238,7 +242,7 @@ export function InstructionsAccordionEditor({
   onSetEndFromPlayhead?: (groupIndex: number, seconds: number) => void;
   onClearStartTimestamp?: (groupIndex: number) => void;
   onClearEndTimestamp?: (groupIndex: number) => void;
-  endPlayheadFeedback?: string | null;
+  endPlayheadFeedbackByGroup?: Record<number, string>;
 }) {
   const videoWorkspace = useInstructionVideoWorkspaceOptional();
 
@@ -326,6 +330,18 @@ export function InstructionsAccordionEditor({
       setEndInputErrors((current) => ({
         ...current,
         [groupIndex]: "Enter a valid time (MM:SS or H:MM:SS).",
+      }));
+      return;
+    }
+    const group = groups[groupIndex];
+    const rangeCheck = validateExplicitEndTimestamp({
+      startTimestamp: group?.startTimestamp,
+      endTimestamp: parsed,
+    });
+    if (!rangeCheck.ok) {
+      setEndInputErrors((current) => ({
+        ...current,
+        [groupIndex]: END_BEFORE_START_MESSAGE,
       }));
       return;
     }
@@ -672,9 +688,9 @@ export function InstructionsAccordionEditor({
                           Set explicit end from playhead
                         </button>
                       ) : null}
-                      {endPlayheadFeedback ? (
+                      {endPlayheadFeedbackByGroup[groupIndex] ? (
                         <span className="text-xs font-semibold text-terracotta" role="alert">
-                          {endPlayheadFeedback}
+                          {endPlayheadFeedbackByGroup[groupIndex]}
                         </span>
                       ) : null}
                       {hasExplicitEnd && onClearEndTimestamp ? (

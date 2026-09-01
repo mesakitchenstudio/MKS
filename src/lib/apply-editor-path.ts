@@ -56,3 +56,20 @@ export function readValueAtEditorPath(values: Record<string, unknown>, path: str
   }
   return cursor;
 }
+
+/** Resolve the current editor value for a field path (top-level or nested under values). */
+export function readCurrentEditorFieldValue(input: {
+  path: string;
+  title?: string;
+  excerpt?: string;
+  categoryIds?: string[];
+  values: Record<string, unknown>;
+}): unknown {
+  if (input.path === "title") return input.title ?? "";
+  if (input.path === "excerpt") return input.excerpt ?? "";
+  if (input.path === "categoryIds") return input.categoryIds ?? [];
+  if (input.path.startsWith("values.")) {
+    return readValueAtEditorPath(input.values, input.path);
+  }
+  return undefined;
+}

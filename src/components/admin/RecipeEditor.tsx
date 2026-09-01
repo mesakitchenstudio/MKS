@@ -68,6 +68,7 @@ import {
   mergeAiDraftIntoEditor,
 } from "@/lib/ai-recipe/normalize";
 import { mergeTargetedFillIntoEditor, extractTargetedFieldValue } from "@/lib/ai-recipe/targeted-merge";
+import { readCurrentEditorFieldValue } from "@/lib/apply-editor-path";
 import {
   fieldPathHasContent,
   getRecipeFieldAiDef,
@@ -1279,11 +1280,7 @@ export function RecipeEditor({
   }
 
   function provenanceValueForPath(path: string): unknown {
-    if (path === "title") return title;
-    if (path === "excerpt") return excerpt;
-    if (path === "categoryIds") return categoryIds;
-    const key = path.startsWith("values.") ? path.slice("values.".length).split(".")[0] : path;
-    return key ? values[key] : undefined;
+    return readCurrentEditorFieldValue({ path, title, excerpt, categoryIds, values });
   }
 
   function patchFieldProvenance(path: string, builder: (previous?: AiFieldProvenance) => AiFieldProvenance) {
@@ -1478,11 +1475,8 @@ export function RecipeEditor({
     setAiMeta(payload.aiMeta);
   }
 
-  function currentFieldValue(path: string, key: string): unknown {
-    if (path === "title") return title;
-    if (path === "excerpt") return excerpt;
-    if (path === "categoryIds") return categoryIds;
-    return values[key];
+  function currentFieldValue(path: string, _key: string): unknown {
+    return readCurrentEditorFieldValue({ path, title, excerpt, categoryIds, values });
   }
 
   function fieldLabelForPath(path: string, key: string): string {

@@ -22,6 +22,7 @@ import {
 import {
   roundPlayheadToSeconds,
   validateEndTimestampFromPlayhead,
+  patchEndPlayheadFeedbackByGroup,
 } from "@/lib/instruction-video-workspace";
 import { recipeLinkedVideoId } from "@/lib/youtube-data/recipe-link";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
@@ -122,7 +123,7 @@ function InstructionsVideoVerificationBody({
   handleClearEnd,
   handleSetStartFromPlayhead,
   handleSetEndFromPlayhead,
-  endPlayheadFeedback,
+  endPlayheadFeedbackByGroup,
 }: {
   groups: InstructionGroupWithChapters[];
   onInstructionsChange: (next: InstructionGroupWithChapters[]) => void;
@@ -150,7 +151,7 @@ function InstructionsVideoVerificationBody({
   handleClearEnd: (groupIndex: number) => void;
   handleSetStartFromPlayhead: (groupIndex: number, seconds: number) => void;
   handleSetEndFromPlayhead: (groupIndex: number, seconds: number) => void;
-  endPlayheadFeedback: string | null;
+  endPlayheadFeedbackByGroup: Record<number, string>;
 }) {
   const { videoPanelVisible } = useInstructionVideoWorkspace();
 
@@ -185,7 +186,7 @@ function InstructionsVideoVerificationBody({
           onClearEndTimestamp={handleClearEnd}
           onSetStartFromPlayhead={handleSetStartFromPlayhead}
           onSetEndFromPlayhead={handleSetEndFromPlayhead}
-          endPlayheadFeedback={endPlayheadFeedback}
+          endPlayheadFeedbackByGroup={endPlayheadFeedbackByGroup}
         />
       </div>
       <div
@@ -200,7 +201,7 @@ function InstructionsVideoVerificationBody({
           instructionGroups={groups}
           onSetStartFromPlayhead={handleSetStartFromPlayhead}
           onSetEndFromPlayhead={handleSetEndFromPlayhead}
-          endPlayheadFeedback={endPlayheadFeedback}
+          endPlayheadFeedbackByGroup={endPlayheadFeedbackByGroup}
         />
       </div>
     </div>
@@ -247,7 +248,15 @@ export function InstructionsVideoVerificationLayout({
   );
   const linkedVideoId = useMemo(() => recipeLinkedVideoId(values), [values]);
   const [linkedVideo, setLinkedVideo] = useState<LinkedVideoPreview | null>(null);
-  const [endPlayheadFeedback, setEndPlayheadFeedback] = useState<string | null>(null);
+  const [endPlayheadFeedbackByGroup, setEndPlayheadFeedbackByGroup] = useState<
+    Record<number, string>
+  >({});
+
+  function setEndPlayheadFeedbackForGroup(groupIndex: number, message: string | null) {
+    setEndPlayheadFeedbackByGroup((current) =>
+      patchEndPlayheadFeedbackByGroup(current, groupIndex, message),
+    );
+  }
 
   useEffect(() => {
     if (!linkedVideoId) {
@@ -312,7 +321,7 @@ export function InstructionsVideoVerificationLayout({
   }
 
   function handleSetStartFromPlayhead(groupIndex: number, seconds: number) {
-    setEndPlayheadFeedback(null);
+    setEndPlayheadFeedbackForGroup(groupIndex, null);
     patchChapterField(groupIndex, "startTimestamp", seconds);
   }
 
@@ -331,10 +340,10 @@ export function InstructionsVideoVerificationLayout({
       endSeconds: rounded,
     });
     if (!validation.ok) {
-      setEndPlayheadFeedback(validation.message);
+      setEndPlayheadFeedbackForGroup(groupIndex, validation.message);
       return;
     }
-    setEndPlayheadFeedback(null);
+    setEndPlayheadFeedbackForGroup(groupIndex, null);
     patchChapterField(groupIndex, "endTimestamp", rounded);
   }
 
@@ -343,6 +352,7 @@ export function InstructionsVideoVerificationLayout({
   }
 
   function handleClearEnd(groupIndex: number) {
+    setEndPlayheadFeedbackForGroup(groupIndex, null);
     patchChapterField(groupIndex, "endTimestamp", undefined);
   }
 
@@ -420,7 +430,7 @@ export function InstructionsVideoVerificationLayout({
         handleClearEnd={handleClearEnd}
         handleSetStartFromPlayhead={handleSetStartFromPlayhead}
         handleSetEndFromPlayhead={handleSetEndFromPlayhead}
-        endPlayheadFeedback={endPlayheadFeedback}
+        endPlayheadFeedbackByGroup={endPlayheadFeedbackByGroup}
       />
     </InstructionVideoWorkspaceProvider>
   );

@@ -183,6 +183,27 @@ test("validation flags end before start", () => {
   assert.equal(issues.some((issue) => issue.code === "end_before_start"), true);
 });
 
+test("validation warns on duplicate chapter starts at 00:00", () => {
+  const issues = validateInstructionChapters({
+    groups: [
+      { name: "Initial Mix", steps: ["a"], startTimestamp: 0 },
+      { name: "Activate Yeast", steps: ["b"], startTimestamp: 0 },
+    ],
+  });
+  assert.equal(issues.some((issue) => issue.code === "duplicate_start"), true);
+  assert.equal(
+    issues.some((issue) => issue.message.includes("00:00")),
+    true,
+  );
+});
+
+test("validation does not flag end_before_start when end is omitted", () => {
+  const issues = validateInstructionChapters({
+    groups: [{ name: "Section", steps: ["a"], startTimestamp: 60 }],
+  });
+  assert.equal(issues.some((issue) => issue.code === "end_before_start"), false);
+});
+
 test("validation flags non-monotonic section starts", () => {
   const issues = validateInstructionChapters({
     groups: [

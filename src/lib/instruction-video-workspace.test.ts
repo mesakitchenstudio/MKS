@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   findCanonicalSectionAtPlayhead,
+  patchEndPlayheadFeedbackByGroup,
   roundPlayheadToSeconds,
   validateEndTimestampFromPlayhead,
+  validateExplicitEndTimestamp,
 } from "@/lib/instruction-video-workspace";
 
 test("roundPlayheadToSeconds uses nearest whole second", () => {
@@ -94,4 +96,50 @@ test("findCanonicalSectionAtPlayhead uses explicit end when provided", () => {
     findCanonicalSectionAtPlayhead({ groups, playheadSeconds: 55 }),
     null,
   );
+});
+
+test("validateExplicitEndTimestamp treats undefined end as valid", () => {
+  assert.deepEqual(validateExplicitEndTimestamp({ startTimestamp: 0, endTimestamp: undefined }), {
+    ok: true,
+  });
+  assert.deepEqual(validateExplicitEndTimestamp({ startTimestamp: 60, endTimestamp: undefined }), {
+    ok: true,
+  });
+});
+
+test("validateExplicitEndTimestamp rejects end at or before start", () => {
+  assert.equal(
+    validateExplicitEndTimestamp({ startTimestamp: 60, endTimestamp: 50 }).ok,
+    false,
+  );
+  assert.equal(
+    validateExplicitEndTimestamp({ startTimestamp: 60, endTimestamp: 60 }).ok,
+    false,
+  );
+  assert.deepEqual(validateExplicitEndTimestamp({ startTimestamp: 60, endTimestamp: 70 }), {
+    ok: true,
+  });
+});
+
+test("validateEndTimestampFromPlayhead rejects playhead end at or before start", () => {
+  const rejected = validateEndTimestampFromPlayhead({ startTimestamp: 60, endSeconds: 50 });
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) {
+    assert.match(rejected.message, /later than/i);
+  }
+});
+
+test("patchEndPlayheadFeedbackByGroup keeps errors section-scoped", () => {
+  let state: Record<number, string> = {};
+  state = patchEndPlayheadFeedbackByGroup(state, 0, "End must be later than this section's start timestamp.");
+  assert.equal(state[0], "End must be later than this section's start timestamp.");
+  assert.equal(state[1], undefined);
+
+  state = patchEndPlayheadFeedbackByGroup(state, 1, "End must be later than this section's start timestamp.");
+  assert.equal(state[0], "End must be later than this section's start timestamp.");
+  assert.equal(state[1], "End must be later than this section's start timestamp.");
+
+  state = patchEndPlayheadFeedbackByGroup(state, 0, null);
+  assert.equal(state[0], undefined);
+  assert.equal(state[1], "End must be later than this section's start timestamp.");
 });

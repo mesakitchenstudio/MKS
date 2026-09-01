@@ -26,12 +26,12 @@ export function InstructionVideoWorkspace({
   instructionGroups,
   onSetStartFromPlayhead,
   onSetEndFromPlayhead,
-  endPlayheadFeedback = null,
+  endPlayheadFeedbackByGroup = {},
 }: {
   instructionGroups: InstructionGroupWithChapters[];
   onSetStartFromPlayhead?: (groupIndex: number, seconds: number) => void;
   onSetEndFromPlayhead?: (groupIndex: number, seconds: number) => void;
-  endPlayheadFeedback?: string | null;
+  endPlayheadFeedbackByGroup?: Record<number, string>;
 }) {
   const workspace = useInstructionVideoWorkspace();
   const {
@@ -213,9 +213,9 @@ export function InstructionVideoWorkspace({
                         Set end from {formatTimestampInput(playheadRounded)}
                       </button>
                     ) : null}
-                    {endPlayheadFeedback ? (
+                    {endPlayheadFeedbackByGroup[activeSectionIndex] ? (
                       <p className="text-xs font-semibold text-terracotta" role="alert">
-                        {endPlayheadFeedback}
+                        {endPlayheadFeedbackByGroup[activeSectionIndex]}
                       </p>
                     ) : null}
                   </div>

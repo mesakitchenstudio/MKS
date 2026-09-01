@@ -109,3 +109,36 @@ export function validateEndTimestampFromPlayhead(input: {
   }
   return { ok: true };
 }
+
+const END_BEFORE_START_MESSAGE = "End must be later than this section's start timestamp.";
+
+/** Validate an explicitly entered end timestamp (blank/undefined is valid). */
+export function validateExplicitEndTimestamp(input: {
+  startTimestamp?: number;
+  endTimestamp?: number;
+}): { ok: true } | { ok: false; message: string } {
+  if (input.endTimestamp == null) {
+    return { ok: true };
+  }
+  return validateEndTimestampFromPlayhead({
+    startTimestamp: input.startTimestamp,
+    endSeconds: input.endTimestamp,
+  });
+}
+
+export { END_BEFORE_START_MESSAGE };
+
+/** Section-scoped playhead action feedback (keyed by instruction group index). */
+export function patchEndPlayheadFeedbackByGroup(
+  current: Record<number, string>,
+  groupIndex: number,
+  message: string | null,
+): Record<number, string> {
+  const next = { ...current };
+  if (message) {
+    next[groupIndex] = message;
+  } else {
+    delete next[groupIndex];
+  }
+  return next;
+}
