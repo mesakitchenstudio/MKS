@@ -22,8 +22,10 @@ export const EMAIL_CONSENT_LABEL = "Email me about new recipes and Mesa updates"
 
 export const EMAIL_CONSENT_HELPER = "Optional. You can change this later.";
 
-export const PRIVACY_ACKNOWLEDGMENT =
-  "By creating an account, you acknowledge our Privacy Policy.";
+export const PRIVACY_ACKNOWLEDGMENT_PREFIX =
+  "By creating an account, you acknowledge our ";
+
+export const PRIVACY_POLICY_LINK_LABEL = "Privacy Policy";
 
 export function isValidSignupEmail(value: string): boolean {
   const trimmed = value.trim();
