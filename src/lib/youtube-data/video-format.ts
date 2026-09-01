@@ -108,7 +108,10 @@ export type YoutubeDashboardVideoFilter =
   | "long"
   | "shorts"
   | "needs"
-  | "linked";
+  | "linked"
+  | "opportunities"
+  | "missing-chapters"
+  | "metadata";
 
 export function parseYoutubeDashboardFilter(value: unknown): YoutubeDashboardVideoFilter {
   const raw = String(value ?? "")
@@ -118,6 +121,9 @@ export function parseYoutubeDashboardFilter(value: unknown): YoutubeDashboardVid
   if (raw === "shorts" || raw === "short") return "shorts";
   if (raw === "needs" || raw === "needs-recipe") return "needs";
   if (raw === "linked" || raw === "linked-to-recipe") return "linked";
+  if (raw === "opportunities" || raw === "opportunity") return "opportunities";
+  if (raw === "missing-chapters" || raw === "chapters") return "missing-chapters";
+  if (raw === "metadata" || raw === "metadata-issues") return "metadata";
   return "all";
 }
 
@@ -135,5 +141,11 @@ export function youtubeDashboardFilterQueryValue(
       return "needs-recipe";
     case "linked":
       return "linked";
+    case "opportunities":
+      return "opportunities";
+    case "missing-chapters":
+      return "missing-chapters";
+    case "metadata":
+      return "metadata";
   }
 }

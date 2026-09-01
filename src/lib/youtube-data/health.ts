@@ -1,5 +1,10 @@
 import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
-import type { YouTubeContentHealthIssue, YouTubeVideoRowStatus } from "@/lib/youtube-data/types";
+import type {
+  YouTubeContentHealthIssue,
+  YouTubeVideoRowStatus,
+  VideoContentHealthStatus,
+  VideoRelationshipStatus,
+} from "@/lib/youtube-data/types";
 import {
   buildRecipeVideoIndex,
   recipeHasSavedChapters,
@@ -9,17 +14,63 @@ import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
 import { parseRecipeAiMeta } from "@/lib/ai-recipe/types";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
+import { classifyYouTubeVideoFormat } from "@/lib/youtube-data/video-format";
+import type { YouTubeVideoFormat } from "@/lib/youtube-data/video-format";
 
+export function videoRelationshipStatus(input: {
+  linkedRecipeId?: string;
+  possibleMatchRecipeId?: string;
+}): VideoRelationshipStatus {
+  if (input.linkedRecipeId) return "Linked";
+  if (input.possibleMatchRecipeId) return "Possible match";
+  return "Unlinked";
+}
+
+export function videoContentHealthStatus(input: {
+  privacyStatus: string;
+  embeddable: boolean;
+  linkedRecipeId?: string;
+  hasDescriptionChapters: boolean;
+  hasRecipeChapters: boolean;
+  format: YouTubeVideoFormat;
+  hasMetadataIssue?: boolean;
+}): VideoContentHealthStatus {
+  if (input.privacyStatus && input.privacyStatus !== "public") return "Unavailable";
+  if (!input.embeddable) return "Not embeddable";
+  if (input.hasMetadataIssue) return "Metadata issue";
+  if (input.format === "SHORT") return "—";
+  if (
+    input.format === "LONG" &&
+    input.linkedRecipeId &&
+    !input.hasDescriptionChapters &&
+    !input.hasRecipeChapters
+  ) {
+    return "Missing chapters";
+  }
+  if (
+    input.format === "LONG" &&
+    !input.linkedRecipeId &&
+    !input.hasDescriptionChapters &&
+    !input.hasRecipeChapters
+  ) {
+    return "—";
+  }
+  return "Chapters OK";
+}
+
+/** @deprecated Prefer videoRelationshipStatus + videoContentHealthStatus in dashboard UI. */
 export function videoRowStatus(input: {
   privacyStatus: string;
   embeddable: boolean;
   linkedRecipeId?: string;
   hasDescriptionChapters: boolean;
   hasRecipeChapters: boolean;
+  format?: YouTubeVideoFormat;
 }): YouTubeVideoRowStatus {
   if (input.privacyStatus && input.privacyStatus !== "public") return "Unavailable";
   if (!input.embeddable) return "Not embeddable";
   if (!input.linkedRecipeId) return "No recipe";
+  if (input.format === "SHORT") return "Healthy";
   if (!input.hasDescriptionChapters && !input.hasRecipeChapters) return "Missing chapters";
   return "Healthy";
 }
@@ -123,12 +174,26 @@ export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthI
     const hasRecipeChapters = recipe ? recipeHasSavedChapters(recipe) : false;
 
     if (!descriptionChapters.length && !hasRecipeChapters) {
-      issues.push({
-        id: `video-no-chapters-${video.videoId}`,
-        label: `“${video.title}” has no usable chapters`,
-        href: `/admin/youtube/videos/${video.videoId}`,
-        kind: "video",
+      const format = classifyYouTubeVideoFormat({
+        title: video.title,
+        description: video.description,
+        tags: (() => {
+          try {
+            return JSON.parse(video.tags || "[]") as string[];
+          } catch {
+            return [];
+          }
+        })(),
+        durationSeconds: video.durationSeconds,
       });
+      if (format === "LONG") {
+        issues.push({
+          id: `video-no-chapters-${video.videoId}`,
+          label: `“${video.title}” has no usable chapters`,
+          href: `/admin/youtube/videos/${video.videoId}`,
+          kind: "video",
+        });
+      }
     }
 
     if (recipe && titlesDifferSignificantly(video.title, recipe.title)) {

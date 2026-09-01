@@ -31,11 +31,11 @@ export function canAccess(role: string, area: AdminArea) {
   if (role === "owner") return true;
   if (area === "content") return role === "editor";
   if (area === "members") return role === "members";
-  if (area === "youtube") return role === "editor" || role === "members";
+  if (area === "youtube") return role === "editor";
   return false;
 }
 
-/** Manual YouTube sync is owner-only; reports are visible to editors and Audience. */
+/** YouTube admin dashboard: owner + editor only; Audience has no access. */
 export function canManageYoutubeSync(role: string) {
   return role === "owner";
 }

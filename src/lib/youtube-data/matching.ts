@@ -93,18 +93,46 @@ export function normalizeTitleForCompare(value: string) {
     .trim();
 }
 
-export function titlesDifferSignificantly(a: string, b: string): boolean {
+export function titleTokenOverlapRatio(a: string, b: string): number {
   const left = normalizeTitleForCompare(a);
   const right = normalizeTitleForCompare(b);
-  if (!left || !right) return false;
-  if (left === right) return false;
-  if (left.includes(right) || right.includes(left)) return false;
-  const leftWords = new Set(left.split(" "));
-  const rightWords = new Set(right.split(" "));
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  if (left.includes(right) || right.includes(left)) return 1;
+  const leftWords = new Set(left.split(" ").filter(Boolean));
+  const rightWords = new Set(right.split(" ").filter(Boolean));
+  if (!leftWords.size || !rightWords.size) return 0;
   let overlap = 0;
   for (const word of leftWords) {
     if (rightWords.has(word)) overlap += 1;
   }
-  const ratio = overlap / Math.max(leftWords.size, rightWords.size);
-  return ratio < 0.45;
+  return overlap / Math.max(leftWords.size, rightWords.size);
+}
+
+export function titlesDifferSignificantly(a: string, b: string): boolean {
+  return titleTokenOverlapRatio(a, b) < 0.45;
+}
+
+/**
+ * Conservative possible-match suggestion for unlinked videos.
+ * Candidates must be published recipes without an existing video link.
+ * Never auto-links — suggestion only.
+ */
+export function suggestRecipeMatchForVideo(
+  videoTitle: string,
+  candidates: Pick<RecipeVideoRow, "id" | "slug" | "title">[],
+): Pick<RecipeVideoRow, "id" | "slug" | "title"> | null {
+  let best: Pick<RecipeVideoRow, "id" | "slug" | "title"> | null = null;
+  let bestRatio = 0;
+
+  for (const candidate of candidates) {
+    const ratio = titleTokenOverlapRatio(videoTitle, candidate.title);
+    if (ratio < 0.45) continue;
+    if (ratio > bestRatio || (ratio === bestRatio && candidate.title.length < (best?.title.length ?? Infinity))) {
+      best = candidate;
+      bestRatio = ratio;
+    }
+  }
+
+  return best;
 }

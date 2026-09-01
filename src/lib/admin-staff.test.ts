@@ -200,7 +200,7 @@ test("Members route restrictions", () => {
   assert.equal(canAccess("members", "members"), true);
   assert.equal(canAccess("members", "content"), false);
   assert.equal(canAccess("members", "staff"), false);
-  assert.equal(canAccess("members", "youtube"), true);
+  assert.equal(canAccess("members", "youtube"), false);
   assert.equal(homeForRole("members"), "/admin/members");
 });
 
@@ -235,7 +235,7 @@ test("buildAdminNavSections hides unauthorized areas", async () => {
   const audience = buildAdminNavSections("members");
   assert.deepEqual(
     audience.flatMap((section) => section.items.map((item) => item.href)),
-    ["/admin/members", "/admin/visitors", "/admin/youtube"],
+    ["/admin/members", "/admin/visitors"],
   );
   assert.equal(
     audience.some((section) => section.items.some((item) => item.href === "/admin/series")),

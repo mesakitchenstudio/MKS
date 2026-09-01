@@ -226,13 +226,20 @@ export async function getChannelTrendDeltas(channelId: string, days = 7) {
     orderBy: { recordedAt: "asc" },
   });
   if (snapshots.length < 2) {
-    return { views: null as string | null, subscribers: null as string | null };
+    return {
+      views: null as string | null,
+      subscribers: null as string | null,
+      fromRecordedAt: null as Date | null,
+      toRecordedAt: null as Date | null,
+    };
   }
   const first = snapshots[0];
   const last = snapshots[snapshots.length - 1];
   return {
     views: counterDelta(last.viewCount, first.viewCount),
     subscribers: counterDelta(last.subscriberCount, first.subscriberCount),
+    fromRecordedAt: first.recordedAt,
+    toRecordedAt: last.recordedAt,
   };
 }
 

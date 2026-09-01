@@ -50,6 +50,16 @@ export type YouTubeVideoRowStatus =
   | "Not embeddable"
   | "Missing chapters";
 
+export type VideoRelationshipStatus = "Linked" | "Possible match" | "Unlinked";
+
+export type VideoContentHealthStatus =
+  | "Chapters OK"
+  | "Missing chapters"
+  | "Metadata issue"
+  | "Unavailable"
+  | "Not embeddable"
+  | "—";
+
 export type YouTubeContentHealthIssue = {
   id: string;
   label: string;

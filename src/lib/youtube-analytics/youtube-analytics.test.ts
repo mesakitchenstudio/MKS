@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { canManageYoutubeAnalytics, canManageYoutubeSync } from "@/lib/admin-access";
+import { canManageYoutubeAnalytics, canManageYoutubeSync, canAccess } from "@/lib/admin-access";
 import { sealSecret, openSecret } from "@/lib/youtube-analytics/crypto";
 import {
   aggregateDayMetrics,
@@ -37,6 +37,21 @@ describe("youtube-analytics", () => {
     assert.equal(canManageYoutubeAnalytics("editor"), false);
     assert.equal(canManageYoutubeAnalytics("members"), false);
     assert.equal(canManageYoutubeSync("owner"), canManageYoutubeAnalytics("owner"));
+  });
+
+  it("Audience role cannot access YouTube admin dashboard", () => {
+    assert.equal(canAccess("members", "youtube"), false);
+    assert.equal(canManageYoutubeSync("members"), false);
+    assert.equal(canManageYoutubeAnalytics("members"), false);
+  });
+
+  it("editors can link/create via content access but cannot refresh or OAuth", () => {
+    assert.equal(canAccess("editor", "content"), true);
+    assert.equal(canAccess("owner", "content"), true);
+    assert.equal(canManageYoutubeSync("editor"), false);
+    assert.equal(canManageYoutubeAnalytics("editor"), false);
+    assert.equal(canManageYoutubeSync("owner"), true);
+    assert.equal(canManageYoutubeAnalytics("owner"), true);
   });
 
   it("parses analytics date ranges with default 28", () => {

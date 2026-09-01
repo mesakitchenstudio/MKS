@@ -27,7 +27,7 @@ test("linking a recipe moves No recipe videos to Healthy when chapters exist", (
   );
 });
 
-test("linked recipes without chapters stay Missing chapters", () => {
+test("linked recipes without chapters stay Missing chapters for long-form", () => {
   assert.equal(
     videoRowStatus({
       privacyStatus: "public",
@@ -35,7 +35,22 @@ test("linked recipes without chapters stay Missing chapters", () => {
       linkedRecipeId: "recipe-1",
       hasDescriptionChapters: false,
       hasRecipeChapters: false,
+      format: "LONG",
     }),
     "Missing chapters",
+  );
+});
+
+test("linked Shorts skip missing chapters health status", () => {
+  assert.equal(
+    videoRowStatus({
+      privacyStatus: "public",
+      embeddable: true,
+      linkedRecipeId: "recipe-1",
+      hasDescriptionChapters: false,
+      hasRecipeChapters: false,
+      format: "SHORT",
+    }),
+    "Healthy",
   );
 });

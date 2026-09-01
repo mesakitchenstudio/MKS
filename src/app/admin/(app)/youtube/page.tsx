@@ -9,7 +9,6 @@ import {
   YOUTUBE_ANALYTICS_FLASH_PARAMS,
 } from "@/lib/admin-transient-feedback";
 import { adminFocusRing } from "@/lib/admin-ui";
-import { summarizeYoutubeContentHealth } from "@/lib/youtube-data/health";
 import { loadYoutubeAdminDashboard } from "@/lib/youtube-data/dashboard";
 import {
   parseYoutubeDashboardFilter,
@@ -45,9 +44,8 @@ export default async function AdminYoutubePage({
   const filter = parseYoutubeDashboardFilter(params.filter);
   const filterQuery = youtubeDashboardFilterQueryValue(filter);
 
-  const [dashboard, health, recipeTypes, funnel, importedSeriesCount] = await Promise.all([
+  const [dashboard, recipeTypes, funnel, importedSeriesCount] = await Promise.all([
     loadYoutubeAdminDashboard({ analyticsRangeDays: rangeDays }),
-    summarizeYoutubeContentHealth(),
     canCreateRecipes
       ? db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
       : Promise.resolve([] as { id: string; name: string }[]),
@@ -122,30 +120,20 @@ export default async function AdminYoutubePage({
         <YoutubeFunnelPanel funnel={funnel} filterQuery={filterQuery || undefined} />
       ) : (
         <>
-          {canCreateRecipes ? (
-            <div className="rounded-sm border border-line bg-cream/30 px-4 py-3 text-sm">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
-                Playlist / Series coverage
-              </p>
-              <p className="mt-1 text-ink">
-                Imported as Mesa Series: <span className="font-semibold">{importedSeriesCount}</span>
-              </p>
-              <Link href="/admin/series" className={`mt-2 inline-block font-semibold text-olive hover:underline ${adminFocusRing}`}>
-                Manage Series
-              </Link>
-            </div>
-          ) : null}
-          <YoutubeDashboard
+        <YoutubeDashboard
             channel={dashboard.channel}
             summary={dashboard.summary}
+            coverage={dashboard.coverage}
+            attention={dashboard.attention}
             videos={dashboard.videos}
-            healthSummary={health}
             canSync={canManageYoutubeSync(admin.role)}
             canManageAnalytics={canManageYoutubeAnalytics(admin.role)}
             canCreateRecipes={canCreateRecipes}
             recipeTypes={recipeTypes}
             initialFilter={filter}
             analytics={dashboard.analytics}
+            importedSeriesCount={importedSeriesCount}
+            showSeriesUtility={canCreateRecipes}
           />
         </>
       )}

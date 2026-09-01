@@ -236,6 +236,9 @@ export async function fetchChannelDayMetrics(input: {
 /**
  * Channel Top videos report for a date window.
  * Requires dimensions=video, sort, and maxResults <= 200 (Google channel reports).
+ *
+ * Note: Mesa does not request engagedViews. YouTube defines views, watch time, and
+ * retention metrics (averageViewDuration, averageViewPercentage) independently.
  */
 export async function fetchTopVideoMetrics(input: {
   startDate: string;

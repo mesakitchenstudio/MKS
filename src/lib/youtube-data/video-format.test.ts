@@ -85,8 +85,12 @@ describe("youtube dashboard filter query", () => {
     assert.equal(parseYoutubeDashboardFilter("shorts"), "shorts");
     assert.equal(parseYoutubeDashboardFilter("needs-recipe"), "needs");
     assert.equal(parseYoutubeDashboardFilter("linked"), "linked");
+    assert.equal(parseYoutubeDashboardFilter("opportunities"), "opportunities");
+    assert.equal(parseYoutubeDashboardFilter("missing-chapters"), "missing-chapters");
+    assert.equal(parseYoutubeDashboardFilter("metadata"), "metadata");
     assert.equal(parseYoutubeDashboardFilter(""), "all");
     assert.equal(youtubeDashboardFilterQueryValue("shorts"), "shorts");
+    assert.equal(youtubeDashboardFilterQueryValue("opportunities"), "opportunities");
     assert.equal(youtubeDashboardFilterQueryValue("needs"), "needs-recipe");
     assert.equal(youtubeDashboardFilterQueryValue("all"), null);
   });
