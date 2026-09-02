@@ -23,7 +23,6 @@ import type {
   ApplyChapterSuggestionsResult,
 } from "@/lib/ai-recipe/chapter-suggestions/types";
 import type { StageAlignmentEvidenceLineage } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
-import { stageAlignmentLineageIsVideoDerived } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
 
 export function suggestionSourceToFieldSource(
   source: ChapterSuggestionSource,
@@ -34,13 +33,12 @@ export function suggestionSourceToFieldSource(
     case "transcript":
       return "from_video";
     case "stage_alignment":
-      if (
-        options?.stageAlignmentLineage &&
-        stageAlignmentLineageIsVideoDerived(options.stageAlignmentLineage)
-      ) {
+      if (options?.stageAlignmentLineage === "youtube_description_hint") {
         return "from_video";
       }
       return "inferred";
+    case "youtube_chapter_hint":
+      return "from_video";
     default:
       return "inferred";
   }
@@ -83,7 +81,6 @@ export function computeDefaultChapterSuggestionSelections(input: {
     if (suggestion.status === "no_evidence" || suggestion.status === "conflict") {
       continue;
     }
-    if (suggestion.startTimestamp == null) continue;
 
     const group = input.groups[suggestion.instructionIndex];
     if (!group) continue;
@@ -96,7 +93,11 @@ export function computeDefaultChapterSuggestionSelections(input: {
     const startReview = resolveFieldReviewState(startPath, input.aiMeta ?? null);
 
     let applyStart = false;
-    if (!startLocked && !hasCanonical) {
+    if (
+      suggestion.startTimestamp != null &&
+      !startLocked &&
+      !hasCanonical
+    ) {
       if (suggestion.confidence === "high" || suggestion.confidence === "medium") {
         applyStart = true;
       }
@@ -122,7 +123,9 @@ export function computeDefaultChapterSuggestionSelections(input: {
       !labelLocked &&
       !currentLabel
     ) {
-      applyChapterLabel = suggestion.confidence === "high";
+      applyChapterLabel =
+        suggestion.startTimestamp == null ||
+        suggestion.confidence === "high";
     }
 
     if (applyStart || applyChapterLabel) {

@@ -101,7 +101,12 @@ export function filterCatalogVideos<T extends CatalogVideoRow>(
           (median <= 0 || video.periodViewsSort >= median),
       );
     case "missing-chapters":
-      return videos.filter((video) => video.contentHealth === "Missing chapters");
+      return videos.filter(
+        (video) =>
+          video.contentHealth === "Needs timestamps" ||
+          video.contentHealth === "Partially mapped" ||
+          video.contentHealth === "No chapter structure",
+      );
     case "metadata":
       return videos.filter((video) => video.hasMetadataIssue || video.contentHealth === "Metadata issue");
     case "all":

@@ -44,6 +44,7 @@ export type AttentionVideoInput = {
   hasDescriptionChapters: boolean;
   hasRecipeChapters: boolean;
   hasMetadataIssue: boolean;
+  chapterMappingStatus?: import("@/lib/youtube-data/types").VideoContentHealthStatus | null;
   analytics: AggregatedAnalyticsMetrics;
 };
 
@@ -155,18 +156,23 @@ export function buildAttentionQueue(input: BuildAttentionQueueInput): AttentionQ
 
   for (const video of input.videos) {
     if (video.format !== "LONG") continue;
-    if (video.linkedRecipeId && !video.hasDescriptionChapters && !video.hasRecipeChapters) {
+    if (
+      video.linkedRecipeId &&
+      (video.chapterMappingStatus === "Needs timestamps" ||
+        video.chapterMappingStatus === "Partially mapped")
+    ) {
       items.push({
-        id: `long-missing-chapters-${video.videoId}`,
-        priority: "P1",
+        id: `chapter-timestamps-${video.videoId}`,
+        priority: "P2",
         rank: rank++,
-        title: "Long-form video missing Mesa chapters",
+        title:
+          video.chapterMappingStatus === "Partially mapped"
+            ? "Partially mapped chapters"
+            : "Chapter timestamps needed",
         detail: video.title,
-        href: video.linkedRecipeId
-          ? `/admin/recipes/${video.linkedRecipeId}`
-          : `/admin/youtube/videos/${video.videoId}`,
-        actionLabel: video.linkedRecipeId ? "Open recipe" : "Open video",
-        actionKind: video.linkedRecipeId ? "open-recipe" : "open-video",
+        href: `/admin/recipes/${video.linkedRecipeId}`,
+        actionLabel: "Open recipe",
+        actionKind: "open-recipe",
         videoId: video.videoId,
         recipeId: video.linkedRecipeId,
       });
@@ -177,6 +183,7 @@ export function buildAttentionQueue(input: BuildAttentionQueueInput): AttentionQ
     (issue) =>
       !issue.id.startsWith("video-no-recipe-") &&
       !issue.id.startsWith("recipe-no-video-") &&
+      !issue.id.startsWith("video-needs-timestamps-") &&
       !issue.id.startsWith("video-no-chapters-") &&
       !CRITICAL_ISSUE_PREFIXES.some((prefix) => issue.id.startsWith(prefix)),
   );

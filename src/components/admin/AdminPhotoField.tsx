@@ -7,6 +7,7 @@ import { adminFocusRing, adminPrimaryButtonClass } from "@/lib/admin-ui";
 import {
   ADMIN_IMAGE_ACCEPT,
   ADMIN_IMAGE_HELP,
+  resolveAdminImageUploadPolicy,
   validateAdminImageFile,
 } from "@/lib/admin-upload";
 
@@ -62,7 +63,7 @@ export function AdminPhotoField({
     setBusy(true);
     setError("");
 
-    const localCheck = validateAdminImageFile(file);
+    const localCheck = validateAdminImageFile(file, resolveAdminImageUploadPolicy("admins"));
     if (!localCheck.ok) {
       setError(localCheck.error);
       setBusy(false);
@@ -246,7 +247,7 @@ export function AdminProfilePhotoForm({
   }, [confirmRemove]);
 
   function selectFile(file: File) {
-    const localCheck = validateAdminImageFile(file);
+    const localCheck = validateAdminImageFile(file, resolveAdminImageUploadPolicy("admins"));
     if (!localCheck.ok) {
       setError(localCheck.error);
       return;

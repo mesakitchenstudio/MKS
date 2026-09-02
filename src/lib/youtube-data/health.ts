@@ -14,8 +14,8 @@ import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
 import { parseRecipeAiMeta } from "@/lib/ai-recipe/types";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
-import { classifyYouTubeVideoFormat } from "@/lib/youtube-data/video-format";
-import type { YouTubeVideoFormat } from "@/lib/youtube-data/video-format";
+import { videoChapterMappingHealthStatus } from "@/lib/youtube-data/chapter-mapping-health";
+import { classifyYouTubeVideoFormat, type YouTubeVideoFormat } from "@/lib/youtube-data/video-format";
 
 export function videoRelationshipStatus(input: {
   linkedRecipeId?: string;
@@ -34,6 +34,8 @@ export function videoContentHealthStatus(input: {
   hasRecipeChapters: boolean;
   format: YouTubeVideoFormat;
   hasMetadataIssue?: boolean;
+  recipeValues?: Record<string, unknown> | null;
+  recipeAiMeta?: import("@/lib/ai-recipe/types").RecipeAiMeta | null;
 }): VideoContentHealthStatus {
   if (input.privacyStatus && input.privacyStatus !== "public") return "Unavailable";
   if (!input.embeddable) return "Not embeddable";
@@ -41,14 +43,18 @@ export function videoContentHealthStatus(input: {
   if (input.format === "SHORT") return "—";
   if (!input.linkedRecipeId) return "—";
 
-  const hasChapters = input.hasDescriptionChapters || input.hasRecipeChapters;
+  const chapterStatus = videoChapterMappingHealthStatus({
+    linkedRecipeId: input.linkedRecipeId,
+    format: input.format,
+    recipeValues: input.recipeValues,
+    recipeAiMeta: input.recipeAiMeta,
+  });
+
+  if (chapterStatus) return chapterStatus;
 
   if (input.format === "UNKNOWN") {
-    return hasChapters ? "Chapters OK" : "—";
-  }
-
-  if (input.format === "LONG") {
-    return hasChapters ? "Chapters OK" : "Missing chapters";
+    const legacyHasChapters = input.hasDescriptionChapters || input.hasRecipeChapters;
+    return legacyHasChapters ? "Chapters OK" : "—";
   }
 
   return "—";
@@ -62,11 +68,27 @@ export function videoRowStatus(input: {
   hasDescriptionChapters: boolean;
   hasRecipeChapters: boolean;
   format?: YouTubeVideoFormat;
+  recipeValues?: Record<string, unknown> | null;
+  recipeAiMeta?: import("@/lib/ai-recipe/types").RecipeAiMeta | null;
 }): YouTubeVideoRowStatus {
   if (input.privacyStatus && input.privacyStatus !== "public") return "Unavailable";
   if (!input.embeddable) return "Not embeddable";
   if (!input.linkedRecipeId) return "No recipe";
   if (input.format === "SHORT") return "Healthy";
+  const chapterStatus = videoChapterMappingHealthStatus({
+    linkedRecipeId: input.linkedRecipeId,
+    format: input.format ?? "LONG",
+    recipeValues: input.recipeValues,
+    recipeAiMeta: input.recipeAiMeta,
+  });
+  if (chapterStatus === "Chapters OK") return "Healthy";
+  if (
+    chapterStatus === "Needs timestamps" ||
+    chapterStatus === "Partially mapped" ||
+    chapterStatus === "No chapter structure"
+  ) {
+    return "Missing chapters";
+  }
   if (!input.hasDescriptionChapters && !input.hasRecipeChapters) return "Missing chapters";
   return "Healthy";
 }
@@ -166,6 +188,7 @@ export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthI
     }
 
     const recipe = recipes.find((row) => row.id === link.recipeId);
+    const stored = metaById.get(link.recipeId);
     const descriptionChapters = parseYoutubeDescriptionChapters(video.description);
     const hasRecipeChapters = recipe ? recipeHasSavedChapters(recipe) : false;
 
@@ -182,13 +205,26 @@ export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthI
         })(),
         durationSeconds: video.durationSeconds,
       });
-      if (format === "LONG") {
-        issues.push({
-          id: `video-no-chapters-${video.videoId}`,
-          label: `“${video.title}” has no usable chapters`,
-          href: `/admin/youtube/videos/${video.videoId}`,
-          kind: "video",
+      if (format === "LONG" && stored) {
+        const values = parseValues(stored.values);
+        const recipeAiMeta = parseRecipeAiMeta(stored.aiMeta);
+        const chapterStatus = videoChapterMappingHealthStatus({
+          linkedRecipeId: link.recipeId,
+          format,
+          recipeValues: values,
+          recipeAiMeta,
         });
+        if (
+          chapterStatus === "Needs timestamps" ||
+          chapterStatus === "Partially mapped"
+        ) {
+          issues.push({
+            id: `video-needs-timestamps-${video.videoId}`,
+            label: `“${video.title}” needs chapter timestamp mapping (${chapterStatus})`,
+            href: `/admin/recipes/${link.recipeId}`,
+            kind: "recipe",
+          });
+        }
       }
     }
 
@@ -237,7 +273,6 @@ export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthI
       });
     }
 
-    const stored = metaById.get(link.recipeId);
     if (
       stored &&
       verifiedRecipeHasYoutubeMetadataDrift({

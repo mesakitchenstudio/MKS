@@ -5,6 +5,7 @@ import { del, put } from "@vercel/blob";
 import {
   adminImageExtension,
   isOwnedAdminUploadUrl,
+  resolveAdminImageUploadPolicy,
   validateAdminImageBytes,
 } from "@/lib/admin-upload";
 
@@ -18,8 +19,9 @@ function safeBaseName(name: string) {
 
 /** Validate magic bytes, store, return public URL. */
 export async function storeAdminImage(file: Blob, folder = "recipes", filenameHint = "photo") {
+  const policy = resolveAdminImageUploadPolicy(folder);
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const check = validateAdminImageBytes(bytes);
+  const check = validateAdminImageBytes(bytes, policy);
   if (!check.ok) {
     throw new Error(check.error);
   }

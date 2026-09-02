@@ -77,5 +77,6 @@ export async function POST(request: Request) {
     mode: result.batch.mode,
     suggestions: result.batch.suggestions,
     diagnostics: result.batch.diagnostics,
+    timestampEvidenceAvailable: result.batch.diagnostics?.timestampEvidenceAvailable,
   });
 }

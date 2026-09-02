@@ -54,7 +54,9 @@ export type VideoRelationshipStatus = "Linked" | "Possible match" | "Unlinked";
 
 export type VideoContentHealthStatus =
   | "Chapters OK"
-  | "Missing chapters"
+  | "Needs timestamps"
+  | "Partially mapped"
+  | "No chapter structure"
   | "Metadata issue"
   | "Unavailable"
   | "Not embeddable"

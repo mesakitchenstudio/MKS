@@ -8,7 +8,7 @@ import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
 import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import {
   classifyStageAlignmentEvidence,
-  usableStageAlignmentEvidence,
+  trustworthyStageAlignmentEvidence,
   type ClassifiedStageAlignmentEvidence,
 } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
 import { normalizeInstructionGroups } from "@/lib/instruction-chapters";
@@ -18,23 +18,28 @@ export type { ClassifiedStageAlignmentEvidence, StageAlignmentEvidenceLineage } 
 export type ChapterSuggestionEvidenceBundle = {
   videoId: string;
   videoDurationSeconds?: number;
+  /** AI/cache chapters — not used for timestamp suggestions unless VERIFIED. */
   cachedGeminiChapters: NormalizedAiYoutubeChapter[];
-  stageAlignments: ClassifiedStageAlignmentEvidence[];
+  /** Parsed YouTube description chapters — trustworthy timestamp source. */
   youtubeDescriptionChapters: NormalizedAiYoutubeChapter[];
+  /** Manual or description-backed stage alignments only. */
+  trustworthyStageAlignments: ClassifiedStageAlignmentEvidence[];
   legacyTimestamps: RecipeYoutubeTimestamp[];
   videoContext: RecipeAiVideoContext | null;
   generationCacheUsed: boolean;
   evidenceSources: string[];
 };
 
-export function hasUsableChapterEvidence(bundle: ChapterSuggestionEvidenceBundle): boolean {
+/** True when Mesa can suggest start times from a trustworthy source (not AI guesswork). */
+export function hasTrustworthyTimestampEvidence(bundle: ChapterSuggestionEvidenceBundle): boolean {
   return (
-    bundle.cachedGeminiChapters.length > 0 ||
-    bundle.stageAlignments.length > 0 ||
     bundle.youtubeDescriptionChapters.length > 0 ||
-    bundle.legacyTimestamps.length > 0 ||
-    Boolean(bundle.videoContext?.instructionStageEvidence?.length)
+    bundle.trustworthyStageAlignments.length > 0
   );
+}
+
+export function hasUsableChapterEvidence(bundle: ChapterSuggestionEvidenceBundle): boolean {
+  return hasTrustworthyTimestampEvidence(bundle);
 }
 
 export function collectChapterSuggestionEvidence(input: {
@@ -72,10 +77,12 @@ export function collectChapterSuggestionEvidence(input: {
       ? blob.stageAlignments
       : parseStageAlignments(rawYoutube?.stageAlignments ?? []);
   const groups = normalizeInstructionGroups(input.values.instructions);
-  const classifiedStageAlignments = usableStageAlignmentEvidence(
-    classifyStageAlignmentEvidence({ alignments: rawStageAlignments, groups }),
-  );
-  if (classifiedStageAlignments.length) evidenceSources.push("stage_alignments");
+  const classifiedStageAlignments = classifyStageAlignmentEvidence({
+    alignments: rawStageAlignments,
+    groups,
+  });
+  const trustworthyStageAlignments = trustworthyStageAlignmentEvidence(classifiedStageAlignments);
+  if (trustworthyStageAlignments.length) evidenceSources.push("stage_alignments");
 
   const legacyTimestamps = blob?.timestamps?.length
     ? blob.timestamps
@@ -101,8 +108,8 @@ export function collectChapterSuggestionEvidence(input: {
     videoId: input.videoId,
     videoDurationSeconds: videoDurationSeconds ?? undefined,
     cachedGeminiChapters,
-    stageAlignments: classifiedStageAlignments,
     youtubeDescriptionChapters,
+    trustworthyStageAlignments,
     legacyTimestamps,
     videoContext,
     generationCacheUsed,

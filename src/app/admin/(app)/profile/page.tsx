@@ -77,7 +77,7 @@ export default async function AdminProfilePage({
           role="alert"
           className="mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-2.5 text-sm text-terracotta-dark"
         >
-          Could not save that photo. Choose a JPEG, PNG, WebP, or GIF under 2 MB and try again.
+          Could not save that photo. Choose a JPEG, PNG, WebP, or GIF up to 2 MB and try again.
         </p>
       ) : null}
       {error === "storage" ? (

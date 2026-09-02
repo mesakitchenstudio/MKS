@@ -14,7 +14,7 @@ test("unlinked public videos remain No recipe until linked", () => {
   );
 });
 
-test("linking a recipe moves No recipe videos to Healthy when chapters exist", () => {
+test("linking a recipe with mapped instruction timestamps is Healthy", () => {
   assert.equal(
     videoRowStatus({
       privacyStatus: "public",
@@ -22,12 +22,28 @@ test("linking a recipe moves No recipe videos to Healthy when chapters exist", (
       linkedRecipeId: "recipe-1",
       hasDescriptionChapters: true,
       hasRecipeChapters: false,
+      format: "LONG",
+      recipeValues: {
+        instructions: [{ name: "Mix", steps: ["a"], startTimestamp: 0 }],
+      },
+      recipeAiMeta: {
+        fieldProvenance: {
+          "values.instructions.0.startTimestamp": {
+            aiGenerated: false,
+            humanModifiedAfterGeneration: true,
+            reviewState: "edited",
+            source: "staff",
+          },
+        },
+        generatedByAI: false,
+        verificationStatus: "unverified",
+      },
     }),
     "Healthy",
   );
 });
 
-test("linked recipes without chapters stay Missing chapters for long-form", () => {
+test("linked recipes without mapped timestamps stay Missing chapters for long-form", () => {
   assert.equal(
     videoRowStatus({
       privacyStatus: "public",
@@ -36,6 +52,12 @@ test("linked recipes without chapters stay Missing chapters for long-form", () =
       hasDescriptionChapters: false,
       hasRecipeChapters: false,
       format: "LONG",
+      recipeValues: {
+        instructions: [
+          { name: "Make the Caesar Dressing", steps: ["a"] },
+          { name: "Prepare the Chicken", steps: ["b"] },
+        ],
+      },
     }),
     "Missing chapters",
   );

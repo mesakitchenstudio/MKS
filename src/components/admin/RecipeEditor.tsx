@@ -88,6 +88,7 @@ import {
 } from "@/lib/ai-recipe/field-state";
 import { buildProvenanceAfterChapterSuggestionApply } from "@/lib/ai-recipe/chapter-suggestions/apply";
 import type { AiFieldProvenance } from "@/lib/ai-recipe/field-tracking";
+import { buildProvenanceAfterStaffEdit } from "@/lib/ai-recipe/field-state";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
 import { FieldAiActionButton } from "@/components/admin/FieldAiActionButton";
 import {
@@ -98,7 +99,12 @@ import {
   adminSecondaryButtonClass,
   adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
-import { ADMIN_IMAGE_FORMAT_HELP, RECIPE_HERO_IMAGE_HELP } from "@/lib/admin-upload";
+import {
+  ADMIN_IMAGE_FORMAT_HELP,
+  RECIPE_HERO_IMAGE_HELP,
+  resolveAdminImageUploadPolicy,
+  validateAdminImageFile,
+} from "@/lib/admin-upload";
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
 import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS, slugify } from "@/lib/fields";
 import { fieldValueHasContent } from "@/lib/field-content";
@@ -1199,7 +1205,36 @@ export function RecipeEditor({
     value: string | number | undefined,
   ) {
     const path = `values.instructions.${groupIndex}.${field}`;
-    setAiMeta((meta) => noteHumanEditorChange(meta, path, value));
+    setAiMeta((meta) => {
+      const base: RecipeAiMeta =
+        meta ??
+        ({
+          generatedByAI: false,
+          sourceType: "youtube",
+          sourceUrl: "",
+          generatedAt: "",
+          model: "",
+          schemaVersion: "",
+          verificationStatus: "none",
+          confidenceByPath: {},
+          summary: { verified: 0, inferred: 0, estimated: 0, unknown: 0 },
+          fieldProvenance: {},
+        } satisfies RecipeAiMeta);
+      if (field === "startTimestamp" || field === "endTimestamp" || field === "chapterLabel") {
+        return {
+          ...base,
+          fieldProvenance: {
+            ...(base.fieldProvenance ?? {}),
+            [path]: buildProvenanceAfterStaffEdit({
+              path,
+              nextValue: value,
+              previous: base.fieldProvenance?.[path],
+            }),
+          },
+        };
+      }
+      return noteHumanEditorChange(base, path, value);
+    });
   }
 
   function handleApplyChapterSuggestions(input: {
@@ -3634,9 +3669,16 @@ function ImageField({
   const [busy, setBusy] = useState(false);
 
   async function onFile(file: File) {
+    const policy = resolveAdminImageUploadPolicy("recipes");
+    const localCheck = validateAdminImageFile(file, policy);
+    if (!localCheck.ok) {
+      window.alert(localCheck.error);
+      return;
+    }
     setBusy(true);
     const body = new FormData();
     body.set("file", file);
+    body.set("folder", "recipes");
     const response = await fetch("/api/admin/upload", { method: "POST", body });
     const data = (await response.json()) as { url?: string; error?: string };
     setBusy(false);

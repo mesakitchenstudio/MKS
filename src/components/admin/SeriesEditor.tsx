@@ -34,7 +34,7 @@ import {
   type SeriesAiMeta,
 } from "@/lib/series-ai/types";
 import { slugify } from "@/lib/fields";
-import { ADMIN_IMAGE_ACCEPT, RECIPE_HERO_IMAGE_HELP } from "@/lib/admin-upload";
+import { ADMIN_IMAGE_ACCEPT, RECIPE_HERO_IMAGE_HELP, resolveAdminImageUploadPolicy, validateAdminImageFile } from "@/lib/admin-upload";
 import { youtubePlaylistUrl } from "@/lib/youtube";
 
 const secondaryBtn =
@@ -350,10 +350,17 @@ export function SeriesEditor({
 
   async function onHeroUpload(file: File | null) {
     if (!file) return;
+    const policy = resolveAdminImageUploadPolicy("series");
+    const localCheck = validateAdminImageFile(file, policy);
+    if (!localCheck.ok) {
+      window.alert(localCheck.error);
+      return;
+    }
     setUploading(true);
     try {
       const body = new FormData();
       body.set("file", file);
+      body.set("folder", "series");
       const response = await fetch("/api/admin/upload", { method: "POST", body });
       const data = (await response.json()) as { ok?: boolean; url?: string; message?: string };
       if (response.ok && data.url) {

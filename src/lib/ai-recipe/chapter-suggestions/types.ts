@@ -52,6 +52,9 @@ export type ChapterSuggestionDiagnostics = {
   geminiUsed: boolean;
   model?: string;
   latencyMs: number;
+  /** Whether trustworthy timestamp sources were available for this batch. */
+  timestampEvidenceAvailable?: boolean;
+  suggestionKind?: "timestamps" | "titles";
 };
 
 export type ChapterSuggestionSelection = {

@@ -1,3 +1,5 @@
+import { parseValues } from "@/lib/recipe-map";
+import { parseRecipeAiMeta } from "@/lib/ai-recipe/types";
 import { getDb } from "@/lib/db";
 import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
 import { formatChannelSnapshotTrendShort, formatGmtDisplay, formatYoutubeSnapshotDateTime } from "@/lib/datetime";
@@ -56,6 +58,7 @@ import {
   type VideoAnalyticsLoadState,
   VIDEO_ANALYTICS_API_ERROR_NOTICE,
 } from "@/lib/youtube-analytics/status";
+import { videoChapterMappingHealthStatus } from "@/lib/youtube-data/chapter-mapping-health";
 import { buildYoutubeContentHealth } from "@/lib/youtube-data/health";
 
 function formatCount(value: string) {
@@ -181,6 +184,9 @@ export async function loadYoutubeAdminDashboard(input?: {
         possibleMatchRecipeId: possibleMatch?.id,
       });
 
+      const recipeValues = stored ? parseValues(stored.values) : null;
+      const recipeAiMeta = stored ? parseRecipeAiMeta(stored.aiMeta) : null;
+
       const contentHealth = videoContentHealthStatus({
         privacyStatus: video.privacyStatus,
         embeddable: video.embeddable,
@@ -189,6 +195,15 @@ export async function loadYoutubeAdminDashboard(input?: {
         hasRecipeChapters,
         format,
         hasMetadataIssue,
+        recipeValues,
+        recipeAiMeta,
+      });
+
+      const chapterMappingStatus = videoChapterMappingHealthStatus({
+        linkedRecipeId: link?.recipeId,
+        format,
+        recipeValues,
+        recipeAiMeta,
       });
 
       attentionVideoInputs.push({
@@ -204,6 +219,7 @@ export async function loadYoutubeAdminDashboard(input?: {
         hasDescriptionChapters: descriptionChapters.length > 0,
         hasRecipeChapters,
         hasMetadataIssue,
+        chapterMappingStatus,
         analytics: rawAnalytics,
       });
 
@@ -233,6 +249,8 @@ export async function loadYoutubeAdminDashboard(input?: {
           hasDescriptionChapters: descriptionChapters.length > 0,
           hasRecipeChapters,
           format,
+          recipeValues,
+          recipeAiMeta,
         }),
         analytics: {
           periodViews: analytics.views,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { storeAdminImage } from "@/lib/admin-upload-store";
-import { ADMIN_IMAGE_MAX_BYTES, validateAdminImageFile } from "@/lib/admin-upload";
+import { resolveAdminImageUploadPolicy, validateAdminImageFile } from "@/lib/admin-upload";
 import { getAdminSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -18,20 +18,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Choose an image file." }, { status: 400 });
     }
 
-    if (file.size > ADMIN_IMAGE_MAX_BYTES) {
-      return NextResponse.json(
-        { error: "Choose an image smaller than 2 MB." },
-        { status: 400 },
-      );
+    const folder = String(form.get("folder") || "recipes");
+    const policy = resolveAdminImageUploadPolicy(folder);
+
+    if (file.size > policy.maxBytes) {
+      return NextResponse.json({ error: policy.sizeError }, { status: 400 });
     }
 
     const mimeHint = "type" in file && typeof file.type === "string" ? file.type : "";
-    const quick = validateAdminImageFile({ type: mimeHint, size: file.size });
+    const quick = validateAdminImageFile({ type: mimeHint, size: file.size }, policy);
     if (!quick.ok) {
       return NextResponse.json({ error: quick.error }, { status: 400 });
     }
 
-    const folder = String(form.get("folder") || "recipes");
     const name = file instanceof File && file.name ? file.name : "photo";
     const url = await storeAdminImage(file, folder, name);
     return NextResponse.json({ url });
@@ -45,6 +44,7 @@ export async function POST(request: Request) {
     const safe =
       message.startsWith("Choose an image") ||
       message.startsWith("Use a JPEG") ||
+      message.startsWith("Image must be") ||
       message.startsWith("Photo storage")
         ? message
         : "Could not upload photo.";

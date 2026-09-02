@@ -22,8 +22,8 @@ import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import {
   formatTimestampInput,
   hasCanonicalStartTimestamp,
+  formatInstructionChapterCoverageSummary,
   instructionChapterCoverage,
-  normalizeInstructionGroups,
   type InstructionGroupWithChapters,
 } from "@/lib/instruction-chapters";
 import { adminFocusRing, adminPrimaryButtonClass, adminSecondaryButtonClass } from "@/lib/admin-ui";
@@ -55,15 +55,16 @@ export function ChapterTimestampSuggestionsPanel({
   const videoWorkspace = useInstructionVideoWorkspaceOptional();
   const [mode, setMode] = useState<ChapterSuggestionMode>("missing");
   const [batch, setBatch] = useState<ChapterSuggestionBatch | null>(null);
+  const [timestampEvidenceAvailable, setTimestampEvidenceAvailable] = useState(true);
   const [selections, setSelections] = useState<ChapterSuggestionSelection[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
 
-  const coverage = useMemo(
-    () => instructionChapterCoverage(groups),
-    [groups],
-  );
+  const coverageSummary = useMemo(() => {
+    const coverage = instructionChapterCoverage(groups);
+    return formatInstructionChapterCoverageSummary(coverage);
+  }, [groups]);
 
   const stale = batch ? isChapterSuggestionBatchStale(batch, groups) : false;
 
@@ -95,6 +96,7 @@ export function ChapterTimestampSuggestionsPanel({
         snapshotFingerprint?: string;
         mode?: ChapterSuggestionMode;
         diagnostics?: ChapterSuggestionBatch["diagnostics"];
+        timestampEvidenceAvailable?: boolean;
       };
       if (!response.ok || !payload.ok || !payload.suggestions) {
         setBatch(null);
@@ -115,6 +117,11 @@ export function ChapterTimestampSuggestionsPanel({
       };
       setBatch(nextBatch);
       setMode(nextMode);
+      setTimestampEvidenceAvailable(
+        payload.timestampEvidenceAvailable ??
+          payload.diagnostics?.timestampEvidenceAvailable ??
+          true,
+      );
       setSelections(
         computeDefaultChapterSuggestionSelections({
           suggestions: nextBatch.suggestions,
@@ -173,9 +180,7 @@ export function ChapterTimestampSuggestionsPanel({
     <div className="mb-4 rounded-sm border border-line/80 bg-paper/50 px-3 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted">
-          <span className="font-semibold text-ink">
-            {coverage.mappedSections}/{coverage.totalSections} chapters mapped
-          </span>
+          <span className="font-semibold text-ink">{coverageSummary}</span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {!batch ? (
@@ -186,7 +191,11 @@ export function ChapterTimestampSuggestionsPanel({
                 className={`${adminSecondaryButtonClass} text-xs ${adminFocusRing}`}
                 onClick={() => void generateSuggestions("missing")}
               >
-                {busy ? "Suggesting…" : "✦ Suggest timestamps"}
+                {busy
+                  ? "Suggesting…"
+                  : timestampEvidenceAvailable
+                    ? "✦ Suggest timestamps"
+                    : "✦ Suggest chapter titles"}
               </button>
               <button
                 type="button"
@@ -224,7 +233,9 @@ export function ChapterTimestampSuggestionsPanel({
       {batch ? (
         <div className="mt-3 border-t border-line/70 pt-3">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
-            AI timestamp suggestions
+            {batch.diagnostics?.suggestionKind === "titles"
+              ? "AI chapter title suggestions"
+              : "AI timestamp suggestions"}
           </p>
           {stale ? (
             <p className="mt-2 text-xs font-semibold text-terracotta" role="alert">

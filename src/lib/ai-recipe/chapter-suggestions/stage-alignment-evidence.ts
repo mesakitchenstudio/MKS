@@ -110,6 +110,16 @@ export function usableStageAlignmentEvidence(
   return classified.filter((row) => row.lineage !== "derived_from_canonical");
 }
 
+/** Stage alignments Mesa may use as timestamp evidence (not AI video guesses). */
+export function trustworthyStageAlignmentEvidence(
+  classified: ClassifiedStageAlignmentEvidence[],
+): ClassifiedStageAlignmentEvidence[] {
+  return classified.filter(
+    (row) =>
+      row.lineage === "youtube_description_hint" || row.lineage === "manual_unknown",
+  );
+}
+
 export function stageAlignmentLineageIsVideoDerived(
   lineage: StageAlignmentEvidenceLineage,
 ): boolean {

@@ -130,7 +130,7 @@ const FILTER_OPTIONS: { value: YoutubeDashboardVideoFilter; label: string }[] = 
   { value: "shorts", label: "Shorts" },
   { value: "opportunities", label: "Opportunities" },
   { value: "needs", label: "Needs recipe" },
-  { value: "missing-chapters", label: "Missing chapters" },
+  { value: "missing-chapters", label: "Needs timestamps" },
   { value: "linked", label: "Linked" },
   { value: "metadata", label: "Metadata issues" },
 ];
@@ -158,6 +158,8 @@ function relationshipClass(value: string) {
 
 function contentHealthClass(value: string) {
   if (value === "Chapters OK" || value === "—") return "text-muted";
+  if (value === "Needs timestamps" || value === "Partially mapped") return "text-terracotta";
+  if (value === "No chapter structure") return "text-muted";
   return "text-terracotta";
 }
 
