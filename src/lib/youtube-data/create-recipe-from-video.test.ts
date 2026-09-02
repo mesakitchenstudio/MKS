@@ -26,6 +26,18 @@ test("linking a recipe with mapped instruction timestamps is Healthy", () => {
       recipeValues: {
         instructions: [{ name: "Mix", steps: ["a"], startTimestamp: 0 }],
       },
+      recipeAiMeta: {
+        fieldProvenance: {
+          "values.instructions.0.startTimestamp": {
+            aiGenerated: false,
+            humanModifiedAfterGeneration: true,
+            reviewState: "edited",
+            source: "staff",
+          },
+        },
+        generatedByAI: false,
+        verificationStatus: "unverified",
+      },
     }),
     "Healthy",
   );

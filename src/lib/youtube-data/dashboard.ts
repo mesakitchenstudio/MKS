@@ -1,4 +1,5 @@
 import { parseValues } from "@/lib/recipe-map";
+import { parseRecipeAiMeta } from "@/lib/ai-recipe/types";
 import { getDb } from "@/lib/db";
 import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
 import { formatChannelSnapshotTrendShort, formatGmtDisplay, formatYoutubeSnapshotDateTime } from "@/lib/datetime";
@@ -184,6 +185,7 @@ export async function loadYoutubeAdminDashboard(input?: {
       });
 
       const recipeValues = stored ? parseValues(stored.values) : null;
+      const recipeAiMeta = stored ? parseRecipeAiMeta(stored.aiMeta) : null;
 
       const contentHealth = videoContentHealthStatus({
         privacyStatus: video.privacyStatus,
@@ -194,12 +196,14 @@ export async function loadYoutubeAdminDashboard(input?: {
         format,
         hasMetadataIssue,
         recipeValues,
+        recipeAiMeta,
       });
 
       const chapterMappingStatus = videoChapterMappingHealthStatus({
         linkedRecipeId: link?.recipeId,
         format,
         recipeValues,
+        recipeAiMeta,
       });
 
       attentionVideoInputs.push({
@@ -246,6 +250,7 @@ export async function loadYoutubeAdminDashboard(input?: {
           hasRecipeChapters,
           format,
           recipeValues,
+          recipeAiMeta,
         }),
         analytics: {
           periodViews: analytics.views,

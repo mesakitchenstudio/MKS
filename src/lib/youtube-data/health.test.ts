@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { videoContentHealthStatus } from "./health.ts";
 
 const base = {
@@ -17,6 +18,23 @@ const caesarValues = {
     { name: "Finish and Serve", steps: ["d"] },
   ],
 };
+
+function staffStartMeta(sectionCount: number): RecipeAiMeta {
+  const fieldProvenance: RecipeAiMeta["fieldProvenance"] = {};
+  for (let index = 0; index < sectionCount; index += 1) {
+    fieldProvenance[`values.instructions.${index}.startTimestamp`] = {
+      aiGenerated: false,
+      humanModifiedAfterGeneration: true,
+      reviewState: "edited",
+      source: "staff",
+    };
+  }
+  return {
+    fieldProvenance,
+    generatedByAI: false,
+    verificationStatus: "unverified",
+  };
+}
 
 describe("videoContentHealthStatus", () => {
   it("does not require chapters for Shorts", () => {
@@ -52,7 +70,25 @@ describe("videoContentHealthStatus", () => {
     );
   });
 
-  it("returns Chapters OK when all instruction timestamps are mapped", () => {
+  it("returns Chapters OK when all instruction timestamps are trusted staff mappings", () => {
+    assert.equal(
+      videoContentHealthStatus({
+        ...base,
+        linkedRecipeId: "r1",
+        format: "LONG",
+        recipeValues: {
+          instructions: caesarValues.instructions.map((row, index) => ({
+            ...row,
+            startTimestamp: index * 45,
+          })),
+        },
+        recipeAiMeta: staffStartMeta(4),
+      }),
+      "Chapters OK",
+    );
+  });
+
+  it("returns Needs timestamps when only legacy AI timestamps exist", () => {
     assert.equal(
       videoContentHealthStatus({
         ...base,
@@ -65,11 +101,11 @@ describe("videoContentHealthStatus", () => {
           })),
         },
       }),
-      "Chapters OK",
+      "Needs timestamps",
     );
   });
 
-  it("returns Partially mapped when only some timestamps exist", () => {
+  it("returns Partially mapped when only some timestamps are trusted", () => {
     assert.equal(
       videoContentHealthStatus({
         ...base,
@@ -83,6 +119,7 @@ describe("videoContentHealthStatus", () => {
             { name: "Finish and Serve", steps: ["d"] },
           ],
         },
+        recipeAiMeta: staffStartMeta(1),
       }),
       "Partially mapped",
     );

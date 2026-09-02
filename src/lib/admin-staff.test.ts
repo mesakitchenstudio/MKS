@@ -15,7 +15,7 @@ import {
   validateAdminDeletion,
   validateAdminRoleChange,
 } from "./admin-staff";
-import { validateAdminImageFile, sniffAdminImageMime, validateAdminImageBytes, isOwnedAdminUploadUrl, RECIPE_HERO_IMAGE_HELP, ADMIN_IMAGE_MAX_BYTES, ADMIN_IMAGE_SIZE_ERROR } from "./admin-upload";
+import { validateAdminImageFile, sniffAdminImageMime, validateAdminImageBytes, isOwnedAdminUploadUrl, RECIPE_HERO_IMAGE_HELP, GENERAL_ADMIN_IMAGE_MAX_BYTES, GENERAL_ADMIN_IMAGE_SIZE_ERROR, RECIPE_HERO_IMAGE_MAX_BYTES, resolveAdminImageUploadPolicy } from "./admin-upload";
 import { formatAdminDateTime } from "./datetime";
 import { hashPassword, verifyPassword } from "./passwords";
 import { isGooglePhotoUrl } from "./accounts";
@@ -360,20 +360,26 @@ test("last login uses shared admin datetime formatter", () => {
 });
 
 test("admin image uploads reject bad types and oversized files", () => {
-  const oversized = validateAdminImageFile({ type: "image/jpeg", size: ADMIN_IMAGE_MAX_BYTES + 1 });
-  const atLimit = validateAdminImageFile({ type: "image/jpeg", size: ADMIN_IMAGE_MAX_BYTES });
+  const policy = resolveAdminImageUploadPolicy("admins");
+  const oversized = validateAdminImageFile({ type: "image/jpeg", size: GENERAL_ADMIN_IMAGE_MAX_BYTES + 1 }, policy);
+  const atLimit = validateAdminImageFile({ type: "image/jpeg", size: GENERAL_ADMIN_IMAGE_MAX_BYTES }, policy);
   const justBelow = validateAdminImageFile({
     type: "image/jpeg",
-    size: ADMIN_IMAGE_MAX_BYTES - 1,
-  });
+    size: GENERAL_ADMIN_IMAGE_MAX_BYTES - 1,
+  }, policy);
   assert.equal(validateAdminImageFile({ type: "image/png", size: 100 }).ok, true);
   assert.equal(validateAdminImageFile({ type: "application/pdf", size: 100 }).ok, false);
   assert.equal(oversized.ok, false);
   assert.equal(atLimit.ok, true);
   assert.equal(justBelow.ok, true);
   if (!oversized.ok) {
-    assert.equal(oversized.error, ADMIN_IMAGE_SIZE_ERROR);
+    assert.equal(oversized.error, GENERAL_ADMIN_IMAGE_SIZE_ERROR);
   }
+  const heroPolicy = resolveAdminImageUploadPolicy("recipes");
+  assert.equal(
+    validateAdminImageFile({ type: "image/jpeg", size: RECIPE_HERO_IMAGE_MAX_BYTES }, heroPolicy).ok,
+    true,
+  );
 });
 
 test("recipe hero image help recommends 16:9 without requiring 1600×900", () => {

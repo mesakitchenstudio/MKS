@@ -1,8 +1,16 @@
 /** Shared admin image upload rules (client + API). */
 
-export const ADMIN_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+export const GENERAL_ADMIN_IMAGE_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — profile, staff, general admin
+export const RECIPE_HERO_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB — recipe/series hero imagery
 
-export const ADMIN_IMAGE_SIZE_ERROR = "Image must be 5 MB or smaller.";
+/** Default validation limit for non-hero admin uploads. */
+export const ADMIN_IMAGE_MAX_BYTES = GENERAL_ADMIN_IMAGE_MAX_BYTES;
+
+export const GENERAL_ADMIN_IMAGE_SIZE_ERROR = "Image must be 2 MB or smaller.";
+export const RECIPE_HERO_IMAGE_SIZE_ERROR = "Image must be 5 MB or smaller.";
+
+/** @deprecated Use GENERAL_ADMIN_IMAGE_SIZE_ERROR or RECIPE_HERO_IMAGE_SIZE_ERROR */
+export const ADMIN_IMAGE_SIZE_ERROR = GENERAL_ADMIN_IMAGE_SIZE_ERROR;
 
 export const ADMIN_IMAGE_MIME_TYPES = [
   "image/jpeg",
@@ -17,7 +25,7 @@ export const ADMIN_IMAGE_ACCEPT = ADMIN_IMAGE_MIME_TYPES.join(",");
 
 /** Profile / avatar uploads — square crops work best in circular UI. */
 export const ADMIN_IMAGE_HELP =
-  "Square images work best. JPEG, PNG, WebP, or GIF · max 5 MB.";
+  "Square images work best. JPEG, PNG, WebP, or GIF · max 2 MB.";
 
 /**
  * Recipe hero image guidance (Media tab).
@@ -27,7 +35,26 @@ export const RECIPE_HERO_IMAGE_HELP =
   "16:9 landscape images work best. Recommended: 1600 × 900 px. JPEG, PNG, WebP, or GIF · max 5 MB.";
 
 /** Format + size only (no aspect advice) — gallery and other non-hero uploads. */
-export const ADMIN_IMAGE_FORMAT_HELP = "JPEG, PNG, WebP, or GIF · max 5 MB.";
+export const ADMIN_IMAGE_FORMAT_HELP = "JPEG, PNG, WebP, or GIF · max 2 MB.";
+
+export type AdminImageUploadPolicy = {
+  maxBytes: number;
+  sizeError: string;
+};
+
+export function resolveAdminImageUploadPolicy(folder: string): AdminImageUploadPolicy {
+  const normalized = folder.trim().toLowerCase();
+  if (normalized === "recipes" || normalized === "series") {
+    return {
+      maxBytes: RECIPE_HERO_IMAGE_MAX_BYTES,
+      sizeError: RECIPE_HERO_IMAGE_SIZE_ERROR,
+    };
+  }
+  return {
+    maxBytes: GENERAL_ADMIN_IMAGE_MAX_BYTES,
+    sizeError: GENERAL_ADMIN_IMAGE_SIZE_ERROR,
+  };
+}
 
 export function isAdminImageMime(value: string): value is AdminImageMime {
   return (ADMIN_IMAGE_MIME_TYPES as readonly string[]).includes(value);
@@ -83,14 +110,17 @@ export function sniffAdminImageMime(bytes: Uint8Array): AdminImageMime | null {
   return null;
 }
 
-export function validateAdminImageFile(file: {
-  type: string;
-  size: number;
-}): { ok: true } | { ok: false; error: string } {
-  if (file.size <= 0 || file.size > ADMIN_IMAGE_MAX_BYTES) {
+export function validateAdminImageFile(
+  file: {
+    type: string;
+    size: number;
+  },
+  policy: AdminImageUploadPolicy = resolveAdminImageUploadPolicy("admins"),
+): { ok: true } | { ok: false; error: string } {
+  if (file.size <= 0 || file.size > policy.maxBytes) {
     return {
       ok: false,
-      error: ADMIN_IMAGE_SIZE_ERROR,
+      error: policy.sizeError,
     };
   }
   // Browser MIME is a hint only; server still sniffs bytes.
@@ -111,9 +141,10 @@ export function validateAdminImageFile(file: {
 
 export function validateAdminImageBytes(
   bytes: Uint8Array,
+  policy: AdminImageUploadPolicy = resolveAdminImageUploadPolicy("admins"),
 ): { ok: true; mime: AdminImageMime } | { ok: false; error: string } {
-  if (bytes.length <= 0 || bytes.length > ADMIN_IMAGE_MAX_BYTES) {
-    return { ok: false, error: ADMIN_IMAGE_SIZE_ERROR };
+  if (bytes.length <= 0 || bytes.length > policy.maxBytes) {
+    return { ok: false, error: policy.sizeError };
   }
   const mime = sniffAdminImageMime(bytes);
   if (!mime) {

@@ -35,6 +35,7 @@ export function videoContentHealthStatus(input: {
   format: YouTubeVideoFormat;
   hasMetadataIssue?: boolean;
   recipeValues?: Record<string, unknown> | null;
+  recipeAiMeta?: import("@/lib/ai-recipe/types").RecipeAiMeta | null;
 }): VideoContentHealthStatus {
   if (input.privacyStatus && input.privacyStatus !== "public") return "Unavailable";
   if (!input.embeddable) return "Not embeddable";
@@ -46,6 +47,7 @@ export function videoContentHealthStatus(input: {
     linkedRecipeId: input.linkedRecipeId,
     format: input.format,
     recipeValues: input.recipeValues,
+    recipeAiMeta: input.recipeAiMeta,
   });
 
   if (chapterStatus) return chapterStatus;
@@ -67,6 +69,7 @@ export function videoRowStatus(input: {
   hasRecipeChapters: boolean;
   format?: YouTubeVideoFormat;
   recipeValues?: Record<string, unknown> | null;
+  recipeAiMeta?: import("@/lib/ai-recipe/types").RecipeAiMeta | null;
 }): YouTubeVideoRowStatus {
   if (input.privacyStatus && input.privacyStatus !== "public") return "Unavailable";
   if (!input.embeddable) return "Not embeddable";
@@ -76,6 +79,7 @@ export function videoRowStatus(input: {
     linkedRecipeId: input.linkedRecipeId,
     format: input.format ?? "LONG",
     recipeValues: input.recipeValues,
+    recipeAiMeta: input.recipeAiMeta,
   });
   if (chapterStatus === "Chapters OK") return "Healthy";
   if (
@@ -203,10 +207,12 @@ export async function buildYoutubeContentHealth(): Promise<YouTubeContentHealthI
       });
       if (format === "LONG" && stored) {
         const values = parseValues(stored.values);
+        const recipeAiMeta = parseRecipeAiMeta(stored.aiMeta);
         const chapterStatus = videoChapterMappingHealthStatus({
           linkedRecipeId: link.recipeId,
           format,
           recipeValues: values,
+          recipeAiMeta,
         });
         if (
           chapterStatus === "Needs timestamps" ||

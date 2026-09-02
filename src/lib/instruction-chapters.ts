@@ -1,5 +1,10 @@
 import type { InstructionGroup } from "@/data/types";
 import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtube-types";
+import {
+  resolveFieldReviewState,
+  resolveFieldSource,
+} from "@/lib/ai-recipe/field-state";
+import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { formatTimestampInput, parseTimestampInput } from "@/lib/youtube-metadata-editor";
 
 /** Instruction section with optional Mesa canonical video chapter fields (seconds internally). */
@@ -48,7 +53,7 @@ export function countTitledInstructionSections(groups: InstructionGroupWithChapt
   return count;
 }
 
-/** Canonical instruction-group start timestamps only — for dashboard health and editor summary. */
+/** Canonical instruction-group start timestamps only — editor display / legacy counts. */
 export function canonicalInstructionTimestampCoverage(
   groups: InstructionGroupWithChapters[],
 ): InstructionChapterCoverage {
@@ -56,6 +61,57 @@ export function canonicalInstructionTimestampCoverage(
   let mappedSections = 0;
   for (const group of groups) {
     if (hasCanonicalStartTimestamp(group)) mappedSections += 1;
+  }
+  return {
+    totalSections,
+    mappedSections,
+    missingTimestamps: totalSections - mappedSections,
+    titledSections: countTitledInstructionSections(groups),
+  };
+}
+
+/**
+ * True when a canonical start timestamp has a trustworthy source for dashboard health.
+ * Presence of startTimestamp alone is insufficient — provenance must be staff or confirmed video.
+ */
+export function isTrustedInstructionStartTimestamp(
+  groupIndex: number,
+  group: InstructionGroupWithChapters,
+  aiMeta?: RecipeAiMeta | null,
+): boolean {
+  if (!hasCanonicalStartTimestamp(group)) return false;
+
+  const path = `values.instructions.${groupIndex}.startTimestamp`;
+  const provenance = aiMeta?.fieldProvenance?.[path];
+  if (!provenance) return false;
+
+  const source = resolveFieldSource(path, aiMeta);
+  const reviewState = resolveFieldReviewState(path, aiMeta);
+
+  if (source === "staff") return true;
+
+  if (source === "from_video") {
+    return (
+      reviewState === "confirmed" ||
+      reviewState === "locked" ||
+      provenance.humanModifiedAfterGeneration === true
+    );
+  }
+
+  return false;
+}
+
+/** Trusted timestamp coverage for YouTube chapter-mapping health. */
+export function trustedInstructionTimestampCoverage(
+  groups: InstructionGroupWithChapters[],
+  aiMeta?: RecipeAiMeta | null,
+): InstructionChapterCoverage {
+  const totalSections = groups.length;
+  let mappedSections = 0;
+  for (let index = 0; index < groups.length; index += 1) {
+    if (isTrustedInstructionStartTimestamp(index, groups[index]!, aiMeta)) {
+      mappedSections += 1;
+    }
   }
   return {
     totalSections,
