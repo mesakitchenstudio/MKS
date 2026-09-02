@@ -18,7 +18,7 @@ export type { ClassifiedStageAlignmentEvidence, StageAlignmentEvidenceLineage } 
 export type ChapterSuggestionEvidenceBundle = {
   videoId: string;
   videoDurationSeconds?: number;
-  /** AI/cache chapters — not used for timestamp suggestions unless VERIFIED. */
+  /** Gemini video-analysis chapters from generation cache — AI video temporal evidence. */
   cachedGeminiChapters: NormalizedAiYoutubeChapter[];
   /** Parsed YouTube description chapters — trustworthy timestamp source. */
   youtubeDescriptionChapters: NormalizedAiYoutubeChapter[];
@@ -38,8 +38,25 @@ export function hasTrustworthyTimestampEvidence(bundle: ChapterSuggestionEvidenc
   );
 }
 
+/** True when cached Gemini / video-model analysis returned temporal chapter segments. */
+export function hasVideoTemporalAnalysisAvailable(
+  bundle: ChapterSuggestionEvidenceBundle,
+): boolean {
+  return bundle.cachedGeminiChapters.length > 0;
+}
+
+export function resolveChapterSuggestionCapability(
+  bundle: ChapterSuggestionEvidenceBundle,
+): import("@/lib/ai-recipe/chapter-suggestions/types").ChapterSuggestionCapability {
+  if (hasTrustworthyTimestampEvidence(bundle)) return "youtube_chapters";
+  if (hasVideoTemporalAnalysisAvailable(bundle)) return "ai_video";
+  return "titles";
+}
+
 export function hasUsableChapterEvidence(bundle: ChapterSuggestionEvidenceBundle): boolean {
-  return hasTrustworthyTimestampEvidence(bundle);
+  return (
+    hasTrustworthyTimestampEvidence(bundle) || hasVideoTemporalAnalysisAvailable(bundle)
+  );
 }
 
 export function collectChapterSuggestionEvidence(input: {

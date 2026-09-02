@@ -159,6 +159,7 @@ function pickBestCandidate(candidates: MatchCandidate[]): MatchCandidate | null 
   const rank = { high: 3, medium: 2, low: 1 };
   const sourceRank: Record<ChapterSuggestionSource, number> = {
     stage_alignment: 6,
+    ai_video: 5,
     cached_video: 5,
     transcript: 5,
     youtube_chapter_hint: 4,
@@ -366,6 +367,168 @@ export function buildDeterministicChapterSuggestions(input: {
       });
       proposedStarts.set(index, startTimestamp);
     }
+  }
+
+  return suggestions.sort((a, b) => a.instructionIndex - b.instructionIndex);
+}
+
+/** Minimum seconds between consecutive AI-video chapter starts (YouTube chapter validity). */
+export const AI_VIDEO_MIN_SECTION_GAP_SECONDS = 22;
+
+type AiVideoSectionMatch = {
+  sectionIndex: number;
+  chapterIndex: number;
+  score: number;
+  chapter: NormalizedAiYoutubeChapter;
+};
+
+function assignAiVideoChapterMatches(input: {
+  groups: InstructionGroupWithChapters[];
+  chapters: NormalizedAiYoutubeChapter[];
+  mode: ChapterSuggestionMode;
+}): Map<number, NormalizedAiYoutubeChapter> {
+  const assignments = new Map<number, NormalizedAiYoutubeChapter>();
+  const pairs: AiVideoSectionMatch[] = [];
+
+  for (let sectionIndex = 0; sectionIndex < input.groups.length; sectionIndex += 1) {
+    const group = input.groups[sectionIndex]!;
+    if (input.mode === "missing" && hasCanonicalStartTimestamp(group)) continue;
+
+    const sectionTitle = String(group.name ?? "").trim() || `Section ${sectionIndex + 1}`;
+    for (let chapterIndex = 0; chapterIndex < input.chapters.length; chapterIndex += 1) {
+      const chapter = input.chapters[chapterIndex]!;
+      const score = titleMatchScore(sectionTitle, chapter.label);
+      if (score < 4) continue;
+      pairs.push({ sectionIndex, chapterIndex, score, chapter });
+    }
+  }
+
+  pairs.sort((a, b) => b.score - a.score || a.sectionIndex - b.sectionIndex);
+
+  const usedSections = new Set<number>();
+  const usedChapters = new Set<number>();
+  for (const pair of pairs) {
+    if (usedSections.has(pair.sectionIndex) || usedChapters.has(pair.chapterIndex)) continue;
+    usedSections.add(pair.sectionIndex);
+    usedChapters.add(pair.chapterIndex);
+    assignments.set(pair.sectionIndex, pair.chapter);
+  }
+
+  return assignments;
+}
+
+function aiVideoEvidenceText(chapter: NormalizedAiYoutubeChapter): string {
+  const clock = formatTimestampInput(chapter.time);
+  if (chapter.sourceNote.trim()) {
+    return `${clock} — ${chapter.sourceNote.trim()}`;
+  }
+  return `Video analysis chapter at ${clock}: ${chapter.label}`;
+}
+
+function detectAiVideoMinGapConflict(input: {
+  instructionIndex: number;
+  startTimestamp: number;
+  proposedStarts: Map<number, number>;
+}): string | null {
+  let previousIndex = -1;
+  let previousStart = -1;
+  for (const [index, start] of [...input.proposedStarts.entries()].sort((a, b) => a[0] - b[0])) {
+    if (index >= input.instructionIndex) break;
+    if (start > previousStart) {
+      previousIndex = index;
+      previousStart = start;
+    }
+  }
+  if (previousIndex < 0) return null;
+  const gap = input.startTimestamp - previousStart;
+  if (gap < AI_VIDEO_MIN_SECTION_GAP_SECONDS) {
+    return `Suggested timestamp is too close to section ${previousIndex + 1} (minimum ${AI_VIDEO_MIN_SECTION_GAP_SECONDS}s gap).`;
+  }
+  return null;
+}
+
+/**
+ * Match instruction sections to Gemini video-analysis chapters.
+ * Uses real temporal segments from cached video analysis — never duration interpolation.
+ */
+export function buildAiVideoChapterSuggestions(input: {
+  groups: InstructionGroupWithChapters[];
+  evidence: ChapterSuggestionEvidenceBundle;
+  mode: ChapterSuggestionMode;
+}): ChapterTimestampSuggestionItem[] {
+  const { groups, evidence, mode } = input;
+  const chapters = evidence.cachedGeminiChapters;
+  if (!chapters.length) return [];
+
+  const assignments = assignAiVideoChapterMatches({ groups, chapters, mode });
+  const suggestions: ChapterTimestampSuggestionItem[] = [];
+  const proposedStarts = new Map<number, number>();
+
+  for (let index = 0; index < groups.length; index += 1) {
+    const group = groups[index]!;
+    const hasCanonical = hasCanonicalStartTimestamp(group);
+    const include = mode === "all" || !hasCanonical;
+    if (!include) continue;
+
+    const sectionTitle = String(group.name ?? "").trim() || `Section ${index + 1}`;
+    const fingerprint = instructionSectionFingerprint(group, index);
+    const chapter = assignments.get(index);
+
+    if (!chapter) {
+      suggestions.push({
+        instructionIndex: index,
+        sectionFingerprint: fingerprint,
+        sectionTitle,
+        chapterLabel: resolveChapterLabel(group),
+        suggestedChapterLabel: resolveChapterLabel(group) || sectionTitle,
+        confidence: "low",
+        source: "semantic_inference",
+        status: "no_evidence",
+        reason: "Needs input — section not located in video analysis",
+      });
+      continue;
+    }
+
+    const startTimestamp = roundPlayheadToSeconds(chapter.time);
+    proposedStarts.set(index, startTimestamp);
+
+    let status: ChapterTimestampSuggestionItem["status"] = "suggested";
+    let conflictReason: string | undefined;
+
+    const conflict =
+      detectSuggestionConflict({
+        instructionIndex: index,
+        startTimestamp,
+        groups,
+        videoDurationSeconds: evidence.videoDurationSeconds,
+        otherStarts: proposedStarts,
+      }) ??
+      detectAiVideoMinGapConflict({
+        instructionIndex: index,
+        startTimestamp,
+        proposedStarts,
+      });
+
+    if (conflict) {
+      status = "conflict";
+      conflictReason = conflict;
+      proposedStarts.delete(index);
+    }
+
+    suggestions.push({
+      instructionIndex: index,
+      sectionFingerprint: fingerprint,
+      sectionTitle,
+      chapterLabel: resolveChapterLabel(group),
+      suggestedChapterLabel: chapter.label.trim() || sectionTitle,
+      startTimestamp: status === "suggested" ? startTimestamp : undefined,
+      confidence: aiConfidenceToSuggestion(chapter.confidence),
+      source: "ai_video",
+      evidence: aiVideoEvidenceText(chapter),
+      reason: "Matched section to AI video analysis chapter",
+      status,
+      conflictReason,
+    });
   }
 
   return suggestions.sort((a, b) => a.instructionIndex - b.instructionIndex);

@@ -1241,7 +1241,11 @@ export function RecipeEditor({
     groups: import("@/lib/instruction-chapters").InstructionGroupWithChapters[];
     provenancePaths: Record<
       string,
-      { source: import("@/lib/ai-recipe/field-state").FieldSource; value: unknown }
+      {
+        source: import("@/lib/ai-recipe/field-state").FieldSource;
+        value: unknown;
+        chapterSuggestionSource?: import("@/lib/ai-recipe/chapter-suggestions/types").ChapterSuggestionSource;
+      }
     >;
   }) {
     setField("instructions", input.groups);
@@ -1254,6 +1258,7 @@ export function RecipeEditor({
           value: row.value,
           source: row.source,
           previous: fieldProvenance[path],
+          chapterSuggestionSource: row.chapterSuggestionSource,
         });
       }
       return { ...meta, fieldProvenance };

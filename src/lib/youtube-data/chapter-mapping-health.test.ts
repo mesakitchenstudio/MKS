@@ -148,7 +148,7 @@ describe("chapter mapping health", () => {
     assert.equal(status, "Chapters OK");
   });
 
-  it("counts confirmed YouTube-description provenance as trusted", () => {
+  it("counts confirmed AI video apply provenance as trusted", () => {
     const values = {
       instructions: caesarSections.map((section, index) => ({
         ...section,
