@@ -30,19 +30,21 @@ export function VideoThumbnail({
   showPlay = false,
   priority = false,
   sizes = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw",
+  aspectClassName = "aspect-video",
 }: {
   src?: string;
   alt: string;
   showPlay?: boolean;
   priority?: boolean;
   sizes?: string;
+  aspectClassName?: string;
 }) {
   const normalized = normalizeRecipeImageSrc(src);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const degraded = !normalized || failedSrc === normalized;
 
   return (
-    <div className="relative aspect-video overflow-hidden bg-sand">
+    <div className={`relative overflow-hidden bg-sand ${aspectClassName}`}>
       {degraded ? (
         <VideoThumbnailFallback showPlay={showPlay} />
       ) : (
