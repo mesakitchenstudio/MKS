@@ -136,7 +136,7 @@ describe("youtube-data health status", () => {
     );
   });
 
-  it("marks missing chapters when linked but empty", () => {
+  it("marks missing chapters when linked but timestamps unmapped", () => {
     assert.equal(
       videoRowStatus({
         privacyStatus: "public",
@@ -144,6 +144,10 @@ describe("youtube-data health status", () => {
         linkedRecipeId: "r1",
         hasDescriptionChapters: false,
         hasRecipeChapters: false,
+        format: "LONG",
+        recipeValues: {
+          instructions: [{ name: "Mix", steps: ["a"] }],
+        },
       }),
       "Missing chapters",
     );

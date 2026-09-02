@@ -15,7 +15,7 @@ import type {
   ChapterTimestampSuggestionItem,
 } from "@/lib/ai-recipe/chapter-suggestions/types";
 import type { ChapterSuggestionEvidenceBundle } from "@/lib/ai-recipe/chapter-suggestions/evidence";
-import type { StageAlignmentEvidenceLineage } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
+import type { StageAlignmentEvidenceLineage, ClassifiedStageAlignmentEvidence } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
 
 type MatchCandidate = {
   startTimestamp: number;
@@ -72,10 +72,10 @@ function aiConfidenceToSuggestion(confidence: AiConfidence): ChapterSuggestionCo
   return "low";
 }
 
-function findClassifiedStageAlignment(
+function findTrustworthyStageAlignment(
   groupIndex: number,
   group: InstructionGroupWithChapters,
-  classified: ChapterSuggestionEvidenceBundle["stageAlignments"],
+  classified: ClassifiedStageAlignmentEvidence[],
 ) {
   const id = `stage-${groupIndex}`;
   const title = String(group.name ?? "").trim().toLowerCase();
@@ -87,6 +87,13 @@ function findClassifiedStageAlignment(
         row.alignment.instructionSectionTitle.toLowerCase().trim() === title,
     ) ?? null
   );
+}
+
+function matchYoutubeDescriptionChapter(
+  sectionTitle: string,
+  chapters: NormalizedAiYoutubeChapter[],
+): MatchCandidate | null {
+  return matchCachedChapter(sectionTitle, chapters);
 }
 
 function stageAlignmentEvidenceText(
@@ -143,57 +150,8 @@ function matchYoutubeHint(
   return {
     ...matched,
     source: "youtube_chapter_hint",
-    confidence: matched.confidence === "high" ? "medium" : matched.confidence,
-    reason: "Matched YouTube description chapter hint",
-  };
-}
-
-function matchLegacyTimestamp(
-  groupIndex: number,
-  group: InstructionGroupWithChapters,
-  legacy: { time: number; label: string }[],
-): MatchCandidate | null {
-  const title = String(group.name ?? "").trim();
-  const byTitle = legacy.find((row) => titleMatchScore(title, row.label) >= 6);
-  const row = byTitle ?? legacy[groupIndex];
-  if (!row || row.time < 0) return null;
-  return {
-    startTimestamp: row.time,
-    confidence: "low",
-    source: "legacy_timing",
-    evidence: `Legacy timing reference at ${formatTimestampInput(row.time)}`,
-    reason: "Legacy Mesa timing reference (review before applying)",
-  };
-}
-
-function interpolateFromNeighbors(input: {
-  groupIndex: number;
-  groups: InstructionGroupWithChapters[];
-}): MatchCandidate | null {
-  let prevStart: number | null = null;
-  for (let index = input.groupIndex - 1; index >= 0; index -= 1) {
-    const group = input.groups[index]!;
-    if (hasCanonicalStartTimestamp(group)) {
-      prevStart = group.startTimestamp!;
-      break;
-    }
-  }
-  let nextStart: number | null = null;
-  for (let index = input.groupIndex + 1; index < input.groups.length; index += 1) {
-    const group = input.groups[index]!;
-    if (hasCanonicalStartTimestamp(group)) {
-      nextStart = group.startTimestamp!;
-      break;
-    }
-  }
-  if (prevStart == null || nextStart == null || nextStart <= prevStart + 2) return null;
-  const midpoint = roundPlayheadToSeconds((prevStart + nextStart) / 2);
-  return {
-    startTimestamp: midpoint,
-    confidence: "low",
-    source: "semantic_inference",
-    evidence: `Interpolated between ${formatTimestampInput(prevStart)} and ${formatTimestampInput(nextStart)}`,
-    reason: "Approximate timing from neighboring verified sections",
+    confidence: "high",
+    reason: "Matched YouTube description chapter",
   };
 }
 
@@ -264,10 +222,10 @@ export function buildDeterministicChapterSuggestions(input: {
     const fingerprint = instructionSectionFingerprint(group, index);
     const candidates: MatchCandidate[] = [];
 
-    const classifiedAlignment = findClassifiedStageAlignment(
+    const classifiedAlignment = findTrustworthyStageAlignment(
       index,
       group,
-      evidence.stageAlignments,
+      evidence.trustworthyStageAlignments,
     );
     if (classifiedAlignment && classifiedAlignment.alignment.videoStartSeconds >= 0) {
       const alignment = classifiedAlignment.alignment;
@@ -286,19 +244,8 @@ export function buildDeterministicChapterSuggestions(input: {
       });
     }
 
-    const cached = matchCachedChapter(sectionTitle, evidence.cachedGeminiChapters);
-    if (cached) candidates.push(cached);
-
     const youtubeHint = matchYoutubeHint(sectionTitle, evidence.youtubeDescriptionChapters);
     if (youtubeHint) candidates.push(youtubeHint);
-
-    const legacy = matchLegacyTimestamp(index, group, evidence.legacyTimestamps);
-    if (legacy) candidates.push(legacy);
-
-    if (!candidates.length) {
-      const interpolated = interpolateFromNeighbors({ groupIndex: index, groups });
-      if (interpolated) candidates.push(interpolated);
-    }
 
     const best = pickBestCandidate(candidates);
 
@@ -361,10 +308,10 @@ export function buildDeterministicChapterSuggestions(input: {
       const fingerprint = instructionSectionFingerprint(group, index);
       const candidates: MatchCandidate[] = [];
 
-      const classifiedAlignment = findClassifiedStageAlignment(
+      const classifiedAlignment = findTrustworthyStageAlignment(
         index,
         group,
-        evidence.stageAlignments,
+        evidence.trustworthyStageAlignments,
       );
       if (classifiedAlignment && classifiedAlignment.alignment.videoStartSeconds >= 0) {
         const alignment = classifiedAlignment.alignment;
@@ -378,8 +325,8 @@ export function buildDeterministicChapterSuggestions(input: {
           reason: "Comparison against current canonical timestamp",
         });
       }
-      const cached = matchCachedChapter(sectionTitle, evidence.cachedGeminiChapters);
-      if (cached) candidates.push(cached);
+      const youtubeChapter = matchYoutubeDescriptionChapter(sectionTitle, evidence.youtubeDescriptionChapters);
+      if (youtubeChapter) candidates.push(youtubeChapter);
 
       const best = pickBestCandidate(candidates);
       if (!best) continue;
@@ -422,6 +369,41 @@ export function buildDeterministicChapterSuggestions(input: {
   }
 
   return suggestions.sort((a, b) => a.instructionIndex - b.instructionIndex);
+}
+
+export function buildChapterTitleSuggestions(input: {
+  groups: InstructionGroupWithChapters[];
+  mode: ChapterSuggestionMode;
+}): ChapterTimestampSuggestionItem[] {
+  const suggestions: ChapterTimestampSuggestionItem[] = [];
+
+  for (let index = 0; index < input.groups.length; index += 1) {
+    const group = input.groups[index]!;
+    const sectionTitle = String(group.name ?? "").trim() || `Section ${index + 1}`;
+    const currentLabel = String(group.chapterLabel ?? "").trim();
+    const hasCanonical = hasCanonicalStartTimestamp(group);
+
+    if (input.mode === "missing" && hasCanonical && currentLabel) continue;
+    if (input.mode === "missing" && currentLabel && currentLabel === sectionTitle) continue;
+
+    const suggestedLabel = currentLabel || sectionTitle;
+    if (input.mode === "all" && currentLabel === suggestedLabel) continue;
+
+    suggestions.push({
+      instructionIndex: index,
+      sectionFingerprint: instructionSectionFingerprint(group, index),
+      sectionTitle,
+      chapterLabel: resolveChapterLabel(group),
+      suggestedChapterLabel: suggestedLabel,
+      confidence: "low",
+      source: "semantic_inference",
+      status: "suggested",
+      reason: "Section title can be used as the chapter label",
+      evidence: "No trustworthy timestamp source — label only",
+    });
+  }
+
+  return suggestions;
 }
 
 export function timestampComparisonLabel(current?: number, suggested?: number): string | null {

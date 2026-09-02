@@ -12,9 +12,12 @@ import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { youtubeVideoId } from "@/lib/youtube";
 import {
   collectChapterSuggestionEvidence,
-  hasUsableChapterEvidence,
+  hasTrustworthyTimestampEvidence,
 } from "@/lib/ai-recipe/chapter-suggestions/evidence";
-import { buildDeterministicChapterSuggestions } from "@/lib/ai-recipe/chapter-suggestions/build";
+import {
+  buildChapterTitleSuggestions,
+  buildDeterministicChapterSuggestions,
+} from "@/lib/ai-recipe/chapter-suggestions/build";
 import { instructionSnapshotFingerprint } from "@/lib/ai-recipe/chapter-suggestions/fingerprints";
 import type {
   ChapterSuggestionBatch,
@@ -96,7 +99,7 @@ export async function runChapterTimestampSuggestions(
     input.aiMeta?.sourceVideoId ??
     null;
   if (!videoId) {
-    return { ok: false, code: "no_video", message: "Link a YouTube video before suggesting timestamps." };
+    return { ok: false, code: "no_video", message: "Link a YouTube video before suggesting chapters." };
   }
 
   const db = getDb();
@@ -158,24 +161,39 @@ export async function runChapterTimestampSuggestions(
     youtubeDescription,
   });
 
-  if (!hasUsableChapterEvidence(evidence)) {
-    return {
-      ok: false,
-      code: "insufficient_evidence",
-      message: "Not enough cached video evidence to suggest reliable timestamps.",
-    };
-  }
-
   const groups = normalizeInstructionGroups(input.values.instructions);
-  const suggestions = buildDeterministicChapterSuggestions({ groups, evidence, mode });
-
-  const applicable = suggestions.filter((row) => row.status !== "no_evidence");
-  if (!applicable.length) {
+  if (!groups.length) {
     return {
       ok: false,
       code: "no_suggestions",
-      message: "No reliable timestamp suggestions could be produced from cached evidence.",
+      message: "Add instruction sections before suggesting chapters.",
     };
+  }
+
+  const timestampEvidenceAvailable = hasTrustworthyTimestampEvidence(evidence);
+  const suggestions = timestampEvidenceAvailable
+    ? buildDeterministicChapterSuggestions({ groups, evidence, mode })
+    : buildChapterTitleSuggestions({ groups, mode });
+
+  if (!suggestions.length) {
+    return {
+      ok: false,
+      code: "no_suggestions",
+      message: timestampEvidenceAvailable
+        ? "No reliable timestamp suggestions could be produced from available sources."
+        : "No chapter title suggestions are needed for the current sections.",
+    };
+  }
+
+  if (timestampEvidenceAvailable) {
+    const applicable = suggestions.filter((row) => row.status !== "no_evidence");
+    if (!applicable.length) {
+      return {
+        ok: false,
+        code: "no_suggestions",
+        message: "No reliable timestamp suggestions could be produced from available sources.",
+      };
+    }
   }
 
   const batch: ChapterSuggestionBatch = {
@@ -197,6 +215,8 @@ export async function runChapterTimestampSuggestions(
       generationCacheUsed: evidence.generationCacheUsed,
       geminiUsed: false,
       latencyMs: Date.now() - started,
+      timestampEvidenceAvailable,
+      suggestionKind: timestampEvidenceAvailable ? "timestamps" : "titles",
     },
   };
 

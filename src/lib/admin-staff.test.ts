@@ -15,7 +15,7 @@ import {
   validateAdminDeletion,
   validateAdminRoleChange,
 } from "./admin-staff";
-import { validateAdminImageFile, sniffAdminImageMime, validateAdminImageBytes, isOwnedAdminUploadUrl, RECIPE_HERO_IMAGE_HELP } from "./admin-upload";
+import { validateAdminImageFile, sniffAdminImageMime, validateAdminImageBytes, isOwnedAdminUploadUrl, RECIPE_HERO_IMAGE_HELP, ADMIN_IMAGE_MAX_BYTES, ADMIN_IMAGE_SIZE_ERROR } from "./admin-upload";
 import { formatAdminDateTime } from "./datetime";
 import { hashPassword, verifyPassword } from "./passwords";
 import { isGooglePhotoUrl } from "./accounts";
@@ -360,19 +360,26 @@ test("last login uses shared admin datetime formatter", () => {
 });
 
 test("admin image uploads reject bad types and oversized files", () => {
-  const oversized = validateAdminImageFile({ type: "image/jpeg", size: 3 * 1024 * 1024 });
+  const oversized = validateAdminImageFile({ type: "image/jpeg", size: ADMIN_IMAGE_MAX_BYTES + 1 });
+  const atLimit = validateAdminImageFile({ type: "image/jpeg", size: ADMIN_IMAGE_MAX_BYTES });
+  const justBelow = validateAdminImageFile({
+    type: "image/jpeg",
+    size: ADMIN_IMAGE_MAX_BYTES - 1,
+  });
   assert.equal(validateAdminImageFile({ type: "image/png", size: 100 }).ok, true);
   assert.equal(validateAdminImageFile({ type: "application/pdf", size: 100 }).ok, false);
   assert.equal(oversized.ok, false);
+  assert.equal(atLimit.ok, true);
+  assert.equal(justBelow.ok, true);
   if (!oversized.ok) {
-    assert.equal(oversized.error, "Choose an image smaller than 2 MB.");
+    assert.equal(oversized.error, ADMIN_IMAGE_SIZE_ERROR);
   }
 });
 
 test("recipe hero image help recommends 16:9 without requiring 1600×900", () => {
   assert.match(RECIPE_HERO_IMAGE_HELP, /16:9 landscape images work best/);
   assert.match(RECIPE_HERO_IMAGE_HELP, /Recommended: 1600 × 900 px/);
-  assert.match(RECIPE_HERO_IMAGE_HELP, /max 2 MB/);
+  assert.match(RECIPE_HERO_IMAGE_HELP, /max 5 MB/);
   // Upload validation stays format/size only — 1280×720 YouTube thumbs are not rejected by dimension rules.
   assert.equal(validateAdminImageFile({ type: "image/jpeg", size: 180_000 }).ok, true);
 });

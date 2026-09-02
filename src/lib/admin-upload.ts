@@ -1,6 +1,8 @@
 /** Shared admin image upload rules (client + API). */
 
-export const ADMIN_IMAGE_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+export const ADMIN_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+export const ADMIN_IMAGE_SIZE_ERROR = "Image must be 5 MB or smaller.";
 
 export const ADMIN_IMAGE_MIME_TYPES = [
   "image/jpeg",
@@ -15,17 +17,17 @@ export const ADMIN_IMAGE_ACCEPT = ADMIN_IMAGE_MIME_TYPES.join(",");
 
 /** Profile / avatar uploads — square crops work best in circular UI. */
 export const ADMIN_IMAGE_HELP =
-  "Square images work best. JPEG, PNG, WebP, or GIF · max 2 MB.";
+  "Square images work best. JPEG, PNG, WebP, or GIF · max 5 MB.";
 
 /**
  * Recipe hero image guidance (Media tab).
  * 1600×900 is a recommendation only — YouTube maxres (typically 1280×720) remains valid.
  */
 export const RECIPE_HERO_IMAGE_HELP =
-  "16:9 landscape images work best. Recommended: 1600 × 900 px. JPEG, PNG, WebP, or GIF · max 2 MB.";
+  "16:9 landscape images work best. Recommended: 1600 × 900 px. JPEG, PNG, WebP, or GIF · max 5 MB.";
 
 /** Format + size only (no aspect advice) — gallery and other non-hero uploads. */
-export const ADMIN_IMAGE_FORMAT_HELP = "JPEG, PNG, WebP, or GIF · max 2 MB.";
+export const ADMIN_IMAGE_FORMAT_HELP = "JPEG, PNG, WebP, or GIF · max 5 MB.";
 
 export function isAdminImageMime(value: string): value is AdminImageMime {
   return (ADMIN_IMAGE_MIME_TYPES as readonly string[]).includes(value);
@@ -88,7 +90,7 @@ export function validateAdminImageFile(file: {
   if (file.size <= 0 || file.size > ADMIN_IMAGE_MAX_BYTES) {
     return {
       ok: false,
-      error: "Choose an image smaller than 2 MB.",
+      error: ADMIN_IMAGE_SIZE_ERROR,
     };
   }
   // Browser MIME is a hint only; server still sniffs bytes.
@@ -111,7 +113,7 @@ export function validateAdminImageBytes(
   bytes: Uint8Array,
 ): { ok: true; mime: AdminImageMime } | { ok: false; error: string } {
   if (bytes.length <= 0 || bytes.length > ADMIN_IMAGE_MAX_BYTES) {
-    return { ok: false, error: "Choose an image smaller than 2 MB." };
+    return { ok: false, error: ADMIN_IMAGE_SIZE_ERROR };
   }
   const mime = sniffAdminImageMime(bytes);
   if (!mime) {

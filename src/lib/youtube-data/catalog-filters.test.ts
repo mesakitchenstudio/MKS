@@ -84,7 +84,7 @@ describe("catalog filters", () => {
         ...sample[0],
         videoId: "d",
         title: "Long no chapters",
-        contentHealth: "Missing chapters",
+        contentHealth: "Needs timestamps",
       },
     ];
     const filtered = filterCatalogVideos(withMissing, "missing-chapters");

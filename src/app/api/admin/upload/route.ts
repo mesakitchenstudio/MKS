@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { storeAdminImage } from "@/lib/admin-upload-store";
-import { ADMIN_IMAGE_MAX_BYTES, validateAdminImageFile } from "@/lib/admin-upload";
+import { ADMIN_IMAGE_MAX_BYTES, ADMIN_IMAGE_SIZE_ERROR, validateAdminImageFile } from "@/lib/admin-upload";
 import { getAdminSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     if (file.size > ADMIN_IMAGE_MAX_BYTES) {
       return NextResponse.json(
-        { error: "Choose an image smaller than 2 MB." },
+        { error: ADMIN_IMAGE_SIZE_ERROR },
         { status: 400 },
       );
     }

@@ -36,7 +36,38 @@ export type InstructionChapterCoverage = {
   totalSections: number;
   mappedSections: number;
   missingTimestamps: number;
+  /** Sections with a usable chapter/section title. */
+  titledSections: number;
 };
+
+export function countTitledInstructionSections(groups: InstructionGroupWithChapters[]): number {
+  let count = 0;
+  for (const group of groups) {
+    if (resolveChapterLabel(group).trim()) count += 1;
+  }
+  return count;
+}
+
+/** Canonical instruction-group start timestamps only — for dashboard health and editor summary. */
+export function canonicalInstructionTimestampCoverage(
+  groups: InstructionGroupWithChapters[],
+): InstructionChapterCoverage {
+  const totalSections = groups.length;
+  let mappedSections = 0;
+  for (const group of groups) {
+    if (hasCanonicalStartTimestamp(group)) mappedSections += 1;
+  }
+  return {
+    totalSections,
+    mappedSections,
+    missingTimestamps: totalSections - mappedSections,
+    titledSections: countTitledInstructionSections(groups),
+  };
+}
+
+export function hasInstructionSectionStructure(groups: InstructionGroupWithChapters[]): boolean {
+  return countTitledInstructionSections(groups) > 0;
+}
 
 export function normalizeInstructionGroups(raw: unknown): InstructionGroupWithChapters[] {
   if (!Array.isArray(raw)) return [];
@@ -234,6 +265,7 @@ export function instructionChapterCoverage(
     totalSections,
     mappedSections,
     missingTimestamps: totalSections - mappedSections,
+    titledSections: countTitledInstructionSections(groups),
   };
 }
 
@@ -241,13 +273,14 @@ export function formatInstructionChapterCoverageSummary(
   coverage: InstructionChapterCoverage,
 ): string {
   if (coverage.totalSections === 0) return "0 sections";
+  const titlePart =
+    coverage.titledSections > 0
+      ? `${coverage.titledSections} chapter title${coverage.titledSections === 1 ? "" : "s"} · `
+      : "";
   if (coverage.mappedSections === coverage.totalSections) {
-    return `${coverage.mappedSections}/${coverage.totalSections} video chapters mapped`;
+    return `${coverage.mappedSections}/${coverage.totalSections} timestamps mapped`;
   }
-  if (coverage.mappedSections === 0) {
-    return `${coverage.missingTimestamps} timestamps missing`;
-  }
-  return `${coverage.mappedSections}/${coverage.totalSections} video chapters mapped`;
+  return `${titlePart}${coverage.mappedSections}/${coverage.totalSections} timestamps mapped`;
 }
 
 export function validateInstructionChapters(input: {

@@ -2,9 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    // Align with ADMIN_IMAGE_MAX_BYTES (2 MB) plus multipart overhead.
+    // Align with ADMIN_IMAGE_MAX_BYTES (5 MB) plus multipart overhead.
     serverActions: {
-      bodySizeLimit: "3mb",
+      bodySizeLimit: "6mb",
     },
   },
   images: {
