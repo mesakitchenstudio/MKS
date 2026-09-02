@@ -654,16 +654,22 @@ export function InstructionsAccordionEditor({
                         id={startInputId}
                         data-recipe-field-path={`values.${parentKey}.${groupIndex}.startTimestamp`}
                         value={startInputDisplayValue({ group, groupIndex, timestampMeta, resolved })}
-                        placeholder="00:00"
+                        placeholder="mm:ss"
                         aria-label={`Video chapter start for section ${groupIndex + 1}`}
                         aria-invalid={Boolean(startInputErrors[groupIndex])}
                         onChange={(event) => updateStartInput(groupIndex, event.target.value)}
-                        className={`${compactInputClass}${startInputErrors[groupIndex] ? " border-terracotta/60" : ""}`}
+                        className={`${compactInputClass}${startInputErrors[groupIndex] ? " border-terracotta/60" : ""}${
+                          !hasCanonicalStartTimestamp(group) && startInputDrafts[groupIndex] === undefined
+                            ? " placeholder:italic placeholder:text-muted/70"
+                            : ""
+                        }`}
                       />
                       {startInputErrors[groupIndex] ? (
                         <span className="text-xs font-semibold text-terracotta" role="alert">
                           {startInputErrors[groupIndex]}
                         </span>
+                      ) : !hasCanonicalStartTimestamp(group) ? (
+                        <span className="text-xs text-muted">Timestamp missing</span>
                       ) : null}
                       {!hasCanonicalStartTimestamp(group) &&
                       resolved.startSource !== "canonical" &&

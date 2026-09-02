@@ -72,6 +72,24 @@ export async function POST(request: Request) {
         ok: false,
         error: result.message,
         code: result.code,
+        stage: result.stage,
+        diagnostics: result.diagnostics
+          ? {
+              videoId: result.diagnostics.videoId,
+              typeId: result.diagnostics.typeId,
+              cachePresent: result.diagnostics.cachePresent,
+              cacheBypassed: result.diagnostics.cacheBypassed,
+              cacheChapterCount: result.diagnostics.cacheChapterCount,
+              freshGeminiStarted: result.diagnostics.freshGeminiStarted,
+              model: result.diagnostics.model,
+              latencyMs: result.diagnostics.latencyMs,
+              stage: result.diagnostics.stage,
+              rawChapterCount: result.diagnostics.rawChapterCount,
+              matchedSectionCount: result.diagnostics.matchedSectionCount,
+              parseNotes: result.diagnostics.parseNotes,
+              geminiErrorCode: result.diagnostics.geminiErrorCode,
+            }
+          : undefined,
       },
       { status },
     );

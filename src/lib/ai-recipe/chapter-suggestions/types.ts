@@ -67,6 +67,10 @@ export type ChapterSuggestionDiagnostics = {
   freshVideoAnalysis?: boolean;
   capability?: ChapterSuggestionCapability;
   suggestionKind?: "timestamps" | "ai_video_timestamps" | "titles";
+  analysisStage?: string;
+  analysisModel?: string;
+  analysisRawChapterCount?: number;
+  analysisMatchedSectionCount?: number;
 };
 
 export type ChapterSuggestionSelection = {

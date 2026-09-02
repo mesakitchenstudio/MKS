@@ -344,117 +344,218 @@ const VIDEO_CHAPTER_ANALYSIS_SCHEMA: Record<string, unknown> = {
       type: "string",
       description: "Total video duration as MM:SS or HH:MM:SS when known from the video.",
     },
-    chapters: {
+    sections: {
       type: "array",
-      description: "Temporal chapter segments grounded in observed video moments.",
+      description: "One entry per target recipe section in index order.",
       items: {
         type: "object",
         properties: {
-          time: { type: "string", description: "Chapter start as MM:SS or HH:MM:SS." },
-          label: { type: "string", description: "Short procedural chapter label." },
+          sectionIndex: {
+            type: "number",
+            description: "0-based index of the target recipe section.",
+          },
+          matched: {
+            type: "boolean",
+            description: "True only when the section start can be located in video evidence.",
+          },
+          startTime: {
+            type: "string",
+            description: "Section start as MM:SS or HH:MM:SS when matched is true.",
+          },
+          label: {
+            type: "string",
+            description: "Short label for what begins at this time.",
+          },
           confidence: {
             type: "string",
             enum: ["VERIFIED", "HIGH_CONFIDENCE_INFERENCE", "ESTIMATED", "UNKNOWN"],
           },
-          sourceNote: {
+          evidence: {
             type: "string",
-            description: "Brief note citing what happens in the video at this time.",
+            description: "Brief description of the observed video evidence at this time.",
           },
         },
-        required: ["time", "label", "confidence", "sourceNote"],
+        required: ["sectionIndex", "matched", "confidence", "evidence"],
       },
     },
   },
-  required: ["chapters"],
+  required: ["sections"],
 };
 
-function buildVideoChapterAnalysisPrompt(sectionTitles: string[]): string {
-  const targets = sectionTitles
-    .map((title, index) => `${index + 1}. ${title}`)
-    .join("\n");
+export type VideoChapterAnalysisSectionInput = {
+  sectionIndex: number;
+  title: string;
+  steps: string[];
+};
+
+function buildVideoChapterAnalysisPrompt(sections: VideoChapterAnalysisSectionInput[]): string {
+  const targets = sections
+    .map((section) => {
+      const stepLines = section.steps
+        .map((step) => step.trim())
+        .filter(Boolean)
+        .slice(0, 6)
+        .map((step) => `   - ${step}`)
+        .join("\n");
+      return [
+        `${section.sectionIndex + 1}. [sectionIndex=${section.sectionIndex}] ${section.title}`,
+        stepLines ? `   Recognition context (do NOT use step count to invent timing):\n${stepLines}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
+
   return [
-    "Analyze this cooking video and locate when each target recipe section actually begins.",
+    "Analyze this cooking video and identify the timestamp where each specific recipe stage begins.",
     "",
-    "Target sections (labels only — do NOT infer timestamps from section order, section count, or assumed pacing):",
+    "Target stages:",
     targets,
     "",
-    "Return JSON matching the schema with:",
-    "- duration: total video duration when known",
-    "- chapters: one entry per located section with time, label, confidence, and sourceNote",
+    "Return ONLY JSON with:",
+    "- duration: total video duration when known from the video",
+    "- sections: one object per target with sectionIndex, matched, startTime (when matched), label, confidence, evidence",
     "",
-    "Ground every timestamp in what you observe in the video (actions, narration, captions, visuals).",
-    "Do not interpolate timestamps or divide the runtime evenly.",
-    "Omit sections you cannot locate with temporal evidence.",
+    "Rules:",
+    "- Use sectionIndex exactly as provided (0-based).",
+    "- Set matched=true and startTime only when you can locate the stage in actual video evidence (visuals, narration, captions, actions).",
+    "- Do NOT estimate from duration, section order, section count, or assumed pacing.",
+    "- If a stage cannot be located confidently, set matched=false and omit startTime.",
+    "- Evidence must describe what is happening in the video — do not fabricate.",
   ].join("\n");
 }
 
 export type GeminiVideoChapterAnalysisResult =
-  | { ok: true; model: string; raw: unknown }
-  | { ok: false; error: AiGeminiError };
+  | { ok: true; model: string; raw: unknown; latencyMs: number }
+  | {
+      ok: false;
+      error: AiGeminiError;
+      latencyMs: number;
+      stage:
+        | "VIDEO_ANALYSIS_REQUEST_FAILED"
+        | "VIDEO_ANALYSIS_TIMEOUT"
+        | "VIDEO_ANALYSIS_EMPTY"
+        | "VIDEO_ANALYSIS_PARSE_FAILED"
+        | "VIDEO_ANALYSIS_UNCONFIGURED";
+    };
 
 /** Focused Gemini video analysis for instruction-section chapter timestamps. */
 export async function analyzeVideoChaptersWithGemini(input: {
   youtubeUrl: string;
-  sectionTitles: string[];
+  sections: VideoChapterAnalysisSectionInput[];
 }): Promise<GeminiVideoChapterAnalysisResult> {
+  const started = Date.now();
   const normalized = normalizeYouTubeForGemini(input.youtubeUrl);
   if (!normalized) {
-    return { ok: false, error: buildAiGeminiError("INVALID_YOUTUBE_URL", "video_probe") };
+    return {
+      ok: false,
+      latencyMs: Date.now() - started,
+      stage: "VIDEO_ANALYSIS_REQUEST_FAILED",
+      error: buildAiGeminiError("INVALID_YOUTUBE_URL", "video_probe"),
+    };
   }
 
   const ai = getGeminiClient();
   if (!ai) {
     return {
       ok: false,
+      latencyMs: Date.now() - started,
+      stage: "VIDEO_ANALYSIS_UNCONFIGURED",
       error: buildAiGeminiError("GEMINI_CONFIGURATION_ERROR", "config"),
     };
   }
 
   const models = geminiModelCandidates();
-  const prompt = buildVideoChapterAnalysisPrompt(input.sectionTitles);
+  const prompt = buildVideoChapterAnalysisPrompt(input.sections);
+  const modes: GenerationMode[] = ["structured", "prompt_json"];
   let lastError: AiGeminiError | null = null;
+  let lastStage:
+    | "VIDEO_ANALYSIS_REQUEST_FAILED"
+    | "VIDEO_ANALYSIS_TIMEOUT"
+    | "VIDEO_ANALYSIS_EMPTY"
+    | "VIDEO_ANALYSIS_PARSE_FAILED"
+    | "VIDEO_ANALYSIS_UNCONFIGURED" = "VIDEO_ANALYSIS_REQUEST_FAILED";
 
   for (const model of models) {
-    try {
-      const interaction = await createVideoInteraction(ai, {
-        model,
-        videoUri: normalized.canonicalUrl,
-        text: prompt,
-        systemInstruction:
-          "You are Mesa's video chapter analyst. Return only JSON grounded in observed video timing.",
-        responseFormat: {
-          type: "text",
-          mime_type: "application/json",
-          schema: VIDEO_CHAPTER_ANALYSIS_SCHEMA,
-        },
-      });
-
-      const text = interactionText(interaction);
-      if (!text) {
-        lastError = buildAiGeminiError("RECIPE_SCHEMA_EMPTY", "recipe_schema", {
-          detail: "Gemini returned no chapter analysis text.",
+    for (const mode of modes) {
+      try {
+        const interaction = await createVideoInteraction(ai, {
+          model,
+          videoUri: normalized.canonicalUrl,
+          text:
+            mode === "structured"
+              ? prompt
+              : `${prompt}\n\nReturn ONLY one JSON object. Do not wrap in markdown.`,
+          systemInstruction:
+            "You are Mesa's video chapter analyst. Ground every timestamp in observed video evidence. Never interpolate from duration or section count.",
+          responseFormat:
+            mode === "structured"
+              ? {
+                  type: "text",
+                  mime_type: "application/json",
+                  schema: VIDEO_CHAPTER_ANALYSIS_SCHEMA,
+                }
+              : undefined,
         });
-        continue;
-      }
 
-      const parsed = parseRecipeJson(text);
-      if (!parsed.ok) {
-        lastError = parsed.error;
-        continue;
-      }
+        const text = interactionText(interaction);
+        if (!text) {
+          lastError = buildAiGeminiError("RECIPE_SCHEMA_EMPTY", "recipe_schema", {
+            detail: `No chapter analysis text (${mode}).`,
+          });
+          lastStage = "VIDEO_ANALYSIS_EMPTY";
+          logGeminiFailure({
+            stage: "recipe_schema",
+            code: lastError.code,
+            model,
+            videoId: normalized.videoId,
+            detail: lastError.detail,
+          });
+          if (mode === "structured") continue;
+          break;
+        }
 
-      return { ok: true, model, raw: parsed.raw };
-    } catch (error) {
-      lastError = mapGeminiException(error, "recipe_schema");
-      if (isGeminiModelError(error) && model !== models.at(-1)) {
-        continue;
+        const parsed = parseRecipeJson(text);
+        if (!parsed.ok) {
+          lastError = parsed.error;
+          lastStage = "VIDEO_ANALYSIS_PARSE_FAILED";
+          logGeminiFailure({
+            stage: "recipe_schema",
+            code: lastError.code,
+            model,
+            videoId: normalized.videoId,
+            detail: lastError.detail,
+          });
+          if (mode === "structured") continue;
+          break;
+        }
+
+        return { ok: true, model, raw: parsed.raw, latencyMs: Date.now() - started };
+      } catch (error) {
+        lastError = mapGeminiException(error, "recipe_schema");
+        lastStage =
+          lastError.code === "GEMINI_TIMEOUT"
+            ? "VIDEO_ANALYSIS_TIMEOUT"
+            : "VIDEO_ANALYSIS_REQUEST_FAILED";
+        logGeminiFailure({
+          stage: "recipe_schema",
+          code: lastError.code,
+          model,
+          videoId: normalized.videoId,
+          httpStatus: lastError.httpStatus,
+          detail: lastError.detail,
+        });
+        if (isGeminiModelError(error)) break;
+        if (mode === "structured" && isRetryableRecipeSchemaFailure(lastError.code)) continue;
+        break;
       }
-      return { ok: false, error: lastError };
     }
   }
 
   return {
     ok: false,
+    latencyMs: Date.now() - started,
+    stage: lastStage,
     error: lastError ?? buildAiGeminiError("RECIPE_SCHEMA_GENERATION_FAILED", "recipe_schema"),
   };
 }

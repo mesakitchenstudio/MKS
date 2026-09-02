@@ -16,14 +16,17 @@ import type {
   ChapterSuggestionBatch,
   ChapterSuggestionCapability,
   ChapterSuggestionMode,
+  ChapterTimestampSuggestionItem,
 } from "@/lib/ai-recipe/chapter-suggestions/types";
 import {
   fetchOrAnalyzeVideoChapters,
   VIDEO_CHAPTER_ANALYSIS_FAILURE_MESSAGE,
+  type VideoChapterAnalysisDiagnostics,
+  type VideoChapterAnalysisStage,
+  type VideoChapterSectionHit,
 } from "@/lib/ai-recipe/chapter-suggestions/video-chapter-analysis";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import type { InstructionGroupWithChapters } from "@/lib/instruction-chapters";
-import type { ChapterTimestampSuggestionItem } from "@/lib/ai-recipe/chapter-suggestions/types";
 import type { ChapterSuggestionEvidenceBundle } from "@/lib/ai-recipe/chapter-suggestions/evidence";
 
 export type RunChapterSuggestionsInput = {
@@ -56,6 +59,8 @@ export type RunChapterSuggestionsFailure = {
     | "video_analysis_failed"
     | "video_analysis_unconfigured";
   message: string;
+  stage?: VideoChapterAnalysisStage;
+  diagnostics?: VideoChapterAnalysisDiagnostics;
 };
 
 export async function resolveChapterSuggestionCapabilityForRecipe(
@@ -72,6 +77,20 @@ export async function resolveChapterSuggestionCapabilityForRecipe(
     ok: true,
     capability: resolveChapterSuggestionCapability(context.evidence),
   };
+}
+
+function sectionTargetsFromGroups(groups: InstructionGroupWithChapters[]) {
+  return groups.map((group, index) => ({
+    sectionIndex: index,
+    title: String(group.name ?? "").trim() || `Section ${index + 1}`,
+    steps: Array.isArray(group.steps)
+      ? group.steps.map((step) => String(step ?? "").trim()).filter(Boolean)
+      : [],
+  }));
+}
+
+function usableTimestampCount(suggestions: ChapterTimestampSuggestionItem[]) {
+  return suggestions.filter((row) => row.status === "suggested" && row.startTimestamp != null).length;
 }
 
 export async function runChapterTimestampSuggestions(
@@ -123,36 +142,72 @@ export async function runChapterTimestampSuggestions(
   let geminiUsed = false;
   let freshVideoAnalysis = false;
   let suggestionKind: "timestamps" | "ai_video_timestamps" | "titles" = "titles";
-  let suggestions;
+  let suggestions: ChapterTimestampSuggestionItem[];
+  let sectionHits: VideoChapterSectionHit[] = [];
+  let analysisDiagnostics: VideoChapterAnalysisDiagnostics | undefined;
 
   if (timestampEvidenceAvailable) {
     suggestions = buildDeterministicChapterSuggestions({ groups, evidence, mode });
     suggestionKind = "timestamps";
   } else {
-    const sectionTitles = groups.map(
-      (group, index) => String(group.name ?? "").trim() || `Section ${index + 1}`,
-    );
-    const analysis = await fetchOrAnalyzeVideoChapters({
+    const sections = sectionTargetsFromGroups(groups);
+    let analysis = await fetchOrAnalyzeVideoChapters({
       videoId: context.videoId,
       typeId: context.typeId,
       schemaVersion: context.schemaVersion,
       youtubeUrl: context.youtubeUrl,
-      sectionTitles,
+      sections,
       cacheRaw: context.cacheRaw,
       forceRefresh: input.forceRefresh === true,
     });
+
+    // Cache present but unusable for mapping → force one fresh analysis.
+    if (
+      analysis.ok &&
+      analysis.fromCache &&
+      !input.forceRefresh
+    ) {
+      const probeEvidence = collectChapterSuggestionEvidence({
+        values: input.values,
+        aiMeta: input.aiMeta ?? null,
+        videoId: context.videoId,
+        cacheRaw: analysis.cacheRaw,
+        youtubeDescription: context.youtubeDescription,
+      });
+      const probe = buildAiVideoChapterSuggestions({
+        groups,
+        evidence: probeEvidence,
+        mode,
+        sectionHits: analysis.sectionHits,
+      });
+      if (usableTimestampCount(probe) === 0) {
+        analysis = await fetchOrAnalyzeVideoChapters({
+          videoId: context.videoId,
+          typeId: context.typeId,
+          schemaVersion: context.schemaVersion,
+          youtubeUrl: context.youtubeUrl,
+          sections,
+          cacheRaw: context.cacheRaw,
+          forceRefresh: true,
+        });
+      }
+    }
 
     if (!analysis.ok) {
       return {
         ok: false,
         code: analysis.code,
         message: analysis.message,
+        stage: analysis.stage,
+        diagnostics: analysis.diagnostics,
       };
     }
 
+    analysisDiagnostics = analysis.diagnostics;
     freshVideoAnalysis = analysis.freshAnalysis;
     geminiUsed = true;
     strategy = "deterministic+gemini";
+    sectionHits = analysis.sectionHits;
 
     workingEvidence = collectChapterSuggestionEvidence({
       values: input.values,
@@ -162,16 +217,42 @@ export async function runChapterTimestampSuggestions(
       youtubeDescription: context.youtubeDescription,
     });
 
-    if (!hasVideoTemporalAnalysisAvailable(workingEvidence)) {
+    if (
+      !hasVideoTemporalAnalysisAvailable(workingEvidence) &&
+      !sectionHits.some((hit) => hit.matched && hit.startTimestamp != null)
+    ) {
       return {
         ok: false,
         code: "video_analysis_failed",
+        stage: "VIDEO_ANALYSIS_EMPTY",
         message: VIDEO_CHAPTER_ANALYSIS_FAILURE_MESSAGE,
+        diagnostics: analysis.diagnostics,
       };
     }
 
-    suggestions = buildAiVideoChapterSuggestions({ groups, evidence: workingEvidence, mode });
+    suggestions = buildAiVideoChapterSuggestions({
+      groups,
+      evidence: workingEvidence,
+      mode,
+      sectionHits,
+    });
     suggestionKind = "ai_video_timestamps";
+
+    // Partial success: keep batch when any usable timestamps exist.
+    // Total failure only when zero useful temporal mappings.
+    if (usableTimestampCount(suggestions) === 0) {
+      return {
+        ok: false,
+        code: "video_analysis_failed",
+        stage: "VIDEO_ANALYSIS_NO_SECTION_MATCH",
+        message: VIDEO_CHAPTER_ANALYSIS_FAILURE_MESSAGE,
+        diagnostics: {
+          ...analysis.diagnostics,
+          stage: "VIDEO_ANALYSIS_NO_SECTION_MATCH",
+          matchedSectionCount: 0,
+        },
+      };
+    }
   }
 
   if (!suggestions.length) {
@@ -214,6 +295,7 @@ export async function runChapterTimestampSuggestions(
       freshVideoAnalysis,
       generationCacheUsed: workingEvidence.generationCacheUsed,
       timestampEvidenceAvailable,
+      analysisDiagnostics,
     }),
   };
 }
@@ -231,6 +313,7 @@ function buildBatch(input: {
   freshVideoAnalysis: boolean;
   generationCacheUsed: boolean;
   timestampEvidenceAvailable: boolean;
+  analysisDiagnostics?: VideoChapterAnalysisDiagnostics;
 }): ChapterSuggestionBatch {
   return {
     requestId: randomUUID(),
@@ -256,6 +339,10 @@ function buildBatch(input: {
       videoTemporalAnalysisAvailable: hasVideoTemporalAnalysisAvailable(input.evidence),
       capability: input.capability,
       suggestionKind: input.suggestionKind,
+      analysisStage: input.analysisDiagnostics?.stage,
+      analysisModel: input.analysisDiagnostics?.model,
+      analysisRawChapterCount: input.analysisDiagnostics?.rawChapterCount,
+      analysisMatchedSectionCount: input.analysisDiagnostics?.matchedSectionCount,
     },
   };
 }
