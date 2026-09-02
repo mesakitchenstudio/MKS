@@ -6,11 +6,18 @@ export type ChapterSuggestionConfidence = "high" | "medium" | "low";
 
 export type ChapterSuggestionSource =
   | "cached_video"
+  | "ai_video"
   | "transcript"
   | "stage_alignment"
   | "youtube_chapter_hint"
   | "legacy_timing"
   | "semantic_inference";
+
+/** How the suggestion batch was produced — drives UI copy and initial action label. */
+export type ChapterSuggestionCapability =
+  | "youtube_chapters"
+  | "ai_video"
+  | "titles";
 
 export type ChapterSuggestionStatus = "suggested" | "no_evidence" | "conflict";
 
@@ -54,7 +61,12 @@ export type ChapterSuggestionDiagnostics = {
   latencyMs: number;
   /** Whether trustworthy timestamp sources were available for this batch. */
   timestampEvidenceAvailable?: boolean;
-  suggestionKind?: "timestamps" | "titles";
+  /** Whether cached Gemini / video-model temporal analysis was used. */
+  videoTemporalAnalysisAvailable?: boolean;
+  /** True when this batch ran live Gemini video analysis (not cache reuse). */
+  freshVideoAnalysis?: boolean;
+  capability?: ChapterSuggestionCapability;
+  suggestionKind?: "timestamps" | "ai_video_timestamps" | "titles";
 };
 
 export type ChapterSuggestionSelection = {
@@ -67,7 +79,14 @@ export type ApplyChapterSuggestionsResult =
   | {
       ok: true;
       groups: import("@/lib/instruction-chapters").InstructionGroupWithChapters[];
-      provenancePaths: Record<string, { source: FieldSource; value: unknown }>;
+      provenancePaths: Record<
+        string,
+        {
+          source: FieldSource;
+          value: unknown;
+          chapterSuggestionSource?: ChapterSuggestionSource;
+        }
+      >;
       appliedCount: number;
       skipped: { instructionIndex: number; reason: string }[];
     }

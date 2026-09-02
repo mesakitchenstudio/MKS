@@ -9,21 +9,18 @@ import type {
   YoutubeChapterExportItem,
   YoutubeChapterReadinessIssue,
 } from "@/lib/youtube-chapter-sync/types";
+import {
+  finalChapterDurationSeconds,
+  isFinalChapterLongEnough,
+  YOUTUBE_CHAPTER_MIN_SECONDS,
+  YOUTUBE_FIRST_CHAPTER_MUST_START_AT_ZERO_MESSAGE,
+  youtubeChapterGapIssue,
+} from "@/lib/youtube-chapter-sync/validity";
 
 export const DEFAULT_SYNTHETIC_INTRO_LABEL = "Introduction";
 
-export function formatYoutubeChapterExportLine(timestamp: number, label: string): string {
-  return `${formatTimestampInput(timestamp)} ${label.trim()}`;
-}
-
-/** Format export items in canonical instruction export order (never timestamp-sorted). */
-export function formatYoutubeChapterBlock(items: YoutubeChapterExportItem[]): string {
-  return items
-    .map((item) => formatYoutubeChapterExportLine(item.timestamp, item.label))
-    .join("\n");
-}
-
-function inferIntroLabelFromDescription(
+/** @deprecated Synthetic intro is no longer auto-injected — staff must map 00:00 explicitly. */
+export function inferIntroLabelFromDescription(
   description: string,
   fallback = DEFAULT_SYNTHETIC_INTRO_LABEL,
 ): string {
@@ -35,6 +32,17 @@ function inferIntroLabelFromDescription(
     }
   }
   return fallback;
+}
+
+export function formatYoutubeChapterExportLine(timestamp: number, label: string): string {
+  return `${formatTimestampInput(timestamp)} ${label.trim()}`;
+}
+
+/** Format export items in canonical instruction export order (never timestamp-sorted). */
+export function formatYoutubeChapterBlock(items: YoutubeChapterExportItem[]): string {
+  return items
+    .map((item) => formatYoutubeChapterExportLine(item.timestamp, item.label))
+    .join("\n");
 }
 
 /**
@@ -64,21 +72,7 @@ export function buildYoutubeChapterExport(input: {
     });
   }
 
-  const items: YoutubeChapterExportItem[] = [];
-  const firstMappedTimestamp = mapped[0]?.timestamp;
-  if (mapped.length > 0 && firstMappedTimestamp != null && firstMappedTimestamp > 0) {
-    const intro =
-      input.introLabel?.trim() ||
-      (input.remoteDescription
-        ? inferIntroLabelFromDescription(input.remoteDescription)
-        : DEFAULT_SYNTHETIC_INTRO_LABEL);
-    items.push({
-      timestamp: 0,
-      label: intro,
-      source: "synthetic_intro",
-    });
-  }
-  items.push(...mapped);
+  const items: YoutubeChapterExportItem[] = [...mapped];
 
   const readiness = evaluateYoutubeExportReadiness({
     items,
@@ -140,7 +134,7 @@ export function evaluateYoutubeExportReadiness(input: {
   if (items.length && items[0]!.timestamp !== 0) {
     errors.push({
       code: "first_not_zero",
-      message: "YouTube chapters must begin at 00:00.",
+      message: YOUTUBE_FIRST_CHAPTER_MUST_START_AT_ZERO_MESSAGE,
       severity: "error",
     });
   }
@@ -167,14 +161,25 @@ export function evaluateYoutubeExportReadiness(input: {
       });
       break;
     }
-    if (current.timestamp - prev.timestamp < 10) {
+    const gapIssue = youtubeChapterGapIssue({
+      previousTimestamp: prev.timestamp,
+      currentTimestamp: current.timestamp,
+    });
+    if (gapIssue?.hardInvalid) {
       const duration = current.timestamp - prev.timestamp;
       errors.push({
         code: "min_gap",
-        message: `YouTube chapters cannot be published yet. The chapter starting at ${formatTimestampInput(prev.timestamp)} would be only ${duration} seconds long.`,
+        message: `YouTube chapters cannot be published yet. The chapter starting at ${formatTimestampInput(prev.timestamp)} would be only ${duration} seconds long (minimum ${YOUTUBE_CHAPTER_MIN_SECONDS} seconds).`,
         severity: "error",
       });
       break;
+    }
+    if (gapIssue?.editorialWarning) {
+      warnings.push({
+        code: "short_gap",
+        message: gapIssue.editorialWarning,
+        severity: "warning",
+      });
     }
   }
 
@@ -188,11 +193,11 @@ export function evaluateYoutubeExportReadiness(input: {
         severity: "error",
       });
     }
-    const finalChapterLength = duration - last.timestamp;
-    if (finalChapterLength < 10) {
+    const finalChapterLength = finalChapterDurationSeconds(last.timestamp, duration);
+    if (!isFinalChapterLongEnough(last.timestamp, duration)) {
       errors.push({
         code: "final_too_short",
-        message: `The final chapter would be only ${finalChapterLength} seconds long (YouTube requires at least 10 seconds).`,
+        message: `The final chapter would be only ${finalChapterLength} seconds long (YouTube requires at least ${YOUTUBE_CHAPTER_MIN_SECONDS} seconds).`,
         severity: "error",
       });
     }

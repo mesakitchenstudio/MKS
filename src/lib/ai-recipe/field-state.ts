@@ -39,6 +39,23 @@ export function sourceDisplayLabel(source: FieldSource | undefined): string {
   }
 }
 
+/** Display label that preserves AI-video vs YouTube-description distinction after staff confirmation. */
+export function resolveFieldSourceDisplayLabel(
+  path: string,
+  meta: RecipeAiMeta | null | undefined,
+): string {
+  const provenance = meta?.fieldProvenance?.[path];
+  const source = resolveFieldSource(path, meta);
+  if (
+    source === "from_video" &&
+    provenance?.originalAi?.source === "inferred" &&
+    (provenance.reviewState === "confirmed" || provenance.reviewState === "locked")
+  ) {
+    return "AI video analysis (confirmed)";
+  }
+  return sourceDisplayLabel(source);
+}
+
 export function resolveFieldReviewState(
   path: string,
   meta: RecipeAiMeta | null | undefined,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useInstructionVideoWorkspaceOptional } from "@/components/admin/InstructionVideoWorkspaceContext";
 import {
   applySelectedChapterSuggestions,
@@ -13,6 +13,7 @@ import {
 import { timestampComparisonLabel } from "@/lib/ai-recipe/chapter-suggestions/build";
 import type {
   ChapterSuggestionBatch,
+  ChapterSuggestionCapability,
   ChapterSuggestionMode,
   ChapterSuggestionSelection,
 } from "@/lib/ai-recipe/chapter-suggestions/types";
@@ -49,13 +50,20 @@ export function ChapterTimestampSuggestionsPanel({
   videoDurationSeconds?: number;
   onApplySuggestions: (input: {
     groups: InstructionGroupWithChapters[];
-    provenancePaths: Record<string, { source: FieldSource; value: unknown }>;
+    provenancePaths: Record<
+      string,
+      {
+        source: FieldSource;
+        value: unknown;
+        chapterSuggestionSource?: import("@/lib/ai-recipe/chapter-suggestions/types").ChapterSuggestionSource;
+      }
+    >;
   }) => void;
 }) {
   const videoWorkspace = useInstructionVideoWorkspaceOptional();
   const [mode, setMode] = useState<ChapterSuggestionMode>("missing");
   const [batch, setBatch] = useState<ChapterSuggestionBatch | null>(null);
-  const [timestampEvidenceAvailable, setTimestampEvidenceAvailable] = useState(true);
+  const [capability, setCapability] = useState<ChapterSuggestionCapability>("titles");
   const [selections, setSelections] = useState<ChapterSuggestionSelection[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +76,86 @@ export function ChapterTimestampSuggestionsPanel({
 
   const stale = batch ? isChapterSuggestionBatchStale(batch, groups) : false;
 
-  async function generateSuggestions(nextMode: ChapterSuggestionMode = mode) {
+  useEffect(() => {
+    if (!typeId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/recipes/ai-chapter-suggestions/capability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            typeId,
+            youtubeUrl,
+            current: { title, values },
+            aiMeta,
+          }),
+        });
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          capability?: ChapterSuggestionCapability;
+        };
+        if (!cancelled && response.ok && payload.ok && payload.capability) {
+          setCapability(payload.capability);
+        }
+      } catch {
+        // Keep default titles capability when probe fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [typeId, youtubeUrl, title, values, aiMeta]);
+
+  const primaryActionLabel = useMemo(() => {
+    if (busy) {
+      return capability === "ai_video" ? "Analyzing video…" : "Suggesting…";
+    }
+    switch (capability) {
+      case "youtube_chapters":
+        return "✦ Suggest timestamps";
+      case "ai_video":
+        return "✦ Analyze video for chapters";
+      default:
+        return "✦ Suggest chapter titles";
+    }
+  }, [busy, capability]);
+
+  const panelHeading = useMemo(() => {
+    if (!batch?.diagnostics?.suggestionKind) {
+      switch (capability) {
+        case "youtube_chapters":
+          return "Source: YouTube chapters";
+        case "ai_video":
+          return "AI video chapter suggestions";
+        default:
+          return "AI chapter title suggestions";
+      }
+    }
+    switch (batch.diagnostics.suggestionKind) {
+      case "ai_video_timestamps":
+        return "AI video chapter suggestions";
+      case "timestamps":
+        return "Source: YouTube chapters";
+      default:
+        return "AI chapter title suggestions";
+    }
+  }, [batch, capability]);
+
+  function suggestionSourceLabel(
+    source: import("@/lib/ai-recipe/chapter-suggestions/types").ChapterSuggestionSource,
+  ): string | null {
+    if (source === "ai_video") return "AI video analysis";
+    if (source === "youtube_chapter_hint") return "YouTube description";
+    if (source === "cached_video") return "Cached video analysis";
+    if (source === "stage_alignment") return "Stage alignment";
+    return null;
+  }
+
+  async function generateSuggestions(
+    nextMode: ChapterSuggestionMode = mode,
+    options?: { forceRefresh?: boolean; titlesOnly?: boolean },
+  ) {
     setBusy(true);
     setError(null);
     setApplyError(null);
@@ -80,6 +167,8 @@ export function ChapterTimestampSuggestionsPanel({
           typeId,
           youtubeUrl,
           mode: nextMode,
+          forceRefresh: options?.forceRefresh === true,
+          titlesOnly: options?.titlesOnly === true,
           current: {
             title,
             values,
@@ -97,6 +186,8 @@ export function ChapterTimestampSuggestionsPanel({
         mode?: ChapterSuggestionMode;
         diagnostics?: ChapterSuggestionBatch["diagnostics"];
         timestampEvidenceAvailable?: boolean;
+        videoTemporalAnalysisAvailable?: boolean;
+        capability?: ChapterSuggestionCapability;
       };
       if (!response.ok || !payload.ok || !payload.suggestions) {
         setBatch(null);
@@ -117,11 +208,15 @@ export function ChapterTimestampSuggestionsPanel({
       };
       setBatch(nextBatch);
       setMode(nextMode);
-      setTimestampEvidenceAvailable(
-        payload.timestampEvidenceAvailable ??
-          payload.diagnostics?.timestampEvidenceAvailable ??
-          true,
-      );
+      if (payload.capability) {
+        setCapability(payload.capability);
+      } else if (payload.diagnostics?.capability) {
+        setCapability(payload.diagnostics.capability);
+      } else if (payload.diagnostics?.suggestionKind === "ai_video_timestamps") {
+        setCapability("ai_video");
+      } else if (payload.timestampEvidenceAvailable || payload.diagnostics?.timestampEvidenceAvailable) {
+        setCapability("youtube_chapters");
+      }
       setSelections(
         computeDefaultChapterSuggestionSelections({
           suggestions: nextBatch.suggestions,
@@ -191,11 +286,7 @@ export function ChapterTimestampSuggestionsPanel({
                 className={`${adminSecondaryButtonClass} text-xs ${adminFocusRing}`}
                 onClick={() => void generateSuggestions("missing")}
               >
-                {busy
-                  ? "Suggesting…"
-                  : timestampEvidenceAvailable
-                    ? "✦ Suggest timestamps"
-                    : "✦ Suggest chapter titles"}
+                {busy ? "Suggesting…" : primaryActionLabel}
               </button>
               <button
                 type="button"
@@ -212,9 +303,15 @@ export function ChapterTimestampSuggestionsPanel({
                 type="button"
                 disabled={busy}
                 className={quietBtn}
-                onClick={() => void generateSuggestions(mode)}
+                onClick={() =>
+                  void generateSuggestions(mode, {
+                    forceRefresh: capability === "ai_video" || batch?.diagnostics?.suggestionKind === "ai_video_timestamps",
+                  })
+                }
               >
-                Try again
+                {capability === "ai_video" || batch?.diagnostics?.suggestionKind === "ai_video_timestamps"
+                  ? "Re-analyze video"
+                  : "Try again"}
               </button>
               <button type="button" className={quietBtn} onClick={handleDiscard}>
                 Discard suggestions
@@ -225,17 +322,37 @@ export function ChapterTimestampSuggestionsPanel({
       </div>
 
       {error ? (
-        <p className="mt-2 text-xs font-semibold text-terracotta" role="alert">
-          {error}
-        </p>
+        <div className="mt-2 space-y-2">
+          <p className="text-xs font-semibold text-terracotta" role="alert">
+            {error}
+          </p>
+          {capability === "ai_video" ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                className={quietBtn}
+                onClick={() => void generateSuggestions(mode, { forceRefresh: true })}
+              >
+                Try again
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                className={quietBtn}
+                onClick={() => void generateSuggestions(mode, { titlesOnly: true })}
+              >
+                Suggest chapter titles instead
+              </button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {batch ? (
         <div className="mt-3 border-t border-line/70 pt-3">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
-            {batch.diagnostics?.suggestionKind === "titles"
-              ? "AI chapter title suggestions"
-              : "AI timestamp suggestions"}
+            {panelHeading}
           </p>
           {stale ? (
             <p className="mt-2 text-xs font-semibold text-terracotta" role="alert">
@@ -298,11 +415,18 @@ export function ChapterTimestampSuggestionsPanel({
                               <span className="ml-1 text-muted">· {comparison}</span>
                             ) : null}
                           </p>
+                        ) : suggestion.status === "no_evidence" ? (
+                          <p className="font-semibold text-muted">
+                            {suggestion.reason ?? "No reliable timestamp suggestion"}
+                          </p>
                         ) : (
                           <p className="font-semibold text-muted">No reliable timestamp suggestion</p>
                         )}
                         {suggestion.confidence ? (
                           <p className="capitalize">{suggestion.confidence} confidence</p>
+                        ) : null}
+                        {suggestionSourceLabel(suggestion.source) ? (
+                          <p>Source: {suggestionSourceLabel(suggestion.source)}</p>
                         ) : null}
                         {suggestion.evidence ? (
                           <p className="leading-relaxed">{suggestion.evidence}</p>
@@ -320,7 +444,7 @@ export function ChapterTimestampSuggestionsPanel({
                           playSuggestion(suggestion.startTimestamp!, suggestion.instructionIndex)
                         }
                       >
-                        ▶ Play suggestion
+                        ▶ Preview
                       </button>
                     ) : null}
                   </div>

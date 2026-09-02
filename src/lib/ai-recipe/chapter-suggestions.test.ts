@@ -7,6 +7,7 @@ import {
   suggestionSourceToFieldSource,
 } from "@/lib/ai-recipe/chapter-suggestions/apply";
 import {
+  buildAiVideoChapterSuggestions,
   buildChapterTitleSuggestions,
   buildDeterministicChapterSuggestions,
   timestampComparisonLabel,
@@ -15,6 +16,8 @@ import {
   collectChapterSuggestionEvidence,
   hasUsableChapterEvidence,
   hasTrustworthyTimestampEvidence,
+  hasVideoTemporalAnalysisAvailable,
+  resolveChapterSuggestionCapability,
 } from "@/lib/ai-recipe/chapter-suggestions/evidence";
 import {
   instructionSectionFingerprint,
@@ -32,7 +35,7 @@ const baguetteGroups = [
   { name: "Scoring & Baking with Steam", steps: ["Score and bake"], startTimestamp: 381 },
 ];
 
-test("collectChapterSuggestionEvidence keeps cached Gemini chapters but not as timestamp evidence", () => {
+test("collectChapterSuggestionEvidence exposes cached Gemini as video temporal analysis", () => {
   const evidence = collectChapterSuggestionEvidence({
     videoId: "abc123",
     values: { youtube: { duration: "6:21" } },
@@ -46,8 +49,10 @@ test("collectChapterSuggestionEvidence keeps cached Gemini chapters but not as t
   });
   assert.equal(evidence.cachedGeminiChapters.length, 1);
   assert.equal(evidence.generationCacheUsed, true);
-  assert.equal(hasUsableChapterEvidence(evidence), false);
+  assert.equal(hasVideoTemporalAnalysisAvailable(evidence), true);
   assert.equal(hasTrustworthyTimestampEvidence(evidence), false);
+  assert.equal(hasUsableChapterEvidence(evidence), true);
+  assert.equal(resolveChapterSuggestionCapability(evidence), "ai_video");
 });
 
 test("insufficient evidence when no cached sources exist", () => {
@@ -451,4 +456,151 @@ test("youtube description chapter match applies as from_video", () => {
       "from_video",
     );
   }
+});
+
+const potatoChipSections = [
+  { name: "Slice and Starch Rinse", steps: ["Slice potatoes thin"] },
+  { name: "Blanch, Shock, and Dry", steps: ["Blanch in water"] },
+  { name: "Fry the Chips", steps: ["Fry until crisp"] },
+  { name: "Mix Seasoning & Toss", steps: ["Toss with seasoning"] },
+];
+
+function potatoChipGeminiCache(chapterTimes: [string, string, string, string]) {
+  return {
+    youtubeMetadata: {
+      chapters: [
+        { time: chapterTimes[0], label: "Slice and Starch Rinse", confidence: "HIGH_CONFIDENCE_INFERENCE", sourceNote: "Slicing segment" },
+        { time: chapterTimes[1], label: "Blanch, Shock, and Dry", confidence: "HIGH_CONFIDENCE_INFERENCE", sourceNote: "Blanching segment" },
+        { time: chapterTimes[2], label: "Fry the Chips", confidence: "HIGH_CONFIDENCE_INFERENCE", sourceNote: "Frying segment" },
+        { time: chapterTimes[3], label: "Mix Seasoning & Toss", confidence: "HIGH_CONFIDENCE_INFERENCE", sourceNote: "Seasoning segment" },
+      ],
+    },
+  };
+}
+
+test("AI video analysis returns timestamp suggestions when description has no chapters", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "chips123",
+    values: { instructions: potatoChipSections, youtube: { duration: "4:18" } },
+    cacheRaw: potatoChipGeminiCache(["0:00", "1:07", "2:11", "3:25"]),
+    youtubeDescription: "Full recipe at example.com — no chapters here.",
+  });
+  assert.equal(hasTrustworthyTimestampEvidence(evidence), false);
+  assert.equal(resolveChapterSuggestionCapability(evidence), "ai_video");
+
+  const suggestions = buildAiVideoChapterSuggestions({
+    groups: potatoChipSections,
+    evidence,
+    mode: "missing",
+  });
+  assert.equal(suggestions.length, 4);
+  for (const row of suggestions) {
+    assert.equal(row.source, "ai_video");
+    assert.equal(row.status, "suggested");
+    assert.ok(row.startTimestamp != null);
+    assert.notEqual(row.evidence, "No trustworthy timestamp source — label only");
+  }
+});
+
+test("AI video suggestions never interpolate timestamps from section count", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "chips123",
+    values: { instructions: potatoChipSections, youtube: { duration: "4:18" } },
+    cacheRaw: potatoChipGeminiCache(["0:00", "1:07", "2:11", "3:25"]),
+  });
+  const suggestions = buildAiVideoChapterSuggestions({
+    groups: potatoChipSections,
+    evidence,
+    mode: "missing",
+  });
+  const evenlySpaced = Math.floor(258 / 3);
+  assert.notEqual(suggestions[1]!.startTimestamp, evenlySpaced);
+  assert.notEqual(suggestions[2]!.startTimestamp, evenlySpaced * 2);
+});
+
+test("invalid AI video timestamps are rejected without silent replacement", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "chips123",
+    values: { instructions: potatoChipSections, youtube: { duration: "4:18" } },
+    cacheRaw: potatoChipGeminiCache(["2:11", "1:07", "3:25", "0:00"]),
+  });
+  const suggestions = buildAiVideoChapterSuggestions({
+    groups: potatoChipSections,
+    evidence,
+    mode: "missing",
+  });
+  const blanch = suggestions.find((row) => row.instructionIndex === 1);
+  assert.equal(blanch?.status, "conflict");
+  assert.equal(blanch?.startTimestamp, undefined);
+});
+
+test("AI video section not located in analysis remains needs input", () => {
+  const groups = [
+    { name: "Slice and Starch Rinse", steps: ["a"] },
+    { name: "Unrelated Mystery Step", steps: ["b"] },
+  ];
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "chips123",
+    values: { instructions: groups, youtube: { duration: "4:18" } },
+    cacheRaw: {
+      youtubeMetadata: {
+        chapters: [
+          { time: "0:00", label: "Slice and Starch Rinse", confidence: "HIGH_CONFIDENCE_INFERENCE", sourceNote: "Slice" },
+        ],
+      },
+    },
+  });
+  const suggestions = buildAiVideoChapterSuggestions({ groups, evidence, mode: "missing" });
+  const missing = suggestions.find((row) => row.instructionIndex === 1);
+  assert.equal(missing?.status, "no_evidence");
+  assert.equal(missing?.startTimestamp, undefined);
+});
+
+test("no description chapters offers ai_video capability even without cache", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "chips123",
+    values: { instructions: potatoChipSections, youtube: { duration: "4:18" } },
+    youtubeDescription: "Recipe link only.",
+  });
+  assert.equal(resolveChapterSuggestionCapability(evidence), "ai_video");
+  assert.equal(hasVideoTemporalAnalysisAvailable(evidence), false);
+});
+
+test("confirmed AI video suggestion applies as from_video with ai lineage", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "chips123",
+    values: { instructions: potatoChipSections, youtube: { duration: "4:18" } },
+    cacheRaw: potatoChipGeminiCache(["0:00", "1:07", "2:11", "3:25"]),
+  });
+  const suggestions = buildAiVideoChapterSuggestions({
+    groups: potatoChipSections,
+    evidence,
+    mode: "missing",
+  });
+  const result = applySelectedChapterSuggestions({
+    groups: potatoChipSections,
+    batch: {
+      requestId: "r3",
+      generatedAt: new Date().toISOString(),
+      mode: "missing",
+      instructionSnapshotFingerprint: instructionSnapshotFingerprint(potatoChipSections),
+      suggestions,
+    },
+    selections: [{ instructionIndex: 1, applyStart: true, applyChapterLabel: false }],
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(
+      result.provenancePaths["values.instructions.1.startTimestamp"]?.source,
+      "from_video",
+    );
+    assert.equal(
+      result.provenancePaths["values.instructions.1.startTimestamp"]?.chapterSuggestionSource,
+      "ai_video",
+    );
+  }
+});
+
+test("provenance maps ai_video apply source to from_video", () => {
+  assert.equal(suggestionSourceToFieldSource("ai_video"), "from_video");
 });

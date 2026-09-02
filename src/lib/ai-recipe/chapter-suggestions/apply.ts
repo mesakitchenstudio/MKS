@@ -30,6 +30,7 @@ export function suggestionSourceToFieldSource(
 ): FieldSource {
   switch (source) {
     case "cached_video":
+    case "ai_video":
     case "transcript":
       return "from_video";
     case "stage_alignment":
@@ -49,7 +50,10 @@ export function buildProvenanceAfterChapterSuggestionApply(input: {
   value: unknown;
   source: FieldSource;
   previous?: AiFieldProvenance;
+  chapterSuggestionSource?: ChapterSuggestionSource;
 }): AiFieldProvenance {
+  const lineageSource: FieldSource =
+    input.chapterSuggestionSource === "ai_video" ? "inferred" : input.source;
   return {
     aiGenerated: true,
     aiGeneratedValue: input.value,
@@ -58,7 +62,7 @@ export function buildProvenanceAfterChapterSuggestionApply(input: {
     source: input.source,
     originalAi: input.previous?.originalAi ?? {
       value: input.value,
-      source: input.source,
+      source: lineageSource,
     },
   };
 }
@@ -159,7 +163,10 @@ export function applySelectedChapterSuggestions(input: {
     input.batch.suggestions.map((row) => [row.instructionIndex, row] as const),
   );
   const next = normalizeInstructionGroups(input.groups).map((group) => ({ ...group }));
-  const provenancePaths: Record<string, { source: FieldSource; value: unknown }> = {};
+  const provenancePaths: Record<
+    string,
+    { source: FieldSource; value: unknown; chapterSuggestionSource?: ChapterSuggestionSource }
+  > = {};
   const skipped: { instructionIndex: number; reason: string }[] = [];
   let appliedCount = 0;
 
@@ -208,6 +215,7 @@ export function applySelectedChapterSuggestions(input: {
             stageAlignmentLineage: suggestion.stageAlignmentLineage,
           }),
           value: suggestion.startTimestamp,
+          chapterSuggestionSource: suggestion.source,
         };
         appliedCount += 1;
       }
@@ -226,6 +234,7 @@ export function applySelectedChapterSuggestions(input: {
             stageAlignmentLineage: suggestion.stageAlignmentLineage,
           }),
           value: group.chapterLabel,
+          chapterSuggestionSource: suggestion.source,
         };
         appliedCount += 1;
       }

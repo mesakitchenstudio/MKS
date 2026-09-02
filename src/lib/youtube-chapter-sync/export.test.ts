@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildYoutubeChapterExport,
-  DEFAULT_SYNTHETIC_INTRO_LABEL,
   evaluateYoutubeExportReadiness,
   formatYoutubeChapterBlock,
   formatYoutubeChapterExportLine,
@@ -17,17 +16,17 @@ const baguetteSections = [
   { name: "Scoring & Bake", steps: [""], startTimestamp: 381 },
 ];
 
-test("export A: synthetic intro when first canonical starts after 0", () => {
+test("export A: first mapped section after 0 blocks export until staff maps 00:00", () => {
   const result = buildYoutubeChapterExport({
     videoId: "abc",
     instructions: baguetteSections,
     videoDurationSeconds: 420,
   });
-  assert.equal(result.items[0]?.timestamp, 0);
-  assert.equal(result.items[0]?.source, "synthetic_intro");
-  assert.equal(result.items[0]?.label, DEFAULT_SYNTHETIC_INTRO_LABEL);
-  assert.equal(result.items[1]?.timestamp, 12);
-  assert.equal(result.items.length, 7);
+  assert.equal(result.items[0]?.timestamp, 12);
+  assert.equal(result.items[0]?.source, "mesa_section");
+  assert.equal(result.items.length, 6);
+  assert.equal(result.ready, false);
+  assert.equal(result.errors.some((issue) => issue.code === "first_not_zero"), true);
 });
 
 test("export B: no duplicate intro when first section starts at 0", () => {
@@ -167,10 +166,10 @@ test("export K: does not sort export rows into ascending timestamp order", () =>
   });
   const timestamps = result.items.map((item) => item.timestamp);
   assert.notDeepEqual(timestamps, [0, 47, 89]);
-  assert.deepEqual(timestamps, [0, 47, 0, 89]);
+  assert.deepEqual(timestamps, [47, 0, 89]);
 });
 
-test("export L: synthetic intro when first mapped section starts after 0 in array order", () => {
+test("export L: first mapped section after 0 is not export-ready without staff intro", () => {
   const result = buildYoutubeChapterExport({
     videoId: "abc",
     instructions: [
@@ -180,11 +179,10 @@ test("export L: synthetic intro when first mapped section starts after 0 in arra
     ],
     videoDurationSeconds: 180,
   });
-  assert.equal(result.items[0]?.source, "synthetic_intro");
-  assert.equal(result.items[0]?.timestamp, 0);
-  assert.equal(result.items[1]?.timestamp, 12);
-  assert.equal(result.items[2]?.timestamp, 64);
-  assert.equal(result.ready, true);
+  assert.equal(result.items[0]?.source, "mesa_section");
+  assert.equal(result.items[0]?.timestamp, 12);
+  assert.equal(result.ready, false);
+  assert.equal(result.errors.some((issue) => issue.code === "first_not_zero"), true);
 });
 
 test("export M: no synthetic intro when first mapped section starts at 0", () => {
@@ -202,7 +200,7 @@ test("export M: no synthetic intro when first mapped section starts at 0", () =>
   assert.equal(result.items[1]?.timestamp, 47);
 });
 
-test("export N: synthetic intro does not recover non-monotonic canonical structure", () => {
+test("export N: non-monotonic canonical structure remains blocked", () => {
   const result = buildYoutubeChapterExport({
     videoId: "abc",
     instructions: [
@@ -212,7 +210,7 @@ test("export N: synthetic intro does not recover non-monotonic canonical structu
     ],
     videoDurationSeconds: 400,
   });
-  assert.equal(result.items[0]?.source, "synthetic_intro");
+  assert.equal(result.items[0]?.source, "mesa_section");
   assert.equal(result.ready, false);
   assert.match(result.errors[0]?.message ?? "", /Activate Yeast/);
 });
@@ -226,4 +224,55 @@ test("formatYoutubeChapterBlock preserves export item order", () => {
   assert.match(block, /^00:47 A/);
   assert.match(block, /\n00:00 B/);
   assert.match(block, /\n01:29 C/);
+});
+
+test("export O: 9-second gap is invalid", () => {
+  const readiness = evaluateYoutubeExportReadiness({
+    items: [
+      { timestamp: 0, label: "A", source: "mesa_section" },
+      { timestamp: 9, label: "B", source: "mesa_section" },
+      { timestamp: 30, label: "C", source: "mesa_section" },
+    ],
+    videoDurationSeconds: 120,
+  });
+  assert.equal(readiness.ready, false);
+  assert.equal(readiness.errors.some((issue) => issue.code === "min_gap"), true);
+});
+
+test("export P: 10-second gap is valid", () => {
+  const readiness = evaluateYoutubeExportReadiness({
+    items: [
+      { timestamp: 0, label: "A", source: "mesa_section" },
+      { timestamp: 10, label: "B", source: "mesa_section" },
+      { timestamp: 30, label: "C", source: "mesa_section" },
+    ],
+    videoDurationSeconds: 120,
+  });
+  assert.equal(readiness.ready, true);
+});
+
+test("export Q: 14-second gap is valid with editorial warning", () => {
+  const readiness = evaluateYoutubeExportReadiness({
+    items: [
+      { timestamp: 0, label: "A", source: "mesa_section" },
+      { timestamp: 14, label: "B", source: "mesa_section" },
+      { timestamp: 40, label: "C", source: "mesa_section" },
+    ],
+    videoDurationSeconds: 120,
+  });
+  assert.equal(readiness.ready, true);
+  assert.equal(readiness.warnings.some((issue) => issue.code === "short_gap"), true);
+});
+
+test("export R: first timestamp must be 00:00", () => {
+  const readiness = evaluateYoutubeExportReadiness({
+    items: [
+      { timestamp: 12, label: "A", source: "mesa_section" },
+      { timestamp: 30, label: "B", source: "mesa_section" },
+      { timestamp: 60, label: "C", source: "mesa_section" },
+    ],
+    videoDurationSeconds: 120,
+  });
+  assert.equal(readiness.ready, false);
+  assert.match(readiness.errors[0]?.message ?? "", /00:00/);
 });
