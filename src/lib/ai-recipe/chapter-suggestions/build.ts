@@ -37,11 +37,46 @@ function normalizeTitle(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function tokenSet(value: string) {
-  return new Set(normalizeTitle(value).split(/\s+/).filter(Boolean));
+const TITLE_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "of",
+  "to",
+  "for",
+  "in",
+  "on",
+  "with",
+  "is",
+  "this",
+  "that",
+  "into",
+  "from",
+]);
+
+function stemToken(token: string): string {
+  if (token.length <= 3) return token;
+  if (token.endsWith("ing") && token.length > 5) return token.slice(0, -3);
+  if (token.endsWith("ies") && token.length > 4) return `${token.slice(0, -3)}y`;
+  if (token.endsWith("es") && token.length > 4) return token.slice(0, -2);
+  if (token.endsWith("ed") && token.length > 4) return token.slice(0, -2);
+  if (token.endsWith("s") && !token.endsWith("ss") && token.length > 3) return token.slice(0, -1);
+  return token;
 }
 
-/** Exported for tests — semantic / normalized title similarity for AI video chapters. */
+function tokenSet(value: string) {
+  return new Set(
+    normalizeTitle(value)
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((token) => !TITLE_STOP_WORDS.has(token))
+      .map(stemToken),
+  );
+}
+
+/** Exported for tests — semantic / normalized title similarity for chapter labels. */
 export function titleMatchScore(sectionTitle: string, chapterLabel: string): number {
   const section = normalizeTitle(sectionTitle);
   const chapter = normalizeTitle(chapterLabel);
@@ -68,16 +103,19 @@ export function titleMatchScore(sectionTitle: string, chapterLabel: string): num
     [/blanch|shock|dry|cool|boil/, /blanch|shock|dry|cool|boil|drain|pat/],
     [/fry|chip|deep.?fry|oil/, /fry|chip|deep.?fry|oil|crisp|golden/],
     [/season|toss|mix seasoning|salt/, /season|toss|mix|salt|spice|flavor|flavour/],
+    [/caesar|dressing/, /caesar|dressing/],
+    [/grill|chicken|season/, /grill|chicken|season/],
+    [/crouton|garlic|bread|bake|toast/, /crouton|garlic|bread|bake|toast|crispy/],
+    [/assembl|serve|finish|plate/, /assembl|masterpiece|finish|serve|plate|final/],
   ];
   for (const [sectionRe, chapterRe] of keywordPairs) {
     if (sectionRe.test(section) && chapterRe.test(chapter)) return 7;
   }
 
-  // Step-context aware: allow matching against combined section + step text.
   return 0;
 }
 
-/** Score a Gemini label against section title plus instruction step text. */
+/** Score a chapter label against section title plus instruction step text. */
 export function sectionSemanticMatchScore(input: {
   sectionTitle: string;
   steps?: string[];
@@ -90,8 +128,99 @@ export function sectionSemanticMatchScore(input: {
   if (!stepBlob.trim()) return titleScore;
 
   const stepScore = titleMatchScore(stepBlob, input.chapterLabel);
-  // Cap step-only matches slightly below strong title matches.
   return Math.max(titleScore, Math.min(stepScore, 7));
+}
+
+const YOUTUBE_MATCH_MIN_SCORE = 4;
+
+/**
+ * Global monotonic one-to-one assignment of YouTube description chapters to sections.
+ * Prevents greedy per-section matching from letting a late chapter steal an early section.
+ */
+export function assignYoutubeDescriptionChapters(input: {
+  groups: InstructionGroupWithChapters[];
+  chapters: NormalizedAiYoutubeChapter[];
+  mode: ChapterSuggestionMode;
+}): Map<number, NormalizedAiYoutubeChapter> {
+  const { groups, chapters, mode } = input;
+  const assignments = new Map<number, NormalizedAiYoutubeChapter>();
+  if (!chapters.length || !groups.length) return assignments;
+
+  const sectionIndexes: number[] = [];
+  for (let index = 0; index < groups.length; index += 1) {
+    const group = groups[index]!;
+    if (mode === "missing" && hasCanonicalStartTimestamp(group)) continue;
+    sectionIndexes.push(index);
+  }
+  if (!sectionIndexes.length) return assignments;
+
+  const scoreMatrix = sectionIndexes.map((sectionIndex) => {
+    const group = groups[sectionIndex]!;
+    const sectionTitle = String(group.name ?? "").trim() || `Section ${sectionIndex + 1}`;
+    const steps = Array.isArray(group.steps) ? group.steps.map((step) => String(step ?? "")) : [];
+    return chapters.map((chapter) =>
+      sectionSemanticMatchScore({
+        sectionTitle,
+        steps,
+        chapterLabel: chapter.label,
+      }),
+    );
+  });
+
+  // Equal-count ordered prior: if every ordered pair is semantically compatible, prefer it.
+  if (sectionIndexes.length === chapters.length) {
+    const orderedScores = scoreMatrix.map((row, index) => row[index] ?? 0);
+    const orderedCompatible = orderedScores.every((score) => score >= YOUTUBE_MATCH_MIN_SCORE);
+    if (orderedCompatible) {
+      for (let i = 0; i < sectionIndexes.length; i += 1) {
+        assignments.set(sectionIndexes[i]!, chapters[i]!);
+      }
+      return assignments;
+    }
+  }
+
+  type SearchResult = { score: number; picks: Array<{ sectionPos: number; chapterIndex: number }> };
+  const memo = new Map<string, SearchResult>();
+
+  function search(sectionPos: number, minChapterIndex: number): SearchResult {
+    const key = `${sectionPos}:${minChapterIndex}`;
+    const cached = memo.get(key);
+    if (cached) return cached;
+
+    if (sectionPos >= sectionIndexes.length) {
+      const empty = { score: 0, picks: [] as Array<{ sectionPos: number; chapterIndex: number }> };
+      memo.set(key, empty);
+      return empty;
+    }
+
+    // Option: leave this section unmatched.
+    let best = search(sectionPos + 1, minChapterIndex);
+
+    for (let chapterIndex = minChapterIndex; chapterIndex < chapters.length; chapterIndex += 1) {
+      const pairScore = scoreMatrix[sectionPos]![chapterIndex] ?? 0;
+      if (pairScore < YOUTUBE_MATCH_MIN_SCORE) continue;
+      const rest = search(sectionPos + 1, chapterIndex + 1);
+      const total = pairScore + rest.score;
+      if (
+        total > best.score ||
+        (total === best.score && rest.picks.length + 1 > best.picks.length)
+      ) {
+        best = {
+          score: total,
+          picks: [{ sectionPos, chapterIndex }, ...rest.picks],
+        };
+      }
+    }
+
+    memo.set(key, best);
+    return best;
+  }
+
+  const best = search(0, 0);
+  for (const pick of best.picks) {
+    assignments.set(sectionIndexes[pick.sectionPos]!, chapters[pick.chapterIndex]!);
+  }
+  return assignments;
 }
 
 function aiConfidenceToSuggestion(confidence: AiConfidence): ChapterSuggestionConfidence {
@@ -120,8 +249,16 @@ function findTrustworthyStageAlignment(
 function matchYoutubeDescriptionChapter(
   sectionTitle: string,
   chapters: NormalizedAiYoutubeChapter[],
+  steps?: string[],
 ): MatchCandidate | null {
-  return matchCachedChapter(sectionTitle, chapters);
+  const matched = matchCachedChapter(sectionTitle, chapters, steps);
+  if (!matched) return null;
+  return {
+    ...matched,
+    source: "youtube_chapter_hint",
+    confidence: "high",
+    reason: "Matched YouTube description chapter",
+  };
 }
 
 function stageAlignmentEvidenceText(
@@ -144,11 +281,16 @@ function stageAlignmentEvidenceText(
 function matchCachedChapter(
   sectionTitle: string,
   chapters: NormalizedAiYoutubeChapter[],
+  steps?: string[],
 ): MatchCandidate | null {
   let best: (MatchCandidate & { score: number }) | null = null;
   for (const chapter of chapters) {
-    const score = titleMatchScore(sectionTitle, chapter.label);
-    if (score < 4) continue;
+    const score = sectionSemanticMatchScore({
+      sectionTitle,
+      steps,
+      chapterLabel: chapter.label,
+    });
+    if (score < YOUTUBE_MATCH_MIN_SCORE) continue;
     const candidate: MatchCandidate & { score: number } = {
       score,
       startTimestamp: chapter.time,
@@ -165,32 +307,30 @@ function matchCachedChapter(
     }
   }
   if (!best) return null;
-  const { score: _score, ...rest } = best;
+  const { score: unusedScore, ...rest } = best;
+  void unusedScore;
   return rest;
 }
 
-function matchYoutubeHint(
-  sectionTitle: string,
-  chapters: NormalizedAiYoutubeChapter[],
-): MatchCandidate | null {
-  const matched = matchCachedChapter(sectionTitle, chapters);
-  if (!matched) return null;
+function youtubeHintFromChapter(chapter: NormalizedAiYoutubeChapter): MatchCandidate {
   return {
-    ...matched,
-    source: "youtube_chapter_hint",
+    startTimestamp: chapter.time,
     confidence: "high",
+    source: "youtube_chapter_hint",
+    evidence: `${formatTimestampInput(chapter.time)} — ${chapter.label}`,
     reason: "Matched YouTube description chapter",
+    suggestedChapterLabel: chapter.label,
   };
 }
 
 function pickBestCandidate(candidates: MatchCandidate[]): MatchCandidate | null {
   const rank = { high: 3, medium: 2, low: 1 };
   const sourceRank: Record<ChapterSuggestionSource, number> = {
-    stage_alignment: 6,
-    ai_video: 5,
-    cached_video: 5,
-    transcript: 5,
-    youtube_chapter_hint: 4,
+    youtube_chapter_hint: 6,
+    stage_alignment: 5,
+    ai_video: 4,
+    cached_video: 4,
+    transcript: 4,
     legacy_timing: 2,
     semantic_inference: 1,
   };
@@ -237,12 +377,17 @@ export function buildDeterministicChapterSuggestions(input: {
   const suggestions: ChapterTimestampSuggestionItem[] = [];
   const proposedStarts = new Map<number, number>();
 
+  const youtubeAssignments = assignYoutubeDescriptionChapters({
+    groups,
+    chapters: evidence.youtubeDescriptionChapters,
+    mode,
+  });
+
   for (let index = 0; index < groups.length; index += 1) {
     const group = groups[index]!;
     const sectionTitle = String(group.name ?? "").trim() || `Section ${index + 1}`;
     const hasCanonical = hasCanonicalStartTimestamp(group);
-    const include =
-      mode === "all" || !hasCanonical;
+    const include = mode === "all" || !hasCanonical;
 
     if (!include) {
       continue;
@@ -251,30 +396,33 @@ export function buildDeterministicChapterSuggestions(input: {
     const fingerprint = instructionSectionFingerprint(group, index);
     const candidates: MatchCandidate[] = [];
 
-    const classifiedAlignment = findTrustworthyStageAlignment(
-      index,
-      group,
-      evidence.trustworthyStageAlignments,
-    );
-    if (classifiedAlignment && classifiedAlignment.alignment.videoStartSeconds >= 0) {
-      const alignment = classifiedAlignment.alignment;
-      candidates.push({
-        startTimestamp: alignment.videoStartSeconds,
-        confidence: aiConfidenceToSuggestion(alignment.confidence),
-        source: "stage_alignment",
-        alignmentConfidence: alignment.confidence,
-        stageAlignmentLineage: classifiedAlignment.lineage,
-        evidence: stageAlignmentEvidenceText(
-          classifiedAlignment.lineage,
-          alignment.videoStartSeconds,
-        ),
-        reason: "Instruction-stage alignment evidence",
-        suggestedChapterLabel: alignment.chapterTitle || alignment.instructionSectionTitle,
-      });
+    const youtubeChapter = youtubeAssignments.get(index);
+    if (youtubeChapter) {
+      candidates.push(youtubeHintFromChapter(youtubeChapter));
+    } else {
+      // Stage alignments fill gaps only when YouTube description did not map this section.
+      const classifiedAlignment = findTrustworthyStageAlignment(
+        index,
+        group,
+        evidence.trustworthyStageAlignments,
+      );
+      if (classifiedAlignment && classifiedAlignment.alignment.videoStartSeconds >= 0) {
+        const alignment = classifiedAlignment.alignment;
+        candidates.push({
+          startTimestamp: alignment.videoStartSeconds,
+          confidence: aiConfidenceToSuggestion(alignment.confidence),
+          source: "stage_alignment",
+          alignmentConfidence: alignment.confidence,
+          stageAlignmentLineage: classifiedAlignment.lineage,
+          evidence: stageAlignmentEvidenceText(
+            classifiedAlignment.lineage,
+            alignment.videoStartSeconds,
+          ),
+          reason: "Instruction-stage alignment evidence",
+          suggestedChapterLabel: alignment.chapterTitle || alignment.instructionSectionTitle,
+        });
+      }
     }
-
-    const youtubeHint = matchYoutubeHint(sectionTitle, evidence.youtubeDescriptionChapters);
-    if (youtubeHint) candidates.push(youtubeHint);
 
     const best = pickBestCandidate(candidates);
 
@@ -307,6 +455,7 @@ export function buildDeterministicChapterSuggestions(input: {
     if (conflict) {
       status = "conflict";
       conflictReason = conflict;
+      proposedStarts.delete(index);
     }
 
     suggestions.push({
@@ -315,7 +464,7 @@ export function buildDeterministicChapterSuggestions(input: {
       sectionTitle,
       chapterLabel: resolveChapterLabel(group),
       suggestedChapterLabel: best.suggestedChapterLabel,
-      startTimestamp,
+      startTimestamp: status === "suggested" ? startTimestamp : undefined,
       endTimestamp: best.endTimestamp,
       confidence: best.confidence,
       source: best.source,
@@ -336,26 +485,37 @@ export function buildDeterministicChapterSuggestions(input: {
       const sectionTitle = String(group.name ?? "").trim() || `Section ${index + 1}`;
       const fingerprint = instructionSectionFingerprint(group, index);
       const candidates: MatchCandidate[] = [];
+      const steps = Array.isArray(group.steps) ? group.steps.map((step) => String(step ?? "")) : [];
 
-      const classifiedAlignment = findTrustworthyStageAlignment(
-        index,
-        group,
-        evidence.trustworthyStageAlignments,
-      );
-      if (classifiedAlignment && classifiedAlignment.alignment.videoStartSeconds >= 0) {
-        const alignment = classifiedAlignment.alignment;
-        candidates.push({
-          startTimestamp: alignment.videoStartSeconds,
-          confidence: aiConfidenceToSuggestion(alignment.confidence),
-          source: "stage_alignment",
-          alignmentConfidence: alignment.confidence,
-          stageAlignmentLineage: classifiedAlignment.lineage,
-          evidence: `Comparison reference at ${formatTimestampInput(alignment.videoStartSeconds)}`,
-          reason: "Comparison against current canonical timestamp",
-        });
+      const assigned = youtubeAssignments.get(index);
+      if (assigned) {
+        candidates.push(youtubeHintFromChapter(assigned));
+      } else {
+        const youtubeChapter = matchYoutubeDescriptionChapter(
+          sectionTitle,
+          evidence.youtubeDescriptionChapters,
+          steps,
+        );
+        if (youtubeChapter) candidates.push(youtubeChapter);
+
+        const classifiedAlignment = findTrustworthyStageAlignment(
+          index,
+          group,
+          evidence.trustworthyStageAlignments,
+        );
+        if (classifiedAlignment && classifiedAlignment.alignment.videoStartSeconds >= 0) {
+          const alignment = classifiedAlignment.alignment;
+          candidates.push({
+            startTimestamp: alignment.videoStartSeconds,
+            confidence: aiConfidenceToSuggestion(alignment.confidence),
+            source: "stage_alignment",
+            alignmentConfidence: alignment.confidence,
+            stageAlignmentLineage: classifiedAlignment.lineage,
+            evidence: `Comparison reference at ${formatTimestampInput(alignment.videoStartSeconds)}`,
+            reason: "Comparison against current canonical timestamp",
+          });
+        }
       }
-      const youtubeChapter = matchYoutubeDescriptionChapter(sectionTitle, evidence.youtubeDescriptionChapters);
-      if (youtubeChapter) candidates.push(youtubeChapter);
 
       const best = pickBestCandidate(candidates);
       if (!best) continue;
@@ -363,9 +523,6 @@ export function buildDeterministicChapterSuggestions(input: {
       const startTimestamp = roundPlayheadToSeconds(best.startTimestamp);
       let status: ChapterTimestampSuggestionItem["status"] = "suggested";
       let conflictReason: string | undefined;
-      if (group.startTimestamp === startTimestamp) {
-        status = "suggested";
-      }
       const conflict = detectSuggestionConflict({
         instructionIndex: index,
         startTimestamp,
@@ -376,6 +533,8 @@ export function buildDeterministicChapterSuggestions(input: {
       if (conflict) {
         status = "conflict";
         conflictReason = conflict;
+      } else {
+        proposedStarts.set(index, startTimestamp);
       }
 
       suggestions.push({
@@ -384,7 +543,7 @@ export function buildDeterministicChapterSuggestions(input: {
         sectionTitle,
         chapterLabel: resolveChapterLabel(group),
         suggestedChapterLabel: best.suggestedChapterLabel,
-        startTimestamp,
+        startTimestamp: status === "suggested" ? startTimestamp : undefined,
         confidence: best.confidence,
         source: best.source,
         evidence: best.evidence,
@@ -393,7 +552,6 @@ export function buildDeterministicChapterSuggestions(input: {
         conflictReason,
         stageAlignmentLineage: best.stageAlignmentLineage,
       });
-      proposedStarts.set(index, startTimestamp);
     }
   }
 

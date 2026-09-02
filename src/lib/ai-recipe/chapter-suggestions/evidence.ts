@@ -2,7 +2,7 @@ import { aiChaptersFromGeminiRaw } from "@/lib/ai-recipe/youtube-chapters";
 import type { NormalizedAiYoutubeChapter } from "@/lib/ai-recipe/youtube-chapters";
 import type { RecipeAiMeta, RecipeAiVideoContext } from "@/lib/ai-recipe/types";
 import { parseStageAlignments } from "@/lib/ai-recipe/stage-alignments";
-import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtube-types";
+import type { RecipeYoutubeTimestamp } from "@/data/youtube-types";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { parseYoutubeDescriptionChapters } from "@/lib/youtube-description";
 import { parseTimestampInput } from "@/lib/youtube-metadata-editor";

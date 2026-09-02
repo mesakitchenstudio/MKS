@@ -7,11 +7,14 @@ import {
   suggestionSourceToFieldSource,
 } from "@/lib/ai-recipe/chapter-suggestions/apply";
 import {
+  assignYoutubeDescriptionChapters,
   buildAiVideoChapterSuggestions,
   buildChapterTitleSuggestions,
   buildDeterministicChapterSuggestions,
   timestampComparisonLabel,
+  titleMatchScore,
 } from "@/lib/ai-recipe/chapter-suggestions/build";
+import { chapterSuggestionsRequireAiQuota } from "@/lib/ai-recipe/chapter-suggestions/ai-quota";
 import {
   collectChapterSuggestionEvidence,
   hasUsableChapterEvidence,
@@ -456,6 +459,217 @@ test("youtube description chapter match applies as from_video", () => {
       "from_video",
     );
   }
+});
+
+const caesarSections = [
+  {
+    name: "Make the Caesar Dressing",
+    steps: ["Whisk egg yolk with lemon", "Emulsify oil into Caesar dressing"],
+  },
+  {
+    name: "Season & Grill the Chicken",
+    steps: ["Season chicken breasts", "Grill until cooked through"],
+  },
+  {
+    name: "Bake the Garlic Croutons",
+    steps: ["Toss bread with garlic oil", "Bake until crisp croutons"],
+  },
+  {
+    name: "Assemble & Serve",
+    steps: ["Toss greens with dressing", "Top with chicken and croutons"],
+  },
+];
+
+const caesarYoutubeDescription = [
+  "00:00 Mastering the Perfect Caesar Dressing",
+  "02:04 Perfectly Grilled Chicken Techniques",
+  "03:00 Crafting Crispy Garlic Bread",
+  "05:27 Assembling the Final Masterpiece",
+].join("\n");
+
+test("Caesar YouTube chapters map one-to-one to recipe sections", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "caesar123",
+    values: { instructions: caesarSections, youtube: { duration: "6:20" } },
+    youtubeDescription: caesarYoutubeDescription,
+  });
+  assert.equal(evidence.youtubeDescriptionChapters.length, 4);
+  assert.deepEqual(
+    evidence.youtubeDescriptionChapters.map((chapter) => chapter.time),
+    [0, 124, 180, 327],
+  );
+
+  const suggestions = buildDeterministicChapterSuggestions({
+    groups: caesarSections,
+    evidence,
+    mode: "missing",
+  });
+  assert.equal(suggestions.length, 4);
+  assert.deepEqual(
+    suggestions.map((row) => row.startTimestamp),
+    [0, 124, 180, 327],
+  );
+  assert.deepEqual(
+    suggestions.map((row) => row.suggestedChapterLabel),
+    [
+      "Mastering the Perfect Caesar Dressing",
+      "Perfectly Grilled Chicken Techniques",
+      "Crafting Crispy Garlic Bread",
+      "Assembling the Final Masterpiece",
+    ],
+  );
+  for (const row of suggestions) {
+    assert.equal(row.status, "suggested");
+    assert.equal(row.source, "youtube_chapter_hint");
+    assert.equal(row.confidence, "high");
+  }
+});
+
+test("Caesar mapping never assigns final chapter to section 2", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "caesar123",
+    values: { instructions: caesarSections, youtube: { duration: "6:20" } },
+    youtubeDescription: caesarYoutubeDescription,
+  });
+  const suggestions = buildDeterministicChapterSuggestions({
+    groups: caesarSections,
+    evidence,
+    mode: "missing",
+  });
+  assert.notEqual(suggestions[1]?.startTimestamp, 327);
+  assert.equal(suggestions[1]?.startTimestamp, 124);
+});
+
+test("YouTube chapter assignment is monotonic and unique", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "caesar123",
+    values: { instructions: caesarSections, youtube: { duration: "6:20" } },
+    youtubeDescription: caesarYoutubeDescription,
+  });
+  const assignments = assignYoutubeDescriptionChapters({
+    groups: caesarSections,
+    chapters: evidence.youtubeDescriptionChapters,
+    mode: "missing",
+  });
+  const times = [...assignments.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, chapter]) => chapter.time);
+  assert.deepEqual(times, [0, 124, 180, 327]);
+  assert.equal(new Set(times).size, 4);
+});
+
+test("4 sections / 3 YouTube chapters maps confidently without fabricating", () => {
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "caesar123",
+    values: { instructions: caesarSections, youtube: { duration: "6:20" } },
+    youtubeDescription: [
+      "00:00 Mastering the Perfect Caesar Dressing",
+      "02:04 Perfectly Grilled Chicken Techniques",
+      "05:27 Assembling the Final Masterpiece",
+    ].join("\n"),
+  });
+  const suggestions = buildDeterministicChapterSuggestions({
+    groups: caesarSections,
+    evidence,
+    mode: "missing",
+  });
+  const suggested = suggestions.filter((row) => row.status === "suggested");
+  assert.ok(suggested.length >= 2);
+  assert.ok(suggested.length <= 3);
+  assert.equal(
+    suggestions.some((row) => row.status === "no_evidence" || row.startTimestamp == null),
+    true,
+  );
+  const starts = suggested.map((row) => row.startTimestamp!);
+  for (let i = 1; i < starts.length; i += 1) {
+    assert.ok(starts[i]! > starts[i - 1]!);
+  }
+});
+
+test("stale inferred stage alignment does not outrank YouTube description chapters", () => {
+  const groups = [
+    { name: "Make the Caesar Dressing", steps: ["dressing"] },
+    { name: "Season & Grill the Chicken", steps: ["grill"] },
+    { name: "Bake the Garlic Croutons", steps: ["croutons"] },
+    { name: "Assemble & Serve", steps: ["assemble"] },
+  ];
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "caesar123",
+    values: {
+      instructions: groups,
+      youtube: {
+        duration: "6:20",
+        stageAlignments: [
+          {
+            instructionStageId: "stage-1",
+            instructionSectionTitle: "Season & Grill the Chicken",
+            videoStartSeconds: 327,
+            videoTimestampLabel: "5:27",
+            chapterTitle: "Assembling the Final Masterpiece",
+            confidence: "VERIFIED",
+            source: "manual",
+          },
+        ],
+      },
+    },
+    youtubeDescription: caesarYoutubeDescription,
+  });
+  const suggestions = buildDeterministicChapterSuggestions({
+    groups,
+    evidence,
+    mode: "missing",
+  });
+  const chicken = suggestions.find((row) => row.instructionIndex === 1);
+  assert.equal(chicken?.startTimestamp, 124);
+  assert.equal(chicken?.source, "youtube_chapter_hint");
+  assert.notEqual(chicken?.suggestedChapterLabel, "Assembling the Final Masterpiece");
+});
+
+test("trusted staff canonical timestamps are not overwritten in missing mode", () => {
+  const groups = [
+    { name: "Make the Caesar Dressing", steps: ["dressing"], startTimestamp: 0 },
+    { name: "Season & Grill the Chicken", steps: ["grill"], startTimestamp: 90 },
+    { name: "Bake the Garlic Croutons", steps: ["croutons"] },
+    { name: "Assemble & Serve", steps: ["assemble"] },
+  ];
+  const evidence = collectChapterSuggestionEvidence({
+    videoId: "caesar123",
+    values: { instructions: groups, youtube: { duration: "6:20" } },
+    youtubeDescription: caesarYoutubeDescription,
+  });
+  const suggestions = buildDeterministicChapterSuggestions({
+    groups,
+    evidence,
+    mode: "missing",
+  });
+  assert.equal(suggestions.every((row) => row.instructionIndex >= 2), true);
+  assert.equal(suggestions.find((row) => row.instructionIndex === 2)?.startTimestamp, 180);
+  assert.equal(suggestions.find((row) => row.instructionIndex === 3)?.startTimestamp, 327);
+});
+
+test("semantic Caesar-style labels score above stop-word noise", () => {
+  assert.ok(
+    titleMatchScore("Season & Grill the Chicken", "Perfectly Grilled Chicken Techniques") >
+      titleMatchScore("Season & Grill the Chicken", "Assembling the Final Masterpiece"),
+  );
+  assert.ok(
+    titleMatchScore("Bake the Garlic Croutons", "Crafting Crispy Garlic Bread") >= 4,
+  );
+  assert.ok(
+    titleMatchScore("Assemble & Serve", "Assembling the Final Masterpiece") >= 4,
+  );
+});
+
+test("AI rate limit is not required for YouTube description chapter matching", () => {
+  assert.equal(
+    chapterSuggestionsRequireAiQuota({ capability: "youtube_chapters" }),
+    false,
+  );
+  assert.equal(
+    chapterSuggestionsRequireAiQuota({ capability: "titles", titlesOnly: true }),
+    false,
+  );
+  assert.equal(chapterSuggestionsRequireAiQuota({ capability: "ai_video" }), true);
 });
 
 const potatoChipSections = [
