@@ -179,6 +179,8 @@ export function ChapterTimestampSuggestionsPanel({
       const payload = (await response.json()) as {
         ok?: boolean;
         error?: string;
+        code?: string;
+        stage?: string;
         suggestions?: ChapterSuggestionBatch["suggestions"];
         requestId?: string;
         generatedAt?: string;

@@ -41,7 +41,8 @@ function tokenSet(value: string) {
   return new Set(normalizeTitle(value).split(/\s+/).filter(Boolean));
 }
 
-function titleMatchScore(sectionTitle: string, chapterLabel: string): number {
+/** Exported for tests — semantic / normalized title similarity for AI video chapters. */
+export function titleMatchScore(sectionTitle: string, chapterLabel: string): number {
   const section = normalizeTitle(sectionTitle);
   const chapter = normalizeTitle(chapterLabel);
   if (!section || !chapter) return 0;
@@ -63,11 +64,34 @@ function titleMatchScore(sectionTitle: string, chapterLabel: string): number {
     [/scor|steam|bak|oven/, /scor|steam|bak|oven|crust/],
     [/activat|yeast|autolys|mix|initial/, /foundat|dough|mix|yeast|autolys|initial/],
     [/divid|pre.?shap|portion/, /divid|portion|pre.?shap|ball/],
+    [/slice|starch|rinse|soak|peel|wash/, /slice|starch|rinse|soak|peel|wash|prepar|potato|thin/],
+    [/blanch|shock|dry|cool|boil/, /blanch|shock|dry|cool|boil|drain|pat/],
+    [/fry|chip|deep.?fry|oil/, /fry|chip|deep.?fry|oil|crisp|golden/],
+    [/season|toss|mix seasoning|salt/, /season|toss|mix|salt|spice|flavor|flavour/],
   ];
   for (const [sectionRe, chapterRe] of keywordPairs) {
     if (sectionRe.test(section) && chapterRe.test(chapter)) return 7;
   }
+
+  // Step-context aware: allow matching against combined section + step text.
   return 0;
+}
+
+/** Score a Gemini label against section title plus instruction step text. */
+export function sectionSemanticMatchScore(input: {
+  sectionTitle: string;
+  steps?: string[];
+  chapterLabel: string;
+}): number {
+  const titleScore = titleMatchScore(input.sectionTitle, input.chapterLabel);
+  if (titleScore >= 6) return titleScore;
+
+  const stepBlob = (input.steps ?? []).join(" ");
+  if (!stepBlob.trim()) return titleScore;
+
+  const stepScore = titleMatchScore(stepBlob, input.chapterLabel);
+  // Cap step-only matches slightly below strong title matches.
+  return Math.max(titleScore, Math.min(stepScore, 7));
 }
 
 function aiConfidenceToSuggestion(confidence: AiConfidence): ChapterSuggestionConfidence {
@@ -399,9 +423,14 @@ function assignAiVideoChapterMatches(input: {
     if (input.mode === "missing" && hasCanonicalStartTimestamp(group)) continue;
 
     const sectionTitle = String(group.name ?? "").trim() || `Section ${sectionIndex + 1}`;
+    const steps = Array.isArray(group.steps) ? group.steps.map((step) => String(step ?? "")) : [];
     for (let chapterIndex = 0; chapterIndex < input.chapters.length; chapterIndex += 1) {
       const chapter = input.chapters[chapterIndex]!;
-      const score = titleMatchScore(sectionTitle, chapter.label);
+      const score = sectionSemanticMatchScore({
+        sectionTitle,
+        steps,
+        chapterLabel: chapter.label,
+      });
       if (score < 4) continue;
       pairs.push({ sectionIndex, chapterIndex, score, chapter });
     }
@@ -472,19 +501,33 @@ function aiVideoEditorialGapNote(input: {
 }
 
 /**
- * Match instruction sections to Gemini video-analysis chapters.
- * Uses real temporal segments from cached video analysis — never duration interpolation.
+ * Match instruction sections to Gemini video-analysis chapters / section hits.
+ * Uses real temporal segments from video analysis — never duration interpolation.
+ * One invalid section does not discard other valid suggestions.
  */
 export function buildAiVideoChapterSuggestions(input: {
   groups: InstructionGroupWithChapters[];
   evidence: ChapterSuggestionEvidenceBundle;
   mode: ChapterSuggestionMode;
+  sectionHits?: import("@/lib/ai-recipe/chapter-suggestions/parse-video-chapter-analysis").VideoChapterSectionHit[];
 }): ChapterTimestampSuggestionItem[] {
   const { groups, evidence, mode } = input;
   const chapters = evidence.cachedGeminiChapters;
-  if (!chapters.length) return [];
+  const sectionHits = input.sectionHits ?? [];
 
-  const assignments = assignAiVideoChapterMatches({ groups, chapters, mode });
+  const hitBySection = new Map(
+    sectionHits
+      .filter((hit) => hit.matched && hit.startTimestamp != null)
+      .map((hit) => [hit.sectionIndex, hit] as const),
+  );
+
+  const assignments =
+    chapters.length > 0
+      ? assignAiVideoChapterMatches({ groups, chapters, mode })
+      : new Map<number, NormalizedAiYoutubeChapter>();
+
+  if (!chapters.length && !hitBySection.size) return [];
+
   const suggestions: ChapterTimestampSuggestionItem[] = [];
   const proposedStarts = new Map<number, number>();
 
@@ -496,9 +539,14 @@ export function buildAiVideoChapterSuggestions(input: {
 
     const sectionTitle = String(group.name ?? "").trim() || `Section ${index + 1}`;
     const fingerprint = instructionSectionFingerprint(group, index);
+    const hit = hitBySection.get(index);
     const chapter = assignments.get(index);
 
-    if (!chapter) {
+    const startFromHit = hit?.startTimestamp;
+    const startFromChapter = chapter?.time;
+    const startTimestampRaw = startFromHit ?? startFromChapter;
+
+    if (startTimestampRaw == null) {
       suggestions.push({
         instructionIndex: index,
         sectionFingerprint: fingerprint,
@@ -513,7 +561,7 @@ export function buildAiVideoChapterSuggestions(input: {
       continue;
     }
 
-    const startTimestamp = roundPlayheadToSeconds(chapter.time);
+    const startTimestamp = roundPlayheadToSeconds(startTimestampRaw);
     proposedStarts.set(index, startTimestamp);
 
     let status: ChapterTimestampSuggestionItem["status"] = "suggested";
@@ -539,17 +587,23 @@ export function buildAiVideoChapterSuggestions(input: {
       proposedStarts.delete(index);
     }
 
+    const evidenceText = hit?.evidence
+      ? `${formatTimestampInput(startTimestamp)} — ${hit.evidence}`
+      : chapter
+        ? aiVideoEvidenceText(chapter)
+        : `Video analysis chapter at ${formatTimestampInput(startTimestamp)}`;
+
     suggestions.push({
       instructionIndex: index,
       sectionFingerprint: fingerprint,
       sectionTitle,
       chapterLabel: resolveChapterLabel(group),
-      suggestedChapterLabel: chapter.label.trim() || sectionTitle,
+      suggestedChapterLabel: (hit?.label || chapter?.label || sectionTitle).trim(),
       startTimestamp: status === "suggested" ? startTimestamp : undefined,
-      confidence: aiConfidenceToSuggestion(chapter.confidence),
+      confidence: aiConfidenceToSuggestion(hit?.confidence ?? chapter?.confidence ?? "HIGH_CONFIDENCE_INFERENCE"),
       source: "ai_video",
       evidence: [
-        aiVideoEvidenceText(chapter),
+        evidenceText,
         status === "suggested"
           ? aiVideoEditorialGapNote({
               instructionIndex: index,
@@ -560,7 +614,9 @@ export function buildAiVideoChapterSuggestions(input: {
       ]
         .filter(Boolean)
         .join(" · "),
-      reason: "Matched section to AI video analysis chapter",
+      reason: hit
+        ? "Located section start via targeted video analysis"
+        : "Matched section to AI video analysis chapter",
       status,
       conflictReason,
     });
