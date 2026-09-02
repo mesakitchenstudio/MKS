@@ -1317,15 +1317,48 @@ export async function saveStudioLessonLinksAction(formData: FormData) {
   redirect("/admin/studio?saved=1");
 }
 
-export async function saveHomepageFeaturedRecipeAction(formData: FormData) {
+export async function saveHomepageCurationAction(formData: FormData) {
   await requireAccess("content");
   const clear = String(formData.get("clear") || "") === "1";
-  const slug = clear ? "" : String(formData.get("recipeSlug") || "").trim();
-  const { setSiteSetting, SITE_SETTING_KEYS } = await import("@/lib/site-settings");
-  await setSiteSetting(SITE_SETTING_KEYS.homepageFeaturedRecipeSlug, slug);
+  const {
+    setSiteSetting,
+    SITE_SETTING_KEYS,
+    serializeHomepageFromKitchenSlugs,
+  } = await import("@/lib/site-settings");
+
+  if (clear) {
+    await setSiteSetting(SITE_SETTING_KEYS.homepageFeaturedRecipeSlug, "");
+    await setSiteSetting(SITE_SETTING_KEYS.homepageFromKitchenRecipeSlugs, "[]");
+  } else {
+    const featuredSlug = String(formData.get("featuredRecipeSlug") || "").trim();
+    const kitchenSlugs = [
+      String(formData.get("fromKitchenSlug0") || "").trim(),
+      String(formData.get("fromKitchenSlug1") || "").trim(),
+      String(formData.get("fromKitchenSlug2") || "").trim(),
+    ].filter(Boolean);
+
+    const uniqueKitchen: string[] = [];
+    for (const slug of kitchenSlugs) {
+      if (slug === featuredSlug) continue;
+      if (uniqueKitchen.includes(slug)) continue;
+      uniqueKitchen.push(slug);
+    }
+
+    await setSiteSetting(SITE_SETTING_KEYS.homepageFeaturedRecipeSlug, featuredSlug);
+    await setSiteSetting(
+      SITE_SETTING_KEYS.homepageFromKitchenRecipeSlugs,
+      serializeHomepageFromKitchenSlugs(uniqueKitchen),
+    );
+  }
+
   revalidatePath("/");
   revalidatePath("/admin/studio");
   redirect("/admin/studio?featuredSaved=1");
+}
+
+/** @deprecated Use saveHomepageCurationAction */
+export async function saveHomepageFeaturedRecipeAction(formData: FormData) {
+  return saveHomepageCurationAction(formData);
 }
 
 export async function keepRemovedSeriesItemAction(formData: FormData) {

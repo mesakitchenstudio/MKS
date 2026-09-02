@@ -10,11 +10,18 @@ import {
   PRIMARY_CATEGORY_SLUGS,
 } from "./recipe-primary-taxonomy.ts";
 import { isHomepageEligibleRecipe } from "./homepage-eligibility.ts";
-import { resolveHomepage } from "./homepage.ts";
+import { RECIPE_IMAGE_FALLBACK } from "./recipe-images.ts";
+import {
+  homepageUsedRecipeSlugs,
+  resolveHomepage,
+  summarizeHomepageCandidates,
+} from "./homepage.ts";
 
 function cloneRecipe(recipe: Recipe, patch: Partial<Recipe> = {}): Recipe {
   return { ...recipe, ...patch };
 }
+
+const COOKIES_SLUG = "chocolate-chunk-cookies";
 
 describe("homepage curation", () => {
   it("uses manual featured slug when eligible", () => {
@@ -111,5 +118,75 @@ describe("homepage curation", () => {
     assert.match(chrome, /hideNewsletter=\{pathname === "\/"\}/);
     const footer = readFileSync(join(process.cwd(), "src/components/SiteFooter.tsx"), "utf8");
     assert.match(footer, /hideNewsletter/);
+  });
+
+  it("hides latest when fewer than three candidates remain after hero", () => {
+    const tinyCatalog = recipes.slice(0, 4).map((recipe) =>
+      cloneRecipe(recipe, { image: RECIPE_IMAGE_FALLBACK }),
+    );
+    const oneGood = cloneRecipe(recipes[0]!);
+    const page = resolveHomepage([oneGood, ...tinyCatalog], { featuredRecipeSlug: null });
+    assert.equal(page.hero?.slug, oneGood.slug);
+    assert.equal(page.latest.length, 0);
+  });
+
+  it("renders from kitchen only when three unique eligible recipes are configured", () => {
+    const slugs = ["herb-focaccia", "citrus-olive-oil-cake", "salsa-verde"];
+    const page = resolveHomepage(recipes, {
+      featuredRecipeSlug: COOKIES_SLUG,
+      fromKitchenSlugs: slugs,
+    });
+    assert.equal(page.fromKitchen.length, 3);
+    assert.deepEqual(page.fromKitchen.map((r) => r.slug), slugs);
+  });
+
+  it("skips from kitchen when fewer than three eligible unique recipes", () => {
+    const page = resolveHomepage(recipes, {
+      featuredRecipeSlug: COOKIES_SLUG,
+      fromKitchenSlugs: ["herb-focaccia", "citrus-olive-oil-cake"],
+    });
+    assert.equal(page.fromKitchen.length, 0);
+  });
+
+  it("does not duplicate slugs across hero, latest, and from kitchen", () => {
+    const page = resolveHomepage(recipes, {
+      featuredRecipeSlug: COOKIES_SLUG,
+      fromKitchenSlugs: [
+        "herb-focaccia",
+        "citrus-olive-oil-cake",
+        "salsa-verde",
+        COOKIES_SLUG,
+      ],
+    });
+    const used = homepageUsedRecipeSlugs(page);
+    const unique = new Set(used);
+    assert.equal(unique.size, used.length);
+    assert.ok(!page.latest.some((recipe) => recipe.slug === COOKIES_SLUG));
+    assert.ok(!page.fromKitchen.some((recipe) => recipe.slug === COOKIES_SLUG));
+  });
+
+  it("regression: chocolate chunk cookies cannot appear in hero AND latest AND from kitchen", () => {
+    const page = resolveHomepage(recipes, {
+      featuredRecipeSlug: COOKIES_SLUG,
+      fromKitchenSlugs: [
+        COOKIES_SLUG,
+        "herb-focaccia",
+        "citrus-olive-oil-cake",
+        "salsa-verde",
+      ],
+    });
+    assert.equal(page.hero?.slug, COOKIES_SLUG);
+    assert.ok(!page.latest.some((recipe) => recipe.slug === COOKIES_SLUG));
+    assert.ok(!page.fromKitchen.some((recipe) => recipe.slug === COOKIES_SLUG));
+    const used = homepageUsedRecipeSlugs(page);
+    const cookieCount = used.filter((slug) => slug === COOKIES_SLUG).length;
+    assert.equal(cookieCount, 1);
+  });
+
+  it("static catalog yields a varied homepage candidate set", () => {
+    const summary = summarizeHomepageCandidates(recipes, { featuredRecipeSlug: null });
+    assert.ok(summary.hardEligibleCount >= 8);
+    assert.ok(summary.latestCandidates.length >= 3);
+    assert.ok(summary.heroCandidates.length >= 3);
   });
 });

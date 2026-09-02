@@ -23,9 +23,7 @@ export function HomepageLatestSection({
   viewMoreLabel?: string;
   recipes: Recipe[];
 }) {
-  if (!recipes.length) return null;
-
-  const useLargeCards = recipes.length <= 2;
+  if (!recipes.length || recipes.length < 3) return null;
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-12 md:px-6 md:py-14" aria-labelledby="latest-recipes-heading">
@@ -37,7 +35,7 @@ export function HomepageLatestSection({
       </div>
       <div className={latestGridClass(recipes.length)}>
         {recipes.map((recipe) => (
-          <RecipeGridCard key={recipe.slug} recipe={recipe} large={useLargeCards} />
+          <RecipeGridCard key={recipe.slug} recipe={recipe} />
         ))}
       </div>
     </section>

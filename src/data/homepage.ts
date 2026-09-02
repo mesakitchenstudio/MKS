@@ -28,6 +28,12 @@ export type HomepageLatestConfig = {
   limit: number;
 };
 
+export type HomepageFromKitchenConfig = {
+  enabled: boolean;
+  title: string;
+  limit: number;
+};
+
 export type HomepageHeroConfig = {
   /** Legacy file-based fallback when no admin featured recipe is set */
   recipeSlug?: string;
@@ -37,11 +43,12 @@ export type HomepageHeroConfig = {
 export type HomepageConfig = {
   hero: HomepageHeroConfig;
   latest: HomepageLatestConfig;
+  fromKitchen: HomepageFromKitchenConfig;
   /** Legacy collection definitions for /recipes ?collection= URLs — not rendered on homepage */
   collections: HomepageCollectionConfig[];
 };
 
-/** Homepage editorial config — homepage renders hero + latest only. */
+/** Homepage editorial config — hero, latest, optional From the kitchen only. */
 export const homepageConfig: HomepageConfig = {
   hero: {
     eyebrow: "From the studio",
@@ -52,6 +59,11 @@ export const homepageConfig: HomepageConfig = {
     viewMoreLabel: "All recipes →",
     href: "/recipes",
     limit: 4,
+  },
+  fromKitchen: {
+    enabled: true,
+    title: "From the kitchen",
+    limit: 3,
   },
   collections: [
     {

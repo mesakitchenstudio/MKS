@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { saveStudioLessonLinksAction } from "@/app/admin/actions";
-import { HomepageFeaturedRecipeForm } from "@/components/admin/HomepageFeaturedRecipeForm";
+import { HomepageCurationForm } from "@/components/admin/HomepageCurationForm";
 import { lessons } from "@/data/lessons";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { getHomepageFeaturedRecipeSlug } from "@/lib/site-settings";
+import { getAllRecipes } from "@/lib/recipes";
+import {
+  getHomepageFeaturedRecipeSlug,
+  getHomepageFromKitchenRecipeSlugs,
+} from "@/lib/site-settings";
 import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass } from "@/lib/admin-ui";
 import { studioLessonTypeLabel } from "@/lib/studio-types";
 import { lessonHref } from "@/data/lessons";
@@ -19,7 +23,7 @@ export default async function AdminStudioPage({
   await requireAccess("content");
   const params = await searchParams;
   const db = getDb();
-  const [publishedRecipes, links, featuredSlug] = await Promise.all([
+  const [publishedRecipes, links, featuredSlug, fromKitchenSlugs, fullRecipes] = await Promise.all([
     db.recipe.findMany({
       where: { status: "published" },
       select: { id: true, slug: true, title: true },
@@ -30,6 +34,8 @@ export default async function AdminStudioPage({
       orderBy: [{ lessonSlug: "asc" }, { sortOrder: "asc" }],
     }),
     getHomepageFeaturedRecipeSlug(),
+    getHomepageFromKitchenRecipeSlugs(),
+    getAllRecipes(),
   ]);
 
   const linksByLesson = new Map<string, Set<string>>();
@@ -57,11 +63,16 @@ export default async function AdminStudioPage({
 
       {params.featuredSaved ? (
         <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
-          Homepage featured recipe saved.
+          Homepage curation saved.
         </p>
       ) : null}
 
-      <HomepageFeaturedRecipeForm recipes={publishedRecipes} selectedSlug={featuredSlug} />
+      <HomepageCurationForm
+        recipes={publishedRecipes}
+        featuredSlug={featuredSlug}
+        fromKitchenSlugs={fromKitchenSlugs}
+        fullRecipes={fullRecipes}
+      />
 
       <div className="space-y-6">
         {lessons.map((lesson) => {

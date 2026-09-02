@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HomepageBrowseCategories } from "@/components/HomepageBrowseCategories";
+import { HomepageFromKitchenSection } from "@/components/HomepageFromKitchenSection";
 import { HomepageHero } from "@/components/HomepageHero";
 import { HomepageLatestSection } from "@/components/HomepageLatestSection";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { site } from "@/data/site";
 import { homepageConfig } from "@/data/homepage";
 import { resolveHomepage } from "@/lib/homepage";
-import { getHomepageFeaturedRecipeSlug } from "@/lib/site-settings";
+import {
+  getHomepageFeaturedRecipeSlug,
+  getHomepageFromKitchenRecipeSlugs,
+} from "@/lib/site-settings";
 import { getAllRecipes } from "@/lib/recipes";
 
 export const revalidate = 300;
@@ -30,9 +34,13 @@ const heroLinkFocus =
 
 export default async function Home() {
   const recipes = await getAllRecipes();
-  const featuredRecipeSlug = await getHomepageFeaturedRecipeSlug();
+  const [featuredRecipeSlug, fromKitchenSlugs] = await Promise.all([
+    getHomepageFeaturedRecipeSlug(),
+    getHomepageFromKitchenRecipeSlugs(),
+  ]);
   const homepage = resolveHomepage(recipes, {
     featuredRecipeSlug,
+    fromKitchenSlugs,
   });
 
   return (
@@ -67,7 +75,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {homepageConfig.latest.enabled && homepage.latest.length > 0 ? (
+      {homepageConfig.latest.enabled && homepage.latest.length >= 3 ? (
         <HomepageLatestSection
           title={homepageConfig.latest.title}
           href={homepageConfig.latest.href}
@@ -77,6 +85,13 @@ export default async function Home() {
       ) : null}
 
       <HomepageBrowseCategories />
+
+      {homepageConfig.fromKitchen.enabled && homepage.fromKitchen.length === 3 ? (
+        <HomepageFromKitchenSection
+          title={homepageConfig.fromKitchen.title}
+          recipes={homepage.fromKitchen}
+        />
+      ) : null}
 
       <section className="border-y border-line bg-paper">
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-2 md:px-6 md:py-16">
