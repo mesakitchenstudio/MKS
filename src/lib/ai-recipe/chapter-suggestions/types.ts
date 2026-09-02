@@ -63,6 +63,8 @@ export type ChapterSuggestionDiagnostics = {
   timestampEvidenceAvailable?: boolean;
   /** Whether cached Gemini / video-model temporal analysis was used. */
   videoTemporalAnalysisAvailable?: boolean;
+  /** True when this batch ran live Gemini video analysis (not cache reuse). */
+  freshVideoAnalysis?: boolean;
   capability?: ChapterSuggestionCapability;
   suggestionKind?: "timestamps" | "ai_video_timestamps" | "titles";
 };

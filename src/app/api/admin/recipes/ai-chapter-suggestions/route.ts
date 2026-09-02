@@ -7,7 +7,7 @@ import { getAdminSession } from "@/lib/auth";
 import { connectionMeta } from "@/lib/request-meta";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const admin = await getAdminSession();
@@ -32,6 +32,8 @@ export async function POST(request: Request) {
     typeId?: string;
     youtubeUrl?: string;
     mode?: "missing" | "all";
+    forceRefresh?: boolean;
+    titlesOnly?: boolean;
     current?: {
       title?: string;
       values?: Record<string, unknown>;
@@ -52,13 +54,19 @@ export async function POST(request: Request) {
     title: body.current?.title,
     aiMeta: body.aiMeta ?? null,
     mode: body.mode === "all" ? "all" : "missing",
+    forceRefresh: body.forceRefresh === true,
+    titlesOnly: body.titlesOnly === true,
   });
 
   if (!result.ok) {
     const status =
-      result.code === "bad_request" || result.code === "invalid_type" || result.code === "no_video"
+      result.code === "bad_request" ||
+      result.code === "invalid_type" ||
+      result.code === "no_video"
         ? 400
-        : 422;
+        : result.code === "video_analysis_unconfigured"
+          ? 503
+          : 422;
     return NextResponse.json(
       {
         ok: false,

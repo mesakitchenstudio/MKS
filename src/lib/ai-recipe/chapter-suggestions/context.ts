@@ -52,8 +52,13 @@ export type ChapterSuggestionContext =
   | {
       ok: true;
       videoId: string;
+      typeId: string;
+      schemaVersion: string;
+      youtubeUrl: string;
       groups: ReturnType<typeof normalizeInstructionGroups>;
       evidence: ChapterSuggestionEvidenceBundle;
+      cacheRaw: unknown | null;
+      youtubeDescription: string | null;
     }
   | {
       ok: false;
@@ -77,6 +82,7 @@ export async function loadChapterSuggestionContext(input: {
     youtubeVideoId(String(input.values.youtubeUrl ?? "")) ??
     input.aiMeta?.sourceVideoId ??
     null;
+  const youtubeUrl = String(input.youtubeUrl ?? input.values.youtubeUrl ?? "").trim();
   if (!videoId) {
     return {
       ok: false,
@@ -152,5 +158,15 @@ export async function loadChapterSuggestionContext(input: {
     };
   }
 
-  return { ok: true, videoId, groups, evidence };
+  return {
+    ok: true,
+    videoId,
+    typeId,
+    schemaVersion,
+    youtubeUrl: youtubeUrl || `https://www.youtube.com/watch?v=${videoId}`,
+    groups,
+    evidence,
+    cacheRaw,
+    youtubeDescription,
+  };
 }

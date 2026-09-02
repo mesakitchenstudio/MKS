@@ -556,19 +556,14 @@ test("AI video section not located in analysis remains needs input", () => {
   assert.equal(missing?.startTimestamp, undefined);
 });
 
-test("no description chapters and no video analysis yields title-only suggestions", () => {
+test("no description chapters offers ai_video capability even without cache", () => {
   const evidence = collectChapterSuggestionEvidence({
     videoId: "chips123",
     values: { instructions: potatoChipSections, youtube: { duration: "4:18" } },
     youtubeDescription: "Recipe link only.",
   });
-  assert.equal(resolveChapterSuggestionCapability(evidence), "titles");
-  const suggestions = buildChapterTitleSuggestions({ groups: potatoChipSections, mode: "missing" });
-  assert.equal(suggestions.length, 4);
-  for (const row of suggestions) {
-    assert.equal(row.startTimestamp, undefined);
-    assert.equal(row.source, "semantic_inference");
-  }
+  assert.equal(resolveChapterSuggestionCapability(evidence), "ai_video");
+  assert.equal(hasVideoTemporalAnalysisAvailable(evidence), false);
 });
 
 test("confirmed AI video suggestion applies as from_video with ai lineage", () => {

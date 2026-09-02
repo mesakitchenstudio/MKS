@@ -16,6 +16,10 @@ import type {
 } from "@/lib/ai-recipe/chapter-suggestions/types";
 import type { ChapterSuggestionEvidenceBundle } from "@/lib/ai-recipe/chapter-suggestions/evidence";
 import type { StageAlignmentEvidenceLineage, ClassifiedStageAlignmentEvidence } from "@/lib/ai-recipe/chapter-suggestions/stage-alignment-evidence";
+import {
+  YOUTUBE_CHAPTER_MIN_SECONDS,
+  youtubeChapterGapIssue,
+} from "@/lib/youtube-chapter-sync/validity";
 
 type MatchCandidate = {
   startTimestamp: number;
@@ -372,8 +376,8 @@ export function buildDeterministicChapterSuggestions(input: {
   return suggestions.sort((a, b) => a.instructionIndex - b.instructionIndex);
 }
 
-/** Minimum seconds between consecutive AI-video chapter starts (YouTube chapter validity). */
-export const AI_VIDEO_MIN_SECTION_GAP_SECONDS = 22;
+/** @deprecated Use YOUTUBE_CHAPTER_MIN_SECONDS from youtube-chapter-sync/validity. */
+export const AI_VIDEO_MIN_SECTION_GAP_SECONDS = YOUTUBE_CHAPTER_MIN_SECONDS;
 
 type AiVideoSectionMatch = {
   sectionIndex: number;
@@ -440,11 +444,31 @@ function detectAiVideoMinGapConflict(input: {
     }
   }
   if (previousIndex < 0) return null;
-  const gap = input.startTimestamp - previousStart;
-  if (gap < AI_VIDEO_MIN_SECTION_GAP_SECONDS) {
-    return `Suggested timestamp is too close to section ${previousIndex + 1} (minimum ${AI_VIDEO_MIN_SECTION_GAP_SECONDS}s gap).`;
+  const gapIssue = youtubeChapterGapIssue({
+    previousTimestamp: previousStart,
+    currentTimestamp: input.startTimestamp,
+  });
+  if (gapIssue?.hardInvalid) {
+    return `Suggested timestamp is too close to section ${previousIndex + 1} (minimum ${YOUTUBE_CHAPTER_MIN_SECONDS}s gap).`;
   }
   return null;
+}
+
+function aiVideoEditorialGapNote(input: {
+  instructionIndex: number;
+  startTimestamp: number;
+  proposedStarts: Map<number, number>;
+}): string | undefined {
+  let previousStart = -1;
+  for (const [index, start] of [...input.proposedStarts.entries()].sort((a, b) => a[0] - b[0])) {
+    if (index >= input.instructionIndex) break;
+    previousStart = start;
+  }
+  if (previousStart < 0) return undefined;
+  return youtubeChapterGapIssue({
+    previousTimestamp: previousStart,
+    currentTimestamp: input.startTimestamp,
+  })?.editorialWarning;
 }
 
 /**
@@ -524,7 +548,18 @@ export function buildAiVideoChapterSuggestions(input: {
       startTimestamp: status === "suggested" ? startTimestamp : undefined,
       confidence: aiConfidenceToSuggestion(chapter.confidence),
       source: "ai_video",
-      evidence: aiVideoEvidenceText(chapter),
+      evidence: [
+        aiVideoEvidenceText(chapter),
+        status === "suggested"
+          ? aiVideoEditorialGapNote({
+              instructionIndex: index,
+              startTimestamp,
+              proposedStarts,
+            })
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · "),
       reason: "Matched section to AI video analysis chapter",
       status,
       conflictReason,

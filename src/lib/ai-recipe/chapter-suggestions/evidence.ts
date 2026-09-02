@@ -49,8 +49,7 @@ export function resolveChapterSuggestionCapability(
   bundle: ChapterSuggestionEvidenceBundle,
 ): import("@/lib/ai-recipe/chapter-suggestions/types").ChapterSuggestionCapability {
   if (hasTrustworthyTimestampEvidence(bundle)) return "youtube_chapters";
-  if (hasVideoTemporalAnalysisAvailable(bundle)) return "ai_video";
-  return "titles";
+  return "ai_video";
 }
 
 export function hasUsableChapterEvidence(bundle: ChapterSuggestionEvidenceBundle): boolean {

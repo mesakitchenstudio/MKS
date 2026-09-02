@@ -108,7 +108,9 @@ export function ChapterTimestampSuggestionsPanel({
   }, [typeId, youtubeUrl, title, values, aiMeta]);
 
   const primaryActionLabel = useMemo(() => {
-    if (busy) return "Suggesting…";
+    if (busy) {
+      return capability === "ai_video" ? "Analyzing video…" : "Suggesting…";
+    }
     switch (capability) {
       case "youtube_chapters":
         return "✦ Suggest timestamps";
@@ -150,7 +152,10 @@ export function ChapterTimestampSuggestionsPanel({
     return null;
   }
 
-  async function generateSuggestions(nextMode: ChapterSuggestionMode = mode) {
+  async function generateSuggestions(
+    nextMode: ChapterSuggestionMode = mode,
+    options?: { forceRefresh?: boolean; titlesOnly?: boolean },
+  ) {
     setBusy(true);
     setError(null);
     setApplyError(null);
@@ -162,6 +167,8 @@ export function ChapterTimestampSuggestionsPanel({
           typeId,
           youtubeUrl,
           mode: nextMode,
+          forceRefresh: options?.forceRefresh === true,
+          titlesOnly: options?.titlesOnly === true,
           current: {
             title,
             values,
@@ -296,9 +303,15 @@ export function ChapterTimestampSuggestionsPanel({
                 type="button"
                 disabled={busy}
                 className={quietBtn}
-                onClick={() => void generateSuggestions(mode)}
+                onClick={() =>
+                  void generateSuggestions(mode, {
+                    forceRefresh: capability === "ai_video" || batch?.diagnostics?.suggestionKind === "ai_video_timestamps",
+                  })
+                }
               >
-                Try again
+                {capability === "ai_video" || batch?.diagnostics?.suggestionKind === "ai_video_timestamps"
+                  ? "Re-analyze video"
+                  : "Try again"}
               </button>
               <button type="button" className={quietBtn} onClick={handleDiscard}>
                 Discard suggestions
@@ -309,9 +322,31 @@ export function ChapterTimestampSuggestionsPanel({
       </div>
 
       {error ? (
-        <p className="mt-2 text-xs font-semibold text-terracotta" role="alert">
-          {error}
-        </p>
+        <div className="mt-2 space-y-2">
+          <p className="text-xs font-semibold text-terracotta" role="alert">
+            {error}
+          </p>
+          {capability === "ai_video" ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                className={quietBtn}
+                onClick={() => void generateSuggestions(mode, { forceRefresh: true })}
+              >
+                Try again
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                className={quietBtn}
+                onClick={() => void generateSuggestions(mode, { titlesOnly: true })}
+              >
+                Suggest chapter titles instead
+              </button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {batch ? (

@@ -7,6 +7,7 @@ import {
   resolveActiveFieldAiAnnotation,
   resolveActiveFieldSource,
   resolveFieldSource,
+  resolveFieldSourceDisplayLabel,
 } from "./ai-recipe/field-state";
 import { evaluateRecipeFields } from "./recipe-editor-field-state";
 import { applyValueAtEditorPath, readValueAtEditorPath } from "./apply-editor-path";
@@ -264,4 +265,38 @@ test("applyValueAtEditorPath updates nested ingredient amount", () => {
   const next = applyValueAtEditorPath(values, "values.ingredients.0.items.0.amount", "290 ml");
   assert.equal(readValueAtEditorPath(next, "values.ingredients.0.items.0.amount"), "290 ml");
   assert.equal(readValueAtEditorPath(next, "values.ingredients.0.items.0.item"), "warm water");
+});
+
+test("confirmed AI video timestamps display as AI video analysis not YouTube import", () => {
+  const meta = {
+    generatedByAI: true,
+    verificationStatus: "unverified" as const,
+    fieldProvenance: {
+      "values.instructions.0.startTimestamp": {
+        aiGenerated: true,
+        aiGeneratedValue: 67,
+        humanModifiedAfterGeneration: false,
+        reviewState: "confirmed" as const,
+        source: "from_video" as const,
+        originalAi: { value: 67, source: "inferred" as const },
+      },
+    },
+  };
+  assert.equal(
+    resolveFieldSourceDisplayLabel("values.instructions.0.startTimestamp", meta),
+    "AI video analysis (confirmed)",
+  );
+  assert.equal(resolveFieldSourceDisplayLabel("values.instructions.0.startTimestamp", {
+    ...meta,
+    fieldProvenance: {
+      "values.instructions.0.startTimestamp": {
+        aiGenerated: true,
+        aiGeneratedValue: 0,
+        humanModifiedAfterGeneration: false,
+        reviewState: "confirmed" as const,
+        source: "from_video" as const,
+        originalAi: { value: 0, source: "from_video" as const },
+      },
+    },
+  }), "From video");
 });

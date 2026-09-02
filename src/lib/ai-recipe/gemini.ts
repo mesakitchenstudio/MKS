@@ -336,3 +336,125 @@ export async function generateRecipeDraftWithGemini(input: {
     videoAnalysisSucceeded,
   };
 }
+
+const VIDEO_CHAPTER_ANALYSIS_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  properties: {
+    duration: {
+      type: "string",
+      description: "Total video duration as MM:SS or HH:MM:SS when known from the video.",
+    },
+    chapters: {
+      type: "array",
+      description: "Temporal chapter segments grounded in observed video moments.",
+      items: {
+        type: "object",
+        properties: {
+          time: { type: "string", description: "Chapter start as MM:SS or HH:MM:SS." },
+          label: { type: "string", description: "Short procedural chapter label." },
+          confidence: {
+            type: "string",
+            enum: ["VERIFIED", "HIGH_CONFIDENCE_INFERENCE", "ESTIMATED", "UNKNOWN"],
+          },
+          sourceNote: {
+            type: "string",
+            description: "Brief note citing what happens in the video at this time.",
+          },
+        },
+        required: ["time", "label", "confidence", "sourceNote"],
+      },
+    },
+  },
+  required: ["chapters"],
+};
+
+function buildVideoChapterAnalysisPrompt(sectionTitles: string[]): string {
+  const targets = sectionTitles
+    .map((title, index) => `${index + 1}. ${title}`)
+    .join("\n");
+  return [
+    "Analyze this cooking video and locate when each target recipe section actually begins.",
+    "",
+    "Target sections (labels only — do NOT infer timestamps from section order, section count, or assumed pacing):",
+    targets,
+    "",
+    "Return JSON matching the schema with:",
+    "- duration: total video duration when known",
+    "- chapters: one entry per located section with time, label, confidence, and sourceNote",
+    "",
+    "Ground every timestamp in what you observe in the video (actions, narration, captions, visuals).",
+    "Do not interpolate timestamps or divide the runtime evenly.",
+    "Omit sections you cannot locate with temporal evidence.",
+  ].join("\n");
+}
+
+export type GeminiVideoChapterAnalysisResult =
+  | { ok: true; model: string; raw: unknown }
+  | { ok: false; error: AiGeminiError };
+
+/** Focused Gemini video analysis for instruction-section chapter timestamps. */
+export async function analyzeVideoChaptersWithGemini(input: {
+  youtubeUrl: string;
+  sectionTitles: string[];
+}): Promise<GeminiVideoChapterAnalysisResult> {
+  const normalized = normalizeYouTubeForGemini(input.youtubeUrl);
+  if (!normalized) {
+    return { ok: false, error: buildAiGeminiError("INVALID_YOUTUBE_URL", "video_probe") };
+  }
+
+  const ai = getGeminiClient();
+  if (!ai) {
+    return {
+      ok: false,
+      error: buildAiGeminiError("GEMINI_CONFIGURATION_ERROR", "config"),
+    };
+  }
+
+  const models = geminiModelCandidates();
+  const prompt = buildVideoChapterAnalysisPrompt(input.sectionTitles);
+  let lastError: AiGeminiError | null = null;
+
+  for (const model of models) {
+    try {
+      const interaction = await createVideoInteraction(ai, {
+        model,
+        videoUri: normalized.canonicalUrl,
+        text: prompt,
+        systemInstruction:
+          "You are Mesa's video chapter analyst. Return only JSON grounded in observed video timing.",
+        responseFormat: {
+          type: "text",
+          mime_type: "application/json",
+          schema: VIDEO_CHAPTER_ANALYSIS_SCHEMA,
+        },
+      });
+
+      const text = interactionText(interaction);
+      if (!text) {
+        lastError = buildAiGeminiError("RECIPE_SCHEMA_EMPTY", "recipe_schema", {
+          detail: "Gemini returned no chapter analysis text.",
+        });
+        continue;
+      }
+
+      const parsed = parseRecipeJson(text);
+      if (!parsed.ok) {
+        lastError = parsed.error;
+        continue;
+      }
+
+      return { ok: true, model, raw: parsed.raw };
+    } catch (error) {
+      lastError = mapGeminiException(error, "recipe_schema");
+      if (isGeminiModelError(error) && model !== models.at(-1)) {
+        continue;
+      }
+      return { ok: false, error: lastError };
+    }
+  }
+
+  return {
+    ok: false,
+    error: lastError ?? buildAiGeminiError("RECIPE_SCHEMA_GENERATION_FAILED", "recipe_schema"),
+  };
+}
