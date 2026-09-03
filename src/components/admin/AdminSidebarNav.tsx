@@ -42,26 +42,47 @@ function SidebarLink({
   const pathname = usePathname();
   const active = linkIsActive(pathname, href, match);
 
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      onClick={onNavigate}
-      className={`${adminSidebarLinkClass} ${adminFocusRing} ${
-        active
-          ? "border-l-2 border-terracotta bg-sand/40 pl-[calc(0.75rem-2px)] text-terracotta"
-          : muted
-            ? "border-l-2 border-transparent text-muted hover:bg-cream/80 hover:text-terracotta"
-            : "border-l-2 border-transparent text-ink hover:bg-cream/80 hover:text-terracotta"
-      }`}
-    >
+  const linkClass = `${adminSidebarLinkClass} ${adminFocusRing} ${
+    active
+      ? "border-l-2 border-terracotta bg-sand/40 pl-[calc(0.75rem-2px)] text-terracotta"
+      : muted
+        ? "border-l-2 border-transparent text-muted hover:bg-cream/80 hover:text-terracotta"
+        : "border-l-2 border-transparent text-ink hover:bg-cream/80 hover:text-terracotta"
+  }`;
+
+  const children = (
+    <>
       <span>{label}</span>
       {leavesAdmin ? (
         <span className="ml-1.5 text-[0.65rem] font-normal text-muted" aria-hidden>
           ↗
         </span>
       ) : null}
-      {leavesAdmin ? <span className="sr-only"> (opens public site)</span> : null}
+      {leavesAdmin ? <span className="sr-only"> (opens in new tab)</span> : null}
+    </>
+  );
+
+  if (leavesAdmin) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={linkClass}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      onClick={onNavigate}
+      className={linkClass}
+    >
+      {children}
     </Link>
   );
 }
