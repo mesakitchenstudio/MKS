@@ -71,10 +71,24 @@ export function detectGuestBrowser(userAgent: string) {
   return "";
 }
 
-/**
- * Device / client column label: platform for humans, bot name for crawlers.
- * Prefer device/platform over browser branding (matches "Device / client" header).
- */
+/** Major browser version from UA when reliably present (e.g. Chrome/131 → "131"). */
+export function detectGuestBrowserVersion(userAgent: string): string {
+  const ua = userAgent.trim();
+  if (!ua) return "";
+  const browser = detectGuestBrowser(ua);
+  if (!browser) return "";
+
+  const patterns: Record<string, RegExp> = {
+    Edge: /(?:Edg|Edge)\/(\d+)/i,
+    Opera: /(?:OPR|Opera)\/(\d+)/i,
+    Chrome: /(?:Chrome|CriOS|Chromium)\/(\d+)/i,
+    Firefox: /(?:Firefox|FxiOS)\/(\d+)/i,
+    Safari: /Version\/(\d+)/i,
+  };
+  const match = patterns[browser]?.exec(ua);
+  return match?.[1] || "";
+}
+
 function formatDeviceClientLabel(device: string, _os: string, browser: string) {
   if (device === "iPhone") return "iPhone · iOS";
   if (device === "iPad") return "iPad · iPadOS";
@@ -122,6 +136,25 @@ export function classifyGuestClient(userAgent: string): GuestClientInfo {
   if (label) return { kind: "visitor", label };
 
   return { kind: "unknown", label: ua.slice(0, 48) };
+}
+
+/** Compact “Windows · Chrome 131” style label when UA is parseable. */
+export function formatGuestOsBrowserLabel(userAgent: string): string {
+  const ua = userAgent.trim();
+  if (!ua) return "Unknown";
+  const classified = classifyGuestClient(ua);
+  if (classified.kind === "bot") return classified.label;
+
+  const { device, os } = detectGuestDevice(ua);
+  const browser = detectGuestBrowser(ua);
+  const version = detectGuestBrowserVersion(ua);
+  const platform = device || os || "";
+  const browserPart = browser ? (version ? `${browser} ${version}` : browser) : "";
+
+  if (platform && browserPart) return `${platform} · ${browserPart}`;
+  if (platform) return platform;
+  if (browserPart) return browserPart;
+  return classified.label || "Unknown";
 }
 
 export function guestClientKindLabel(kind: GuestClientKind) {

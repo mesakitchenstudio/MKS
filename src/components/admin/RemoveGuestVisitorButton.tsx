@@ -11,9 +11,12 @@ const confirmMessage =
 export function RemoveGuestVisitorButton({
   id,
   disabled = false,
+  redirectTo,
 }: {
   id: string;
   disabled?: boolean;
+  /** After success, navigate here (e.g. overview). Default: refresh current route. */
+  redirectTo?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -35,6 +38,11 @@ export function RemoveGuestVisitorButton({
         } else {
           setError("Could not delete visitor. Try again.");
         }
+        return;
+      }
+      if (redirectTo) {
+        router.push(redirectTo);
+        router.refresh();
         return;
       }
       router.refresh();

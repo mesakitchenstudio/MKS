@@ -31,6 +31,22 @@ export function isPopularGuestPath(path: string) {
   return true;
 }
 
+/** Editorial Popular content ranking — excludes Coming Soon operational traffic. */
+export function isEditorialPopularGuestPath(path: string) {
+  if (!isPopularGuestPath(path)) return false;
+  if (path === "/coming-soon") return false;
+  return true;
+}
+
+export function isComingSoonGuestPath(path: string) {
+  return path.trim() === "/coming-soon";
+}
+
+/** Individual recipe pages (`/recipes/[slug]`), not the catalogue index. */
+export function isRecipeDetailGuestPath(path: string) {
+  return /^\/recipes\/[^/]+\/?$/.test(path.trim());
+}
+
 export function guestPathTitle(path: string, recipeTitles?: Map<string, string>) {
   const clean = path.trim() || "/";
   if (STATIC_TITLES[clean]) return STATIC_TITLES[clean];

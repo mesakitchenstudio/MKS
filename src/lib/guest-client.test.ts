@@ -3,11 +3,19 @@ import { describe, it } from "node:test";
 import {
   classifyGuestClient,
   detectGuestDevice,
+  formatGuestOsBrowserLabel,
   guestDeviceClientLabel,
   guestOsLabel,
   isBotUserAgent,
+  isHumanGuestUserAgent,
 } from "./guest-client.ts";
-import { guestPathTitle, isPopularGuestPath } from "./guest-path-labels.ts";
+import {
+  guestPathTitle,
+  isComingSoonGuestPath,
+  isEditorialPopularGuestPath,
+  isPopularGuestPath,
+  isRecipeDetailGuestPath,
+} from "./guest-path-labels.ts";
 import { formatApproxLocation, formatCountryCityLocation, formatLatestCountryCityLocation, formatReferrerDisplay, pickLatestLocationConnection } from "./request-meta.ts";
 
 const IPHONE_SAFARI_UA =
@@ -114,7 +122,24 @@ describe("guest-client", () => {
     assert.equal(classifyGuestClient("").kind, "unknown");
     assert.equal(guestDeviceClientLabel(""), "Unknown");
     assert.equal(isBotUserAgent(""), false);
+    assert.equal(isHumanGuestUserAgent(""), true);
     assert.equal(classifyGuestClient("some-unknown-client/1.0").kind, "unknown");
+    assert.equal(isHumanGuestUserAgent("some-unknown-client/1.0"), true);
+  });
+
+  it("formats OS · browser version labels for visitors", () => {
+    assert.equal(
+      formatGuestOsBrowserLabel(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      ),
+      "Windows · Chrome 131",
+    );
+    assert.equal(
+      formatGuestOsBrowserLabel(
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      ),
+      "Googlebot",
+    );
   });
 });
 
@@ -139,6 +164,14 @@ describe("guest-path-labels", () => {
     assert.equal(isPopularGuestPath("/api/analytics/guest"), false);
     assert.equal(isPopularGuestPath("/auth/signin"), false);
     assert.equal(isPopularGuestPath("/recipes"), true);
+  });
+
+  it("keeps Coming Soon out of editorial popular ranking", () => {
+    assert.equal(isComingSoonGuestPath("/coming-soon"), true);
+    assert.equal(isEditorialPopularGuestPath("/coming-soon"), false);
+    assert.equal(isEditorialPopularGuestPath("/recipes/foo"), true);
+    assert.equal(isRecipeDetailGuestPath("/recipes/foo"), true);
+    assert.equal(isRecipeDetailGuestPath("/recipes"), false);
   });
 });
 

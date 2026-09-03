@@ -1,15 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PresenceDot } from "@/components/admin/MemberPresence";
+import { RemoveGuestVisitorButton } from "@/components/admin/RemoveGuestVisitorButton";
 import { VisitorNetworkSection } from "@/components/admin/VisitorNetworkSection";
 import { adminFocusRing } from "@/lib/admin-ui";
 import { requireAccess } from "@/lib/auth";
 import { formatAdminShortDateTime } from "@/lib/datetime";
+import { deriveGuestAcquisition } from "@/lib/guest-acquisition";
 import { getGuestForAdmin } from "@/lib/guest-analytics";
 import {
   classifyGuestClient,
-  guestClientKindLabel,
-  guestDeviceClientLabel,
+  formatGuestOsBrowserLabel,
+  guestBrowserLabel,
+  guestOsLabel,
 } from "@/lib/guest-client";
 import { guestPathTitle } from "@/lib/guest-path-labels";
 import { uniqueIps } from "@/lib/ip-utils";
@@ -22,7 +25,7 @@ export const dynamic = "force-dynamic";
 const sectionLabel =
   "text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive";
 
-const botBadgeClass =
+const kindBadgeClass =
   "inline-flex rounded-full bg-sand px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-ink";
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -55,16 +58,25 @@ export default async function AdminVisitorDetailPage({
   });
   const shortKey = guest.visitorKey.slice(0, 8);
   const client = classifyGuestClient(guest.userAgent || "");
-  const isBot = client.kind === "bot";
-  const deviceClient = guestDeviceClientLabel(guest.userAgent || "");
   const pageViewCount = guest._count.pageViews;
-  const currentPage = guest.lastPath || "—";
-  const pageTitle = guest.lastPath ? guestPathTitle(guest.lastPath, recipeTitles) : "";
+  const journey = [...guest.pageViews].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+  const acquisition = deriveGuestAcquisition(journey);
+  const landingTitle = acquisition.landingPath
+    ? guestPathTitle(acquisition.landingPath, recipeTitles)
+    : "";
+  const firstRef = formatReferrerDisplay(acquisition.firstExternalReferer);
+  const latestRef = formatReferrerDisplay(acquisition.latestExternalReferer);
   const approxLocation = formatApproxLocation(guest) || "—";
   const ips = uniqueIps([guest.ip, ...guest.pageViews.map((view) => view.ip)]);
-  const latestReferer =
-    guest.pageViews.find((view) => view.referer)?.referer || "";
-  const referrerDisplay = formatReferrerDisplay(latestReferer);
+  const deviceLabel = formatGuestOsBrowserLabel(guest.userAgent || "");
+  const kindText =
+    client.kind === "bot"
+      ? client.label
+      : client.kind === "unknown"
+        ? "Unknown"
+        : "Human";
 
   return (
     <div>
@@ -75,75 +87,104 @@ export default async function AdminVisitorDetailPage({
         ← Visitors
       </Link>
 
-      <div className="mt-5">
+      <header className="mt-5">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
             Guest {shortKey}
           </h1>
-          {isBot ? <span className={botBadgeClass}>Bot</span> : null}
+          <span className={kindBadgeClass}>{kindText}</span>
         </div>
-        <p className="mt-1 break-all font-mono text-sm text-muted">{guest.visitorKey}</p>
         <p className="mt-3 inline-flex flex-wrap items-center gap-2 text-sm text-ink">
           <PresenceDot online={online} />
-          {status}
-          <span className="text-muted">·</span>
-          <span className="text-muted">{guestClientKindLabel(client.kind)}</span>
+          <span>
+            <span className="sr-only">Status: </span>
+            {status}
+          </span>
         </p>
-        <p className="mt-2 text-sm text-muted">Times in GMT</p>
-      </div>
+        <p className="mt-3 text-sm text-muted">
+          {pageViewCount} page view{pageViewCount === 1 ? "" : "s"}
+          <span aria-hidden> · </span>
+          First seen{" "}
+          {formatAdminShortDateTime(guest.firstSeenAt, new Date(), { includeYear: true })}
+          <span aria-hidden> · </span>
+          Last seen{" "}
+          {formatAdminShortDateTime(guest.lastSeenAt, new Date(), { includeYear: true })}
+        </p>
+        <p className="mt-1 text-xs text-muted">Times in GMT</p>
+      </header>
 
-      <section className="mt-8 border border-line bg-paper p-5 md:p-6">
-        <h2 className={sectionLabel}>Activity</h2>
+      <section className="mt-8 border border-line bg-paper p-5 md:p-6" aria-labelledby="how-arrived">
+        <h2 id="how-arrived" className={sectionLabel}>
+          How they arrived
+        </h2>
         <dl className="mt-2">
-          <DetailRow label="Status">
-            <span className="inline-flex items-center gap-2 text-ink">
-              <PresenceDot online={online} />
-              {status}
-            </span>
+          <DetailRow label="Source">{acquisition.sourceLabel}</DetailRow>
+          <DetailRow label="Landing page">
+            {acquisition.landingPath ? (
+              <div>
+                <p className="font-semibold text-ink">{landingTitle}</p>
+                <p className="mt-0.5 break-all font-mono text-xs">{acquisition.landingPath}</p>
+              </div>
+            ) : (
+              "—"
+            )}
           </DetailRow>
-          <DetailRow label={online ? "Current page" : "Last page"}>
-            <div className="min-w-0">
-              {pageTitle && pageTitle !== currentPage ? (
-                <p className="font-semibold text-ink">{pageTitle}</p>
-              ) : null}
-              <p className="break-all font-mono text-xs text-ink sm:text-sm">{currentPage}</p>
-            </div>
+          <DetailRow label="First external referrer">
+            {acquisition.firstExternalReferer ? (
+              <span className="break-all" title={firstRef.title}>
+                {firstRef.label}
+              </span>
+            ) : (
+              <span title="No external referrer on recorded page views">— (Direct or none)</span>
+            )}
           </DetailRow>
-          <DetailRow label="First seen">
-            {formatAdminShortDateTime(guest.firstSeenAt, new Date(), { includeYear: true })}
+          <DetailRow label="Latest external referrer">
+            {acquisition.latestExternalReferer ? (
+              <span className="break-all" title={latestRef.title}>
+                {latestRef.label}
+              </span>
+            ) : (
+              "—"
+            )}
           </DetailRow>
-          <DetailRow label="Last seen">
-            {formatAdminShortDateTime(guest.lastSeenAt, new Date(), { includeYear: true })}
-          </DetailRow>
-          <DetailRow label="Active tabs">{guest.activeConnections}</DetailRow>
-          <DetailRow label="Page views">{pageViewCount}</DetailRow>
         </dl>
       </section>
 
-      <section className="mt-10">
-        <h2 className="font-serif text-xl text-ink">
-          Page history
+      <section className="mt-10" aria-labelledby="page-journey">
+        <h2 id="page-journey" className="font-serif text-xl text-ink">
+          Page journey
           <span className="ml-2 font-sans text-sm font-normal text-muted">· {pageViewCount}</span>
         </h2>
+        <p className="mt-1 text-xs text-muted">
+          Chronological page views (not a formal session timeline)
+        </p>
         {guest.pageViews.length < pageViewCount ? (
           <p className="mt-1 text-sm text-muted">
-            Showing latest {guest.pageViews.length}
+            Showing the earliest {guest.pageViews.length} of {pageViewCount} recorded views
           </p>
         ) : null}
 
-        {guest.pageViews.length === 0 ? (
+        {journey.length === 0 ? (
           <p className="mt-4 border border-dashed border-line bg-paper px-4 py-8 text-sm text-muted">
             This visitor has no recorded page views yet.
           </p>
         ) : (
-          <ul className="mt-4 divide-y divide-line border border-line bg-paper">
-            {guest.pageViews.map((view) => {
+          <ol className="mt-4 divide-y divide-line border border-line bg-paper">
+            {journey.map((view, index) => {
               const title = guestPathTitle(view.path, recipeTitles);
+              const isLanding = index === 0;
               return (
                 <li key={view.id} className="px-4 py-3 sm:px-5">
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-x-4">
                     <div className="min-w-0">
-                      <p className="font-semibold text-ink">{title}</p>
+                      <p className="font-semibold text-ink">
+                        {title}
+                        {isLanding ? (
+                          <span className="ml-2 text-[0.65rem] font-semibold uppercase tracking-wide text-olive">
+                            Landing
+                          </span>
+                        ) : null}
+                      </p>
                       <p className="mt-0.5 break-all font-mono text-[0.65rem] text-muted">
                         {view.path}
                       </p>
@@ -155,39 +196,51 @@ export default async function AdminVisitorDetailPage({
                 </li>
               );
             })}
-          </ul>
+          </ol>
         )}
       </section>
 
-      <section className="mt-10">
-        <h2 className="font-serif text-xl text-ink">Visitor details</h2>
-        <dl className="mt-3 border border-line bg-paper px-5">
-          <DetailRow label="Classification">
-            {isBot ? (
-              <span className="inline-flex flex-wrap items-center gap-2">
-                <span className={botBadgeClass}>Bot</span>
-                <span>{client.label}</span>
-              </span>
-            ) : (
-              guestClientKindLabel(client.kind)
-            )}
-          </DetailRow>
-          <DetailRow label="Device / client">{deviceClient}</DetailRow>
-          <DetailRow label="Approx. location">{approxLocation}</DetailRow>
-          <DetailRow label="Latest referrer">
-            <span className="break-all" title={referrerDisplay.title}>
-              {referrerDisplay.label}
+      <section className="mt-10 border border-line bg-paper p-5 md:p-6" aria-labelledby="visitor-context">
+        <h2 id="visitor-context" className={sectionLabel}>
+          Visitor context
+        </h2>
+        <dl className="mt-2">
+          <DetailRow label="Device">{deviceLabel}</DetailRow>
+          <DetailRow label="OS">{guestOsLabel(guest.userAgent || "")}</DetailRow>
+          <DetailRow label="Browser">{guestBrowserLabel(guest.userAgent || "")}</DetailRow>
+          <DetailRow label="Approx. location">
+            <span title="Approximate city-level estimate from network headers">
+              {approxLocation}
             </span>
           </DetailRow>
-          <DetailRow label="User agent">
-            <span className="break-all font-mono text-xs leading-relaxed text-muted">
-              {guest.userAgent?.trim() || "—"}
-            </span>
+          <DetailRow label="First seen">
+            {formatAdminShortDateTime(guest.firstSeenAt, new Date(), { includeYear: true })}
           </DetailRow>
+          <DetailRow label="Last seen">
+            {formatAdminShortDateTime(guest.lastSeenAt, new Date(), { includeYear: true })}
+          </DetailRow>
+          <DetailRow label="Active tabs">{guest.activeConnections}</DetailRow>
         </dl>
       </section>
 
-      <VisitorNetworkSection ips={ips} />
+      <div className="mt-10">
+        <VisitorNetworkSection
+          ips={ips}
+          visitorKey={guest.visitorKey}
+          userAgent={guest.userAgent || ""}
+        />
+      </div>
+
+      <section className="mt-12 border-t border-line pt-8">
+        <h2 className="text-sm font-semibold text-ink">Remove visitor</h2>
+        <p className="mt-1 max-w-xl text-sm text-muted">
+          Permanently deletes this anonymous visitor and related page views. Prefer this only for
+          abuse cleanup or privacy requests.
+        </p>
+        <div className="mt-4">
+          <RemoveGuestVisitorButton id={guest.id} redirectTo="/admin/visitors" />
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,24 +1,40 @@
-import { VisitorsTable } from "@/components/admin/VisitorsTable";
+import { VisitorsOverview } from "@/components/admin/VisitorsOverview";
 import { requireAccess } from "@/lib/auth";
 import {
   getVisitorAudienceSummary,
-  listGuestsForAdmin,
+  listGuestTrafficSources,
+  listGuestsForAdminPaginated,
   listPopularGuestPaths,
+  parseGuestKindFilter,
+  parseAnalyticsRangeDays,
 } from "@/lib/guest-analytics";
-import { getAllRecipes } from "@/lib/recipes";
+import { parseGuestTrafficSource } from "@/lib/guest-acquisition";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminVisitorsPage() {
-  await requireAccess("members");
-  const [visitors, popularPaths, summary, recipes] = await Promise.all([
-    listGuestsForAdmin(),
-    listPopularGuestPaths(),
-    getVisitorAudienceSummary(),
-    getAllRecipes(),
-  ]);
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
-  const recipeTitles = Object.fromEntries(recipes.map((recipe) => [recipe.slug, recipe.title]));
+export default async function AdminVisitorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  await requireAccess("members");
+  const raw = await searchParams;
+  const range = parseAnalyticsRangeDays(firstParam(raw.range) ?? 7);
+  const kind = parseGuestKindFilter(firstParam(raw.kind));
+  const source = parseGuestTrafficSource(firstParam(raw.source));
+  const q = String(firstParam(raw.q) ?? "").trim();
+  const page = Math.max(1, Number(firstParam(raw.page) || 1) || 1);
+
+  const [summary, popularBundle, trafficSources, list] = await Promise.all([
+    getVisitorAudienceSummary(range),
+    listPopularGuestPaths(range, 12),
+    listGuestTrafficSources(range),
+    listGuestsForAdminPaginated({ days: range, kind, source, q, page }),
+  ]);
 
   return (
     <div>
@@ -26,14 +42,19 @@ export default async function AdminVisitorsPage() {
         Visitors
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Anonymous visitor activity. Signed-in members are excluded.
+        Anonymous website activity. Signed-in members are excluded.
       </p>
 
-      <VisitorsTable
-        visitors={visitors}
-        popularPaths={popularPaths}
+      <VisitorsOverview
         summary={summary}
-        recipeTitles={recipeTitles}
+        popular={popularBundle.items}
+        comingSoonViews={popularBundle.comingSoonViews}
+        trafficSources={trafficSources}
+        list={list}
+        range={range}
+        kind={kind}
+        source={source}
+        q={q}
       />
     </div>
   );
