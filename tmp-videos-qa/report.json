@@ -1,0 +1,188 @@
+{
+  "startedAt": "2026-09-02T19:39:26.062Z",
+  "base": "https://www.mesakitchenstudio.com",
+  "loginOk": true,
+  "adminUrl": "https://www.mesakitchenstudio.com/admin",
+  "deployedSha": "9674fe1",
+  "deployLine": "Build 9674fe1 · Production",
+  "videosUrl": "https://www.mesakitchenstudio.com/videos",
+  "videosMatchedComingSoon": false,
+  "videosTitle": "Videos | Mesa Kitchen Studio",
+  "hasOldEmptyCopy": false,
+  "hasFromTheKitchen": true,
+  "h1Count": 1,
+  "h1": "Videos",
+  "iframeCountInitial": 0,
+  "youtubeIframeApiScript": false,
+  "seoVideos": {
+    "title": "Videos | Mesa Kitchen Studio",
+    "description": "Step-by-step recipes and kitchen techniques from Mesa Kitchen Studio. Watch the method, then cook from the written recipe when there is one.",
+    "canonical": "https://mesakitchenstudio.com/videos"
+  },
+  "hasFeatured": true,
+  "featured": {
+    "title": "Homemade Bread Without an Oven? You Need to Try This!",
+    "href": "/videos/67Laso4MggU",
+    "duration": null,
+    "recipe": "Soft Stovetop Flatbread →",
+    "videoId": "67Laso4MggU"
+  },
+  "gridFirst12": [
+    {
+      "title": "Chocolate donut short 2026 19 08",
+      "videoId": "BodG55anvjs",
+      "duration": "Duration\n1:08",
+      "recipeLinked": false,
+      "recipeTitle": null
+    },
+    {
+      "title": "Stop buying ice cream and do this instead 🍓🍦 #homemade #hack",
+      "videoId": "6WHqmB2QvO4",
+      "duration": "Duration\n0:59",
+      "recipeLinked": false,
+      "recipeTitle": null
+    },
+    {
+      "title": "Is this the best cheesecake in the world? #foodie #basquecheesecake #dessert",
+      "videoId": "MxqFMqKpchk",
+      "duration": "Duration\n0:52",
+      "recipeLinked": false,
+      "recipeTitle": null
+    },
+    {
+      "title": "You Won’t Believe This Caesar Dressing Is Homemade 🤤",
+      "videoId": "wOV7WBk06EQ",
+      "duration": "Duration\n6:20",
+      "recipeLinked": true,
+      "recipeTitle": "Homemade Chicken Caesar Salad with Garlic Croutons"
+    },
+    {
+      "title": "Why Everyone Is Obsessed With These Banana Oatmeal Cookies",
+      "videoId": "vp94RfLIHGE",
+      "duration": "Duration\n4:42",
+      "recipeLinked": false,
+      "recipeTitle": null
+    },
+    {
+      "title": "I Make This Creamy Mushroom Pasta 3 Times a Week! 😋",
+      "videoId": "7RK_fZLYzlo",
+      "duration": "Duration\n4:07",
+      "recipeLinked": true,
+      "recipeTitle": "I Make This Creamy Mushroom Pasta 3 Times a Week! 😋"
+    },
+    {
+      "title": "Cute Sausage Octopus 🌭🐙 #easyrecipes #foodart #recipe #food #easyrecipe",
+      "videoId": "dvaR5v8lKuE",
+      "duration": "Duration\n0:58",
+      "recipeLinked": false,
+      "recipeTitle": null
+    },
+    {
+      "title": "You haven't tasted chocolate like this #chocolate #dessert #food",
+      "videoId": "FC67Noj42pE",
+      "duration": "Duration\n1:04",
+      "recipeLinked": false,
+      "recipeTitle": null
+    },
+    {
+      "title": "You Won't Believe This Homemade Chocolate is So Simple to Make",
+      "videoId": "VEkOY7oejaM",
+      "duration": "Duration\n3:35",
+      "recipeLinked": true,
+      "recipeTitle": "You Won't Believe This Homemade Chocolate is So Simple to Make"
+    },
+    {
+      "title": "Homemade Souffle Pancakes – So Soft They Melt in Your Mouth!",
+      "videoId": "zT2DLuKYYDE",
+      "duration": "Duration\n6:41",
+      "recipeLinked": true,
+      "recipeTitle": "Homemade Souffle Pancakes – So Soft They Melt in Your Mouth!"
+    },
+    {
+      "title": "Homemade Churros with Rich Chocolate Sauce (So Crispy!)",
+      "videoId": "pUt3vxnfYx0",
+      "duration": "Duration\n5:41",
+      "recipeLinked": true,
+      "recipeTitle": "Homemade Churros with Rich Chocolate Sauce (So Crispy!)"
+    },
+    {
+      "title": "I’ll Never Make Potatoes Any Other Way After This!",
+      "videoId": "B2Pmu8Uq5HA",
+      "duration": "Duration\n6:02",
+      "recipeLinked": true,
+      "recipeTitle": "I’ll Never Make Potatoes Any Other Way After This!"
+    }
+  ],
+  "featuredInGrid": false,
+  "gridColumnCount": 3,
+  "thumbAspect": {
+    "w": 532,
+    "h": 299,
+    "ratio": 1.778
+  },
+  "hasViewsOrAdminHealth": false,
+  "shortsFilterVisible": true,
+  "youtubeApiHitsOnIndex": 0,
+  "adminYoutubeTextHit": {
+    "hasLong": true,
+    "hasShort": true,
+    "publicHint": "public site)"
+  },
+  "adminVideosApiStatus": 200,
+  "adminVideoRowCount": 21,
+  "formatCountsFromAdminApi": {
+    "long": 0,
+    "short": 0,
+    "unknown": 21,
+    "nonEmbed": 0,
+    "sampleNonEmbed": []
+  },
+  "watch": {
+    "url": "https://www.mesakitchenstudio.com/videos/wOV7WBk06EQ",
+    "title": "You Won’t Believe This Caesar Dressing Is Homemade 🤤",
+    "meta": "← All videos",
+    "iframeBefore": 0,
+    "hasCookRecipe": true,
+    "hasYoutubeCta": true,
+    "hasBack": true,
+    "pageTitle": "You Won’t Believe This Caesar Dressing Is Homemade 🤤 | Mesa Kitchen Studio",
+    "canonical": "https://mesakitchenstudio.com/videos/wOV7WBk06EQ",
+    "jsonLd": [
+      "{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\",\"@id\":\"https://mesakitchenstudio.com/#organization\",\"name\":\"Mesa Kitchen Studio\",\"alternateName\":[\"Mesa Kitchen\",\"Mesa\"],\"url\":\"https://mesakitchenstudio.com\",\"logo\":{\"@type\":\"ImageObject\",\"url\":\"https://mesakitchenstudio.com/icon.png\"},\"image\":\"https://mesakitchenstudio.com/icon.png\",\"description\":\"Studio-tested recipes for gathering around the table — cakes, weeknight dinners, breads, and the little sauces that make a meal feel finished.\",\"email\":\"hello@mesakitchenstudio.com\",\"sameAs\":[\"https://instagram.com/mesa_kitchen_studio\",\"https://pinterest.com/mesakitchenstudio\",\"https://youtube.com/@mesakitchenstudio\",\"https://facebook.com/mesakitchenstudio\"]},{\"@type\":\"WebSite\",\"@id\":\"https://mesakitchenstudio.com/#website\",\"name\":\"Mesa Kitchen Studio\",\"alternateName\":[\"Mesa Kitchen\",\"Mesa\"],\"url\":\"https://mesakitchenstudio.com\",\"description\":\"Studio-tested recipes for gathering around the table — cakes, weeknight dinners, breads, and the little sauces that make a meal feel finished.\",\"publisher\":{\"@id\":\"https://mesakitchenstudio.com/#organization\"},\"inLanguage\":\"en-US\",\"potentialAction\":{\"@type\":\"SearchAction\",\"target\":{\"@type\":\"EntryPoint\",\"urlTemplate\":\"https://mesakitchenstudio.com/recipes?q={search_term_string}\"},\"query-input\":\"required name=search_term_string\"}}]}",
+      "{\"@context\":\"https://schema.org\",\"@type\":\"VideoObject\",\"name\":\"You Won’t Believe This Caesar Dressing Is Homemade 🤤\",\"thumbnailUrl\":\"https://i.ytimg.com/vi/wOV7WBk06EQ/maxresdefault.jpg\",\"uploadDate\":\"2026-08-21T18:42:23.000Z\",\"duration\":\"PT6M20S\",\"contentUrl\":\"https://www.youtube.com/watch?v=wOV7WBk06EQ\",\"embedUrl\":\"https://www.youtube-nocookie.com/embed/wOV7WBk06EQ?rel=0&modestbranding=1\"}"
+    ]
+  },
+  "watchAfterPlay": {
+    "iframeCount": 1,
+    "iframeSrc": "https://www.youtube-nocookie.com/embed/wOV7WBk06EQ?rel=0&modestbranding=1&enablejsapi=1&origin=https%3A%2F%2Fwww.mesakitchenstudio.com&autoplay=1&mute=1",
+    "iframeTitle": "You Won’t Believe This Caesar Dressing Is Homemade 🤤",
+    "isNocookie": true
+  },
+  "recipeFromWatch": {
+    "href": "/recipes/homemade-chicken-caesar-salad-with-garlic-croutons",
+    "landed": "https://www.mesakitchenstudio.com/videos/wOV7WBk06EQ",
+    "h1": "You Won’t Believe This Caesar Dressing Is Homemade 🤤"
+  },
+  "backFromRecipe": "https://www.mesakitchenstudio.com/videos",
+  "unlinkedWatch": {
+    "videoId": "BodG55anvjs",
+    "title": "Chocolate donut short 2026 19 08",
+    "hasCookBlock": false,
+    "hasNoRecipeApology": false,
+    "hasYoutubeCta": true
+  },
+  "nonEmbeddable": {
+    "note": "NOT TESTED — no non-embeddable fixture from admin API"
+  },
+  "mobile": {
+    "overflowX": false,
+    "columns": 1,
+    "iframeCount": 0
+  },
+  "focusAfterTabs": {
+    "tag": "BUTTON",
+    "href": null,
+    "aria": null
+  },
+  "hasAdminCookie": true
+}
