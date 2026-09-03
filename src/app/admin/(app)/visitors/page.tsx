@@ -31,7 +31,7 @@ export default async function AdminVisitorsPage({
 
   const [summary, popularBundle, trafficSources, list] = await Promise.all([
     getVisitorAudienceSummary(range),
-    listPopularGuestPaths(range, 12),
+    listPopularGuestPaths(range, 7),
     listGuestTrafficSources(range),
     listGuestsForAdminPaginated({ days: range, kind, source, q, page }),
   ]);

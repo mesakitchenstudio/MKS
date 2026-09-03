@@ -68,6 +68,11 @@ export default async function AdminVisitorDetailPage({
     : "";
   const firstRef = formatReferrerDisplay(acquisition.firstExternalReferer);
   const latestRef = formatReferrerDisplay(acquisition.latestExternalReferer);
+  const hasExternal = Boolean(acquisition.firstExternalReferer);
+  const refsDiffer =
+    hasExternal &&
+    Boolean(acquisition.latestExternalReferer) &&
+    acquisition.firstExternalReferer !== acquisition.latestExternalReferer;
   const approxLocation = formatApproxLocation(guest) || "—";
   const ips = uniqueIps([guest.ip, ...guest.pageViews.map((view) => view.ip)]);
   const deviceLabel = formatGuestOsBrowserLabel(guest.userAgent || "");
@@ -77,6 +82,7 @@ export default async function AdminVisitorDetailPage({
       : client.kind === "unknown"
         ? "Unknown"
         : "Human";
+  const showActiveTabs = online && guest.activeConnections > 0;
 
   return (
     <div>
@@ -129,24 +135,28 @@ export default async function AdminVisitorDetailPage({
               "—"
             )}
           </DetailRow>
-          <DetailRow label="First external referrer">
-            {acquisition.firstExternalReferer ? (
+          {!hasExternal ? (
+            <DetailRow label="External referrer">None</DetailRow>
+          ) : refsDiffer ? (
+            <>
+              <DetailRow label="First external referrer">
+                <span className="break-all" title={firstRef.title}>
+                  {firstRef.label}
+                </span>
+              </DetailRow>
+              <DetailRow label="Latest external referrer">
+                <span className="break-all" title={latestRef.title}>
+                  {latestRef.label}
+                </span>
+              </DetailRow>
+            </>
+          ) : (
+            <DetailRow label="External referrer">
               <span className="break-all" title={firstRef.title}>
                 {firstRef.label}
               </span>
-            ) : (
-              <span title="No external referrer on recorded page views">— (Direct or none)</span>
-            )}
-          </DetailRow>
-          <DetailRow label="Latest external referrer">
-            {acquisition.latestExternalReferer ? (
-              <span className="break-all" title={latestRef.title}>
-                {latestRef.label}
-              </span>
-            ) : (
-              "—"
-            )}
-          </DetailRow>
+            </DetailRow>
+          )}
         </dl>
       </section>
 
@@ -155,9 +165,7 @@ export default async function AdminVisitorDetailPage({
           Page journey
           <span className="ml-2 font-sans text-sm font-normal text-muted">· {pageViewCount}</span>
         </h2>
-        <p className="mt-1 text-xs text-muted">
-          Chronological page views (not a formal session timeline)
-        </p>
+        <p className="mt-1 text-xs text-muted">Pages viewed in chronological order.</p>
         {guest.pageViews.length < pageViewCount ? (
           <p className="mt-1 text-sm text-muted">
             Showing the earliest {guest.pageViews.length} of {pageViewCount} recorded views
@@ -213,13 +221,6 @@ export default async function AdminVisitorDetailPage({
               {approxLocation}
             </span>
           </DetailRow>
-          <DetailRow label="First seen">
-            {formatAdminShortDateTime(guest.firstSeenAt, new Date(), { includeYear: true })}
-          </DetailRow>
-          <DetailRow label="Last seen">
-            {formatAdminShortDateTime(guest.lastSeenAt, new Date(), { includeYear: true })}
-          </DetailRow>
-          <DetailRow label="Active tabs">{guest.activeConnections}</DetailRow>
         </dl>
       </section>
 
@@ -228,6 +229,7 @@ export default async function AdminVisitorDetailPage({
           ips={ips}
           visitorKey={guest.visitorKey}
           userAgent={guest.userAgent || ""}
+          activeConnections={showActiveTabs ? guest.activeConnections : undefined}
         />
       </div>
 

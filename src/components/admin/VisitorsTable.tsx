@@ -31,32 +31,44 @@ function PagePair({
   lastPath: string;
   lastPathTitle: string;
 }) {
-  const same = landingPath && lastPath && landingPath === lastPath;
+  const same = Boolean(landingPath && lastPath && landingPath === lastPath);
   if (!landingPath && !lastPath) return <span className="text-muted">—</span>;
+
   if (same || !landingPath) {
+    const title = lastPathTitle || landingTitle || lastPath || landingPath || "—";
+    const path = lastPath || landingPath;
     return (
       <div className="min-w-0">
-        <p className="font-semibold text-ink">{lastPathTitle || lastPath || "—"}</p>
-        {lastPath ? (
-          <p className="mt-0.5 break-all font-mono text-[0.65rem] text-muted">{lastPath}</p>
+        <p className="font-semibold text-ink">{title}</p>
+        {path ? (
+          <p className="mt-0.5 break-all font-mono text-[0.65rem] text-muted">{path}</p>
         ) : null}
       </div>
     );
   }
+
+  const landTitle = landingTitle || landingPath;
+  const endTitle = lastPathTitle || lastPath || "—";
+  const showPaths = landingPath !== lastPath;
+
   return (
-    <div className="min-w-0 space-y-2">
-      <div>
-        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">Landing</p>
-        <p className="font-semibold text-ink">{landingTitle || landingPath}</p>
-        <p className="mt-0.5 break-all font-mono text-[0.65rem] text-muted">{landingPath}</p>
-      </div>
-      <div>
-        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">Last</p>
-        <p className="font-semibold text-ink">{lastPathTitle || lastPath || "—"}</p>
-        {lastPath ? (
-          <p className="mt-0.5 break-all font-mono text-[0.65rem] text-muted">{lastPath}</p>
-        ) : null}
-      </div>
+    <div className="min-w-0">
+      <p className="font-semibold text-ink">
+        {landTitle}
+        <span className="mx-1.5 font-normal text-muted" aria-hidden>
+          →
+        </span>
+        {endTitle}
+      </p>
+      {showPaths ? (
+        <p className="mt-0.5 break-all font-mono text-[0.65rem] text-muted">
+          {landingPath}
+          <span className="mx-1" aria-hidden>
+            →
+          </span>
+          {lastPath || "—"}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -160,10 +172,10 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
         {!selectMode ? (
           <button
             type="button"
-            className={`text-sm font-semibold text-muted hover:text-ink ${adminFocusRing}`}
+            className={`text-xs text-muted hover:text-ink ${adminFocusRing}`}
             onClick={() => setSelectMode(true)}
           >
-            Select for delete
+            Select visitors
           </button>
         ) : (
           <button
@@ -230,7 +242,7 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
                 Last seen
               </th>
               <th scope="col" className="px-3 py-3">
-                Location
+                Approx. location
               </th>
               <th scope="col" className="px-3 py-3">
                 Device

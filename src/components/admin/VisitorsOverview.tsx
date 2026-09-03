@@ -106,7 +106,7 @@ export function VisitorsOverview({
 
       <section aria-label="Audience summary">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryMetric value={summary.onlineNow} label="Online now" hint="Live human presence" />
+          <SummaryMetric value={summary.onlineNow} label="Online now" hint="Live non-bot presence" />
           <SummaryMetric
             value={summary.visitors}
             label="Visitors"
@@ -120,7 +120,7 @@ export function VisitorsOverview({
           <SummaryMetric
             value={summary.recipeViews}
             label="Recipe views"
-            hint="Human /recipes/[slug] views"
+            hint="Non-bot recipe views"
           />
         </div>
       </section>
@@ -130,7 +130,9 @@ export function VisitorsOverview({
           <h2 id="popular-content-heading" className="font-serif text-xl text-ink">
             Popular content
           </h2>
-          <p className="mt-1 text-xs text-muted">Human views · Coming Soon excluded from ranking</p>
+          <p className="mt-1 text-xs text-muted">
+            Non-bot views · Coming Soon excluded from ranking
+          </p>
           {popular.length === 0 ? (
             <p className="mt-4 border border-dashed border-line bg-paper px-4 py-6 text-sm text-muted">
               No editorial page views in this period.
@@ -171,7 +173,7 @@ export function VisitorsOverview({
           </p>
           {trafficSources.length === 0 ? (
             <p className="mt-4 border border-dashed border-line bg-paper px-4 py-6 text-sm text-muted">
-              No human visitors in this period.
+              No non-bot visitors in this period.
             </p>
           ) : (
             <ul className="mt-4 divide-y divide-line border border-line bg-paper">
@@ -236,57 +238,46 @@ export function VisitorsOverview({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <form className="flex min-w-[12rem] flex-1 flex-wrap gap-2" method="get" action="/admin/visitors">
-            <input type="hidden" name="range" value={String(range)} />
-            <input type="hidden" name="kind" value={kind} />
-            {source !== "all" ? <input type="hidden" name="source" value={source} /> : null}
-            <label className="sr-only" htmlFor="visitors-search">
-              Search visitors
-            </label>
-            <input
-              id="visitors-search"
-              name="q"
-              defaultValue={q}
-              placeholder="Search guest id or page…"
-              className={`min-w-[12rem] flex-1 rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
-            />
-            <button
-              type="submit"
-              className={`rounded-sm border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
-            >
-              Search
-            </button>
-          </form>
-
-          <form method="get" action="/admin/visitors" className="flex items-center gap-2 text-sm text-muted">
-            <input type="hidden" name="range" value={String(range)} />
-            <input type="hidden" name="kind" value={kind} />
-            {q ? <input type="hidden" name="q" value={q} /> : null}
-            <label htmlFor="visitors-source" className="sr-only">
-              Filter by traffic source
-            </label>
-            <select
-              id="visitors-source"
-              name="source"
-              defaultValue={source}
-              className={`rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
-            >
-              <option value="all">All sources</option>
-              {GUEST_TRAFFIC_SOURCES.map((value) => (
-                <option key={value} value={value}>
-                  {guestTrafficSourceLabel(value)}
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              className={`rounded-sm border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
-            >
-              Apply
-            </button>
-          </form>
-        </div>
+        <form
+          className="flex min-w-0 flex-wrap items-center gap-2"
+          method="get"
+          action="/admin/visitors"
+        >
+          <input type="hidden" name="range" value={String(range)} />
+          <input type="hidden" name="kind" value={kind} />
+          <label className="sr-only" htmlFor="visitors-search">
+            Search guest or page
+          </label>
+          <input
+            id="visitors-search"
+            name="q"
+            defaultValue={q}
+            placeholder="Search guest or page…"
+            className={`min-w-[12rem] flex-1 rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
+          />
+          <label htmlFor="visitors-source" className="sr-only">
+            Filter by traffic source
+          </label>
+          <select
+            id="visitors-source"
+            name="source"
+            defaultValue={source}
+            className={`rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
+          >
+            <option value="all">All sources</option>
+            {GUEST_TRAFFIC_SOURCES.map((value) => (
+              <option key={value} value={value}>
+                {guestTrafficSourceLabel(value)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className={`rounded-sm border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+          >
+            Apply
+          </button>
+        </form>
 
         <VisitorsTable
           key={`${range}-${kind}-${source}-${q}-${list.page}`}

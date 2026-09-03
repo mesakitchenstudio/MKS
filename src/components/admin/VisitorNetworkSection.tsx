@@ -9,10 +9,13 @@ export function VisitorNetworkSection({
   ips,
   visitorKey,
   userAgent,
+  activeConnections,
 }: {
   ips: string[];
   visitorKey?: string;
   userAgent?: string;
+  /** Shown only when the caller opts in (e.g. online with active tabs). */
+  activeConnections?: number;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -40,6 +43,14 @@ export function VisitorNetworkSection({
                 Visitor UUID
               </p>
               <p className="mt-1 break-all font-mono text-xs text-muted">{visitorKey}</p>
+            </div>
+          ) : null}
+          {typeof activeConnections === "number" ? (
+            <div>
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+                Active tabs
+              </p>
+              <p className="mt-1 text-sm text-muted">{activeConnections}</p>
             </div>
           ) : null}
           {userAgent?.trim() ? (

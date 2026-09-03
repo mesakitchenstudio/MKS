@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { IpDetails } from "@/lib/ip-details";
+import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -63,21 +64,24 @@ function DeferredMapEmbed({
 }
 
 export function IpDetailsCard({ details }: { details: IpDetails }) {
+  const [rawOpen, setRawOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+  const rawId = useId();
+  const mapId = useId();
   const hasCoordinates =
     typeof details.latitude === "number" &&
     typeof details.longitude === "number" &&
     Number.isFinite(details.latitude) &&
     Number.isFinite(details.longitude);
-  const showMap = Boolean(details.mapEmbedUrl && hasCoordinates);
+  const canShowMap = Boolean(details.mapEmbedUrl && hasCoordinates);
 
   return (
     <div className="overflow-hidden border border-line bg-paper text-ink">
       <div className="border-b border-line bg-cream px-4 py-3">
         <p className="break-all text-sm font-semibold text-ink">IP details for: {details.ip}</p>
       </div>
-      <div className={`grid gap-6 p-4 ${showMap ? "lg:grid-cols-2 lg:items-stretch" : ""}`}>
+      <div className="grid gap-4 p-4">
         <dl className="space-y-3">
-          <DetailRow label="Decimal" value={details.decimal == null ? "—" : String(details.decimal)} />
           <DetailRow label="Hostname" value={details.hostname} />
           <DetailRow label="ASN" value={details.asn} />
           <DetailRow label="ISP" value={details.isp} />
@@ -85,20 +89,62 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
           <DetailRow label="Country" value={details.country} />
           <DetailRow label="State/Region" value={details.region} />
           <DetailRow label="City" value={details.city} />
-          {hasCoordinates ? (
-            <>
-              <DetailRow label="Latitude" value={details.latitudeLabel} />
-              <DetailRow label="Longitude" value={details.longitudeLabel} />
-            </>
-          ) : null}
         </dl>
-        {showMap ? (
-          <DeferredMapEmbed
-            title={`Map for ${details.ip}`}
-            src={details.mapEmbedUrl!}
-            latitude={details.latitude!}
-            longitude={details.longitude!}
-          />
+
+        <div>
+          <button
+            type="button"
+            className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
+            aria-expanded={rawOpen}
+            aria-controls={rawId}
+            onClick={() => setRawOpen((value) => !value)}
+          >
+            {rawOpen ? "Hide raw network fields" : "Raw network fields"}
+          </button>
+          {rawOpen ? (
+            <dl id={rawId} className="mt-3 space-y-3 border border-line bg-cream/40 px-3 py-3">
+              <DetailRow
+                label="Decimal"
+                value={details.decimal == null ? "—" : String(details.decimal)}
+              />
+              {hasCoordinates ? (
+                <>
+                  <DetailRow label="Latitude" value={details.latitudeLabel} />
+                  <DetailRow label="Longitude" value={details.longitudeLabel} />
+                </>
+              ) : (
+                <p className="text-sm text-muted">No coordinates available.</p>
+              )}
+            </dl>
+          ) : null}
+        </div>
+
+        {canShowMap ? (
+          <div>
+            <button
+              type="button"
+              className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
+              aria-expanded={mapOpen}
+              aria-controls={mapId}
+              onClick={() => setMapOpen((value) => !value)}
+            >
+              {mapOpen ? "Hide approximate map" : "Show approximate map"}
+            </button>
+            {mapOpen ? (
+              <div id={mapId} className="mt-3">
+                <DeferredMapEmbed
+                  title={`Map for ${details.ip}`}
+                  src={details.mapEmbedUrl!}
+                  latitude={details.latitude!}
+                  longitude={details.longitude!}
+                />
+                <p className="mt-3 text-[0.7rem] leading-5 text-muted">
+                  Latitude and longitude are approximate and not precise enough to identify a
+                  specific address.
+                </p>
+              </div>
+            ) : null}
+          </div>
         ) : (
           <p className="border border-line bg-cream px-4 py-3 text-sm text-muted">
             {details.services === "Local network"
@@ -107,12 +153,6 @@ export function IpDetailsCard({ details }: { details: IpDetails }) {
           </p>
         )}
       </div>
-      {showMap ? (
-        <p className="border-t border-line bg-cream px-4 py-3 text-[0.7rem] leading-5 text-muted">
-          Latitude and longitude are approximate and not precise enough to identify a specific
-          address.
-        </p>
-      ) : null}
     </div>
   );
 }
