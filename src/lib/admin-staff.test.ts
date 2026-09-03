@@ -254,40 +254,66 @@ test("Phase 2B: visitor presence snapshot shape excludes network fields", () => 
 });
 
 test("buildAdminNavSections hides unauthorized areas", async () => {
-  const { buildAdminNavSections } = await import("./admin-nav.ts");
+  const { buildAdminNavSections, linkIsActive } = await import("./admin-nav.ts");
   const editor = buildAdminNavSections("editor");
+  assert.deepEqual(
+    editor.map((section) => section.label),
+    ["Publishing", "Library", "Community", "Analytics"],
+  );
   assert.deepEqual(
     editor.flatMap((section) => section.items.map((item) => item.href)),
     [
       "/admin",
-      "/admin/types",
+      "/admin/studio",
       "/admin/categories",
       "/admin/series",
-      "/admin/studio",
+      "/admin/types",
       "/admin/reviews",
       "/admin/youtube",
     ],
   );
+  assert.equal(
+    editor.some((section) => section.items.some((item) => item.href === "/admin/members")),
+    false,
+  );
+  assert.equal(
+    editor.some((section) => section.items.some((item) => item.href === "/admin/visitors")),
+    false,
+  );
   assert.equal(canAccess("editor", "content"), true);
+
   const audience = buildAdminNavSections("members");
+  assert.deepEqual(
+    audience.map((section) => section.label),
+    ["Community", "Analytics"],
+  );
   assert.deepEqual(
     audience.flatMap((section) => section.items.map((item) => item.href)),
     ["/admin/members", "/admin/visitors"],
   );
   assert.equal(
-    audience.some((section) => section.items.some((item) => item.href === "/admin/series")),
+    audience.some((section) => section.items.some((item) => item.href === "/admin/reviews")),
+    false,
+  );
+  assert.equal(
+    audience.some((section) => section.items.some((item) => item.href === "/admin/youtube")),
     false,
   );
   assert.equal(canAccess("members", "content"), false);
+
   const owner = buildAdminNavSections("owner");
+  assert.deepEqual(
+    owner.map((section) => section.label),
+    ["Publishing", "Library", "Community", "Analytics", "Team"],
+  );
   assert.deepEqual(
     owner.flatMap((section) => section.items.map((item) => item.href)),
     [
       "/admin",
-      "/admin/types",
+      "/admin/studio",
       "/admin/categories",
       "/admin/series",
-      "/admin/studio",
+      "/admin/types",
       "/admin/reviews",
       "/admin/members",
       "/admin/visitors",
@@ -295,10 +321,11 @@ test("buildAdminNavSections hides unauthorized areas", async () => {
       "/admin/staff",
     ],
   );
-  assert.deepEqual(
-    owner.map((section) => section.label),
-    ["Content", "Community", "Audience", "Administration"],
-  );
+
+  // Recipes retain recipes-index active matching.
+  assert.equal(linkIsActive("/admin", "/admin", "recipes-index"), true);
+  assert.equal(linkIsActive("/admin/recipes/abc", "/admin", "recipes-index"), true);
+  assert.equal(linkIsActive("/admin/studio", "/admin", "recipes-index"), false);
 });
 
 test("persisted Team Access role overrides stale session cookie role", () => {

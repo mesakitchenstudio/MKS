@@ -19,31 +19,54 @@ describe("admin mobile drawer navigation", () => {
     assert.deepEqual(funnelNav, channelNav);
     assert.deepEqual(channelNav, [
       "Recipes",
-      "Recipe types",
+      "Studio",
       "Categories",
       "Series",
-      "Studio",
+      "Recipe types",
       "Reviews",
       "Members",
       "Visitors",
       "YouTube",
       "Team access",
     ]);
+    assert.deepEqual(
+      buildAdminNavSections("owner").map((section) => section.label),
+      ["Publishing", "Library", "Community", "Analytics", "Team"],
+    );
   });
 
-  it("keeps editor-permitted items including YouTube without staff access", () => {
-    const labels = flattenAdminNavItemLabels(buildAdminNavSections("editor"));
-    assert.ok(labels.includes("YouTube"));
-    assert.ok(labels.includes("Recipes"));
-    assert.equal(labels.includes("Team access"), false);
+  it("keeps editor-permitted items including YouTube without staff or members access", () => {
+    const sections = buildAdminNavSections("editor");
+    const labels = flattenAdminNavItemLabels(sections);
+    assert.deepEqual(
+      sections.map((section) => section.label),
+      ["Publishing", "Library", "Community", "Analytics"],
+    );
+    assert.deepEqual(labels, [
+      "Recipes",
+      "Studio",
+      "Categories",
+      "Series",
+      "Recipe types",
+      "Reviews",
+      "YouTube",
+    ]);
     assert.equal(labels.includes("Members"), false);
+    assert.equal(labels.includes("Visitors"), false);
+    assert.equal(labels.includes("Team access"), false);
   });
 
-  it("hides YouTube from audience-only members role", () => {
-    const labels = flattenAdminNavItemLabels(buildAdminNavSections("members"));
-    assert.ok(labels.includes("Members"));
-    assert.ok(labels.includes("Visitors"));
+  it("hides publishing/library/team from audience-only members role", () => {
+    const sections = buildAdminNavSections("members");
+    const labels = flattenAdminNavItemLabels(sections);
+    assert.deepEqual(
+      sections.map((section) => section.label),
+      ["Community", "Analytics"],
+    );
+    assert.deepEqual(labels, ["Members", "Visitors"]);
+    assert.equal(labels.includes("Reviews"), false);
     assert.equal(labels.includes("YouTube"), false);
     assert.equal(labels.includes("Recipes"), false);
+    assert.equal(labels.includes("Team access"), false);
   });
 });
