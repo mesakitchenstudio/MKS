@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { megaMenu } from "@/data/categories";
 import { buildRecipesUrl } from "@/lib/recipe-discovery";
+import {
+  PUBLIC_HEADER_NAV_FOCUS,
+  RECIPES_DISCLOSURE_LABEL,
+  RECIPES_DROPDOWN_ID,
+  isRecipesSectionActive,
+  recipesNavAriaCurrent,
+} from "@/lib/public-header-recipes";
 import { PUBLIC_HEADER_NAV, PUBLIC_MOBILE_NAV } from "@/lib/public-nav";
 import {
   PRIMARY_CATEGORY_LABELS,
@@ -26,6 +33,8 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [megaOpen, setMegaOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const recipesMenuRef = useRef<HTMLDivElement>(null);
+  const disclosureRef = useRef<HTMLButtonElement>(null);
 
   function closeMenus() {
     setOpen(false);
@@ -33,6 +42,32 @@ export function SiteHeader() {
   }
 
   const onRecipesPage = pathname === "/recipes";
+  const recipesActive = isRecipesSectionActive(pathname);
+  const recipesCurrent = recipesNavAriaCurrent(pathname);
+
+  useEffect(() => {
+    if (!megaOpen) return;
+
+    function onPointer(event: MouseEvent) {
+      if (recipesMenuRef.current && !recipesMenuRef.current.contains(event.target as Node)) {
+        setMegaOpen(false);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMegaOpen(false);
+        disclosureRef.current?.focus();
+      }
+    }
+
+    window.addEventListener("mousedown", onPointer);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointer);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [megaOpen]);
 
   function focusPageSearch() {
     closeMenus();
@@ -58,48 +93,61 @@ export function SiteHeader() {
         <nav className="hidden items-center gap-1 md:flex">
           {PUBLIC_HEADER_NAV.map((link) =>
             "mega" in link && link.mega ? (
-              <div
-                key={link.href}
-                className="relative"
-                onMouseEnter={() => setMegaOpen(true)}
-                onMouseLeave={() => setMegaOpen(false)}
-              >
+              <div key={link.href} ref={recipesMenuRef} className="relative flex items-center">
                 <Link
                   href={link.href}
                   onClick={closeMenus}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-semibold tracking-wide text-ink/80 hover:text-terracotta"
+                  aria-current={recipesCurrent}
+                  className={`px-3 py-2 text-sm font-semibold tracking-wide hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS} ${
+                    recipesActive || megaOpen ? "text-terracotta" : "text-ink/80"
+                  }`}
                 >
                   {link.label}
-                  <span aria-hidden className="text-[0.6rem]">
+                </Link>
+                <button
+                  ref={disclosureRef}
+                  type="button"
+                  aria-expanded={megaOpen}
+                  aria-controls={RECIPES_DROPDOWN_ID}
+                  aria-label={RECIPES_DISCLOSURE_LABEL}
+                  onClick={() => setMegaOpen((value) => !value)}
+                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center text-ink/80 hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS} ${
+                    recipesActive || megaOpen ? "text-terracotta" : ""
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`text-[0.6rem] transition-transform duration-150 motion-reduce:transition-none ${
+                      megaOpen ? "rotate-180" : ""
+                    }`}
+                  >
                     ▾
                   </span>
-                </Link>
+                </button>
                 {megaOpen ? (
-                  <div className="absolute left-0 top-full z-20 w-64 rounded-sm border border-line bg-paper p-5 shadow-lg">
+                  <div
+                    id={RECIPES_DROPDOWN_ID}
+                    className="absolute left-0 top-full z-20 w-[17rem] rounded-sm border border-line bg-paper p-5 shadow-lg"
+                  >
                     {megaMenu.map((column) => (
-                      <div key={column.label}>
-                        <p className="mb-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
-                          {column.label}
-                        </p>
-                        <ul className="space-y-2">
-                          {column.slugs.map((slug) => (
-                            <li key={slug}>
-                              <Link
-                                href={buildRecipesUrl({ category: slug })}
-                                onClick={closeMenus}
-                                className="text-sm text-ink/80 hover:text-terracotta"
-                              >
-                                {primaryMegaLabel(slug)}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                      <ul key={column.label} className="space-y-2">
+                        {column.slugs.map((slug) => (
+                          <li key={slug}>
+                            <Link
+                              href={buildRecipesUrl({ category: slug })}
+                              onClick={closeMenus}
+                              className={`text-sm text-ink/80 hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS}`}
+                            >
+                              {primaryMegaLabel(slug)}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
                     ))}
                     <Link
                       href="/recipes"
                       onClick={closeMenus}
-                      className="mt-4 inline-block text-sm font-semibold text-terracotta hover:text-terracotta-dark"
+                      className={`mt-4 inline-block border-t border-line pt-3 text-sm font-semibold text-terracotta hover:text-terracotta-dark ${PUBLIC_HEADER_NAV_FOCUS}`}
                     >
                       View all recipes →
                     </Link>
@@ -112,7 +160,7 @@ export function SiteHeader() {
                 href={link.href}
                 onClick={closeMenus}
                 aria-current={pathname === link.href ? "page" : undefined}
-                className={`px-3 py-2 text-sm font-semibold tracking-wide hover:text-terracotta ${
+                className={`px-3 py-2 text-sm font-semibold tracking-wide hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS} ${
                   pathname === link.href ? "text-terracotta" : "text-ink/80"
                 }`}
               >
