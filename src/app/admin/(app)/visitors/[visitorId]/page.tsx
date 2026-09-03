@@ -13,7 +13,13 @@ import { formatAdminShortDateTime } from "@/lib/datetime";
 import { deriveGuestAcquisition } from "@/lib/guest-acquisition";
 import { getGuestForAdmin } from "@/lib/guest-analytics";
 import {
-  classifyGuestClient,
+  classifyGuestAudienceFromUserAgent,
+  guestAudienceKindLabel,
+  guestClassificationReasonLabel,
+  parseGuestClassificationReasons,
+  resolveGuestAudienceKind,
+} from "@/lib/guest-classification";
+import {
   formatGuestOsBrowserLabel,
   guestBrowserLabel,
   guestOsLabel,
@@ -64,7 +70,20 @@ export default async function AdminVisitorDetailPage({
   });
   const shortKey = guest.visitorKey.slice(0, 8);
   const rawUa = guest.userAgent || "";
-  const client = classifyGuestClient(rawUa);
+  const audienceKind = resolveGuestAudienceKind({
+    clientKind: guest.clientKind,
+    userAgent: rawUa,
+  });
+  const kindText = guestAudienceKindLabel(audienceKind);
+  const reasonCodes =
+    guest.clientKind != null
+      ? parseGuestClassificationReasons(guest.clientKindReasons)
+      : classifyGuestAudienceFromUserAgent(rawUa).reasons;
+  const reasonLabels = reasonCodes.map(guestClassificationReasonLabel);
+  const showWhyClassification =
+    audienceKind === "bot" ||
+    audienceKind === "likely_automated" ||
+    audienceKind === "unknown";
   const pageViewCount = guest._count.pageViews;
   const journey = [...guest.pageViews].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
@@ -84,16 +103,15 @@ export default async function AdminVisitorDetailPage({
     hasExternal &&
     Boolean(acquisition.latestExternalReferer) &&
     acquisition.firstExternalReferer !== acquisition.latestExternalReferer;
-  const approxLocation = formatApproxLocation(guest) || "—";
+  const approxLocation = formatApproxLocation({
+    city: guest.city,
+    region: guest.region,
+    country: guest.country,
+    ip: guest.ip ?? undefined,
+  }) || "—";
   const deviceLabel = formatGuestOsBrowserLabel(rawUa);
   const osLabel = guestOsLabel(rawUa);
   const browserLabel = guestBrowserLabel(rawUa);
-  const kindText =
-    client.kind === "bot"
-      ? client.label
-      : client.kind === "unknown"
-        ? "Unknown"
-        : "Human";
   const showActiveTabs = online && guest.activeConnections > 0;
   // Owner-only: collect IPs / raw UA for diagnostics — never pass to Audience client tree.
   const networkIps = canNetwork
@@ -116,6 +134,18 @@ export default async function AdminVisitorDetailPage({
           </h1>
           <span className={kindBadgeClass}>{kindText}</span>
         </div>
+        {showWhyClassification && reasonLabels.length > 0 ? (
+          <div className="mt-4 max-w-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-olive">
+              Why this classification
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
+              {reasonLabels.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <p className="mt-3 inline-flex flex-wrap items-center gap-2 text-sm text-ink">
           <PresenceDot online={online} />
           <span>
@@ -235,6 +265,7 @@ export default async function AdminVisitorDetailPage({
           Visitor context
         </h2>
         <dl className="mt-2">
+          <DetailRow label="Classification">{kindText}</DetailRow>
           <DetailRow label="Device">{deviceLabel}</DetailRow>
           <DetailRow label="OS">{osLabel}</DetailRow>
           <DetailRow label="Browser">{browserLabel}</DetailRow>
@@ -253,6 +284,7 @@ export default async function AdminVisitorDetailPage({
             visitorKey={guest.visitorKey}
             userAgent={rawUa}
             activeConnections={showActiveTabs ? guest.activeConnections : undefined}
+            emptyIpsMessage="Network data no longer retained"
           />
         </div>
       ) : null}

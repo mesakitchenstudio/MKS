@@ -65,7 +65,7 @@ describe("Phase 2B visitor permissions", () => {
     // …but Audience response props must not include raw network fields.
     const audienceProps = {
       shortKey: "abcd1234",
-      kindLabel: kind.kind === "visitor" ? "Human" : kind.label,
+      kindLabel: "Human",
       device,
       os,
       browser,

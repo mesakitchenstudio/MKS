@@ -108,21 +108,21 @@ export function VisitorsOverview({
 
       <section aria-label="Audience summary">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryMetric value={summary.onlineNow} label="Online now" hint="Live non-bot presence" />
+          <SummaryMetric value={summary.onlineNow} label="Online now" hint="Live Human presence" />
           <SummaryMetric
             value={summary.visitors}
             label="Visitors"
-            hint={`Non-bot · last ${range} days`}
+            hint={`Human · last ${range} days`}
           />
           <SummaryMetric
             value={summary.pageViews}
             label="Page views"
-            hint={`Non-bot · last ${range} days`}
+            hint={`Human · last ${range} days`}
           />
           <SummaryMetric
             value={summary.recipeViews}
             label="Recipe views"
-            hint="Non-bot recipe views"
+            hint="Human recipe views"
           />
         </div>
       </section>
@@ -133,7 +133,7 @@ export function VisitorsOverview({
             Popular content
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Non-bot views · Coming Soon excluded from ranking
+            Human views · Coming Soon excluded from ranking
           </p>
           {popular.length === 0 ? (
             <p className="mt-4 border border-dashed border-line bg-paper px-4 py-6 text-sm text-muted">
@@ -171,12 +171,12 @@ export function VisitorsOverview({
             Traffic sources
           </h2>
           <p className="mt-1 text-xs text-muted">
-            First external referrer per visitor · UTM when present, else referrer · Direct
-            includes empty referrers
+            Human visitors · First-touch UTM when present, else referrer · Direct includes empty
+            referrers
           </p>
           {trafficSources.length === 0 ? (
             <p className="mt-4 border border-dashed border-line bg-paper px-4 py-6 text-sm text-muted">
-              No non-bot visitors in this period.
+              No Human visitors in this period.
             </p>
           ) : (
             <ul className="mt-4 divide-y divide-line border border-line bg-paper">
@@ -225,6 +225,7 @@ export function VisitorsOverview({
           {(
             [
               ["humans", "Humans"],
+              ["likely_automated", "Likely automated"],
               ["bots", "Bots"],
               ["unknown", "Unknown"],
               ["all", "All"],

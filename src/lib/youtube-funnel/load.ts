@@ -1,7 +1,7 @@
 import "server-only";
 import { getDb } from "@/lib/db";
-import { isHumanGuestUserAgent } from "@/lib/guest-client";
 import { buildRecipeVideoIndex } from "@/lib/youtube-data/matching";
+import { isYoutubeFunnelAudienceHuman } from "@/lib/youtube-funnel/audience";
 import {
   buildChapterClickRows,
   buildFunnelRecipeRows,
@@ -34,12 +34,17 @@ function maskVisitorId(id: string) {
   return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
 }
 
+type FunnelVisitorAudience = {
+  userAgent: string;
+  clientKind: string | null;
+};
+
 function aggregatePageviews(
   rows: Array<{
     path: string;
     visitorId: string;
     userAgent: string;
-    visitor: { userAgent: string };
+    visitor: FunnelVisitorAudience;
   }>,
 ) {
   const pageviewsBySlug = new Map<string, { views: number; uniqueVisitors: number }>();
@@ -47,8 +52,15 @@ function aggregatePageviews(
   let totalPageviews = 0;
 
   for (const row of rows) {
-    const ua = row.userAgent.trim() || row.visitor.userAgent.trim();
-    if (!isHumanGuestUserAgent(ua)) continue;
+    if (
+      !isYoutubeFunnelAudienceHuman({
+        clientKind: row.visitor.clientKind,
+        userAgent: row.visitor.userAgent,
+        pageViewUserAgent: row.userAgent,
+      })
+    ) {
+      continue;
+    }
     const slug = row.path.replace(/^\/recipes\//, "").split("/")[0] || "";
     if (!slug) continue;
     const bucket = pageviewsBySlug.get(slug) || { views: 0, uniqueVisitors: 0 };
@@ -77,6 +89,11 @@ function formatRecipeOutcomeLabel(numerator: number, denominator: number): strin
   const { fractionLabel, rateLabel } = formatRecipeVisitorOutcome(numerator, denominator);
   return rateLabel ? `${fractionLabel} · ${rateLabel}` : fractionLabel;
 }
+
+const visitorAudienceSelect = {
+  userAgent: true,
+  clientKind: true,
+} as const;
 
 export async function loadYoutubeFunnelDashboard(input?: {
   analyticsRangeDays?: AnalyticsRangeDays | string | number;
@@ -109,7 +126,7 @@ export async function loadYoutubeFunnelDashboard(input?: {
               path: true,
               visitorId: true,
               userAgent: true,
-              visitor: { select: { userAgent: true } },
+              visitor: { select: visitorAudienceSelect },
             },
           })
         : Promise.resolve([]),
@@ -120,7 +137,7 @@ export async function loadYoutubeFunnelDashboard(input?: {
               path: true,
               visitorId: true,
               userAgent: true,
-              visitor: { select: { userAgent: true } },
+              visitor: { select: visitorAudienceSelect },
             },
           })
         : Promise.resolve([]),
@@ -136,6 +153,7 @@ export async function loadYoutubeFunnelDashboard(input?: {
           chapterLabel: true,
           chapterTimeSeconds: true,
           chapterIndex: true,
+          visitor: { select: visitorAudienceSelect },
         },
       }),
       input?.includeDiagnostics
@@ -156,10 +174,17 @@ export async function loadYoutubeFunnelDashboard(input?: {
   const linkedPv = aggregatePageviews(linkedPageViews);
   const noVideoPv = aggregatePageviews(noVideoPageViews);
 
+  const humanEvents = events.filter((event) =>
+    isYoutubeFunnelAudienceHuman({
+      clientKind: event.visitor.clientKind,
+      userAgent: event.visitor.userAgent,
+    }),
+  );
+
   const summary = buildFunnelSummary({
     uniquePageviewVisitors: linkedPv.uniquePageviewVisitors,
     linkedRecipePageviews: linkedPv.totalPageviews,
-    events,
+    events: humanEvents,
   });
 
   const recipeRows = buildFunnelRecipeRows({
@@ -171,7 +196,7 @@ export async function loadYoutubeFunnelDashboard(input?: {
     })),
     pageviewsBySlug: linkedPv.pageviewsBySlug,
     pageviewVisitorKeys: linkedPv.pageviewVisitorSet,
-    events,
+    events: humanEvents,
   });
 
   const noVideoTraffic: FunnelNoVideoTrafficRow[] = recipesWithoutVideo
@@ -196,8 +221,8 @@ export async function loadYoutubeFunnelDashboard(input?: {
         a.recipeTitle.localeCompare(b.recipeTitle),
     );
 
-  const placements = buildPlacementBreakdown(events);
-  const hasFunnelEvents = events.length > 0;
+  const placements = buildPlacementBreakdown(humanEvents);
+  const hasFunnelEvents = humanEvents.length > 0;
   const visitorDenom = summary.uniquePageviewVisitors;
 
   return {
@@ -313,11 +338,18 @@ export async function loadVideoFunnelChapters(input: {
       chapterLabel: true,
       chapterTimeSeconds: true,
       chapterIndex: true,
+      visitor: { select: visitorAudienceSelect },
     },
   });
+  const humanEvents = events.filter((event) =>
+    isYoutubeFunnelAudienceHuman({
+      clientKind: event.visitor.clientKind,
+      userAgent: event.visitor.userAgent,
+    }),
+  );
   return {
     rangeDays,
-    chapters: buildChapterClickRows(events).map((row) => ({
+    chapters: buildChapterClickRows(humanEvents).map((row) => ({
       ...row,
       clicksLabel: formatFunnelCount(row.clicks),
     })),

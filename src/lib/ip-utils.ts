@@ -17,11 +17,11 @@ export function ipv4ToDecimal(ip: string) {
   return parts.reduce((total, part) => (total << 8) + part, 0) >>> 0;
 }
 
-export function uniqueIps(values: string[]) {
+export function uniqueIps(values: Array<string | null | undefined>) {
   const seen = new Set<string>();
   const ips: string[] = [];
   for (const value of values) {
-    const ip = value.trim();
+    const ip = String(value ?? "").trim();
     if (!ip || isLoopback(ip) || seen.has(ip)) continue;
     seen.add(ip);
     ips.push(ip);

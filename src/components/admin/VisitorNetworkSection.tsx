@@ -10,12 +10,15 @@ export function VisitorNetworkSection({
   visitorKey,
   userAgent,
   activeConnections,
+  emptyIpsMessage = "None recorded",
 }: {
   ips: string[];
   visitorKey?: string;
   userAgent?: string;
   /** Shown only when the caller opts in (e.g. online with active tabs). */
   activeConnections?: number;
+  /** Owner visitor detail may pass a retention-aware empty state. */
+  emptyIpsMessage?: string;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -74,7 +77,7 @@ export function VisitorNetworkSection({
                 ))}
               </div>
             ) : (
-              <p className="mt-2 text-sm text-muted">None recorded</p>
+              <p className="mt-2 text-sm text-muted">{emptyIpsMessage}</p>
             )}
           </div>
         </div>

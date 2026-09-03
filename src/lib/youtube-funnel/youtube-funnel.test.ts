@@ -24,7 +24,14 @@ import {
   RECIPE_MULTI_VIDEO_VISITORS_HELP,
   RECIPE_MULTI_VIDEO_VISITORS_LABEL,
 } from "@/lib/youtube-funnel/funnel-display";
+import { isYoutubeFunnelAudienceHuman } from "@/lib/youtube-funnel/audience";
+import { shouldSkipGuestAnalyticsIngest } from "@/lib/guest-tracking";
 import { analyticsDateRange } from "@/lib/youtube-analytics/ranges";
+
+const CHROME_WINDOWS =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const GOOGLEBOT =
+  "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
 describe("funnel-analytics", () => {
   it("maps client events to canonical funnel names", () => {
@@ -265,5 +272,113 @@ describe("youtube-funnel display", () => {
     assert.match(RECIPE_MULTI_VIDEO_VISITORS_HELP, /does not necessarily mean the additional interaction occurred directly after this recipe/i);
     assert.equal(formatRecipeMultiVideoVisitorsLabel(2, 12), "2 of 12 visitors");
     assert.doesNotMatch(formatRecipeMultiVideoVisitorsLabel(2, 12), /%/);
+  });
+});
+
+describe("youtube-funnel Phase 2D audience population", () => {
+  it("1. Human visitor FunnelEvent → counted", () => {
+    assert.equal(
+      isYoutubeFunnelAudienceHuman({ clientKind: "human", userAgent: CHROME_WINDOWS }),
+      true,
+    );
+  });
+
+  it("2–4. Likely automated, Bot, and Unknown → excluded", () => {
+    assert.equal(
+      isYoutubeFunnelAudienceHuman({
+        clientKind: "likely_automated",
+        userAgent: CHROME_WINDOWS,
+      }),
+      false,
+    );
+    assert.equal(
+      isYoutubeFunnelAudienceHuman({ clientKind: "bot", userAgent: GOOGLEBOT }),
+      false,
+    );
+    assert.equal(
+      isYoutubeFunnelAudienceHuman({ clientKind: "unknown", userAgent: "" }),
+      false,
+    );
+  });
+
+  it("5. Historical null clientKind + normal browser UA → Human", () => {
+    assert.equal(
+      isYoutubeFunnelAudienceHuman({ clientKind: null, userAgent: CHROME_WINDOWS }),
+      true,
+    );
+  });
+
+  it("6. Historical known bot UA → excluded", () => {
+    assert.equal(
+      isYoutubeFunnelAudienceHuman({ clientKind: null, userAgent: GOOGLEBOT }),
+      false,
+    );
+  });
+
+  it("7–8. Staff and public Members remain excluded at ingest", () => {
+    assert.equal(
+      shouldSkipGuestAnalyticsIngest({
+        email: null,
+        staffRole: "owner",
+        hasVerifiedAdminSession: false,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldSkipGuestAnalyticsIngest({
+        email: "member@example.com",
+        staffRole: null,
+        hasVerifiedAdminSession: false,
+      }),
+      true,
+    );
+  });
+
+  it("9. Funnel summary calculations unchanged when only Human events are supplied", () => {
+    const events = [
+      {
+        visitorId: "v1",
+        name: "recipe_video_play",
+        recipeSlug: "a",
+        youtubeVideoId: "vid1",
+        targetVideoId: "",
+      },
+      {
+        visitorId: "v2",
+        name: "recipe_watch_on_youtube_click",
+        recipeSlug: "a",
+        youtubeVideoId: "vid1",
+        targetVideoId: "",
+      },
+    ];
+    const summary = buildFunnelSummary({
+      uniquePageviewVisitors: 10,
+      linkedRecipePageviews: 12,
+      events,
+    });
+    assert.equal(summary.uniquePlayVisitors, 1);
+    assert.equal(summary.uniqueWatchOnYoutubeVisitors, 1);
+    assert.equal(summary.playRate, 0.1);
+    assert.equal(summary.watchOnYoutubeCtr, 0.1);
+    assert.equal(summary.linkedRecipePageviews, 12);
+  });
+
+  it("prefers page-view UA when visitor UA is empty (same as Visitors traffic UA)", () => {
+    assert.equal(
+      isYoutubeFunnelAudienceHuman({
+        clientKind: null,
+        userAgent: "",
+        pageViewUserAgent: CHROME_WINDOWS,
+      }),
+      true,
+    );
+    assert.equal(
+      isYoutubeFunnelAudienceHuman({
+        clientKind: null,
+        userAgent: "",
+        pageViewUserAgent: GOOGLEBOT,
+      }),
+      false,
+    );
   });
 });

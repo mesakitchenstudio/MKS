@@ -539,7 +539,8 @@ export function YoutubeFunnelPanel({
           </p>
           <p>
             <strong className="text-ink">mks_guest:</strong> first-party anonymous visitor cookie used
-            for deduplication. Human user agents only; bots excluded.
+            for deduplication. Human visitors only (Phase 2D); Likely automated, Bot, and Unknown
+            excluded.
           </p>
           <p>
             <strong className="text-ink">Low sample:</strong> when fewer than 20 unique visitors,

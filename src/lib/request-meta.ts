@@ -105,7 +105,7 @@ export function formatApproxLocation(meta: {
   city?: string;
   region?: string;
   country?: string;
-  ip?: string;
+  ip?: string | null;
 }) {
   const city = cleanPlacePart(meta.city);
   const region = cleanPlacePart(meta.region);

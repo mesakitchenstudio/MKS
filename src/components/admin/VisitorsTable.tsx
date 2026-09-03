@@ -12,7 +12,7 @@ import { deleteGuestVisitorsAction } from "@/app/admin/actions";
 type PresenceSnap = { id: string; online: boolean; lastSeenAt: string };
 
 function GuestKindBadge({ kind, label }: { kind: string; label: string }) {
-  if (kind === "visitor") return null;
+  if (kind === "human") return null;
   return (
     <span className="inline-flex rounded-full bg-sand px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-ink">
       {label}

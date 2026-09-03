@@ -2,12 +2,18 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { getDb } from "@/lib/db";
+import { formatGuestOsBrowserLabel } from "@/lib/guest-client";
 import {
-  classifyGuestClient,
-  formatGuestOsBrowserLabel,
-  isHumanGuestUserAgent,
-  type GuestClientKind,
-} from "@/lib/guest-client";
+  classifyGuestAudience,
+  guestAudienceKindLabel,
+  isHumanAudienceGuest,
+  matchesAudienceKindFilter,
+  parseGuestKindFilter,
+  resolveGuestAudienceKind,
+  serializeGuestClassificationReasons,
+  type GuestAudienceKind,
+  type GuestKindFilter,
+} from "@/lib/guest-classification";
 import {
   deriveGuestAcquisition,
   guestTrafficSourceLabel,
@@ -47,6 +53,45 @@ import { parseAnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
 
 function trafficUserAgent(pageViewUa: string, visitorUa?: string) {
   return pageViewUa.trim() || visitorUa?.trim() || "";
+}
+
+function resolveGuestIp(raw: string | null | undefined): string | null {
+  const ip = String(raw ?? "").trim();
+  if (!ip || ip === "unknown") return null;
+  return ip;
+}
+
+/** Recent page views used for rate / burst signals (covers both 30s and 60s windows). */
+const CLASSIFICATION_SIGNAL_LOOKBACK_MS = 120_000;
+const CLASSIFICATION_SIGNAL_TAKE = 100;
+
+async function persistGuestAudienceClassification(input: {
+  visitorId: string;
+  userAgent: string;
+  now?: Date;
+}) {
+  const db = getDb();
+  const now = input.now ?? new Date();
+  const since = new Date(now.getTime() - CLASSIFICATION_SIGNAL_LOOKBACK_MS);
+  const recentPageViews = await db.guestPageView.findMany({
+    where: { visitorId: input.visitorId, createdAt: { gte: since } },
+    orderBy: { createdAt: "desc" },
+    take: CLASSIFICATION_SIGNAL_TAKE,
+    select: { path: true, createdAt: true },
+  });
+  const result = classifyGuestAudience({
+    userAgent: input.userAgent,
+    recentPageViews,
+    now,
+  });
+  await db.guestVisitor.update({
+    where: { id: input.visitorId },
+    data: {
+      clientKind: result.kind,
+      clientKindReasons: serializeGuestClassificationReasons(result.reasons),
+      clientKindAt: now,
+    },
+  });
 }
 
 export const GUEST_COOKIE = "mks_guest";
@@ -150,13 +195,15 @@ export async function upsertGuestActivity(input: {
   let visitor;
   if (!existing) {
     try {
+      const createIp = resolveGuestIp(meta.ip);
       visitor = await db.guestVisitor.create({
         data: {
           visitorKey: input.visitorKey,
           firstSeenAt: now,
           lastSeenAt: now,
           lastPath: path,
-          ip: meta.ip,
+          ip: createIp,
+          ipUpdatedAt: createIp ? now : null,
           country: meta.country,
           city: meta.city,
           region: meta.region,
@@ -176,14 +223,28 @@ export async function upsertGuestActivity(input: {
       await applyFirstTouchUtms(visitor.id, utm);
       visitor = (await db.guestVisitor.findUnique({ where: { id: visitor.id } })) || visitor;
     }
+    // Classify immediately so first-touch UA rows are not left null until a later page view.
+    try {
+      await persistGuestAudienceClassification({
+        visitorId: visitor.id,
+        userAgent: visitor.userAgent || "",
+        now,
+      });
+      visitor = (await db.guestVisitor.findUnique({ where: { id: visitor.id } })) || visitor;
+    } catch (error) {
+      console.error("Could not persist guest audience classification", error);
+    }
   } else if (shouldTouchVisitor) {
     try {
+      const nextIp = resolveGuestIp(meta.ip);
       visitor = await db.guestVisitor.update({
         where: { id: existing.id },
         data: {
           lastSeenAt: now,
           lastPath: path,
-          ip: meta.ip && meta.ip !== "unknown" ? meta.ip : undefined,
+          ...(nextIp
+            ? { ip: nextIp, ipUpdatedAt: now }
+            : {}),
           country: meta.country || undefined,
           city: meta.city || undefined,
           region: meta.region || undefined,
@@ -278,7 +339,7 @@ export async function upsertGuestActivity(input: {
         navId: navId || null,
         path,
         referer,
-        ip: meta.ip,
+        ip: resolveGuestIp(meta.ip),
         country: meta.country,
         city: meta.city,
         region: meta.region,
@@ -289,6 +350,18 @@ export async function upsertGuestActivity(input: {
     // Concurrent duplicate navigation (same visitorId + navId).
     if (isUniqueConstraintError(error)) return visitor;
     throw error;
+  }
+
+  // Recompute after each stored page view so rate/burst signals stay fresh.
+  try {
+    await persistGuestAudienceClassification({
+      visitorId: visitor.id,
+      userAgent: visitor.userAgent || meta.userAgent || "",
+      now,
+    });
+    visitor = (await db.guestVisitor.findUnique({ where: { id: visitor.id } })) || visitor;
+  } catch (error) {
+    console.error("Could not persist guest audience classification", error);
   }
 
   return visitor;
@@ -382,14 +455,14 @@ export async function listGuestsPresenceSnapshot(limit = 200) {
     db.guestVisitor.findMany({
       orderBy: { lastSeenAt: "desc" },
       take: limit,
-      select: { id: true, lastSeenAt: true, userAgent: true },
+      select: { id: true, lastSeenAt: true, userAgent: true, clientKind: true },
     }),
     listOnlineGuestVisitorIds(),
   ]);
 
   return guests.map((guest) => ({
     id: guest.id,
-    online: onlineIds.has(guest.id) && isHumanGuestUserAgent(guest.userAgent),
+    online: onlineIds.has(guest.id) && isHumanAudienceGuest(guest),
     lastSeenAt: guest.lastSeenAt.toISOString(),
   }));
 }
@@ -484,7 +557,7 @@ export async function listPopularGuestPaths(days: AnalyticsRangeDays = 7, limit 
       path: true,
       userAgent: true,
       visitorId: true,
-      visitor: { select: { userAgent: true } },
+      visitor: { select: { userAgent: true, clientKind: true } },
     },
   });
 
@@ -494,7 +567,14 @@ export async function listPopularGuestPaths(days: AnalyticsRangeDays = 7, limit 
 
   for (const view of views) {
     const ua = trafficUserAgent(view.userAgent, view.visitor.userAgent);
-    if (!isHumanGuestUserAgent(ua)) continue;
+    if (
+      !isHumanAudienceGuest({
+        clientKind: view.visitor.clientKind,
+        userAgent: ua,
+      })
+    ) {
+      continue;
+    }
     if (!isPopularGuestPath(view.path)) continue;
     if (isComingSoonGuestPath(view.path)) {
       comingSoonViews += 1;
@@ -528,9 +608,9 @@ export async function countOnlineGuests(now = Date.now()) {
   if (!onlineIds.size) return 0;
   const rows = await getDb().guestVisitor.findMany({
     where: { id: { in: [...onlineIds] } },
-    select: { userAgent: true },
+    select: { userAgent: true, clientKind: true },
   });
-  return rows.filter((row) => isHumanGuestUserAgent(row.userAgent)).length;
+  return rows.filter((row) => isHumanAudienceGuest(row)).length;
 }
 
 export type VisitorAudienceSummary = {
@@ -547,8 +627,8 @@ export type VisitorAudienceSummary = {
 
 /**
  * Human anonymous audience metrics for a Funnel-style date window (includes today).
- * Members never appear in guest tables; known bots are excluded via isHumanGuestUserAgent.
- * Unknown UA classifications remain in the non-bot pool (same as before).
+ * Members never appear in guest tables. Phase 2D: Human only (excludes Likely automated, Bot, Unknown).
+ * Historical rows with null clientKind fall back to the UA classifier.
  */
 export async function getVisitorAudienceSummary(
   daysOrNow: AnalyticsRangeDays | number = 7,
@@ -570,25 +650,30 @@ export async function getVisitorAudienceSummary(
   const [periodGuests, periodViews, onlineIds] = await Promise.all([
     db.guestVisitor.findMany({
       where: { lastSeenAt: { gte: window.start } },
-      select: { id: true, userAgent: true, lastSeenAt: true },
+      select: { id: true, userAgent: true, clientKind: true, lastSeenAt: true },
     }),
     db.guestPageView.findMany({
       where: { createdAt: { gte: window.start, lt: window.endExclusive } },
       select: {
         path: true,
         userAgent: true,
-        visitor: { select: { userAgent: true } },
+        visitor: { select: { userAgent: true, clientKind: true } },
       },
     }),
     listOnlineGuestVisitorIds(now),
   ]);
 
-  const nonBots = periodGuests.filter((guest) => isHumanGuestUserAgent(guest.userAgent));
-  const onlineNow = nonBots.filter((guest) => onlineIds.has(guest.id)).length;
-  const visitors = nonBots.length;
+  const humans = periodGuests.filter((guest) => isHumanAudienceGuest(guest));
+  const onlineNow = humans.filter((guest) => onlineIds.has(guest.id)).length;
+  const visitors = humans.length;
   const humanViews = periodViews.filter((view) => {
     const ua = trafficUserAgent(view.userAgent, view.visitor.userAgent);
-    return isHumanGuestUserAgent(ua) && isPopularGuestPath(view.path);
+    return (
+      isHumanAudienceGuest({
+        clientKind: view.visitor.clientKind,
+        userAgent: ua,
+      }) && isPopularGuestPath(view.path)
+    );
   });
   const pageViews = humanViews.length;
   const recipeViews = humanViews.filter((view) => isRecipeDetailGuestPath(view.path)).length;
@@ -610,7 +695,7 @@ export type GuestTrafficSourceRow = {
   visitors: number;
 };
 
-/** Unique non-bot visitors in range, attributed by first-touch UTM then referrer. */
+/** Unique Human visitors in range, attributed by first-touch UTM then referrer. */
 export async function listGuestTrafficSources(
   days: AnalyticsRangeDays = 7,
 ): Promise<GuestTrafficSourceRow[]> {
@@ -620,6 +705,7 @@ export async function listGuestTrafficSources(
     select: {
       id: true,
       userAgent: true,
+      clientKind: true,
       utmSource: true,
       utmMedium: true,
       utmCampaign: true,
@@ -644,7 +730,7 @@ export async function listGuestTrafficSources(
   }
 
   for (const guest of guests) {
-    if (!isHumanGuestUserAgent(guest.userAgent)) continue;
+    if (!isHumanAudienceGuest(guest)) continue;
     const acquisition = deriveGuestAcquisition(guest.pageViews, {
       utmSource: guest.utmSource,
       utmMedium: guest.utmMedium,
@@ -665,7 +751,7 @@ export async function listGuestTrafficSources(
 
 export const GUEST_VISITORS_PAGE_SIZE = 25;
 
-export type GuestKindFilter = "humans" | "bots" | "unknown" | "all";
+export type { GuestKindFilter };
 
 export type GuestVisitorAdminListRow = {
   id: string;
@@ -677,7 +763,7 @@ export type GuestVisitorAdminListRow = {
   landingPath: string;
   landingTitle: string;
   online: boolean;
-  kind: GuestClientKind;
+  kind: GuestAudienceKind;
   kindLabel: string;
   source: GuestTrafficSource;
   sourceLabel: string;
@@ -694,22 +780,7 @@ export type GuestVisitorAdminListResult = {
   rangeDays: AnalyticsRangeDays;
 };
 
-function matchesKindFilter(kind: GuestClientKind, filter: GuestKindFilter) {
-  if (filter === "all") return true;
-  if (filter === "humans") return kind === "visitor";
-  if (filter === "bots") return kind === "bot";
-  return kind === "unknown";
-}
-
-export function parseGuestKindFilter(value: unknown): GuestKindFilter {
-  const raw = String(value ?? "")
-    .trim()
-    .toLowerCase();
-  if (raw === "bots" || raw === "bot") return "bots";
-  if (raw === "unknown") return "unknown";
-  if (raw === "all") return "all";
-  return "humans";
-}
+export { matchesAudienceKindFilter, parseGuestKindFilter };
 
 /**
  * Server-filtered, server-paginated visitor list for the admin overview.
@@ -752,8 +823,11 @@ export async function listGuestsForAdminPaginated(input: {
 
   const enriched: GuestVisitorAdminListRow[] = [];
   for (const guest of guests) {
-    const client = classifyGuestClient(guest.userAgent || "");
-    if (!matchesKindFilter(client.kind, kind)) continue;
+    const audienceKind = resolveGuestAudienceKind({
+      clientKind: guest.clientKind,
+      userAgent: guest.userAgent || "",
+    });
+    if (!matchesAudienceKindFilter(audienceKind, kind)) continue;
 
     const acquisition = deriveGuestAcquisition(guest.pageViews, {
       utmSource: guest.utmSource,
@@ -776,7 +850,7 @@ export async function listGuestsForAdminPaginated(input: {
         landingPath,
         landingTitle,
         acquisition.sourceLabel,
-        client.label,
+        guestAudienceKindLabel(audienceKind),
       ]
         .join(" ")
         .toLowerCase();
@@ -792,14 +866,9 @@ export async function listGuestsForAdminPaginated(input: {
       lastPathTitle,
       landingPath,
       landingTitle,
-      online: onlineIds.has(guest.id) && client.kind !== "bot",
-      kind: client.kind,
-      kindLabel:
-        client.kind === "bot"
-          ? client.label
-          : client.kind === "unknown"
-            ? "Unknown"
-            : "Human",
+      online: onlineIds.has(guest.id) && audienceKind === "human",
+      kind: audienceKind,
+      kindLabel: guestAudienceKindLabel(audienceKind),
       source: acquisition.source,
       sourceLabel: acquisition.sourceLabel,
       location: formatCountryCityLocation(guest),

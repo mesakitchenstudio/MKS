@@ -202,7 +202,10 @@ model GuestVisitor {
   firstSeenAt DateTime       @default(now())
   lastSeenAt  DateTime       @default(now())
   lastPath    String         @default("")
-  ip          String         @default("")
+  /** Raw network IP; scrubbed to null after GUEST_NETWORK_RETENTION_DAYS. */
+  ip          String?
+  /** When `ip` was last written on ingest; used for accurate network retention age. */
+  ipUpdatedAt DateTime?
   country     String         @default("")
   city        String         @default("")
   region      String         @default("")
@@ -211,9 +214,17 @@ model GuestVisitor {
   utmSource   String?
   utmMedium   String?
   utmCampaign String?
+  /** Phase 2D audience class: human | likely_automated | bot | unknown */
+  clientKind         String?
+  /** JSON array of reason codes (explainable, no opaque scores). */
+  clientKindReasons  String?
+  clientKindAt       DateTime?
   pageViews   GuestPageView[]
   presenceSessions GuestPresenceSession[]
   funnelEvents FunnelEvent[]
+
+  @@index([lastSeenAt])
+  @@index([ipUpdatedAt])
 }
 
 /** Per-tab anonymous heartbeat rows for session-aware Online status. */
@@ -238,7 +249,8 @@ model GuestPageView {
   navId     String?      @unique
   path      String
   referer   String       @default("")
-  ip        String       @default("")
+  /** Raw page-view IP snapshot; scrubbed to null after GUEST_NETWORK_RETENTION_DAYS. */
+  ip        String?
   country   String       @default("")
   city      String       @default("")
   region    String       @default("")
