@@ -31,8 +31,8 @@ export default async function AboutPage() {
         </h1>
         <p className="mt-5 max-w-2xl text-base leading-7 text-muted md:text-lg md:leading-8">
           Mesa Kitchen Studio publishes carefully tested home-cooking and baking recipes using
-          everyday ingredients. The instructions tell you what to do — and, when it helps, why it
-          works.
+          everyday ingredients. The instructions tell you what to do — and, where it matters, why
+          it works.
         </p>
         {heroImage ? (
           <div className="relative mt-8 aspect-[21/9] overflow-hidden bg-sand md:mt-10">

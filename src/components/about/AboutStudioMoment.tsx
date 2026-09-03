@@ -66,7 +66,7 @@ export function AboutStudioMoment({ video }: { video: PublicVideoCard | null }) 
               <div className="relative">
                 <VideoThumbnail
                   src={video.thumbnailUrl}
-                  alt={`Video still: ${video.title}`}
+                  alt=""
                   showPlay
                   sizes="(min-width: 768px) 28rem, 100vw"
                 />
@@ -77,9 +77,6 @@ export function AboutStudioMoment({ video }: { video: PublicVideoCard | null }) 
                   </span>
                 ) : null}
               </div>
-              <p className="mt-3 font-serif text-xl leading-tight text-ink transition group-hover/thumb:text-terracotta">
-                {video.title}
-              </p>
             </Link>
           </div>
         ) : null}

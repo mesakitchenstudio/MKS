@@ -32,13 +32,12 @@ export const ABOUT_PRINCIPLES: AboutPrinciple[] = [
   {
     number: "02",
     label: "Use what you can buy",
-    description:
-      "Recipes stay honest to grocery-store shelves and ordinary pans — no specialty equipment required to finish the dish.",
+    description: "Grocery-store ingredients and ordinary pans — no specialty equipment needed.",
   },
   {
     number: "03",
     label: "Explain why",
     description:
-      "When a step changes texture, browning, or flavor, we say so — so you can cook with judgment, not only by rote.",
+      "When a step changes texture, browning, or flavor, we say so — so you know what to look for, not just what to do.",
   },
 ];
