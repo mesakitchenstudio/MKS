@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { auth } from "@/auth";
+import { getAdminSession } from "@/lib/auth";
 import { persistFunnelEvent } from "@/lib/funnel-analytics-server";
 import { GUEST_COOKIE, GUEST_COOKIE_MAX_AGE, newGuestVisitorKey } from "@/lib/guest-analytics";
 import {
   normalizeGuestVisitorKey,
   resolveGuestVisitorKey,
-  shouldSkipGuestAnalytics,
+  shouldSkipGuestAnalyticsIngest,
 } from "@/lib/guest-tracking";
 
 export const runtime = "nodejs";
@@ -52,11 +53,12 @@ function setGuestCookie(response: NextResponse, visitorKey: string) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
+    const [session, admin] = await Promise.all([auth(), getAdminSession()]);
     if (
-      shouldSkipGuestAnalytics({
+      shouldSkipGuestAnalyticsIngest({
         email: session?.user?.email,
         staffRole: session?.staffRole,
+        hasVerifiedAdminSession: Boolean(admin),
       })
     ) {
       return new NextResponse(null, { status: 204 });

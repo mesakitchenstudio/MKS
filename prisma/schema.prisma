@@ -207,6 +207,10 @@ model GuestVisitor {
   city        String         @default("")
   region      String         @default("")
   userAgent   String         @default("")
+  /** First-touch campaign attribution (never overwritten once set). */
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
   pageViews   GuestPageView[]
   presenceSessions GuestPresenceSession[]
   funnelEvents FunnelEvent[]

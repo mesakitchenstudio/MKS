@@ -14,6 +14,11 @@ import {
   type GuestTrafficSource,
 } from "@/lib/guest-acquisition";
 import {
+  guestUtmFieldsAreEmpty,
+  parseGuestUtmFromRequestBody,
+  type GuestUtmFields,
+} from "@/lib/guest-utm";
+import {
   guestPathTitle,
   isComingSoonGuestPath,
   isEditorialPopularGuestPath,
@@ -71,6 +76,33 @@ function isUniqueConstraintError(error: unknown) {
   );
 }
 
+/**
+ * First-touch UTM write: only fill null columns (never overwrite).
+ * Per-field updateMany avoids races where concurrent first hits clobber each other.
+ */
+async function applyFirstTouchUtms(visitorId: string, utm: GuestUtmFields) {
+  if (guestUtmFieldsAreEmpty(utm)) return;
+  const db = getDb();
+  if (utm.utmSource) {
+    await db.guestVisitor.updateMany({
+      where: { id: visitorId, utmSource: null },
+      data: { utmSource: utm.utmSource },
+    });
+  }
+  if (utm.utmMedium) {
+    await db.guestVisitor.updateMany({
+      where: { id: visitorId, utmMedium: null },
+      data: { utmMedium: utm.utmMedium },
+    });
+  }
+  if (utm.utmCampaign) {
+    await db.guestVisitor.updateMany({
+      where: { id: visitorId, utmCampaign: null },
+      data: { utmCampaign: utm.utmCampaign },
+    });
+  }
+}
+
 export async function upsertGuestActivity(input: {
   visitorKey: string;
   path: string;
@@ -79,6 +111,9 @@ export async function upsertGuestActivity(input: {
   recordPageView?: boolean;
   navId?: string;
   connectionKey?: string;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
 }) {
   const path = normalizePath(input.path);
   if (!isTrackablePublicPath(path)) return null;
@@ -90,6 +125,11 @@ export async function upsertGuestActivity(input: {
   const navId = normalizeGuestNavId(input.navId);
   const connectionKey = normalizeGuestConnectionKey(input.connectionKey);
   const recordPageView = Boolean(input.recordPageView);
+  const utm = parseGuestUtmFromRequestBody({
+    utmSource: input.utmSource,
+    utmMedium: input.utmMedium,
+    utmCampaign: input.utmCampaign,
+  });
 
   const existing = await db.guestVisitor.findUnique({
     where: { visitorKey: input.visitorKey },
@@ -104,7 +144,8 @@ export async function upsertGuestActivity(input: {
     !existing ||
     recordPageView ||
     pathChanged ||
-    lastSeenAge >= GUEST_PRESENCE_WRITE_THROTTLE_MS;
+    lastSeenAge >= GUEST_PRESENCE_WRITE_THROTTLE_MS ||
+    !guestUtmFieldsAreEmpty(utm);
 
   let visitor;
   if (!existing) {
@@ -120,6 +161,9 @@ export async function upsertGuestActivity(input: {
           city: meta.city,
           region: meta.region,
           userAgent: (meta.userAgent || "").slice(0, 500),
+          utmSource: utm.utmSource,
+          utmMedium: utm.utmMedium,
+          utmCampaign: utm.utmCampaign,
         },
       });
     } catch (error) {
@@ -129,6 +173,8 @@ export async function upsertGuestActivity(input: {
         where: { visitorKey: input.visitorKey },
       });
       if (!visitor) return null;
+      await applyFirstTouchUtms(visitor.id, utm);
+      visitor = (await db.guestVisitor.findUnique({ where: { id: visitor.id } })) || visitor;
     }
   } else if (shouldTouchVisitor) {
     try {
@@ -144,6 +190,8 @@ export async function upsertGuestActivity(input: {
           userAgent: meta.userAgent ? meta.userAgent.slice(0, 500) : undefined,
         },
       });
+      await applyFirstTouchUtms(visitor.id, utm);
+      visitor = (await db.guestVisitor.findUnique({ where: { id: visitor.id } })) || visitor;
     } catch {
       // Row vanished mid-request (admin delete) — signal caller to rotate identity.
       return null;
@@ -562,7 +610,7 @@ export type GuestTrafficSourceRow = {
   visitors: number;
 };
 
-/** Unique non-bot visitors in range, attributed by first external referrer (else Direct). */
+/** Unique non-bot visitors in range, attributed by first-touch UTM then referrer. */
 export async function listGuestTrafficSources(
   days: AnalyticsRangeDays = 7,
 ): Promise<GuestTrafficSourceRow[]> {
@@ -572,6 +620,9 @@ export async function listGuestTrafficSources(
     select: {
       id: true,
       userAgent: true,
+      utmSource: true,
+      utmMedium: true,
+      utmCampaign: true,
       pageViews: {
         orderBy: { createdAt: "asc" },
         select: { path: true, referer: true, createdAt: true },
@@ -594,7 +645,11 @@ export async function listGuestTrafficSources(
 
   for (const guest of guests) {
     if (!isHumanGuestUserAgent(guest.userAgent)) continue;
-    const acquisition = deriveGuestAcquisition(guest.pageViews);
+    const acquisition = deriveGuestAcquisition(guest.pageViews, {
+      utmSource: guest.utmSource,
+      utmMedium: guest.utmMedium,
+      utmCampaign: guest.utmCampaign,
+    });
     counts.set(acquisition.source, (counts.get(acquisition.source) || 0) + 1);
   }
 
@@ -700,7 +755,11 @@ export async function listGuestsForAdminPaginated(input: {
     const client = classifyGuestClient(guest.userAgent || "");
     if (!matchesKindFilter(client.kind, kind)) continue;
 
-    const acquisition = deriveGuestAcquisition(guest.pageViews);
+    const acquisition = deriveGuestAcquisition(guest.pageViews, {
+      utmSource: guest.utmSource,
+      utmMedium: guest.utmMedium,
+      utmCampaign: guest.utmCampaign,
+    });
     if (sourceFilter !== "all" && acquisition.source !== sourceFilter) continue;
 
     const lastPath = guest.lastPath || "";

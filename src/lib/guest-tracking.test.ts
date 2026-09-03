@@ -5,11 +5,13 @@ import {
   clearActiveGuestNavigation,
   guestAnalyticsPath,
   guestNavigationFor,
+  isSignedInPublicMember,
   normalizeGuestNavId,
   resetGuestNavigationStateForTests,
   shouldInsertGuestPageView,
   shouldSendGuestPresence,
   shouldSkipGuestAnalytics,
+  shouldSkipGuestAnalyticsIngest,
   shouldTrackGuestPath,
 } from "./guest-tracking";
 
@@ -137,20 +139,144 @@ test("auth conversion must end anonymous presence without waiting for stale TTL"
   // Documented contract: successful Member auth clears GuestPresenceSession rows
   // immediately via endAllPresence (see /api/analytics/guest), not via heartbeat expiry.
   assert.equal(shouldSkipGuestAnalytics({ email: "member@example.com" }), true);
+  assert.equal(isSignedInPublicMember({ email: "member@example.com" }), true);
   assert.equal(shouldSkipGuestAnalytics({ email: null }), false);
+  assert.equal(isSignedInPublicMember({ email: null }), false);
 });
 
-test("members are excluded from guest analytics; staff are not", () => {
+test("Phase 2A: anonymous tracked; members and staff skipped", () => {
+  // 1. Anonymous visitor is tracked
   assert.equal(shouldSkipGuestAnalytics(null), false);
   assert.equal(shouldSkipGuestAnalytics({ email: "" }), false);
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: null,
+      staffRole: null,
+      hasVerifiedAdminSession: false,
+    }),
+    false,
+  );
+
+  // 2. Public Member is skipped
   assert.equal(shouldSkipGuestAnalytics({ email: "member@example.com" }), true);
   assert.equal(
-    shouldSkipGuestAnalytics({ email: "owner@example.com", staffRole: "owner" }),
+    shouldSkipGuestAnalyticsIngest({
+      email: "member@example.com",
+      staffRole: null,
+      hasVerifiedAdminSession: false,
+    }),
+    true,
+  );
+  assert.equal(isSignedInPublicMember({ email: "member@example.com" }), true);
+
+  // 3–5. Owner / Audience / Editor with NextAuth staffRole are skipped
+  for (const role of ["owner", "members", "editor"] as const) {
+    assert.equal(
+      shouldSkipGuestAnalytics({ email: `${role}@example.com`, staffRole: role }),
+      true,
+      role,
+    );
+    assert.equal(
+      shouldSkipGuestAnalyticsIngest({
+        email: `${role}@example.com`,
+        staffRole: role,
+        hasVerifiedAdminSession: false,
+      }),
+      true,
+      role,
+    );
+    assert.equal(
+      isSignedInPublicMember({ email: `${role}@example.com`, staffRole: role }),
+      false,
+      role,
+    );
+  }
+
+  // 6. Valid admin-session cookie without NextAuth staffRole is skipped
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: null,
+      staffRole: null,
+      hasVerifiedAdminSession: true,
+    }),
+    true,
+  );
+
+  // 7. Invalid/forged admin-session does NOT skip anonymous visitors
+  // (hasVerifiedAdminSession must be false when getAdminSession() returns null)
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: null,
+      staffRole: null,
+      hasVerifiedAdminSession: false,
+    }),
+    false,
+  );
+
+  // 8. Coming Soon anonymous visitor is tracked (path remains trackable; ingest not skipped)
+  assert.equal(shouldTrackGuestPath("/coming-soon"), true);
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: null,
+      staffRole: null,
+      hasVerifiedAdminSession: false,
+    }),
+    false,
+  );
+
+  // 9. Coming Soon staff preview is skipped (admin session and/or staffRole)
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: null,
+      staffRole: null,
+      hasVerifiedAdminSession: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: "owner@example.com",
+      staffRole: "owner",
+      hasVerifiedAdminSession: false,
+    }),
+    true,
+  );
+
+  // 10–11. Funnel events use the same ingest helper (anonymous record / staff skip)
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: null,
+      staffRole: undefined,
+      hasVerifiedAdminSession: false,
+    }),
     false,
   );
   assert.equal(
-    shouldSkipGuestAnalytics({ email: "editor@example.com", staffRole: "editor" }),
-    false,
+    shouldSkipGuestAnalyticsIngest({
+      email: "owner@example.com",
+      staffRole: "owner",
+      hasVerifiedAdminSession: false,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: null,
+      staffRole: null,
+      hasVerifiedAdminSession: true,
+    }),
+    true,
+  );
+
+  // 12. Guest presence from staff is not refreshed/created — same ingest skip gate
+  // (upsertGuestActivity is never called when shouldSkipGuestAnalyticsIngest is true)
+  assert.equal(
+    shouldSkipGuestAnalyticsIngest({
+      email: "editor@example.com",
+      staffRole: "editor",
+      hasVerifiedAdminSession: false,
+    }),
+    true,
   );
 });
 

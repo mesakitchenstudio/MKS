@@ -1,4 +1,5 @@
 import { VisitorsOverview } from "@/components/admin/VisitorsOverview";
+import { canDeleteGuestVisitors } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import {
   getVisitorAudienceSummary,
@@ -21,7 +22,8 @@ export default async function AdminVisitorsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireAccess("members");
+  const admin = await requireAccess("members");
+  const canDelete = canDeleteGuestVisitors(admin.role);
   const raw = await searchParams;
   const range = parseAnalyticsRangeDays(firstParam(raw.range) ?? 7);
   const kind = parseGuestKindFilter(firstParam(raw.kind));
@@ -55,6 +57,7 @@ export default async function AdminVisitorsPage({
         kind={kind}
         source={source}
         q={q}
+        canDeleteVisitors={canDelete}
       />
     </div>
   );

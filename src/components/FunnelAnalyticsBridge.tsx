@@ -13,7 +13,8 @@ import {
 
 /**
  * Persists website → YouTube funnel events from mesa:analytics CustomEvents.
- * Skips signed-in members (same rule as GuestTracker). Never blocks the UI.
+ * Skips signed-in members and staff (same client rule as GuestTracker).
+ * Server also enforces admin-session skip via shouldSkipGuestAnalyticsIngest.
  */
 export function FunnelAnalyticsBridge() {
   const { data: session } = useSession();

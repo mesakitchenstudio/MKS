@@ -1,4 +1,4 @@
-import { canAccess } from "@/lib/admin-access";
+import { canViewGuestNetworkDiagnostics } from "@/lib/admin-access";
 import { getAdminSession } from "@/lib/auth";
 import { lookupIpDetails } from "@/lib/ip-lookup";
 
@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const admin = await getAdminSession();
-  if (!admin || !canAccess(admin.role, "members")) {
+  if (!admin || !canViewGuestNetworkDiagnostics(admin.role)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

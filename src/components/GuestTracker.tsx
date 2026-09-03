@@ -21,6 +21,7 @@ import {
   subscribeGuestConvertedToMember,
   subscribeGuestVisitorRotated,
 } from "@/lib/guest-tracking";
+import { guestUtmFieldsAreEmpty, parseGuestUtmFromLocationSearch } from "@/lib/guest-utm";
 
 declare global {
   interface Window {
@@ -35,7 +36,8 @@ export function GuestTracker() {
   const endedPresenceForAuth = useRef(false);
 
   useEffect(() => {
-    // Members → Members page. Staff may still be tracked as Visitors for public QA.
+    // Members → Members page. Staff are skipped client-side when staffRole is set;
+    // admin-session-only staff are still blocked server-side (Phase 2A).
     if (
       shouldSkipGuestAnalytics({
         email: session?.user?.email,
@@ -120,6 +122,9 @@ export function GuestTracker() {
         return;
       }
 
+      const utm = parseGuestUtmFromLocationSearch(
+        typeof window !== "undefined" ? window.location.search : "",
+      );
       const payload = JSON.stringify({
         path,
         referer: typeof document !== "undefined" ? document.referrer : "",
@@ -128,6 +133,13 @@ export function GuestTracker() {
         clientVisitorKey,
         ...(pageview ? { navId } : {}),
         ...(opts?.disconnect ? { disconnect: true } : {}),
+        ...(!guestUtmFieldsAreEmpty(utm)
+          ? {
+              utmSource: utm.utmSource,
+              utmMedium: utm.utmMedium,
+              utmCampaign: utm.utmCampaign,
+            }
+          : {}),
       });
 
       if (opts?.disconnect && typeof navigator !== "undefined" && navigator.sendBeacon) {

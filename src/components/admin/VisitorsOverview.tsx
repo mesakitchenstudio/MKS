@@ -66,6 +66,7 @@ export function VisitorsOverview({
   kind,
   source,
   q,
+  canDeleteVisitors = false,
 }: {
   summary: VisitorAudienceSummary;
   popular: Array<{ path: string; title: string; views: number; uniqueVisitors: number }>;
@@ -76,6 +77,7 @@ export function VisitorsOverview({
   kind: GuestKindFilter;
   source: GuestTrafficSource | "all";
   q: string;
+  canDeleteVisitors?: boolean;
 }) {
   const totalSourceVisitors = trafficSources.reduce((sum, row) => sum + row.visitors, 0);
   const from = list.total === 0 ? 0 : (list.page - 1) * list.pageSize + 1;
@@ -85,7 +87,7 @@ export function VisitorsOverview({
   return (
     <div className="mt-8 space-y-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <p className="text-xs text-muted">Staff and preview traffic is currently included.</p>
+        <p className="text-xs text-muted">Staff and preview traffic is excluded.</p>
         <div
           className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1"
           role="group"
@@ -169,7 +171,8 @@ export function VisitorsOverview({
             Traffic sources
           </h2>
           <p className="mt-1 text-xs text-muted">
-            First external referrer per visitor · Direct includes empty referrers
+            First external referrer per visitor · UTM when present, else referrer · Direct
+            includes empty referrers
           </p>
           {trafficSources.length === 0 ? (
             <p className="mt-4 border border-dashed border-line bg-paper px-4 py-6 text-sm text-muted">
@@ -282,6 +285,7 @@ export function VisitorsOverview({
         <VisitorsTable
           key={`${range}-${kind}-${source}-${q}-${list.page}`}
           visitors={list.rows}
+          canDelete={canDeleteVisitors}
         />
 
         {totalPages > 1 ? (

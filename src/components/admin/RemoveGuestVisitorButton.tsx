@@ -35,6 +35,8 @@ export function RemoveGuestVisitorButton({
           setError("Visitor not found.");
         } else if (result.error === "missing") {
           setError("Missing visitor id.");
+        } else if (result.error === "forbidden") {
+          setError("Not allowed.");
         } else {
           setError("Could not delete visitor. Try again.");
         }

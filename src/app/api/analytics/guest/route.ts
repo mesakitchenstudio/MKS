@@ -11,12 +11,14 @@ import {
   upsertGuestActivity,
 } from "@/lib/guest-analytics";
 import { getDb } from "@/lib/db";
+import { getAdminSession } from "@/lib/auth";
 import {
+  isSignedInPublicMember,
   normalizeGuestConnectionKey,
   normalizeGuestVisitorKey,
   resolveGuestVisitorKey,
   shouldRotateMissingGuestVisitor,
-  shouldSkipGuestAnalytics,
+  shouldSkipGuestAnalyticsIngest,
 } from "@/lib/guest-tracking";
 
 type GuestBody = {
@@ -31,6 +33,9 @@ type GuestBody = {
   immediate?: boolean;
   /** End all anonymous presence for this browser's visitor after Member auth. */
   endAllPresence?: boolean;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
 };
 
 async function readGuestBody(request: Request): Promise<GuestBody> {
@@ -68,7 +73,7 @@ async function visitorKeyExists(visitorKey: string) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
+  const [session, admin] = await Promise.all([auth(), getAdminSession()]);
   const body = await readGuestBody(request);
   const jar = await cookies();
   const resolved = resolveGuestVisitorKey({
@@ -78,14 +83,16 @@ export async function POST(request: Request) {
   });
   let visitorKey = resolved.visitorKey;
   const connectionKey = normalizeGuestConnectionKey(body.connectionKey);
-  const signedInMember = shouldSkipGuestAnalytics({
+  const skipGuestAnalytics = shouldSkipGuestAnalyticsIngest({
     email: session?.user?.email,
     staffRole: session?.staffRole,
+    hasVerifiedAdminSession: Boolean(admin),
   });
 
   // Known auth transition: clear anonymous Online presence immediately (keep history).
+  // Public Members only — staff are excluded from ingest and do not use this path.
   if (body.endAllPresence) {
-    if (!signedInMember) {
+    if (!isSignedInPublicMember({ email: session?.user?.email, staffRole: session?.staffRole })) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
     try {
@@ -99,7 +106,7 @@ export async function POST(request: Request) {
     }
   }
 
-  if (signedInMember) {
+  if (skipGuestAnalytics) {
     return NextResponse.json({ ok: true, skipped: "signed-in", visitorKey });
   }
 
@@ -156,6 +163,9 @@ export async function POST(request: Request) {
       recordPageView: Boolean(body.pageview),
       navId: body.navId,
       connectionKey,
+      utmSource: body.utmSource,
+      utmMedium: body.utmMedium,
+      utmCampaign: body.utmCampaign,
     });
 
     if (!visitor) {

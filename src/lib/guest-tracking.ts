@@ -357,17 +357,48 @@ export function formatGuestPresenceLabel(
 }
 
 /**
- * Signed-in members are recorded on Members, not Visitors.
- * Staff keep a NextAuth session for Admin but must still appear in Visitors while
- * browsing the public Coming Soon page (common Android QA case).
+ * Client + session helper: skip anonymous guest analytics for signed-in public
+ * Members and for NextAuth sessions that carry a staff role.
+ *
+ * Password / View site / SITE_PRIVATE preview may only have `mesa_admin_session`
+ * (no NextAuth staffRole). APIs must also call {@link shouldSkipGuestAnalyticsIngest}
+ * with verified `hasVerifiedAdminSession` from `getAdminSession()`.
  */
 export function shouldSkipGuestAnalytics(session: {
   email?: string | null;
   staffRole?: unknown;
 } | null | undefined) {
+  if (session?.staffRole) return true;
   if (!session?.email) return false;
-  if (session.staffRole) return false;
   return true;
+}
+
+/** True for signed-in public Members (not staff). Used for endAllPresence auth. */
+export function isSignedInPublicMember(session: {
+  email?: string | null;
+  staffRole?: unknown;
+} | null | undefined) {
+  return Boolean(session?.email) && !session?.staffRole;
+}
+
+/**
+ * Authoritative ingest skip for `/api/analytics/guest` and `/api/analytics/events`.
+ * Skips when a verified admin session exists OR NextAuth staffRole / Member session
+ * would skip via {@link shouldSkipGuestAnalytics}.
+ *
+ * `hasVerifiedAdminSession` must come from server `getAdminSession()` only —
+ * never from client-supplied role or cookie raw values.
+ */
+export function shouldSkipGuestAnalyticsIngest(input: {
+  email?: string | null;
+  staffRole?: unknown;
+  hasVerifiedAdminSession: boolean;
+}) {
+  if (input.hasVerifiedAdminSession) return true;
+  return shouldSkipGuestAnalytics({
+    email: input.email,
+    staffRole: input.staffRole,
+  });
 }
 
 /**

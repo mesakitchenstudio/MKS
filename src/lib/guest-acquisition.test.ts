@@ -73,6 +73,28 @@ describe("guest-acquisition", () => {
     assert.equal(acquisition.firstExternalReferer, "");
   });
 
+  it("prefers first-touch utm_source over referrer for traffic source", () => {
+    const acquisition = deriveGuestAcquisition(
+      [
+        {
+          path: "/coming-soon",
+          referer: "https://www.google.com/",
+          createdAt: "2026-01-01T10:00:00.000Z",
+        },
+      ],
+      {
+        utmSource: "youtube",
+        utmMedium: "video_description",
+        utmCampaign: "flatbread_launch",
+      },
+    );
+    assert.equal(acquisition.source, "youtube");
+    assert.equal(acquisition.sourceLabel, "YouTube");
+    assert.equal(acquisition.utmMedium, "video_description");
+    assert.equal(acquisition.utmCampaign, "flatbread_launch");
+    assert.equal(acquisition.sourceFromUtm, true);
+  });
+
   it("orders by createdAt even when input is unsorted", () => {
     const acquisition = deriveGuestAcquisition([
       {

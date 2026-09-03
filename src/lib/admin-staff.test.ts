@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canAccess, canManageYoutubeAnalytics, canManageYoutubeSync, homeForRole } from "./admin-access";
+import { canAccess, canDeleteGuestVisitors, canManageYoutubeAnalytics, canManageYoutubeSync, canViewGuestNetworkDiagnostics, homeForRole } from "./admin-access";
 import {
   applyPersistedStaffRole,
   emailsConflictCaseInsensitive,
@@ -215,6 +215,42 @@ test("Owner has full admin access including staff", () => {
   assert.equal(canManageYoutubeAnalytics("owner"), true);
   assert.equal(canManageYoutubeAnalytics("editor"), false);
   assert.equal(canManageYoutubeAnalytics("members"), false);
+});
+
+test("Phase 2B: guest network diagnostics and delete are Owner-only", () => {
+  // Visitors area access (overview + detail)
+  assert.equal(canAccess("owner", "members"), true);
+  assert.equal(canAccess("members", "members"), true);
+  assert.equal(canAccess("editor", "members"), false);
+
+  // Network / IP diagnostics
+  assert.equal(canViewGuestNetworkDiagnostics("owner"), true);
+  assert.equal(canViewGuestNetworkDiagnostics("members"), false);
+  assert.equal(canViewGuestNetworkDiagnostics("editor"), false);
+  assert.equal(canViewGuestNetworkDiagnostics(""), false);
+
+  // Destructive delete
+  assert.equal(canDeleteGuestVisitors("owner"), true);
+  assert.equal(canDeleteGuestVisitors("members"), false);
+  assert.equal(canDeleteGuestVisitors("editor"), false);
+  assert.equal(canDeleteGuestVisitors(""), false);
+
+  // Audience keeps behavioral Visitors access without network/delete
+  assert.equal(canAccess("members", "members") && !canViewGuestNetworkDiagnostics("members"), true);
+  assert.equal(canAccess("members", "members") && !canDeleteGuestVisitors("members"), true);
+});
+
+/** Presence API JSON must stay free of raw IP / UA for Audience-safe polling. */
+test("Phase 2B: visitor presence snapshot shape excludes network fields", () => {
+  const sample = {
+    id: "guest_1",
+    online: true,
+    lastSeenAt: "2026-09-04T00:00:00.000Z",
+  };
+  assert.equal("ip" in sample, false);
+  assert.equal("userAgent" in sample, false);
+  assert.equal("hostname" in sample, false);
+  assert.deepEqual(Object.keys(sample).sort(), ["id", "lastSeenAt", "online"]);
 });
 
 test("buildAdminNavSections hides unauthorized areas", async () => {

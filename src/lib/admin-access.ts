@@ -45,6 +45,22 @@ export function canManageYoutubeAnalytics(role: string) {
   return role === "owner";
 }
 
+/**
+ * Raw visitor network diagnostics (IP lookup, UA, ASN/ISP, map).
+ * Owner only — Audience may view behavioral Visitors analytics without raw network data.
+ */
+export function canViewGuestNetworkDiagnostics(role: string) {
+  return role === "owner";
+}
+
+/**
+ * Destructive guest visitor deletion (single + bulk).
+ * Owner only — Audience is view-only for Visitors.
+ */
+export function canDeleteGuestVisitors(role: string) {
+  return role === "owner";
+}
+
 export function homeForRole(role: string) {
   if (role === "members") return "/admin/members";
   if (role === "editor" || role === "owner") return "/admin";

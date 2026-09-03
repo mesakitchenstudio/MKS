@@ -73,7 +73,13 @@ function PagePair({
   );
 }
 
-export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow[] }) {
+export function VisitorsTable({
+  visitors,
+  canDelete = false,
+}: {
+  visitors: GuestVisitorAdminListRow[];
+  canDelete?: boolean;
+}) {
   const [presenceById, setPresenceById] = useState<Record<string, PresenceSnap>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [selectMode, setSelectMode] = useState(false);
@@ -84,11 +90,19 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
     try {
       const res = await fetch("/api/admin/visitors/presence", { cache: "no-store" });
       if (!res.ok) return;
-      const data = (await res.json()) as { guests?: PresenceSnap[] };
-      if (!Array.isArray(data.guests)) return;
+      const data = (await res.json()) as {
+        visitors?: PresenceSnap[];
+        guests?: PresenceSnap[];
+      };
+      const rows = Array.isArray(data.visitors)
+        ? data.visitors
+        : Array.isArray(data.guests)
+          ? data.guests
+          : null;
+      if (!rows) return;
       setPresenceById((prev) => {
         const next = { ...prev };
-        for (const row of data.guests!) {
+        for (const row of rows) {
           next[row.id] = row;
         }
         return next;
@@ -137,7 +151,7 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
   }
 
   function handleBulkDelete() {
-    if (bulkPending || selectedCount === 0) return;
+    if (!canDelete || bulkPending || selectedCount === 0) return;
     const label = selectedCount === 1 ? "1 visitor" : `${selectedCount} visitors`;
     if (
       !window.confirm(
@@ -151,7 +165,11 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
     startBulk(async () => {
       const result = await deleteGuestVisitorsAction(ids);
       if (!result.ok) {
-        setBulkError(result.error || "Delete failed.");
+        setBulkError(
+          result.error === "forbidden"
+            ? "Not allowed."
+            : result.error || "Delete failed.",
+        );
         return;
       }
       window.location.reload();
@@ -168,30 +186,32 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        {!selectMode ? (
-          <button
-            type="button"
-            className={`text-xs text-muted hover:text-ink ${adminFocusRing}`}
-            onClick={() => setSelectMode(true)}
-          >
-            Select visitors
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={`text-sm text-muted underline-offset-2 hover:underline ${adminFocusRing}`}
-            onClick={() => {
-              setSelectMode(false);
-              setSelectedIds(new Set());
-            }}
-          >
-            Cancel selection
-          </button>
-        )}
-      </div>
+      {canDelete ? (
+        <div className="flex flex-wrap items-center gap-3">
+          {!selectMode ? (
+            <button
+              type="button"
+              className={`text-xs text-muted hover:text-ink ${adminFocusRing}`}
+              onClick={() => setSelectMode(true)}
+            >
+              Select visitors
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={`text-sm text-muted underline-offset-2 hover:underline ${adminFocusRing}`}
+              onClick={() => {
+                setSelectMode(false);
+                setSelectedIds(new Set());
+              }}
+            >
+              Cancel selection
+            </button>
+          )}
+        </div>
+      ) : null}
 
-      {selectMode && selectedCount > 0 ? (
+      {canDelete && selectMode && selectedCount > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-sm border border-line bg-cream/50 px-3 py-2 text-sm">
           <span className="font-semibold text-ink">{selectedCount} selected</span>
           <button
@@ -218,7 +238,7 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-line bg-cream/40 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
             <tr>
-              {selectMode ? (
+              {canDelete && selectMode ? (
                 <th scope="col" className="w-10 px-3 py-3">
                   <span className="sr-only">Select</span>
                   <input
@@ -257,7 +277,7 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
               const short = guest.visitorKey.slice(0, 8);
               return (
                 <tr key={guest.id} className="align-top">
-                  {selectMode ? (
+                  {canDelete && selectMode ? (
                     <td className="px-3 py-3">
                       <input
                         type="checkbox"
@@ -327,7 +347,7 @@ export function VisitorsTable({ visitors }: { visitors: GuestVisitorAdminListRow
             <li key={guest.id} className="border border-line bg-paper p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {selectMode ? (
+                  {canDelete && selectMode ? (
                     <input
                       type="checkbox"
                       checked={selectedIds.has(guest.id)}

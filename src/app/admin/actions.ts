@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
-import { homeForRole, isAccessLevel, canManageYoutubeSync, canManageYoutubeAnalytics } from "@/lib/admin-access";
+import { homeForRole, isAccessLevel, canManageYoutubeSync, canManageYoutubeAnalytics, canDeleteGuestVisitors } from "@/lib/admin-access";
 
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
 import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
@@ -650,16 +650,19 @@ export async function deleteMemberAction(formData: FormData) {
 
 export type DeleteGuestVisitorResult =
   | { ok: true }
-  | { ok: false; error: "missing" | "not-found" | "failed" };
+  | { ok: false; error: "missing" | "not-found" | "failed" | "forbidden" };
 
 export type DeleteGuestVisitorsBulkResult =
   | { ok: true; deletedCount: number }
-  | { ok: false; error: "missing" | "not-found" | "failed" };
+  | { ok: false; error: "missing" | "not-found" | "failed" | "forbidden" };
 
 export async function deleteGuestVisitorsAction(
   visitorIds: string[],
 ): Promise<DeleteGuestVisitorsBulkResult> {
-  await requireAccess("members");
+  const admin = await requireAccess("members");
+  if (!canDeleteGuestVisitors(admin.role)) {
+    return { ok: false, error: "forbidden" };
+  }
   const ids = normalizeGuestVisitorIds(visitorIds);
   if (!ids.length) return { ok: false, error: "missing" };
 

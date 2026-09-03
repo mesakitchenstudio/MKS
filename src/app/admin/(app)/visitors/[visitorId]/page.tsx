@@ -4,6 +4,10 @@ import { PresenceDot } from "@/components/admin/MemberPresence";
 import { RemoveGuestVisitorButton } from "@/components/admin/RemoveGuestVisitorButton";
 import { VisitorNetworkSection } from "@/components/admin/VisitorNetworkSection";
 import { adminFocusRing } from "@/lib/admin-ui";
+import {
+  canDeleteGuestVisitors,
+  canViewGuestNetworkDiagnostics,
+} from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { formatAdminShortDateTime } from "@/lib/datetime";
 import { deriveGuestAcquisition } from "@/lib/guest-acquisition";
@@ -42,7 +46,9 @@ export default async function AdminVisitorDetailPage({
 }: {
   params: Promise<{ visitorId: string }>;
 }) {
-  await requireAccess("members");
+  const admin = await requireAccess("members");
+  const canNetwork = canViewGuestNetworkDiagnostics(admin.role);
+  const canDelete = canDeleteGuestVisitors(admin.role);
   const { visitorId } = await params;
   const [guest, recipes] = await Promise.all([getGuestForAdmin(visitorId), getAllRecipes()]);
   if (!guest) notFound();
@@ -57,12 +63,17 @@ export default async function AdminVisitorDetailPage({
     lastSeenAt: guest.lastSeenAt,
   });
   const shortKey = guest.visitorKey.slice(0, 8);
-  const client = classifyGuestClient(guest.userAgent || "");
+  const rawUa = guest.userAgent || "";
+  const client = classifyGuestClient(rawUa);
   const pageViewCount = guest._count.pageViews;
   const journey = [...guest.pageViews].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
-  const acquisition = deriveGuestAcquisition(journey);
+  const acquisition = deriveGuestAcquisition(journey, {
+    utmSource: guest.utmSource,
+    utmMedium: guest.utmMedium,
+    utmCampaign: guest.utmCampaign,
+  });
   const landingTitle = acquisition.landingPath
     ? guestPathTitle(acquisition.landingPath, recipeTitles)
     : "";
@@ -74,8 +85,9 @@ export default async function AdminVisitorDetailPage({
     Boolean(acquisition.latestExternalReferer) &&
     acquisition.firstExternalReferer !== acquisition.latestExternalReferer;
   const approxLocation = formatApproxLocation(guest) || "—";
-  const ips = uniqueIps([guest.ip, ...guest.pageViews.map((view) => view.ip)]);
-  const deviceLabel = formatGuestOsBrowserLabel(guest.userAgent || "");
+  const deviceLabel = formatGuestOsBrowserLabel(rawUa);
+  const osLabel = guestOsLabel(rawUa);
+  const browserLabel = guestBrowserLabel(rawUa);
   const kindText =
     client.kind === "bot"
       ? client.label
@@ -83,6 +95,10 @@ export default async function AdminVisitorDetailPage({
         ? "Unknown"
         : "Human";
   const showActiveTabs = online && guest.activeConnections > 0;
+  // Owner-only: collect IPs / raw UA for diagnostics — never pass to Audience client tree.
+  const networkIps = canNetwork
+    ? uniqueIps([guest.ip, ...guest.pageViews.map((view) => view.ip)])
+    : [];
 
   return (
     <div>
@@ -125,6 +141,12 @@ export default async function AdminVisitorDetailPage({
         </h2>
         <dl className="mt-2">
           <DetailRow label="Source">{acquisition.sourceLabel}</DetailRow>
+          {acquisition.utmCampaign ? (
+            <DetailRow label="Campaign">{acquisition.utmCampaign}</DetailRow>
+          ) : null}
+          {acquisition.utmMedium ? (
+            <DetailRow label="Medium">{acquisition.utmMedium}</DetailRow>
+          ) : null}
           <DetailRow label="Landing page">
             {acquisition.landingPath ? (
               <div>
@@ -214,8 +236,8 @@ export default async function AdminVisitorDetailPage({
         </h2>
         <dl className="mt-2">
           <DetailRow label="Device">{deviceLabel}</DetailRow>
-          <DetailRow label="OS">{guestOsLabel(guest.userAgent || "")}</DetailRow>
-          <DetailRow label="Browser">{guestBrowserLabel(guest.userAgent || "")}</DetailRow>
+          <DetailRow label="OS">{osLabel}</DetailRow>
+          <DetailRow label="Browser">{browserLabel}</DetailRow>
           <DetailRow label="Approx. location">
             <span title="Approximate city-level estimate from network headers">
               {approxLocation}
@@ -224,25 +246,29 @@ export default async function AdminVisitorDetailPage({
         </dl>
       </section>
 
-      <div className="mt-10">
-        <VisitorNetworkSection
-          ips={ips}
-          visitorKey={guest.visitorKey}
-          userAgent={guest.userAgent || ""}
-          activeConnections={showActiveTabs ? guest.activeConnections : undefined}
-        />
-      </div>
-
-      <section className="mt-12 border-t border-line pt-8">
-        <h2 className="text-sm font-semibold text-ink">Remove visitor</h2>
-        <p className="mt-1 max-w-xl text-sm text-muted">
-          Permanently deletes this anonymous visitor and related page views. Prefer this only for
-          abuse cleanup or privacy requests.
-        </p>
-        <div className="mt-4">
-          <RemoveGuestVisitorButton id={guest.id} redirectTo="/admin/visitors" />
+      {canNetwork ? (
+        <div className="mt-10">
+          <VisitorNetworkSection
+            ips={networkIps}
+            visitorKey={guest.visitorKey}
+            userAgent={rawUa}
+            activeConnections={showActiveTabs ? guest.activeConnections : undefined}
+          />
         </div>
-      </section>
+      ) : null}
+
+      {canDelete ? (
+        <section className="mt-12 border-t border-line pt-8">
+          <h2 className="text-sm font-semibold text-ink">Remove visitor</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted">
+            Permanently deletes this anonymous visitor and related page views. Prefer this only for
+            abuse cleanup or privacy requests.
+          </p>
+          <div className="mt-4">
+            <RemoveGuestVisitorButton id={guest.id} redirectTo="/admin/visitors" />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

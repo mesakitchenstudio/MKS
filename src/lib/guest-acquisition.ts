@@ -1,4 +1,5 @@
 import { site } from "@/data/site";
+import { classifyUtmSource, type GuestUtmFields } from "@/lib/guest-utm";
 
 export const GUEST_TRAFFIC_SOURCES = [
   "youtube",
@@ -17,6 +18,8 @@ export type GuestPageViewRefererRow = {
   referer: string;
   createdAt: Date | string;
 };
+
+export type GuestAcquisitionUtmInput = Partial<GuestUtmFields> | null | undefined;
 
 const MESA_HOSTS = new Set(
   [
@@ -125,11 +128,13 @@ function sortViewsAscending(views: GuestPageViewRefererRow[]) {
 }
 
 /**
- * Acquisition summary from ordered page views.
- * First external referrer = earliest non-internal referer string.
- * Source = classification of that referer, or Direct when none / empty.
+ * Acquisition summary from ordered page views + optional first-touch UTMs.
+ * Precedence: first-touch utmSource → first external referrer → Direct.
  */
-export function deriveGuestAcquisition(views: GuestPageViewRefererRow[]) {
+export function deriveGuestAcquisition(
+  views: GuestPageViewRefererRow[],
+  utm?: GuestAcquisitionUtmInput,
+) {
   const ordered = sortViewsAscending(views);
   const landingPath = ordered[0]?.path || "";
   let firstExternalReferer = "";
@@ -143,10 +148,20 @@ export function deriveGuestAcquisition(views: GuestPageViewRefererRow[]) {
     latestExternalReferer = ref;
   }
 
-  const sourceClass = firstExternalReferer
-    ? classifyExternalTrafficSource(firstExternalReferer)
-    : "direct";
-  const source: GuestTrafficSource = sourceClass === "internal" ? "direct" : sourceClass;
+  const utmSource = utm?.utmSource?.trim() || null;
+  const utmMedium = utm?.utmMedium?.trim() || null;
+  const utmCampaign = utm?.utmCampaign?.trim() || null;
+  const fromUtm = classifyUtmSource(utmSource);
+
+  let source: GuestTrafficSource;
+  if (fromUtm) {
+    source = fromUtm;
+  } else {
+    const sourceClass = firstExternalReferer
+      ? classifyExternalTrafficSource(firstExternalReferer)
+      : "direct";
+    source = sourceClass === "internal" ? "direct" : sourceClass;
+  }
 
   return {
     landingPath,
@@ -154,6 +169,10 @@ export function deriveGuestAcquisition(views: GuestPageViewRefererRow[]) {
     latestExternalReferer,
     source,
     sourceLabel: guestTrafficSourceLabel(source),
+    utmSource,
+    utmMedium,
+    utmCampaign,
+    sourceFromUtm: Boolean(fromUtm),
   };
 }
 
