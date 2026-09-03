@@ -98,7 +98,7 @@ export function SiteHeader() {
                   href={link.href}
                   onClick={closeMenus}
                   aria-current={recipesCurrent}
-                  className={`px-3 py-2 text-sm font-semibold tracking-wide hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS} ${
+                  className={`py-2 pl-3 pr-1 text-sm font-semibold tracking-wide hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS} ${
                     recipesActive || megaOpen ? "text-terracotta" : "text-ink/80"
                   }`}
                 >
@@ -110,8 +110,15 @@ export function SiteHeader() {
                   aria-expanded={megaOpen}
                   aria-controls={RECIPES_DROPDOWN_ID}
                   aria-label={RECIPES_DISCLOSURE_LABEL}
-                  onClick={() => setMegaOpen((value) => !value)}
-                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center text-ink/80 hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS} ${
+                  onClick={(event) => {
+                    setMegaOpen((value) => !value);
+                    // Pointer activation focuses the button; clear sticky ring so it
+                    // does not read as a terracotta button box. Keyboard keeps focus.
+                    if (event.detail > 0) {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  className={`-ml-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center border-0 bg-transparent p-0 text-ink/80 shadow-none hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS} ${
                     recipesActive || megaOpen ? "text-terracotta" : ""
                   }`}
                 >
@@ -144,13 +151,15 @@ export function SiteHeader() {
                         ))}
                       </ul>
                     ))}
-                    <Link
-                      href="/recipes"
-                      onClick={closeMenus}
-                      className={`mt-4 inline-block border-t border-line pt-3 text-sm font-semibold text-terracotta hover:text-terracotta-dark ${PUBLIC_HEADER_NAV_FOCUS}`}
-                    >
-                      View all recipes →
-                    </Link>
+                    <div className="mt-4 border-t border-line pt-3">
+                      <Link
+                        href="/recipes"
+                        onClick={closeMenus}
+                        className={`text-sm font-semibold text-terracotta hover:text-terracotta-dark ${PUBLIC_HEADER_NAV_FOCUS}`}
+                      >
+                        View all recipes →
+                      </Link>
+                    </div>
                   </div>
                 ) : null}
               </div>

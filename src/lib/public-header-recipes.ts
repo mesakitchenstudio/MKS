@@ -4,9 +4,9 @@ export const RECIPES_DROPDOWN_ID = "recipes-dropdown";
 
 export const RECIPES_DISCLOSURE_LABEL = "Recipe categories";
 
-/** Mesa focus ring used on public header nav controls. */
+/** Mesa focus ring used on public header nav controls (keyboard :focus-visible only). */
 export const PUBLIC_HEADER_NAV_FOCUS =
-  "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+  "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
 /** Catalogue or recipe-detail routes under /recipes. */
 export function isRecipesSectionActive(pathname: string | null | undefined): boolean {

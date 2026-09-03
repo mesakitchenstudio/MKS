@@ -113,6 +113,7 @@ describe("public header Recipes desktop markup contracts", () => {
 
   it("toggles via disclosure click and closes on Escape, outside, and nav links", () => {
     assert.match(siteHeaderSource, /setMegaOpen\(\(value\) => !value\)/);
+    assert.match(siteHeaderSource, /event\.detail > 0/);
     assert.match(siteHeaderSource, /event\.key === "Escape"/);
     assert.match(siteHeaderSource, /disclosureRef\.current\?\.focus\(\)/);
     assert.match(siteHeaderSource, /window\.addEventListener\("mousedown"/);
@@ -132,7 +133,8 @@ describe("public header Recipes desktop markup contracts", () => {
     const desktop = desktopRecipesPanelSource();
     assert.match(desktop, /w-\[17rem\]/);
     assert.match(desktop, /View all recipes →/);
-    assert.match(desktop, /border-t border-line/);
+    assert.match(desktop, /mt-4 border-t border-line pt-3/);
+    assert.doesNotMatch(desktop, /inline-block border-t border-line/);
     assert.doesNotMatch(desktop, /uppercase tracking-\[0\.16em\] text-olive/);
     assert.doesNotMatch(desktop, /placeholder="Search/);
     assert.doesNotMatch(desktop, /Search recipes/);
@@ -140,7 +142,9 @@ describe("public header Recipes desktop markup contracts", () => {
   });
 
   it("applies Mesa focus-visible treatment on Recipes controls", () => {
+    assert.match(PUBLIC_HEADER_NAV_FOCUS, /outline-none/);
     assert.match(PUBLIC_HEADER_NAV_FOCUS, /focus-visible:outline-terracotta/);
+    assert.match(siteHeaderSource, /border-0 bg-transparent/);
     assert.match(siteHeaderSource, /PUBLIC_HEADER_NAV_FOCUS/);
     assert.match(siteHeaderSource, /recipesNavAriaCurrent/);
     assert.match(siteHeaderSource, /isRecipesSectionActive/);
