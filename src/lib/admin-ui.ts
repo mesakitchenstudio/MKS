@@ -62,8 +62,17 @@ export const adminMobileDrawerWidthClass = "w-[82vw] max-w-[22rem] shrink-0";
  */
 export const adminMobileDrawerZClass = "z-[60]";
 
-export const adminSidebarLinkClass =
-  "flex min-h-10 items-center rounded-sm px-3 text-sm font-semibold leading-snug transition-colors duration-150 motion-reduce:transition-none";
+/**
+ * Sidebar-only focus ring. Inset offset avoids clipping inside overflow-y-auto.
+ * Do not swap in for global `adminFocusRing` (used across the admin workspace).
+ */
+export const adminSidebarFocusRing =
+  "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-terracotta";
 
+/** Sidebar nav rows: ≥44px touch, 36px desktop. */
+export const adminSidebarLinkClass =
+  "flex min-h-11 items-center rounded-none px-3 text-sm font-medium leading-snug transition-colors duration-150 motion-reduce:transition-none lg:min-h-9";
+
+/** Section labels — apply top spacing per section index in the nav (not via first:). */
 export const adminSidebarSectionLabelClass =
-  "px-3 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive first:pt-0";
+  "px-3 pb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.11em] text-olive";

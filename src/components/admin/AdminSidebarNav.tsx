@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import type { AdminNavSection } from "@/lib/admin-nav";
 import { linkIsActive } from "@/lib/admin-nav";
 import type { AdminDeployInfo } from "@/lib/admin-deploy";
-import { formatAdminDeployLine } from "@/lib/admin-deploy";
 import {
   adminFocusRing,
   adminNavItemClass,
+  adminSidebarFocusRing,
   adminSidebarLinkClass,
   adminSidebarSectionLabelClass,
 } from "@/lib/admin-ui";
@@ -42,12 +42,12 @@ function SidebarLink({
   const pathname = usePathname();
   const active = linkIsActive(pathname, href, match);
 
-  const linkClass = `${adminSidebarLinkClass} ${adminFocusRing} ${
+  const linkClass = `${adminSidebarLinkClass} ${adminSidebarFocusRing} ${
     active
-      ? "border-l-2 border-terracotta bg-sand/40 pl-[calc(0.75rem-2px)] text-terracotta"
+      ? "border-l-2 border-terracotta bg-sand/25 pl-[calc(0.75rem-2px)] text-terracotta"
       : muted
-        ? "border-l-2 border-transparent text-muted hover:bg-cream/80 hover:text-terracotta"
-        : "border-l-2 border-transparent text-ink hover:bg-cream/80 hover:text-terracotta"
+        ? "border-l-2 border-transparent text-muted hover:bg-sand/20 hover:text-terracotta"
+        : "border-l-2 border-transparent text-ink hover:bg-sand/20 hover:text-ink"
   }`;
 
   const children = (
@@ -96,10 +96,12 @@ function NavSections({
 }) {
   return (
     <>
-      {sections.map((section) => (
+      {sections.map((section, index) => (
         <div key={section.id}>
-          <p className={adminSidebarSectionLabelClass}>{section.label}</p>
-          <ul className="m-0 list-none space-y-0.5 p-0">
+          <p className={`${adminSidebarSectionLabelClass} ${index === 0 ? "pt-0" : "pt-5"}`}>
+            {section.label}
+          </p>
+          <ul className="m-0 list-none space-y-0 p-0">
             {section.items.map((item) => (
               <li key={item.href}>
                 <SidebarLink
@@ -123,36 +125,40 @@ export const adminMobileDrawerNavScrollClass =
 
 const compactScrollFooterClass = "mt-4 border-t border-line/80 pt-4";
 
-function AccountFooter({
+function SidebarIdentity({
   displayName,
   roleLabel,
   deployInfo,
-  onNavigate,
 }: {
   displayName: string;
   roleLabel: string;
   deployInfo: AdminDeployInfo;
-  onNavigate?: () => void;
 }) {
   return (
-    <div className={compactScrollFooterClass}>
-      <p className="px-3 text-xs leading-snug text-muted">
-        <span className="block font-semibold text-ink/85">{displayName}</span>
-        <span>{roleLabel}</span>
+    <>
+      <p className="px-3 text-[0.8125rem] leading-snug text-ink/80">
+        <span className="block font-medium text-ink/90">{displayName}</span>
+        <span className="text-muted">{roleLabel}</span>
       </p>
       <p
-        className="mt-2 px-3 font-mono text-[0.65rem] leading-snug tracking-wide text-muted"
+        className="mt-1.5 px-3 font-mono text-[0.625rem] leading-snug tracking-wide text-muted/80"
         title={
           deployInfo.fullSha
             ? `Deployed commit ${deployInfo.fullSha} (${deployInfo.envLabel})`
             : "Local development build"
         }
       >
-        Build {formatAdminDeployLine(deployInfo)}
+        {deployInfo.envLabel} · {deployInfo.shortSha}
       </p>
+    </>
+  );
+}
 
-      <p className={`${adminSidebarSectionLabelClass} mt-3`}>Account</p>
-      <ul className="m-0 list-none space-y-0.5 p-0">
+function AccountLinks({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <>
+      <p className={`${adminSidebarSectionLabelClass} mt-4 pt-0`}>Account</p>
+      <ul className="m-0 list-none space-y-0 p-0">
         <li>
           <SidebarLink href="/admin/profile" label="Profile" match="prefix" onNavigate={onNavigate} />
         </li>
@@ -170,13 +176,32 @@ function AccountFooter({
           <form action="/admin/logout" method="post">
             <button
               type="submit"
-              className={`${adminSidebarLinkClass} ${adminFocusRing} w-full border-l-2 border-transparent text-left text-muted hover:bg-cream/80 hover:text-terracotta`}
+              className={`${adminSidebarLinkClass} ${adminSidebarFocusRing} w-full border-l-2 border-transparent text-left font-normal text-muted hover:bg-sand/20 hover:text-ink`}
             >
               Log out
             </button>
           </form>
         </li>
       </ul>
+    </>
+  );
+}
+
+function AccountFooter({
+  displayName,
+  roleLabel,
+  deployInfo,
+  onNavigate,
+}: {
+  displayName: string;
+  roleLabel: string;
+  deployInfo: AdminDeployInfo;
+  onNavigate?: () => void;
+}) {
+  return (
+    <div className={compactScrollFooterClass}>
+      <SidebarIdentity displayName={displayName} roleLabel={roleLabel} deployInfo={deployInfo} />
+      <AccountLinks onNavigate={onNavigate} />
     </div>
   );
 }
@@ -213,47 +238,8 @@ export function AdminSidebarNav({
       </div>
 
       <div className="shrink-0 border-t border-line/80 px-3 py-4">
-        <p className="px-3 text-xs leading-snug text-muted">
-          <span className="block font-semibold text-ink/85">{displayName}</span>
-          <span>{roleLabel}</span>
-        </p>
-        <p
-          className="mt-2 px-3 font-mono text-[0.65rem] leading-snug tracking-wide text-muted"
-          title={
-            deployInfo.fullSha
-              ? `Deployed commit ${deployInfo.fullSha} (${deployInfo.envLabel})`
-              : "Local development build"
-          }
-        >
-          Build {formatAdminDeployLine(deployInfo)}
-        </p>
-
-        <p className={`${adminSidebarSectionLabelClass} mt-3`}>Account</p>
-        <ul className="m-0 list-none space-y-0.5 p-0">
-          <li>
-            <SidebarLink href="/admin/profile" label="Profile" match="prefix" onNavigate={onNavigate} />
-          </li>
-          <li>
-            <SidebarLink
-              href="/"
-              label="View site"
-              match="exact"
-              onNavigate={onNavigate}
-              muted
-              leavesAdmin
-            />
-          </li>
-          <li>
-            <form action="/admin/logout" method="post">
-              <button
-                type="submit"
-                className={`${adminSidebarLinkClass} ${adminFocusRing} w-full border-l-2 border-transparent text-left text-muted hover:bg-cream/80 hover:text-terracotta`}
-              >
-                Log out
-              </button>
-            </form>
-          </li>
-        </ul>
+        <SidebarIdentity displayName={displayName} roleLabel={roleLabel} deployInfo={deployInfo} />
+        <AccountLinks onNavigate={onNavigate} />
       </div>
     </nav>
   );
