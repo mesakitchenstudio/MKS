@@ -104,16 +104,28 @@ function EditorFieldColumn({
 
 function FieldSectionMarker({
   section,
-  isFirst,
+  isListStart,
+  continued,
 }: {
   section: EditorSectionId;
-  isFirst: boolean;
+  isListStart: boolean;
+  continued: boolean;
 }) {
+  const label = TYPE_FIELD_SECTION_LABELS[section];
+
+  if (continued) {
+    return (
+      <header className={`${isListStart ? "pt-1" : "pt-4"} mb-0.5 border-b border-line/60 pb-1.5`}>
+        <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive/85">
+          {label} · Continued
+        </h3>
+      </header>
+    );
+  }
+
   return (
-    <header className={`${isFirst ? "pt-1" : "pt-7"} mb-1 border-b border-line/70 pb-2`}>
-      <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-        {TYPE_FIELD_SECTION_LABELS[section]}
-      </h3>
+    <header className={`${isListStart ? "pt-1" : "pt-7"} mb-1 border-b border-line/70 pb-2`}>
+      <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">{label}</h3>
       <p className="mt-1 text-xs leading-5 text-muted">
         {TYPE_FIELD_SECTION_DESCRIPTIONS[section]}
       </p>
@@ -312,8 +324,8 @@ function FieldEditor({
   }
 
   return (
-    <div className="border-l-2 border-olive/35 bg-cream/25 px-1 py-3.5 sm:px-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="border-l-2 border-olive/30 bg-cream/20 px-1 py-2.5 sm:px-2.5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <p className="text-sm font-semibold text-ink">{field.label}</p>
@@ -325,17 +337,17 @@ function FieldEditor({
             ) : null}
           </div>
           {field.isShared ? (
-            <p className="mt-2 max-w-xl text-xs leading-5 text-muted">
+            <p className="mt-1 max-w-xl text-xs leading-5 text-muted">
               Part of Mesa&apos;s core recipe fields. Label, help text, and required settings here
               apply to {typeName} only.
             </p>
           ) : (
-            <p className="mt-2 max-w-xl text-xs leading-5 text-muted">
+            <p className="mt-1 max-w-xl text-xs leading-5 text-muted">
               Only on {typeName} recipes.
             </p>
           )}
           {recipesWithData > 0 ? (
-            <p className="mt-2 text-xs leading-5 text-muted">
+            <p className="mt-1 text-xs leading-5 text-muted">
               {recipesWithData} {typeName} recipe{recipesWithData === 1 ? "" : "s"} store data under
               key <span className="font-mono text-ink/80">{field.key}</span>.
             </p>
@@ -345,25 +357,25 @@ function FieldEditor({
       </div>
 
       {fieldError === "field-type-locked" ? (
-        <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
+        <p className="mt-2 text-sm font-semibold text-terracotta" role="alert">
           Field type cannot change while recipes already store data for this field.
         </p>
       ) : null}
       {fieldError === "shared-schema-locked" ? (
-        <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
+        <p className="mt-2 text-sm font-semibold text-terracotta" role="alert">
           Shared schema fields cannot change data type or options from a recipe type.
         </p>
       ) : null}
       {fieldError === "require-confirm" ? (
-        <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
+        <p className="mt-2 text-sm font-semibold text-terracotta" role="alert">
           Confirm the required change, then save again.
         </p>
       ) : null}
 
-      <form ref={formRef} action={saveFieldAction} className="mt-4 grid gap-4">
+      <form ref={formRef} action={saveFieldAction} className="mt-3 grid gap-3">
         <input type="hidden" name="id" value={field.id} />
         <input type="hidden" name="typeId" value={typeId} />
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <EditorFieldColumn label="Label" htmlFor={labelId}>
             <input
               ref={labelRef}
@@ -487,7 +499,7 @@ function FieldEditor({
           />
           Required on publish
         </label>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={handleCancel} className={`${secondaryBtnClass} ${adminFocusRing}`}>
             Cancel
           </button>
@@ -503,7 +515,7 @@ function FieldEditor({
       </form>
 
       {!field.isShared ? (
-        <form ref={deleteFormRef} action={deleteFieldAction} className="mt-4 border-t border-line pt-4">
+        <form ref={deleteFormRef} action={deleteFieldAction} className="mt-3 border-t border-line/80 pt-3">
           <input type="hidden" name="id" value={field.id} />
           <input type="hidden" name="typeId" value={typeId} />
           <button
@@ -523,7 +535,7 @@ function FieldEditor({
           </button>
         </form>
       ) : (
-        <p className="mt-4 border-t border-line pt-4 text-xs text-muted">
+        <p className="mt-3 border-t border-line/80 pt-3 text-xs text-muted">
           Core recipe fields cannot be deleted from a type template.
         </p>
       )}
@@ -971,14 +983,19 @@ export function TypeFieldsManager({
         {visibleSectionRuns.length === 0 ? (
           <li className="py-6 text-sm text-muted">No fields match this filter.</li>
         ) : null}
-        {visibleSectionRuns.map(({ field, section, showSectionMarker }, index) => {
+        {visibleSectionRuns.map(
+          ({ field, section, showSectionMarker, isFirstSectionOccurrence }, index) => {
           const expanded = expandedId === field.id;
           const saved = visibleSavedFieldId === field.id;
           const showFieldError = expanded && fieldError && initialExpandedFieldId === field.id;
           return (
             <li key={field.id} id={`field-${field.id}`}>
               {showSectionMarker ? (
-                <FieldSectionMarker section={section} isFirst={index === 0} />
+                <FieldSectionMarker
+                  section={section}
+                  isListStart={index === 0}
+                  continued={!isFirstSectionOccurrence}
+                />
               ) : null}
               {expanded ? (
                 <FieldEditor
@@ -1010,7 +1027,8 @@ export function TypeFieldsManager({
               )}
             </li>
           );
-        })}
+        },
+        )}
       </ul>
     </section>
   );

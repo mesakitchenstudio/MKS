@@ -83,6 +83,10 @@ describe("Recipe Types Phase 2 visual section grouping", () => {
       runs.map((row) => row.showSectionMarker),
       [true, true, true, true],
     );
+    assert.deepEqual(
+      runs.map((row) => row.isFirstSectionOccurrence),
+      [true, true, true, false],
+    );
   });
 
   it("omits repeated markers inside a contiguous section run", () => {
@@ -96,16 +100,81 @@ describe("Recipe Types Phase 2 visual section grouping", () => {
       runs.map((row) => row.showSectionMarker),
       [true, false, true, false],
     );
+    assert.deepEqual(
+      runs.map((row) => row.isFirstSectionOccurrence),
+      [true, false, true, false],
+    );
   });
 
-  it("wires section markers into TypeFieldsManager from annotated flat order", () => {
+  it("marks later returns to a section as continuations without changing order", () => {
+    const runs = annotateTypeFieldSectionRuns([
+      { key: "image" },
+      { key: "intro" },
+      { key: "prepMinutes" },
+      { key: "ingredients" },
+      { key: "nutrition" },
+      { key: "tags" },
+      { key: "imageAlt" },
+      { key: "youtube" },
+    ]);
+    const markers = runs.filter((row) => row.showSectionMarker);
+    assert.deepEqual(
+      markers.map((row) => ({
+        section: row.section,
+        first: row.isFirstSectionOccurrence,
+      })),
+      [
+        { section: "media", first: true },
+        { section: "content", first: true },
+        { section: "details", first: true },
+        { section: "content", first: false },
+        { section: "advanced", first: true },
+        { section: "details", first: false },
+        { section: "media", first: false },
+        { section: "advanced", first: false },
+      ],
+    );
+  });
+
+  it("calculates first occurrence from the visible filtered list only", () => {
+    const all = annotateTypeFieldSectionRuns([
+      { key: "image" },
+      { key: "intro" },
+      { key: "ingredients" },
+    ]);
+    assert.equal(all[2].section, "content");
+    assert.equal(all[2].showSectionMarker, false);
+
+    // Required-style subset where Content is the first visible section
+    const filtered = annotateTypeFieldSectionRuns([{ key: "ingredients" }, { key: "notes" }]);
+    assert.equal(filtered[0].section, "content");
+    assert.equal(filtered[0].isFirstSectionOccurrence, true);
+    assert.equal(filtered[1].showSectionMarker, false);
+  });
+
+  it("wires full helpers for first occurrence and continued markers for repeats", () => {
     assert.match(typeFieldsManager, /annotateTypeFieldSectionRuns/);
     assert.match(typeFieldsManager, /FieldSectionMarker/);
-    assert.match(typeFieldsManager, /TYPE_FIELD_SECTION_LABELS/);
-    assert.match(typeFieldsManager, /showSectionMarker/);
-    assert.match(typeFieldsManager, /<h3[\s\S]*TYPE_FIELD_SECTION_LABELS/);
+    assert.match(typeFieldsManager, /isFirstSectionOccurrence/);
+    assert.match(typeFieldsManager, /continued=\{!isFirstSectionOccurrence\}/);
+    assert.match(typeFieldsManager, /\{label\} · Continued/);
+    assert.match(typeFieldsManager, /TYPE_FIELD_SECTION_DESCRIPTIONS\[section\]/);
+    assert.match(typeFieldsManager, /continued \? \(/);
     assert.equal(TYPE_FIELD_SECTION_LABELS.details, "Details");
     assert.match(TYPE_FIELD_SECTION_DESCRIPTIONS.media, /Hero image/);
+  });
+
+  it("keeps inline field edit quieter without changing actions or fields", () => {
+    assert.match(typeFieldsManager, /border-l-2 border-olive\/30 bg-cream\/20/);
+    assert.match(typeFieldsManager, /Save field/);
+    assert.match(typeFieldsManager, /Cancel/);
+    assert.match(typeFieldsManager, /Required on publish/);
+    assert.match(typeFieldsManager, /label="Label"/);
+    assert.match(typeFieldsManager, /label="Key"/);
+    assert.match(typeFieldsManager, /label="Kind"/);
+    assert.match(typeFieldsManager, /label="Help text"/);
+    assert.match(typeFieldsManager, /saveFieldAction/);
+    assert.doesNotMatch(typeFieldsManager, /drawer|slide-over|Dialog/i);
   });
 
   it("keeps flat sortOrder sort and does not rewrite order for grouping", () => {

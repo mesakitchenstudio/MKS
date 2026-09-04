@@ -97,6 +97,12 @@ export type TypeFieldSectionRun<T extends { key: string }> = {
   section: EditorSectionId;
   /** True when this field starts a new section run in the current flat sequence. */
   showSectionMarker: boolean;
+  /**
+   * True when this run is the first time `section` appears in the annotated list.
+   * False for later returns to the same section (continuation markers).
+   * Only meaningful when `showSectionMarker` is true.
+   */
+  isFirstSectionOccurrence: boolean;
 };
 
 /** Annotate an already-ordered field list with section-run markers. Does not reorder. */
@@ -104,11 +110,16 @@ export function annotateTypeFieldSectionRuns<T extends { key: string }>(
   orderedFields: T[],
 ): TypeFieldSectionRun<T>[] {
   let previousSection: EditorSectionId | null = null;
+  const seenSections = new Set<EditorSectionId>();
   return orderedFields.map((field) => {
     const section = editorSectionForTypeFieldKey(field.key);
     const showSectionMarker = previousSection !== section;
+    const isFirstSectionOccurrence = showSectionMarker && !seenSections.has(section);
+    if (showSectionMarker) {
+      seenSections.add(section);
+    }
     previousSection = section;
-    return { field, section, showSectionMarker };
+    return { field, section, showSectionMarker, isFirstSectionOccurrence };
   });
 }
 
