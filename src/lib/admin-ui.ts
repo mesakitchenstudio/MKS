@@ -40,8 +40,11 @@ export const adminWorkspaceWide = "max-w-[77.5rem]";
 /** Forms and editorial lists (types, categories, reviews, team). */
 export const adminWorkspaceStandard = "max-w-4xl";
 
-/** Account-oriented screens (profile). */
+/** Narrow account screens (legacy; prefer adminWorkspaceProfile for /admin/profile). */
 export const adminWorkspaceNarrow = "max-w-xl";
+
+/** Admin Profile page measure (~672px). */
+export const adminWorkspaceProfile = "max-w-2xl";
 
 /** @deprecated Use adminWorkspaceWide */
 export const adminWorkspaceMaxWidth = adminWorkspaceWide;

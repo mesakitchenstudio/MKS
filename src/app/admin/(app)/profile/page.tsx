@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { AdminProfilePhotoForm } from "@/components/admin/AdminPhotoField";
-import { accessLabel } from "@/lib/admin-access";
+import {
+  ADMIN_PROFILE_SYSTEM_OWNER_PHOTO_COPY,
+  adminProfilePhotoUsageCopy,
+  buildAdminProfileAccountView,
+} from "@/lib/admin-profile-ui";
 import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
 import { getAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -16,39 +20,35 @@ export default async function AdminProfilePage({
   if (!actor) redirect("/admin/login");
   const { saved, error } = await searchParams;
 
+  const isSystemOwner = actor.id === "env";
+  let accountName = actor.name;
+  let accountEmail = actor.email;
   let photoUrl = "";
-  let hasNamedAccount = actor.id !== "env";
-  try {
-    const db = getDb();
-    if (actor.id === "env") {
-      const row = await db.admin.findUnique({ where: { email: actor.email.toLowerCase() } });
+
+  if (!isSystemOwner) {
+    try {
+      const row = await getDb().admin.findUnique({ where: { id: actor.id } });
       photoUrl = row?.photoUrl || "";
-      hasNamedAccount = Boolean(row);
-    } else {
-      const row = await db.admin.findUnique({ where: { id: actor.id } });
-      photoUrl = row?.photoUrl || "";
+      accountName = row?.name?.trim() || actor.name;
+      accountEmail = row?.email || actor.email;
+    } catch {
+      photoUrl = "";
     }
-  } catch {
-    photoUrl = "";
   }
+
+  const account = buildAdminProfileAccountView({
+    isSystemOwner,
+    name: accountName,
+    role: actor.role,
+    email: accountEmail,
+  });
 
   return (
     <div className="w-full">
-      <header className="border-b border-line pb-4">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-olive">
-          Your account
-        </p>
-        <h1 className="mt-1.5 font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-          Profile photo
+      <header className="pb-2">
+        <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+          Profile
         </h1>
-        <p className="mt-2 max-w-lg text-sm leading-6 text-muted">
-          This photo appears when you reply to recipe comments as{" "}
-          <span className="font-semibold text-ink">{actor.name}</span>
-          <span className="text-muted"> · {accessLabel(actor.role)}</span>.
-        </p>
-        <p className="mt-1 max-w-lg text-sm leading-6 text-muted">
-          Google sign-in can set it automatically. Upload a custom image anytime to replace it.
-        </p>
       </header>
 
       {saved ? (
@@ -65,9 +65,9 @@ export default async function AdminProfilePage({
           role="alert"
           className="mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-2.5 text-sm text-terracotta-dark"
         >
-          Create a named owner account with this email on{" "}
+          Create a named Team Access account with this email on{" "}
           <Link href="/admin/staff" className={`${adminLinkClass} ${adminFocusRing} underline`}>
-            Admins
+            Team access
           </Link>{" "}
           first, then come back to upload a photo.
         </p>
@@ -90,15 +90,56 @@ export default async function AdminProfilePage({
         </p>
       ) : null}
 
-      <div className="mt-5">
-        <AdminProfilePhotoForm
-          key={photoUrl || "empty"}
-          defaultPhotoUrl={photoUrl}
-          actorName={actor.name}
-          canPersist={hasNamedAccount}
-          namedAccountHint={actor.id === "env" && !hasNamedAccount}
-        />
-      </div>
+      <section className="mt-6" aria-labelledby="profile-account-heading">
+        <h2
+          id="profile-account-heading"
+          className="text-[0.6875rem] font-semibold uppercase tracking-[0.11em] text-olive"
+        >
+          Account
+        </h2>
+        <div className="mt-3 space-y-1 text-sm leading-6">
+          <p className="font-medium text-ink">{account.displayName}</p>
+          <p className="text-muted">{account.roleLabel}</p>
+          {account.email ? <p className="text-muted">{account.email}</p> : null}
+          {account.sessionNote ? (
+            <p className="text-xs text-muted/80">{account.sessionNote}</p>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="mt-8 border-t border-line/80" />
+
+      <section className="mt-8" aria-labelledby="profile-photo-heading">
+        <h2
+          id="profile-photo-heading"
+          className="text-[0.6875rem] font-semibold uppercase tracking-[0.11em] text-olive"
+        >
+          Profile photo
+        </h2>
+
+        {isSystemOwner ? (
+          <div className="mt-3 max-w-xl space-y-3 text-sm leading-6 text-muted">
+            <p>{ADMIN_PROFILE_SYSTEM_OWNER_PHOTO_COPY}</p>
+            <p>
+              <Link
+                href="/admin/staff"
+                className={`${adminLinkClass} ${adminFocusRing} underline-offset-4 hover:underline`}
+              >
+                Team access →
+              </Link>
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <AdminProfilePhotoForm
+              key={photoUrl || "empty"}
+              defaultPhotoUrl={photoUrl}
+              actorName={account.displayName}
+              usageCopy={adminProfilePhotoUsageCopy(actor.role)}
+            />
+          </div>
+        )}
+      </section>
     </div>
   );
 }
