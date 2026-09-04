@@ -49,7 +49,7 @@ describe("Recipe editor Phase 1 presentation contracts", () => {
   });
 
   it("keeps H1 title, type label, status line, Preview, Update, and overflow", () => {
-    assert.match(editor, /<h1 className="font-serif/);
+    assert.match(editor, /<h1 className="[^"]*font-serif/);
     assert.match(editor, /\{typeName\}/);
     assert.match(editor, /documentStateLabel/);
     assert.match(editor, /"Unsaved"/);

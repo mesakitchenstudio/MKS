@@ -2250,21 +2250,29 @@ export function RecipeEditor({
         className="sticky top-0 z-50 -mx-5 w-auto border-b border-line/70 bg-[var(--cream)] px-5 transition-[padding] duration-150 motion-reduce:transition-none md:-mx-6 md:px-6"
       >
         <div className={mobileHeaderCompact ? "hidden md:block" : "block"}>
-          <div className="flex flex-col gap-2.5 py-2.5 lg:flex-row lg:items-center lg:justify-between md:py-2">
-            <div className="min-w-0">
+          <div className="flex flex-col gap-2.5 py-2.5 md:py-2 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
+            <div className="min-w-0 flex-1">
               <Link
                 href="/admin"
                 className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
               >
                 ← Recipes
               </Link>
-              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-                <h1 className="font-serif text-xl leading-tight text-ink md:text-2xl">{pageTitle}</h1>
-                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+              <div className="mt-0.5 flex min-w-0 items-baseline gap-x-2.5">
+                <h1 className="min-w-0 flex-1 font-serif text-xl leading-tight text-ink md:text-2xl">
+                  {pageTitle}
+                </h1>
+                <span className="hidden shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive 2xl:inline">
                   {typeName}
                 </span>
               </div>
-              <p className="mt-1 text-xs font-semibold text-muted">
+              <p className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-0 text-xs font-semibold text-muted">
+                <span className="mr-1.5 font-semibold uppercase tracking-[0.14em] text-olive 2xl:hidden">
+                  {typeName}
+                </span>
+                <span className="mr-1.5 text-line 2xl:hidden" aria-hidden>
+                  ·
+                </span>
                 <span className={documentStateIsUnsaved ? "text-terracotta" : "text-muted"}>
                   {documentStateLabel}
                 </span>
@@ -2282,7 +2290,7 @@ export function RecipeEditor({
                 ) : null}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
               {previewHref ? (
                 <Link
                   href={previewHref}
