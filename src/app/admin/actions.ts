@@ -11,6 +11,7 @@ import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure }
 import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
+import { coerceStringList, isPlainStringListKind } from "@/lib/coerce-string-list";
 import {
   countRecipesMissingFieldContent,
   countRecipesWithFieldContent,
@@ -391,9 +392,10 @@ function readDynamicValues(formData: FormData, fields: { key: string; kind: stri
     const raw = formData.get(`field:${field.key}`);
     if (typeof raw === "string") {
       try {
-        values[field.key] = JSON.parse(raw);
+        const parsed: unknown = JSON.parse(raw);
+        values[field.key] = isPlainStringListKind(field.kind) ? coerceStringList(parsed) : parsed;
       } catch {
-        values[field.key] = raw;
+        values[field.key] = isPlainStringListKind(field.kind) ? coerceStringList(raw) : raw;
       }
     } else {
       values[field.key] = emptyValue(field.kind);

@@ -1,4 +1,5 @@
 import { getGeminiClient } from "@/lib/ai-recipe/gemini-client";
+import { coerceStringList } from "@/lib/coerce-string-list";
 import {
   buildAiGeminiError,
   extractJsonFromModelText,
@@ -153,7 +154,7 @@ export async function generateTargetedRecipeFields(input: {
         });
         if (normalized == null) continue;
         if (field.path === "values.tags" && Array.isArray(normalized)) {
-          fields[field.path] = dedupeSuggestedTags(normalized.map((tag) => String(tag)));
+          fields[field.path] = dedupeSuggestedTags(coerceStringList(normalized));
         } else {
           fields[field.path] = normalized;
         }

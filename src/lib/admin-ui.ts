@@ -16,6 +16,10 @@ export const adminSelectClass =
 export const adminPrimaryButtonClass =
   "inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-terracotta px-5 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 motion-reduce:transition-none hover:bg-terracotta-dark active:scale-[0.995] active:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60";
 
+/** Compact primary for dense editorial chrome (recipe editor Update, index New recipe). */
+export const adminCompactPrimaryButtonClass =
+  "inline-flex min-h-9 shrink-0 items-center justify-center rounded-sm bg-terracotta px-3.5 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 motion-reduce:transition-none hover:bg-terracotta-dark active:scale-[0.995] active:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60";
+
 /** Secondary editor actions (save draft, move to draft, fill missing). */
 export const adminSecondaryButtonClass =
   "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";

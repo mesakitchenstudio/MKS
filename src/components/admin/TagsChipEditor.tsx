@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { adminFocusRing, adminSecondaryButtonClass, adminTertiaryButtonClass } from "@/lib/admin-ui";
+import { coerceStringList } from "@/lib/coerce-string-list";
 
 const COLLAPSE_AFTER = 12;
 
@@ -32,7 +33,7 @@ export function TagsChipEditor({
   const [draft, setDraft] = useState("");
   const [expanded, setExpanded] = useState(false);
 
-  const tags = value.map((tag) => String(tag ?? "").trim()).filter(Boolean);
+  const tags = coerceStringList(value);
   const hiddenCount = Math.max(0, tags.length - COLLAPSE_AFTER);
   const visible = expanded || hiddenCount === 0 ? tags : tags.slice(0, COLLAPSE_AFTER);
 

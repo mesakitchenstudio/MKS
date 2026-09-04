@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { adminFocusRing, adminSecondaryButtonClass, adminTertiaryButtonClass } from "@/lib/admin-ui";
+import { coerceStringList } from "@/lib/coerce-string-list";
 
 export function UtensilsChipEditor({
   value,
@@ -14,7 +15,7 @@ export function UtensilsChipEditor({
 }) {
   const inputId = useId();
   const [draft, setDraft] = useState("");
-  const items = value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  const items = coerceStringList(value);
 
   function addItem(raw: string) {
     const next = raw.trim();

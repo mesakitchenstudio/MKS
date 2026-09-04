@@ -1,5 +1,6 @@
 import { fieldValueHasContent } from "@/lib/field-content";
 import { emptyValue } from "@/lib/fields";
+import { coerceStringList } from "@/lib/coerce-string-list";
 import {
   buildProvenanceSnapshots,
   collectAppliedPaths,
@@ -442,7 +443,7 @@ function normalizeFieldValue(
     case "list":
     case "tags":
     case "gallery":
-      return Array.isArray(value) ? value.map((item) => String(item ?? "")) : [];
+      return coerceStringList(value);
     case "namedNotes":
       return normalizeNamedNotes(value, path, confidenceByPath, summary);
     case "ingredients":

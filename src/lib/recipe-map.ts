@@ -1,4 +1,5 @@
 import type { Category, Faq, IngredientGroup, InstructionGroup, Nutrition, Recipe } from "@/data/types";
+import { coerceStringList } from "@/lib/coerce-string-list";
 import { fieldValueHasContent } from "@/lib/field-content";
 import { CORE_VALUE_KEYS } from "@/lib/fields";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
@@ -35,7 +36,7 @@ function asNumber(value: unknown, fallback = 0) {
 }
 
 function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return coerceStringList(value);
 }
 
 function asFaqs(value: unknown): Faq[] {

@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { adminFocusRing, adminPrimaryButtonClass, adminSecondaryButtonClass } from "@/lib/admin-ui";
+import {
+  adminCompactPrimaryButtonClass,
+  adminFocusRing,
+  adminSecondaryButtonClass,
+} from "@/lib/admin-ui";
 
 export function EditorStickyActionBar({
   visible,
@@ -22,19 +26,22 @@ export function EditorStickyActionBar({
 }) {
   if (!visible) return null;
 
-  const documentState = isDirty && !saved ? "Unsaved changes" : saved ? "Saved" : "Saved";
+  const isUnsaved = isDirty && !saved;
+  const documentState = isUnsaved ? "Unsaved" : "Saved";
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-[var(--cream)]/95 px-4 py-2 backdrop-blur-sm md:px-6"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-line/80 bg-[var(--cream)]/95 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:px-6"
       role="region"
       aria-label="Recipe editor actions"
     >
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-muted">
-          {documentState}
-          <span className="mx-2 text-line">·</span>
-          {isPublished ? "Published" : "Draft"}
+      <div className="mx-auto flex max-w-[77.5rem] flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="min-w-0 text-xs font-semibold text-muted">
+          <span className={isUnsaved ? "text-terracotta" : "text-muted"}>{documentState}</span>
+          <span className="mx-1.5 text-line" aria-hidden>
+            ·
+          </span>
+          <span>{isPublished ? "Published" : "Draft"}</span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {previewHref ? (
@@ -42,7 +49,7 @@ export function EditorStickyActionBar({
               href={previewHref}
               target="_blank"
               rel="noreferrer"
-              className={`${adminSecondaryButtonClass} ${adminFocusRing} h-9 px-4 text-sm`}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-9 px-3 text-sm`}
             >
               Preview
             </Link>
@@ -50,7 +57,7 @@ export function EditorStickyActionBar({
           <button
             type="button"
             onClick={onPublish}
-            className={`${adminPrimaryButtonClass} ${adminFocusRing} h-9 px-4 text-sm`}
+            className={`${adminCompactPrimaryButtonClass} ${adminFocusRing}`}
           >
             {publishLabel}
           </button>

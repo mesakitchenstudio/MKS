@@ -1,4 +1,5 @@
 import { fieldValueHasContent, nutritionHasPublicContent } from "@/lib/field-content";
+import { coerceStringList } from "@/lib/coerce-string-list";
 import type { RecipeAiVideoContext } from "@/lib/ai-recipe/types";
 import type { AiConfidence } from "@/lib/ai-recipe/types";
 import type { SchemaCategory, SchemaField } from "@/lib/ai-recipe/schema-version";
@@ -760,10 +761,11 @@ export function fieldAiResponseSchemaHint(def: RecipeAiFieldDef | null, path: st
         ? `{ "value": "<one of: ${def.options.join(", ")}>" }`
         : '{ "value": "..." }';
     case "gemini_named_notes":
-    case "gemini_list":
       return path === "values.faqs" || def.key === "faqs"
         ? '{ "value": [{ "name": "question", "note": "answer" }] }'
-        : '{ "value": [{ "name": "...", "note": "..." }] } or string[] for lists';
+        : '{ "value": [{ "name": "...", "note": "..." }] }';
+    case "gemini_list":
+      return '{ "value": ["item one", "item two"] } — plain strings only, not objects.';
     default:
       return '{ "value": "..." }';
   }
@@ -911,8 +913,10 @@ export function normalizeFieldAiResponse(input: {
       ? raw
       : Array.isArray((raw as { tags?: unknown }).tags)
         ? (raw as { tags: unknown[] }).tags
-        : [];
-    const deduped = dedupeSuggestedTags(tags.map((tag) => String(tag ?? "")));
+        : Array.isArray(extractRawValue(raw))
+          ? (extractRawValue(raw) as unknown[])
+          : [];
+    const deduped = dedupeSuggestedTags(coerceStringList(tags));
     return deduped.length ? deduped : null;
   }
 
@@ -936,6 +940,11 @@ export function normalizeFieldAiResponse(input: {
       return evergreenHolidayValue(def?.options);
     }
     return null;
+  }
+
+  if (def?.strategy === "gemini_list" || def?.kind === "list" || def?.kind === "gallery") {
+    const list = coerceStringList(extractRawValue(raw));
+    return list.length ? list : null;
   }
 
   const extracted = extractRawValue(raw);

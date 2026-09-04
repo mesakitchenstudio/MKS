@@ -17,6 +17,7 @@ export function FieldAiFieldActions({
   categoryIds,
   busy,
   disabled,
+  emphasized = false,
   onAction,
 }: {
   path: string;
@@ -27,6 +28,7 @@ export function FieldAiFieldActions({
   categoryIds?: string[];
   busy?: boolean;
   disabled?: boolean;
+  emphasized?: boolean;
   onAction: (intent: FieldAiIntent) => void;
 }) {
   const hasContent = fieldPathHasContent({ path, kind, value, excerpt, categoryIds });
@@ -38,6 +40,7 @@ export function FieldAiFieldActions({
       busyLabel="Generating…"
       busy={busy}
       disabled={disabled}
+      emphasized={emphasized}
       onClick={() => onAction(hasContent ? "improve" : "generate")}
     />
   );

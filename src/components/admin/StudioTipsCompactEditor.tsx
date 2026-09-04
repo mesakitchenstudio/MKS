@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { EditorDragHandle, EditorRowActions } from "@/components/admin/EditorRowActions";
 import { adminFocusRing, adminInputClass } from "@/lib/admin-ui";
+import { coerceStringList } from "@/lib/coerce-string-list";
 
 const editorTextAction = `text-sm font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`;
 
@@ -22,11 +23,12 @@ export function StudioTipsCompactEditor({
   onChange: (value: string[]) => void;
 }) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const tips = coerceStringList(items);
 
   return (
     <div className="grid gap-2">
-      {items.map((item, index) => {
-        const preview = String(item ?? "").trim();
+      {tips.map((item, index) => {
+        const preview = item.trim();
         const expanded = expandedIndex === index;
         const oneLine = preview.replace(/\s+/g, " ");
 
@@ -47,10 +49,10 @@ export function StudioTipsCompactEditor({
               <EditorRowActions
                 itemLabel={`studio tip ${index + 1}`}
                 upDisabled={index === 0}
-                downDisabled={index === items.length - 1}
-                onMoveUp={() => onChange(moveArrayItem(items, index, index - 1))}
-                onMoveDown={() => onChange(moveArrayItem(items, index, index + 1))}
-                onRemove={() => onChange(items.filter((_, rowIndex) => rowIndex !== index))}
+                downDisabled={index === tips.length - 1}
+                onMoveUp={() => onChange(moveArrayItem(tips, index, index - 1))}
+                onMoveDown={() => onChange(moveArrayItem(tips, index, index + 1))}
+                onRemove={() => onChange(tips.filter((_, rowIndex) => rowIndex !== index))}
               />
             </div>
             {expanded ? (
@@ -60,7 +62,7 @@ export function StudioTipsCompactEditor({
                   rows={3}
                   aria-label={`Studio tip ${index + 1}`}
                   onChange={(event) => {
-                    const next = [...items];
+                    const next = [...tips];
                     next[index] = event.target.value;
                     onChange(next);
                   }}
@@ -71,7 +73,7 @@ export function StudioTipsCompactEditor({
           </div>
         );
       })}
-      <button type="button" className={editorTextAction} onClick={() => onChange([...items, ""])}>
+      <button type="button" className={editorTextAction} onClick={() => onChange([...tips, ""])}>
         + Add tip
       </button>
     </div>

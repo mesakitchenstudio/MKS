@@ -8,6 +8,7 @@ import {
   adminFocusRing,
   adminPrimaryButtonClass,
   adminSecondaryButtonClass,
+  adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
 import { youtubeVideoId } from "@/lib/youtube";
 import { mergeTargetedFillIntoEditor } from "@/lib/ai-recipe/targeted-merge";
@@ -125,7 +126,6 @@ export function AiRecipeAssistant({
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(true);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [fillBusy, setFillBusy] = useState(false);
   const [progressIndex, setProgressIndex] = useState(0);
@@ -415,15 +415,15 @@ export function AiRecipeAssistant({
   const anyBusy = busy || fillBusy;
 
   return (
-    <section className="border border-line bg-paper">
+    <section className="border-b border-line/70 pb-4">
       <button
         type="button"
-        className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left ${adminFocusRing}`}
+        className={`flex w-full items-start justify-between gap-3 py-1 text-left ${adminFocusRing}`}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((currentOpen) => !currentOpen)}
       >
-        <div>
+        <div className="min-w-0">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
             AI recipe assistant
           </p>
@@ -433,11 +433,13 @@ export function AiRecipeAssistant({
               : "Ready for review"}
           </p>
         </div>
-        <span className="text-sm font-semibold text-muted">{open ? "Hide" : "Show"}</span>
+        <span className="shrink-0 pt-0.5 text-xs font-semibold text-muted/70">
+          {open ? "Hide" : "Show"}
+        </span>
       </button>
 
       {open ? (
-        <div id={panelId} className="border-t border-line px-4 py-4">
+        <div id={panelId} className="mt-3 space-y-3">
           {linkedVideoId ? (
             <p className="text-sm text-muted">
               Using linked YouTube video{" "}
@@ -457,7 +459,7 @@ export function AiRecipeAssistant({
             </label>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               disabled={anyBusy || disabled || !typeId || fillEligibleCount === 0}
@@ -467,23 +469,49 @@ export function AiRecipeAssistant({
               {fillBusy
                 ? "Filling missing fields…"
                 : fillEligibleCount > 0
-                  ? `✦ Fill ${fillEligibleCount} missing field${fillEligibleCount === 1 ? "" : "s"}`
+                  ? `Fill ${fillEligibleCount} missing field${fillEligibleCount === 1 ? "" : "s"}`
                   : "Fill missing fields"}
             </button>
+            {aiMeta?.generatedByAI && onReviewEstimated ? (
+              <button
+                type="button"
+                className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                onClick={onReviewEstimated}
+              >
+                Review inferred fields
+              </button>
+            ) : null}
             {!hasSuccessfulGeneration || isNewSourceVideo ? (
               <button
                 type="button"
                 disabled={anyBusy || disabled || !currentVideoId}
                 onClick={() => void runInitialAnalyze(isNewSourceVideo)}
-                className={`${adminPrimaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 {isNewSourceVideo ? "Analyze new video" : "Analyze linked video"}
+              </button>
+            ) : null}
+            {aiMeta?.generatedByAI &&
+            aiMeta.verificationStatus !== "verified" &&
+            onMarkVerified ? (
+              <button
+                type="button"
+                className={`${adminTertiaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
+                disabled={blockingMissingCount > 0}
+                title={
+                  blockingMissingCount > 0
+                    ? "Resolve all required missing fields before verifying this recipe."
+                    : undefined
+                }
+                onClick={handleMarkStaffVerified}
+              >
+                Mark staff verified
               </button>
             ) : null}
           </div>
 
           {fillPreviewOpen && missingFields.length ? (
-            <div className="mt-3 rounded-sm border border-olive/25 bg-olive/5 px-3 py-3">
+            <div className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-3">
               <p className="text-sm font-semibold text-ink">
                 Fill {selectedFillPaths.length || missingFields.length} missing field
                 {(selectedFillPaths.length || missingFields.length) === 1 ? "" : "s"}
@@ -534,73 +562,45 @@ export function AiRecipeAssistant({
             </div>
           ) : null}
 
-          {aiMeta?.generatedByAI ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {onReviewEstimated ? (
+          <details className="group/ai-advanced">
+            <summary
+              className={`cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.12em] text-muted marker:content-none [&::-webkit-details-marker]:hidden ${adminFocusRing}`}
+            >
+              Advanced{" "}
+              <span className="font-normal normal-case tracking-normal text-muted/70 group-open/ai-advanced:hidden">
+                ▾
+              </span>
+              <span className="hidden font-normal normal-case tracking-normal text-muted/70 group-open/ai-advanced:inline">
+                ▴
+              </span>
+            </summary>
+            <div className="mt-2 space-y-2 border-t border-line/60 pt-2">
+              <button
+                type="button"
+                disabled={anyBusy || disabled || !currentVideoId}
+                onClick={() => void runReanalyzeFullVideo()}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                Reanalyze full video
+              </button>
+              <p className="text-xs text-muted">
+                Full re-analysis sends the video to Gemini and can take 1–5 minutes. Use Fill missing
+                fields for quick metadata updates.
+              </p>
+              {onDownloadJson ? (
                 <button
                   type="button"
                   className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-                  onClick={onReviewEstimated}
+                  onClick={onDownloadJson}
                 >
-                  Review inferred fields
-                </button>
-              ) : null}
-              {aiMeta.verificationStatus !== "verified" && onMarkVerified ? (
-                <button
-                  type="button"
-                  className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
-                  disabled={blockingMissingCount > 0}
-                  title={
-                    blockingMissingCount > 0
-                      ? "Resolve all required missing fields before verifying this recipe."
-                      : undefined
-                  }
-                  onClick={handleMarkStaffVerified}
-                >
-                  Mark staff verified
+                  Download AI JSON
                 </button>
               ) : null}
             </div>
-          ) : null}
-
-          <div className="mt-4 border-t border-line/80 pt-3">
-            <button
-              type="button"
-              className={`text-xs font-semibold uppercase tracking-[0.12em] text-muted ${adminFocusRing}`}
-              aria-expanded={advancedOpen}
-              onClick={() => setAdvancedOpen((value) => !value)}
-            >
-              Advanced {advancedOpen ? "▴" : "▾"}
-            </button>
-            {advancedOpen ? (
-              <div className="mt-2 space-y-2">
-                <button
-                  type="button"
-                  disabled={anyBusy || disabled || !currentVideoId}
-                  onClick={() => void runReanalyzeFullVideo()}
-                  className={`${adminSecondaryButtonClass} ${adminFocusRing} disabled:cursor-not-allowed disabled:opacity-60`}
-                >
-                  Reanalyze full video
-                </button>
-                <p className="text-xs text-muted">
-                  Full re-analysis sends the video to Gemini and can take 1–5 minutes. Use Fill missing
-                  fields for quick metadata updates.
-                </p>
-                {onDownloadJson ? (
-                  <button
-                    type="button"
-                    className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-                    onClick={onDownloadJson}
-                  >
-                    Download AI JSON
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+          </details>
 
           {busy ? (
-            <div className="mt-3 space-y-1" role="status" aria-live="polite">
+            <div className="space-y-1" role="status" aria-live="polite">
               <p className="flex items-center gap-2 text-sm text-muted">
                 <span
                   className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-olive"
@@ -616,21 +616,21 @@ export function AiRecipeAssistant({
             </div>
           ) : null}
 
-          {fillMessage ? <p className="mt-3 text-sm text-olive">{fillMessage}</p> : null}
+          {fillMessage ? <p className="text-sm text-olive">{fillMessage}</p> : null}
 
           {error ? (
-            <p className="mt-3 text-sm font-semibold text-terracotta" role="alert">
+            <p className="text-sm font-semibold text-terracotta" role="alert">
               {error}
             </p>
           ) : null}
 
-          <p className="mt-3 text-xs leading-relaxed text-muted">
+          <p className="text-xs leading-relaxed text-muted/80">
             AI-generated recipe information must be reviewed before publishing.
           </p>
 
           {applyDialog === "initial" ? (
             <div
-              className="mt-4 rounded-sm border border-line bg-cream/50 px-3 py-3"
+              className="rounded-sm border border-line bg-cream/50 px-3 py-3"
               role="dialog"
               aria-label="Apply AI draft to existing recipe"
             >
@@ -664,7 +664,7 @@ export function AiRecipeAssistant({
 
           {applyDialog === "regenerate" && pendingDraft ? (
             <div
-              className="mt-4 rounded-sm border border-line bg-cream/50 px-3 py-3"
+              className="rounded-sm border border-line bg-cream/50 px-3 py-3"
               role="dialog"
               aria-label="Apply reanalyzed AI draft"
             >
@@ -699,7 +699,7 @@ export function AiRecipeAssistant({
 
           {destructiveReplaceOpen && pendingReplaceMode ? (
             <div
-              className="mt-4 rounded-sm border border-terracotta/40 bg-terracotta/5 px-3 py-3"
+              className="rounded-sm border border-terracotta/40 bg-terracotta/5 px-3 py-3"
               role="dialog"
               aria-label="Confirm overwrite of verified recipe information"
             >
@@ -742,7 +742,7 @@ export function AiRecipeAssistant({
 
           {verifyConfirmOpen ? (
             <div
-              className="mt-4 rounded-sm border border-line bg-cream/40 px-3 py-3"
+              className="rounded-sm border border-line bg-cream/40 px-3 py-3"
               role="dialog"
               aria-label="Confirm staff verification"
             >

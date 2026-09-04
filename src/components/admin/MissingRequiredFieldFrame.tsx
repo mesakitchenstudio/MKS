@@ -24,7 +24,7 @@ export function MissingRequiredFieldFrame({
 
   if (!isMissing) {
     return (
-      <div id={id} data-recipe-field={fieldKey} className={className} style={style}>
+      <div id={id} data-recipe-field={fieldKey} className={`group/field ${className}`.trim()} style={style}>
         {children}
       </div>
     );
@@ -35,7 +35,7 @@ export function MissingRequiredFieldFrame({
       id={id}
       data-recipe-field={fieldKey}
       data-missing-required=""
-      className={`rounded-sm border border-terracotta/40 bg-terracotta/[0.07] p-3 ${isPulsing ? "mesa-missing-field-pulse" : ""} ${className}`.trim()}
+      className={`group/field rounded-sm border border-terracotta/40 bg-terracotta/[0.07] p-3 ${isPulsing ? "mesa-missing-field-pulse" : ""} ${className}`.trim()}
       style={style}
     >
       {children}

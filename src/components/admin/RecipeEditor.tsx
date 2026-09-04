@@ -70,6 +70,7 @@ import {
 } from "@/lib/ai-recipe/normalize";
 import { mergeTargetedFillIntoEditor, extractTargetedFieldValue } from "@/lib/ai-recipe/targeted-merge";
 import { readCurrentEditorFieldValue } from "@/lib/apply-editor-path";
+import { coerceStringList, isPlainStringListKind } from "@/lib/coerce-string-list";
 import {
   fieldPathHasContent,
   getRecipeFieldAiDef,
@@ -92,12 +93,10 @@ import { buildProvenanceAfterStaffEdit } from "@/lib/ai-recipe/field-state";
 import { noteHumanEditorChange, noteHumanYoutubeMetadataChange } from "@/lib/ai-recipe/field-tracking";
 import { FieldAiActionButton } from "@/components/admin/FieldAiActionButton";
 import {
-  adminDangerButtonClass,
+  adminCompactPrimaryButtonClass,
   adminFocusRing,
   adminInputClass,
-  adminPrimaryButtonClass,
   adminSecondaryButtonClass,
-  adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
 import {
   ADMIN_IMAGE_FORMAT_HELP,
@@ -252,6 +251,8 @@ function hydrateEditorValues(
       next[field.key] = rawValues.difficulty || "Easy";
     } else if (field.key === "youtube") {
       next[field.key] = youtubeMetadataToEditorState(rawValues.youtube);
+    } else if (isPlainStringListKind(field.kind)) {
+      next[field.key] = coerceStringList(rawValues[field.key] ?? emptyValue(field.kind));
     } else {
       next[field.key] = rawValues[field.key] ?? emptyValue(field.kind);
     }
@@ -286,7 +287,6 @@ function EditorSection({
   title,
   description,
   children,
-  emphasis = false,
   scrollTargetStyle,
 }: {
   id: string;
@@ -297,12 +297,8 @@ function EditorSection({
   scrollTargetStyle?: React.CSSProperties;
 }) {
   return (
-    <section
-      id={id}
-      style={scrollTargetStyle}
-      className="border border-line bg-paper p-5 md:p-6"
-    >
-      <header className={`mb-5 ${emphasis ? "border-b border-line pb-4" : ""}`}>
+    <section id={id} style={scrollTargetStyle} className="pt-1">
+      <header className="mb-5 border-b border-line/70 pb-3">
         <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">{title}</h2>
         {description ? <p className="mt-1.5 text-xs leading-relaxed text-muted">{description}</p> : null}
       </header>
@@ -320,9 +316,7 @@ function DetailSubgroup({
 }) {
   return (
     <div>
-      <h3 className="mb-3 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive/90">
-        {label}
-      </h3>
+      <h3 className="mb-3 text-sm font-semibold text-ink">{label}</h3>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{children}</div>
     </div>
   );
@@ -336,6 +330,7 @@ function FieldLabel({
   confidence,
   sourceNote,
   aiAction,
+  overflow,
 }: {
   label: string;
   required?: boolean;
@@ -344,18 +339,22 @@ function FieldLabel({
   confidence?: import("@/lib/ai-recipe/types").AiConfidence;
   sourceNote?: string;
   aiAction?: ReactNode;
+  overflow?: ReactNode;
 }) {
   return (
     <div className={compact ? "mb-1.5" : "mb-2"}>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
           <p className={`font-semibold text-ink ${compact ? "text-sm" : ""}`}>
             {label}
             {required ? <span className="text-terracotta"> *</span> : null}
           </p>
           {aiAction}
         </div>
-        <AiConfidenceBadge confidence={confidence} sourceNote={sourceNote} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <AiConfidenceBadge confidence={confidence} sourceNote={sourceNote} />
+          {overflow}
+        </div>
       </div>
       {helpText ? <p className="mt-0.5 text-xs text-muted">{helpText}</p> : null}
     </div>
@@ -713,6 +712,8 @@ export function RecipeEditor({
           (values.youtube as YoutubeMetadataEditorState) ?? youtubeMetadataToEditorState(undefined),
         );
         out[field.key] = JSON.stringify(blob ?? {});
+      } else if (isPlainStringListKind(field.kind)) {
+        out[field.key] = JSON.stringify(coerceStringList(values[field.key]));
       } else {
         out[field.key] = JSON.stringify(values[field.key] ?? emptyValue(field.kind));
       }
@@ -1904,25 +1905,26 @@ export function RecipeEditor({
                 value={values[field.key]}
                 busy={fieldAiBusy === fieldPath}
                 disabled={Boolean(aiMeta && isFieldLocked(fieldPath, aiMeta))}
+                emphasized={evaluatorReviewPaths.has(fieldPath)}
                 onAction={(intent) => void runFieldAi(fieldPath, field.key, intent)}
               />
             ) : undefined
           }
+          overflow={
+            aiMeta ? (
+              <FieldOverflowMenu
+                path={fieldPath}
+                label={displayLabel}
+                aiMeta={aiMeta}
+                canRunAi={showFieldAi && !isFieldLocked(fieldPath, aiMeta)}
+                onRunAi={(intent) => void runFieldAi(fieldPath, field.key, intent)}
+                onLock={() => lockFieldAtPath(fieldPath)}
+                onUnlock={() => unlockFieldAtPath(fieldPath)}
+                onConfirm={() => confirmFieldAtPath(fieldPath)}
+              />
+            ) : undefined
+          }
         />
-        {aiMeta ? (
-          <div className="-mt-1 flex justify-end">
-            <FieldOverflowMenu
-              path={fieldPath}
-              label={displayLabel}
-              aiMeta={aiMeta}
-              canRunAi={showFieldAi && !isFieldLocked(fieldPath, aiMeta)}
-              onRunAi={(intent) => void runFieldAi(fieldPath, field.key, intent)}
-              onLock={() => lockFieldAtPath(fieldPath)}
-              onUnlock={() => unlockFieldAtPath(fieldPath)}
-              onConfirm={() => confirmFieldAtPath(fieldPath)}
-            />
-          </div>
-        ) : null}
         {field.key === "youtube" ? (
           <YoutubeMetadataEditor
             value={values[field.key]}
@@ -2118,7 +2120,8 @@ export function RecipeEditor({
     );
   }
 
-  const documentStateLabel = isDirty && !saved ? "Unsaved changes" : "Saved";
+  const documentStateLabel = isDirty && !saved ? "Unsaved" : "Saved";
+  const documentStateIsUnsaved = isDirty && !saved;
   const publicationLabel = isPublished ? "Published" : "Draft";
   const reviewStateLabel =
     aiMeta?.generatedByAI && aiMeta.verificationStatus === "verified"
@@ -2133,10 +2136,10 @@ export function RecipeEditor({
       <div ref={actionBarSentinelRef} className="h-px w-full" aria-hidden />
       <div
         ref={stickyHeaderRef}
-        className="sticky top-0 z-50 -mx-5 mb-8 border-b border-line bg-[var(--cream)] px-5 transition-[padding] duration-150 motion-reduce:transition-none md:-mx-6 md:px-6 md:py-3"
+        className="sticky top-0 z-50 -mx-5 mb-6 border-b border-line/70 bg-[var(--cream)]/95 px-5 backdrop-blur-sm transition-[padding] duration-150 motion-reduce:transition-none md:-mx-6 md:px-6"
       >
         <div className={mobileHeaderCompact ? "hidden md:block" : "block"}>
-          <div className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between md:py-0">
+          <div className="flex flex-col gap-2.5 py-2.5 lg:flex-row lg:items-center lg:justify-between md:py-2">
             <div className="min-w-0">
               <Link
                 href="/admin"
@@ -2144,31 +2147,37 @@ export function RecipeEditor({
               >
                 ← Recipes
               </Link>
-              <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h1 className="font-serif text-2xl leading-tight text-ink md:text-[1.75rem]">{pageTitle}</h1>
-                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive/90">
+              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                <h1 className="font-serif text-xl leading-tight text-ink md:text-2xl">{pageTitle}</h1>
+                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
                   {typeName}
                 </span>
               </div>
               <p className="mt-1 text-xs font-semibold text-muted">
-                {documentStateLabel}
-                <span className="mx-2 text-line">·</span>
+                <span className={documentStateIsUnsaved ? "text-terracotta" : "text-muted"}>
+                  {documentStateLabel}
+                </span>
+                <span className="mx-1.5 text-line" aria-hidden>
+                  ·
+                </span>
                 {publicationLabel}
                 {reviewStateLabel ? (
                   <>
-                    <span className="mx-2 text-line">·</span>
+                    <span className="mx-1.5 text-line" aria-hidden>
+                      ·
+                    </span>
                     {reviewStateLabel}
                   </>
                 ) : null}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               {previewHref ? (
                 <Link
                   href={previewHref}
                   target="_blank"
                   rel="noreferrer"
-                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-9`}
                 >
                   Preview
                 </Link>
@@ -2180,7 +2189,7 @@ export function RecipeEditor({
                   aria-haspopup="menu"
                   aria-label="More actions"
                   onClick={() => setMoreMenuOpen((open) => !open)}
-                  className={`${adminTertiaryButtonClass} ${adminFocusRing} px-2.5`}
+                  className={`${adminFocusRing} inline-flex min-h-9 min-w-9 items-center justify-center rounded-sm text-sm font-semibold text-muted/60 transition-colors duration-150 hover:text-muted`}
                 >
                   ⋯
                 </button>
@@ -2238,7 +2247,7 @@ export function RecipeEditor({
               <button
                 type="button"
                 onClick={attemptUpdateRecipe}
-                className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                className={`${adminCompactPrimaryButtonClass} ${adminFocusRing}`}
               >
                 Update recipe
               </button>
@@ -2247,19 +2256,17 @@ export function RecipeEditor({
         </div>
 
         <div
-          className={`${mobileHeaderCompact ? "flex" : "hidden"} items-center gap-2 py-2 md:hidden`}
+          className={`${mobileHeaderCompact ? "flex" : "hidden"} items-center gap-2 py-1.5 md:hidden`}
         >
           <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={pageTitle}>
             {pageTitle}
           </p>
-          {isDirty && !saved ? (
-            <span className="sr-only">Unsaved changes</span>
-          ) : null}
+          {documentStateIsUnsaved ? <span className="sr-only">Unsaved</span> : null}
           <button
             type="button"
             onClick={attemptUpdateRecipe}
             aria-label="Update recipe"
-            className={`${adminPrimaryButtonClass} h-9 px-4 text-sm ${adminFocusRing}`}
+            className={`${adminCompactPrimaryButtonClass} ${adminFocusRing}`}
           >
             Update
           </button>
@@ -2271,7 +2278,7 @@ export function RecipeEditor({
       <form
         ref={formRef}
         action={saveRecipeAction}
-        className="grid gap-6 pb-24 [&_input:not([type='hidden']):not([type='file'])]:[scroll-margin-top:var(--recipe-editor-scroll-offset)] [&_select]:[scroll-margin-top:var(--recipe-editor-scroll-offset)] [&_textarea]:[scroll-margin-top:var(--recipe-editor-scroll-offset)]"
+        className="grid gap-8 pb-24 [&_input:not([type='hidden']):not([type='file'])]:[scroll-margin-top:var(--recipe-editor-scroll-offset)] [&_select]:[scroll-margin-top:var(--recipe-editor-scroll-offset)] [&_textarea]:[scroll-margin-top:var(--recipe-editor-scroll-offset)]"
         style={
           {
             "--recipe-editor-scroll-offset": `${scrollOffset}px`,
@@ -2400,7 +2407,7 @@ export function RecipeEditor({
               label="Title"
               isMissing={missingFieldKeySet.has("title")}
               isPulsing={pulsingFieldKey === "title"}
-              className="grid gap-1.5 md:col-span-2"
+              className="group/field grid gap-1.5 md:col-span-2"
               style={scrollTargetStyle}
             >
             <label className="grid gap-1.5">
@@ -2415,6 +2422,7 @@ export function RecipeEditor({
                     strategy="gemini_semantic"
                     value={title}
                     busy={fieldAiBusy === "title"}
+                    emphasized={evaluatorReviewPaths.has("title")}
                     onAction={(intent) => void runFieldAi("title", "title", intent)}
                   />
                 </span>
@@ -2490,7 +2498,7 @@ export function RecipeEditor({
                 className={compactInputClass}
               />
             </label>
-            <label id="recipe-field-excerpt" className="grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
+            <label id="recipe-field-excerpt" className="group/field grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
               <span className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-ink">Excerpt</span>
@@ -2500,6 +2508,7 @@ export function RecipeEditor({
                     excerpt={excerpt}
                     value={excerpt}
                     busy={fieldAiBusy === "excerpt"}
+                    emphasized={evaluatorReviewPaths.has("excerpt")}
                     onAction={(intent) => void runFieldAi("excerpt", "excerpt", intent)}
                   />
                 </span>
@@ -2538,9 +2547,7 @@ export function RecipeEditor({
             </label>
 
             <div className="md:col-span-2 border-t border-line/80 pt-5">
-              <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive/90">
-                Discovery
-              </h3>
+              <h3 className="text-sm font-semibold text-ink">Discovery</h3>
               <p className="mt-1 text-xs text-muted">
                 Editorial flags and taxonomy for menus, filters, and featured placement.
               </p>
@@ -2575,6 +2582,7 @@ export function RecipeEditor({
                       categoryIds={categoryIds}
                       value={categoryIds}
                       busy={fieldAiBusy === "categoryIds"}
+                      emphasized={evaluatorReviewPaths.has("categoryIds")}
                       onAction={(intent) => void runFieldAi("categoryIds", "categoryIds", intent)}
                     />
                     <AiConfidenceBadge
@@ -2792,7 +2800,7 @@ export function RecipeEditor({
           <section
             id={SECTION_ADVANCED}
             style={scrollTargetStyle}
-            className="border border-line bg-paper"
+            className="border-t border-line/70 pt-1"
           >
             <button
               type="button"
@@ -2800,7 +2808,7 @@ export function RecipeEditor({
               onClick={() => setAdvancedOpen((open) => !open)}
               aria-expanded={advancedOpen}
               aria-controls="recipe-advanced-panel"
-              className={`block w-full cursor-pointer px-5 py-4 text-left md:px-6 ${adminFocusRing}`}
+              className={`block w-full cursor-pointer py-3 text-left ${adminFocusRing}`}
             >
               <div className="flex items-center justify-between gap-4">
                 <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
@@ -2820,7 +2828,7 @@ export function RecipeEditor({
                 id="recipe-advanced-panel"
                 role="region"
                 aria-labelledby="recipe-advanced-toggle"
-                className="border-t border-line px-5 py-5 md:px-6"
+                className="border-t border-line/70 pb-2 pt-5"
               >
                 {renderSectionCompletenessBanner("advanced")}
                 <div className="grid gap-5 md:grid-cols-2">
@@ -3188,22 +3196,24 @@ function KindInput({
     );
   }
   if (kind === "tags") {
-    const items = Array.isArray(value) ? (value as string[]) : [];
-    return <TagsChipEditor value={items} onChange={(next) => onChange(next)} />;
+    const items = coerceStringList(value);
+    return <TagsChipEditor value={items} onChange={(next) => onChange(coerceStringList(next))} />;
   }
   if (fieldKey === "utensils") {
-    const items = Array.isArray(value) ? (value as string[]) : [];
-    return <UtensilsChipEditor value={items} onChange={(next) => onChange(next)} />;
+    const items = coerceStringList(value);
+    return <UtensilsChipEditor value={items} onChange={(next) => onChange(coerceStringList(next))} />;
   }
   if (kind === "list") {
-    const items = Array.isArray(value) ? (value as string[]) : [];
+    const items = coerceStringList(value);
     if (fieldKey === "tips") {
-      return <StudioTipsCompactEditor items={items} onChange={(next) => onChange(next)} />;
+      return (
+        <StudioTipsCompactEditor items={items} onChange={(next) => onChange(coerceStringList(next))} />
+      );
     }
     return (
       <ListEditor
         items={items}
-        onChange={onChange}
+        onChange={(next) => onChange(coerceStringList(next))}
         placeholder="Item"
         compact={compact}
       />
@@ -3389,16 +3399,17 @@ function ListEditor({
   compact?: boolean;
 }) {
   const inputClass = compact ? compactInputClass : adminInputClass;
+  const rows = coerceStringList(items);
   return (
     <div className="grid gap-2">
-      {items.map((item, index) => (
+      {rows.map((item, index) => (
         <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             value={item}
             placeholder={placeholder}
             aria-label={`${placeholder} ${index + 1}`}
             onChange={(event) => {
-              const next = [...items];
+              const next = [...rows];
               next[index] = event.target.value;
               onChange(next);
             }}
@@ -3408,13 +3419,13 @@ function ListEditor({
             type="button"
             aria-label={`Remove ${placeholder.toLowerCase()} ${index + 1}`}
             className={`${removeActionClass} self-start sm:shrink-0`}
-            onClick={() => onChange(items.filter((_, i) => i !== index))}
+            onClick={() => onChange(rows.filter((_, i) => i !== index))}
           >
             Remove
           </button>
         </div>
       ))}
-      <button type="button" className={editorTextAction} onClick={() => onChange([...items, ""])}>
+      <button type="button" className={editorTextAction} onClick={() => onChange([...rows, ""])}>
         + Add item
       </button>
     </div>

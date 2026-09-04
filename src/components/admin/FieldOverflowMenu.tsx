@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { adminFocusRing, adminTertiaryButtonClass } from "@/lib/admin-ui";
+import { adminFocusRing } from "@/lib/admin-ui";
 import {
   isFieldLocked,
   resolveFieldReviewState,
@@ -76,7 +76,7 @@ export function FieldOverflowMenu({
             aria-expanded={open}
             aria-controls={menuId}
             aria-label={`Field actions for ${label}`}
-            className={`${adminTertiaryButtonClass} ${adminFocusRing} px-1.5 py-0.5 text-xs leading-none`}
+            className={`${adminFocusRing} inline-flex min-h-8 min-w-8 items-center justify-center rounded-sm px-1.5 text-sm leading-none text-muted/50 transition-colors duration-150 motion-reduce:transition-none hover:text-muted focus-visible:text-muted`}
             onClick={() => setOpen((value) => !value)}
           >
             ⋯
