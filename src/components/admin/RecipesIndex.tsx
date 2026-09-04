@@ -258,7 +258,11 @@ export function RecipesIndex({
         <NoResultsEmptyState onClearFilters={clearFilters} />
       ) : showResults ? (
         <>
-          <div className="hidden md:block">
+          {/*
+            Table only at xl+: sidebar appears at lg (15rem), leaving too little
+            content width for Updated + Actions until ~1280px viewport.
+          */}
+          <div className="hidden xl:block">
             <table className="w-full table-fixed text-left text-sm">
               <colgroup>
                 <col className="w-[38%]" />
@@ -322,7 +326,7 @@ export function RecipesIndex({
             <p className="mt-3 text-xs text-muted">Times in GMT</p>
           </div>
 
-          <ul className="divide-y divide-line/70 border-y border-line/70 md:hidden">
+          <ul className="divide-y divide-line/70 border-y border-line/70 xl:hidden">
             {filtered.map((recipe) => {
               const published = normalizeStatus(recipe.status) === "published";
               return (
@@ -342,12 +346,12 @@ export function RecipesIndex({
                       {formatAdminDateTimeUtc(recipe.updatedAt)}
                     </time>
                   </p>
-                  <RecipeActions recipe={recipe} published={published} className="mt-1" />
+                  <RecipeActions recipe={recipe} published={published} className="mt-1.5" />
                 </li>
               );
             })}
           </ul>
-          <p className="mt-3 text-xs text-muted md:hidden">Times in GMT</p>
+          <p className="mt-3 text-xs text-muted xl:hidden">Times in GMT</p>
         </>
       ) : null}
     </div>

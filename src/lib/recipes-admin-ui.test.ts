@@ -76,6 +76,7 @@ describe("Recipes admin index UI contracts", () => {
 
   it("keeps semantic desktop table with editor title link and Edit", () => {
     assert.match(index, /<table/);
+    assert.match(index, /hidden xl:block/);
     assert.match(index, /scope="col"/);
     assert.match(index, /sr-only">Actions</);
     assert.match(index, /href=\{`\/admin\/recipes\/\$\{recipe\.id\}`\}/);
@@ -120,10 +121,15 @@ describe("Recipes admin index UI contracts", () => {
     assert.doesNotMatch(index, /deleteRecipeAction|DeleteRecipeButton/);
   });
 
-  it("uses compact mobile list rows without card cages", () => {
-    assert.match(index, /md:hidden/);
+  it("uses compact rows below xl so sidebar-constrained widths do not squeeze the table", () => {
+    assert.match(index, /xl:hidden/);
+    assert.match(index, /hidden xl:block/);
+    assert.doesNotMatch(index, /hidden md:block/);
+    assert.doesNotMatch(index, /md:hidden/);
     assert.match(index, /divide-y divide-line\/70/);
-    assert.doesNotMatch(index, /space-y-3 md:hidden/);
+    assert.match(index, /RecipeActions/);
+    assert.doesNotMatch(index, /overflow-x-auto/);
+    assert.doesNotMatch(index, /space-y-3 xl:hidden/);
   });
 
   it("preserves Owner/Editor content access and Audience denial", () => {
