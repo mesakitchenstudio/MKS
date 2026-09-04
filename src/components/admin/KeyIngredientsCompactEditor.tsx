@@ -26,7 +26,6 @@ export function KeyIngredientsCompactEditor({
   typeFields,
   fieldAiBusy = null,
   fieldSuggestions = {},
-  fieldAiNotice = {},
   onRunFieldAi,
   onApplyFieldSuggestion,
   onClearFieldSuggestion,
@@ -55,8 +54,23 @@ export function KeyIngredientsCompactEditor({
   const expandedIndex = controlledExpandedIndex ?? internalExpandedIndex;
   const setExpandedIndex = onExpandedIndexChange ?? setInternalExpandedIndex;
 
+  if (!items.length) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 py-1">
+        <p className="text-sm text-muted">No key ingredients yet.</p>
+        <button
+          type="button"
+          className={editorTextAction}
+          onClick={() => onChange([{ name: "", note: "" }])}
+        >
+          + Add item
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-2">
+    <div className="max-w-3xl space-y-1.5">
       {items.map((item, index) => {
         const name = String(item.name ?? "").trim();
         const note = String(item.note ?? "").trim();
@@ -69,27 +83,27 @@ export function KeyIngredientsCompactEditor({
             key={index}
             id={recipeGranularAnchorId(notePath)}
             data-recipe-field-path={notePath}
-            className={`border border-line/80 ${pulsingPath === notePath ? "mesa-nav-field-pulse" : ""}`}
+            className={`border-b border-line/60 last:border-b-0 ${pulsingPath === notePath ? "mesa-nav-field-pulse" : ""}`}
           >
             <button
               type="button"
               aria-expanded={expanded}
-              className={`flex w-full flex-col items-start gap-1 px-3 py-2.5 text-left hover:bg-cream/40 sm:flex-row sm:items-center sm:justify-between ${adminFocusRing}`}
+              className={`flex w-full flex-col items-start gap-0.5 py-2 text-left sm:flex-row sm:items-center sm:justify-between ${adminFocusRing}`}
               onClick={() => setExpandedIndex(expanded ? null : index)}
             >
               <span className="font-semibold text-ink">{name || `Key ingredient ${index + 1}`}</span>
-              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+              <span className="text-xs text-muted">
                 {missingExplanation ? (
-                  <span className="text-terracotta">Missing explanation</span>
+                  <span className="font-semibold text-terracotta">Missing explanation</span>
                 ) : note ? (
-                  <span className="line-clamp-1 max-w-md normal-case tracking-normal text-muted">{note}</span>
+                  <span className="line-clamp-1 max-w-md">{note}</span>
                 ) : (
                   "Empty"
                 )}
               </span>
             </button>
             {expanded ? (
-              <div className="grid gap-3 border-t border-line/70 px-3 py-3 md:grid-cols-2">
+              <div className="grid gap-3 border-t border-line/50 pb-3 pt-2 md:grid-cols-2">
                 <label className="grid gap-1.5 text-sm">
                   <span className="font-semibold text-ink">Ingredient</span>
                   <input
@@ -118,7 +132,7 @@ export function KeyIngredientsCompactEditor({
                   onApplyFieldSuggestion &&
                   onClearFieldSuggestion &&
                   isRecipeFieldAiSupported(notePath, typeFields) ? (
-                    <div className="grid gap-1.5">
+                    <div className="group/field grid gap-1.5">
                       <FieldAiActionButton
                         label={resolveFieldAiActionLabel({
                           path: notePath,

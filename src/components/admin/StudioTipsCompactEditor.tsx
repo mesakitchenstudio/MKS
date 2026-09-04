@@ -26,23 +26,23 @@ export function StudioTipsCompactEditor({
   const tips = coerceStringList(items);
 
   return (
-    <div className="grid gap-2">
+    <div className="max-w-3xl space-y-1.5">
       {tips.map((item, index) => {
         const preview = item.trim();
         const expanded = expandedIndex === index;
         const oneLine = preview.replace(/\s+/g, " ");
 
         return (
-          <div key={index} className="border border-line/80">
-            <div className="flex items-start gap-2 px-2 py-2">
+          <div key={index} className="border-b border-line/60 last:border-b-0">
+            <div className="flex items-start gap-2 py-1.5">
               <EditorDragHandle label={`studio tip ${index + 1}`} />
               <button
                 type="button"
                 aria-expanded={expanded}
-                className={`min-w-0 flex-1 text-left ${adminFocusRing}`}
+                className={`min-w-0 flex-1 py-1 text-left ${adminFocusRing}`}
                 onClick={() => setExpandedIndex(expanded ? null : index)}
               >
-                <span className="block truncate text-sm font-semibold text-ink">
+                <span className="block truncate text-sm text-ink">
                   {oneLine || `Tip ${index + 1}`}
                 </span>
               </button>
@@ -56,7 +56,7 @@ export function StudioTipsCompactEditor({
               />
             </div>
             {expanded ? (
-              <div className="border-t border-line/70 px-3 pb-3 pt-2">
+              <div className="pb-2 pl-8">
                 <textarea
                   value={item}
                   rows={3}

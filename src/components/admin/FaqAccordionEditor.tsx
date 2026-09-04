@@ -12,7 +12,7 @@ import {
   type FieldAiIntent,
 } from "@/lib/ai-recipe/field-ai-registry";
 import { recipeGranularAnchorId } from "@/lib/recipe-editor-field-anchor";
-import { adminFocusRing, adminInputClass, adminTertiaryButtonClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminInputClass } from "@/lib/admin-ui";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
 
 const compactInputClass =
@@ -52,7 +52,7 @@ function FaqGranularAi({
   const suggestion = fieldSuggestions[path];
   const busy = fieldAiBusy === path;
   return (
-    <div className="grid gap-1.5">
+    <div className="group/field grid gap-1.5">
       <FieldAiActionButton label={label} busy={busy} onClick={() => onRunFieldAi(path, parentKey)} />
       {suggestion ? (
         <FieldAiSuggestionPanel
@@ -109,8 +109,23 @@ export function FaqAccordionEditor({
   const expanded = expandedRows ?? internalExpanded;
   const toggle = onToggleRow ?? ((index: number) => setInternalExpanded((c) => ({ ...c, [index]: !c[index] })));
 
+  if (!items.length) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 py-1">
+        <p className="text-sm text-muted">No questions yet.</p>
+        <button
+          type="button"
+          className={editorTextAction}
+          onClick={() => onChange([{ name: "", note: "" }])}
+        >
+          + Add question
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-2">
+    <div className="max-w-3xl space-y-1.5">
       {items.map((item, index) => {
         const question = String(item.name ?? "").trim();
         const answer = String(item.note ?? "").trim();
@@ -125,18 +140,18 @@ export function FaqAccordionEditor({
             key={index}
             id={recipeGranularAnchorId(notePath)}
             data-recipe-field-path={notePath}
-            className={`border border-line/80 ${pulsingPath === notePath || pulsingPath === namePath ? "mesa-nav-field-pulse" : ""}`}
+            className={`border-b border-line/60 last:border-b-0 ${pulsingPath === notePath || pulsingPath === namePath ? "mesa-nav-field-pulse" : ""}`}
           >
             <button
               type="button"
               aria-expanded={isOpen}
-              className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-cream/40 ${adminFocusRing}`}
+              className={`flex w-full items-center justify-between gap-3 py-2 text-left ${adminFocusRing}`}
               onClick={() => toggle(index)}
             >
               <span className="min-w-0 truncate font-semibold text-ink">{summary}</span>
-              <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+              <span className="shrink-0 text-xs text-muted">
                 {missingAnswer ? (
-                  <span className="text-terracotta">Missing answer</span>
+                  <span className="font-semibold text-terracotta">Missing answer</span>
                 ) : answer ? (
                   "Answered"
                 ) : (
@@ -145,7 +160,7 @@ export function FaqAccordionEditor({
               </span>
             </button>
             {isOpen ? (
-              <div className="grid gap-3 border-t border-line/70 px-3 py-3 md:grid-cols-2">
+              <div className="grid gap-3 border-t border-line/50 pb-3 pt-2 md:grid-cols-2">
                 <label className="grid gap-1.5 text-sm">
                   <span className="font-semibold text-ink">Question</span>
                   <input
@@ -160,7 +175,7 @@ export function FaqAccordionEditor({
                   />
                 </label>
                 <label className="grid gap-1.5 text-sm">
-                  <span className="font-semibold text-ink">Answer</span>
+                  <span className="font-semibold text-muted">Answer</span>
                   <textarea
                     value={item.note || ""}
                     placeholder="Answer"

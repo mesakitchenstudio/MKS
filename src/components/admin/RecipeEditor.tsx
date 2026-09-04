@@ -310,14 +310,30 @@ function EditorSection({
 function DetailSubgroup({
   label,
   children,
+  layout = "default",
+  description,
 }: {
   label: string;
   children: React.ReactNode;
+  layout?: "default" | "yield" | "timing" | "classification" | "medium";
+  description?: string;
 }) {
+  const gridClass =
+    layout === "yield"
+      ? "grid max-w-md grid-cols-[minmax(4.5rem,5.5rem)_minmax(8rem,1fr)] gap-3"
+      : layout === "timing"
+        ? "grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
+        : layout === "classification"
+          ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          : layout === "medium"
+            ? "grid max-w-3xl gap-4"
+            : "grid gap-4 md:grid-cols-2 lg:grid-cols-3";
+
   return (
-    <div>
-      <h3 className="mb-3 text-sm font-semibold text-ink">{label}</h3>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{children}</div>
+    <div className="border-t border-line/70 pt-5 first:border-t-0 first:pt-0">
+      <h3 className="mb-1 text-sm font-semibold text-ink">{label}</h3>
+      {description ? <p className="mb-3 text-xs text-muted">{description}</p> : null}
+      <div className={`${gridClass} ${description ? "" : "mt-3"}`}>{children}</div>
     </div>
   );
 }
@@ -1835,7 +1851,15 @@ export function RecipeEditor({
 
   function renderField(
     field: Field,
-    { compact = false, emphasis = false }: { compact?: boolean; emphasis?: boolean } = {},
+    {
+      compact = false,
+      emphasis = false,
+      detailsLayout,
+    }: {
+      compact?: boolean;
+      emphasis?: boolean;
+      detailsLayout?: "servings" | "unit" | "timing";
+    } = {},
   ) {
     const isWide =
       field.kind === "textarea" ||
@@ -1852,7 +1876,9 @@ export function RecipeEditor({
         ? bakeTimeDisplayLabel(typeName, field.label)
         : field.key === "imageAlt"
           ? "Image description (alt text)"
-          : field.label;
+          : detailsLayout === "unit"
+            ? "Unit"
+            : field.label;
 
     const displayHelp =
       field.key === "imageAlt"
@@ -1887,7 +1913,15 @@ export function RecipeEditor({
         isMissing={missingFieldKeySet.has(field.key)}
         isPulsing={pulsingFieldKey === field.key}
         style={scrollTargetStyle}
-        className={isWide ? "md:col-span-2" : ""}
+        className={
+          detailsLayout === "timing"
+            ? "min-w-0"
+            : detailsLayout === "servings" || detailsLayout === "unit"
+              ? "min-w-0"
+              : isWide
+                ? "md:col-span-2"
+                : ""
+        }
       >
         <FieldLabel
           label={displayLabel}
@@ -2401,158 +2435,179 @@ export function RecipeEditor({
           description="Identity, summary, and discovery settings."
         >
           {renderSectionCompletenessBanner("basics")}
-          <div className="grid gap-4 md:grid-cols-2">
-            <MissingRequiredFieldFrame
-              fieldKey="title"
-              label="Title"
-              isMissing={missingFieldKeySet.has("title")}
-              isPulsing={pulsingFieldKey === "title"}
-              className="group/field grid gap-1.5 md:col-span-2"
-              style={scrollTargetStyle}
-            >
-            <label className="grid gap-1.5">
-              <span className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold text-ink">
-                    Title<span className="text-terracotta"> *</span>
-                  </span>
-                  <FieldAiFieldActions
-                    path="title"
-                    kind="text"
-                    strategy="gemini_semantic"
-                    value={title}
-                    busy={fieldAiBusy === "title"}
-                    emphasized={evaluatorReviewPaths.has("title")}
-                    onAction={(intent) => void runFieldAi("title", "title", intent)}
-                  />
-                </span>
-                <AiConfidenceBadge
-                  confidence={activeAiAnnotation("title", "text", title).confidence}
-                  sourceNote={activeAiAnnotation("title", "text", title).sourceNote}
-                />
-              </span>
-              <input
-                name="title"
-                required
-                value={title}
-                onChange={(event) => {
-                  onTitleChange(event.target.value);
-                  if (fieldErrors.title) {
-                    setFieldErrors((current) => {
-                      const next = { ...current };
-                      delete next.title;
-                      return next;
-                    });
-                  }
-                }}
-                aria-invalid={Boolean(fieldErrors.title)}
-                className={`${adminInputClass} text-base font-semibold md:text-lg ${fieldErrors.title ? inputErrorClass : ""}`}
-              />
-              {fieldErrors.title ? (
-                <span className={fieldErrorClass} role="alert">
-                  {fieldErrors.title}
-                </span>
-              ) : null}
-              {fieldSuggestions.title ? (
-                <FieldAiSuggestionPanel
-                  currentValue={fieldSuggestions.title.currentValue}
-                  suggestion={fieldSuggestions.title.suggestion}
-                  busy={fieldAiBusy === "title"}
-                  onUseSuggestion={() => applyFieldSuggestion("title")}
-                  onTryAnother={() => void runFieldAi("title", "title", "alternative")}
-                  onKeepCurrent={() => clearFieldSuggestion("title")}
-                />
-              ) : null}
-              {fieldAiBusy === "title" && !fieldSuggestions.title ? (
-                <p className="text-xs text-muted" role="status">
-                  Generating suggestion…
-                </p>
-              ) : null}
-              {fieldAiNotice.title ? (
-                <p
-                  className={`text-xs font-semibold ${
-                    fieldAiNotice.title === "AI SUGGESTION — REVIEW" ? "text-olive" : "text-terracotta"
-                  }`}
-                  role="status"
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Identity</h3>
+              <div className="mt-3 space-y-4">
+                <MissingRequiredFieldFrame
+                  fieldKey="title"
+                  label="Title"
+                  isMissing={missingFieldKeySet.has("title")}
+                  isPulsing={pulsingFieldKey === "title"}
+                  className="group/field grid max-w-3xl gap-1.5"
+                  style={scrollTargetStyle}
                 >
-                  {fieldAiNotice.title}
-                </p>
-              ) : null}
-            </label>
-            </MissingRequiredFieldFrame>
-            <label id="recipe-field-slug" className="grid gap-1.5" style={scrollTargetStyle}>
-              <span className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-sm font-semibold text-ink">Slug</span>
-                <AiConfidenceBadge
-                  confidence={activeAiAnnotation("slug", "text", slug).confidence}
-                  sourceNote={activeAiAnnotation("slug", "text", slug).sourceNote}
-                />
-              </span>
-              <input
-                name="slug"
-                value={slug}
-                onChange={(event) => {
-                  setSlugTouched(true);
-                  updateSlug(event.target.value);
-                }}
-                className={compactInputClass}
-              />
-            </label>
-            <label id="recipe-field-excerpt" className="group/field grid gap-1.5 md:col-span-2" style={scrollTargetStyle}>
-              <span className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold text-ink">Excerpt</span>
-                  <FieldAiFieldActions
-                    path="excerpt"
-                    kind="textarea"
-                    excerpt={excerpt}
-                    value={excerpt}
-                    busy={fieldAiBusy === "excerpt"}
-                    emphasized={evaluatorReviewPaths.has("excerpt")}
-                    onAction={(intent) => void runFieldAi("excerpt", "excerpt", intent)}
-                  />
-                </span>
-                <AiConfidenceBadge
-                  confidence={activeAiAnnotation("excerpt", "textarea", excerpt).confidence}
-                  sourceNote={activeAiAnnotation("excerpt", "textarea", excerpt).sourceNote}
-                />
-              </span>
-              <textarea
-                name="excerpt"
-                value={excerpt}
-                onChange={(event) => updateExcerpt(event.target.value)}
-                rows={3}
-                className={adminInputClass}
-              />
-              {fieldSuggestions.excerpt ? (
-                <FieldAiSuggestionPanel
-                  currentValue={fieldSuggestions.excerpt.currentValue}
-                  suggestion={fieldSuggestions.excerpt.suggestion}
-                  busy={fieldAiBusy === "excerpt"}
-                  onUseSuggestion={() => applyFieldSuggestion("excerpt")}
-                  onTryAnother={() => void runFieldAi("excerpt", "excerpt", "alternative")}
-                  onKeepCurrent={() => clearFieldSuggestion("excerpt")}
-                />
-              ) : null}
-              {fieldAiNotice.excerpt ? (
-                <p
-                  className={`text-xs font-semibold ${
-                    fieldAiNotice.excerpt === "AI SUGGESTION — REVIEW" ? "text-olive" : "text-terracotta"
-                  }`}
-                  role="status"
-                >
-                  {fieldAiNotice.excerpt}
-                </p>
-              ) : null}
-            </label>
+                  <label className="grid gap-1.5">
+                    <span className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-ink">
+                          Title<span className="text-terracotta"> *</span>
+                        </span>
+                        <FieldAiFieldActions
+                          path="title"
+                          kind="text"
+                          strategy="gemini_semantic"
+                          value={title}
+                          busy={fieldAiBusy === "title"}
+                          emphasized={evaluatorReviewPaths.has("title")}
+                          onAction={(intent) => void runFieldAi("title", "title", intent)}
+                        />
+                      </span>
+                      <AiConfidenceBadge
+                        confidence={activeAiAnnotation("title", "text", title).confidence}
+                        sourceNote={activeAiAnnotation("title", "text", title).sourceNote}
+                      />
+                    </span>
+                    <input
+                      name="title"
+                      required
+                      value={title}
+                      onChange={(event) => {
+                        onTitleChange(event.target.value);
+                        if (fieldErrors.title) {
+                          setFieldErrors((current) => {
+                            const next = { ...current };
+                            delete next.title;
+                            return next;
+                          });
+                        }
+                      }}
+                      aria-invalid={Boolean(fieldErrors.title)}
+                      className={`${adminInputClass} ${fieldErrors.title ? inputErrorClass : ""}`}
+                    />
+                    {fieldErrors.title ? (
+                      <span className={fieldErrorClass} role="alert">
+                        {fieldErrors.title}
+                      </span>
+                    ) : null}
+                    {fieldSuggestions.title ? (
+                      <FieldAiSuggestionPanel
+                        currentValue={fieldSuggestions.title.currentValue}
+                        suggestion={fieldSuggestions.title.suggestion}
+                        busy={fieldAiBusy === "title"}
+                        onUseSuggestion={() => applyFieldSuggestion("title")}
+                        onTryAnother={() => void runFieldAi("title", "title", "alternative")}
+                        onKeepCurrent={() => clearFieldSuggestion("title")}
+                      />
+                    ) : null}
+                    {fieldAiBusy === "title" && !fieldSuggestions.title ? (
+                      <p className="text-xs text-muted" role="status">
+                        Generating suggestion…
+                      </p>
+                    ) : null}
+                    {fieldAiNotice.title ? (
+                      <p
+                        className={`text-xs font-semibold ${
+                          fieldAiNotice.title === "AI SUGGESTION — REVIEW"
+                            ? "text-olive"
+                            : "text-terracotta"
+                        }`}
+                        role="status"
+                      >
+                        {fieldAiNotice.title}
+                      </p>
+                    ) : null}
+                  </label>
+                </MissingRequiredFieldFrame>
 
-            <div className="md:col-span-2 border-t border-line/80 pt-5">
+                <label
+                  id="recipe-field-excerpt"
+                  className="group/field grid max-w-[72ch] gap-1.5"
+                  style={scrollTargetStyle}
+                >
+                  <span className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-ink">Excerpt</span>
+                      <FieldAiFieldActions
+                        path="excerpt"
+                        kind="textarea"
+                        excerpt={excerpt}
+                        value={excerpt}
+                        busy={fieldAiBusy === "excerpt"}
+                        emphasized={evaluatorReviewPaths.has("excerpt")}
+                        onAction={(intent) => void runFieldAi("excerpt", "excerpt", intent)}
+                      />
+                    </span>
+                    <AiConfidenceBadge
+                      confidence={activeAiAnnotation("excerpt", "textarea", excerpt).confidence}
+                      sourceNote={activeAiAnnotation("excerpt", "textarea", excerpt).sourceNote}
+                    />
+                  </span>
+                  <textarea
+                    name="excerpt"
+                    value={excerpt}
+                    onChange={(event) => updateExcerpt(event.target.value)}
+                    rows={3}
+                    className={`${adminInputClass} h-auto min-h-[4.5rem] resize-y`}
+                  />
+                  {fieldSuggestions.excerpt ? (
+                    <FieldAiSuggestionPanel
+                      currentValue={fieldSuggestions.excerpt.currentValue}
+                      suggestion={fieldSuggestions.excerpt.suggestion}
+                      busy={fieldAiBusy === "excerpt"}
+                      onUseSuggestion={() => applyFieldSuggestion("excerpt")}
+                      onTryAnother={() => void runFieldAi("excerpt", "excerpt", "alternative")}
+                      onKeepCurrent={() => clearFieldSuggestion("excerpt")}
+                    />
+                  ) : null}
+                  {fieldAiNotice.excerpt ? (
+                    <p
+                      className={`text-xs font-semibold ${
+                        fieldAiNotice.excerpt === "AI SUGGESTION — REVIEW"
+                          ? "text-olive"
+                          : "text-terracotta"
+                      }`}
+                      role="status"
+                    >
+                      {fieldAiNotice.excerpt}
+                    </p>
+                  ) : null}
+                </label>
+
+                <label
+                  id="recipe-field-slug"
+                  className="grid max-w-sm gap-1.5"
+                  style={scrollTargetStyle}
+                >
+                  <span className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                      Slug
+                    </span>
+                    <AiConfidenceBadge
+                      confidence={activeAiAnnotation("slug", "text", slug).confidence}
+                      sourceNote={activeAiAnnotation("slug", "text", slug).sourceNote}
+                    />
+                  </span>
+                  <input
+                    name="slug"
+                    value={slug}
+                    onChange={(event) => {
+                      setSlugTouched(true);
+                      updateSlug(event.target.value);
+                    }}
+                    className={compactInputClass}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="border-t border-line/70 pt-5">
               <h3 className="text-sm font-semibold text-ink">Discovery</h3>
               <p className="mt-1 text-xs text-muted">
                 Editorial flags and taxonomy for menus, filters, and featured placement.
               </p>
               <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
-                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <label className="flex min-h-9 items-center gap-2 text-sm font-semibold text-ink">
                   <input
                     type="checkbox"
                     name="featured"
@@ -2562,7 +2617,7 @@ export function RecipeEditor({
                   />
                   Featured
                 </label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <label className="flex min-h-9 items-center gap-2 text-sm font-semibold text-ink">
                   <input
                     type="checkbox"
                     name="seasonal"
@@ -2574,7 +2629,7 @@ export function RecipeEditor({
                 </label>
               </div>
               <div className="mt-5">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <p className="text-sm font-semibold text-ink">Categories</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <FieldAiFieldActions
@@ -2586,79 +2641,94 @@ export function RecipeEditor({
                       onAction={(intent) => void runFieldAi("categoryIds", "categoryIds", intent)}
                     />
                     <AiConfidenceBadge
-                      confidence={activeAiAnnotation("categoryIds", "categories", categoryIds).confidence}
-                      sourceNote={activeAiAnnotation("categoryIds", "categories", categoryIds).sourceNote}
+                      confidence={
+                        activeAiAnnotation("categoryIds", "categories", categoryIds).confidence
+                      }
+                      sourceNote={
+                        activeAiAnnotation("categoryIds", "categories", categoryIds).sourceNote
+                      }
                     />
                   </div>
                 </div>
                 {categoryIds.length > 0 ? (
-                  <div className="mb-4 flex flex-wrap gap-2">
+                  <div className="mb-3 flex flex-wrap gap-1.5">
                     {categoryIds.map((id) => {
                       const category = categories.find((row) => row.id === id);
                       if (!category) return null;
                       return (
                         <span
                           key={id}
-                          className="inline-flex items-center rounded-sm border border-terracotta/40 bg-terracotta/5 px-2 py-1 text-sm font-semibold text-ink"
+                          className="inline-flex max-w-full items-center gap-1 rounded-sm border border-line bg-cream/30 px-2 py-0.5 text-xs font-medium text-ink"
                         >
-                          {category.name}
+                          <span className="truncate">{category.name}</span>
+                          <button
+                            type="button"
+                            className={`${adminFocusRing} rounded-sm px-0.5 text-muted/70 hover:text-terracotta`}
+                            aria-label={`Remove ${category.name}`}
+                            onClick={() => toggleCategory(id)}
+                          >
+                            ×
+                          </button>
                         </span>
                       );
                     })}
                   </div>
                 ) : null}
-                <div className="grid gap-3">
+                <div className="grid gap-1">
                   {categoryGroups.map((group) => {
-                    const hasSelected = group.categories.some((category) =>
+                    const selectedInGroup = group.categories.filter((category) =>
                       categoryIds.includes(category.id),
-                    );
+                    ).length;
+                    const hasSelected = selectedInGroup > 0;
                     const collapsed = categoryGroupCollapsed[group.group] ?? !hasSelected;
                     return (
-                    <div key={group.group} className="border border-line/70">
-                      <button
-                        type="button"
-                        aria-expanded={!collapsed}
-                        className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-cream/40 ${adminFocusRing}`}
-                        onClick={() =>
-                          setCategoryGroupCollapsed((current) => ({
-                            ...current,
-                            [group.group]: !(current[group.group] ?? !hasSelected),
-                          }))
-                        }
-                      >
-                        <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
-                          {group.label}
-                        </span>
-                        <span className="text-xs text-muted">
-                          {hasSelected ? "Selected" : collapsed ? "Show" : "Hide"}
-                        </span>
-                      </button>
-                      {!collapsed ? (
-                      <div className="flex flex-wrap gap-2 border-t border-line/70 px-3 py-3">
-                        {group.categories.map((category) => {
-                          const selected = categoryIds.includes(category.id);
-                          return (
-                            <label
-                              key={category.id}
-                              className={`flex items-center gap-2 rounded-sm border px-3 py-1.5 text-sm transition-colors ${adminFocusRing} ${
-                                selected
-                                  ? "border-terracotta/40 bg-terracotta/5 text-ink"
-                                  : "border-line hover:bg-cream"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => toggleCategory(category.id)}
-                              />
-                              {category.name}
-                            </label>
-                          );
-                        })}
+                      <div key={group.group} className="border-b border-line/60 last:border-b-0">
+                        <button
+                          type="button"
+                          aria-expanded={!collapsed}
+                          className={`flex w-full items-center justify-between gap-2 py-2.5 text-left ${adminFocusRing}`}
+                          onClick={() =>
+                            setCategoryGroupCollapsed((current) => ({
+                              ...current,
+                              [group.group]: !(current[group.group] ?? !hasSelected),
+                            }))
+                          }
+                        >
+                          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+                            {group.label}
+                          </span>
+                          <span className="text-xs text-muted">
+                            {hasSelected
+                              ? `${selectedInGroup} selected`
+                              : collapsed
+                                ? "Show"
+                                : "Hide"}
+                          </span>
+                        </button>
+                        {!collapsed ? (
+                          <div className="flex flex-wrap gap-x-4 gap-y-2 pb-3">
+                            {group.categories.map((category) => {
+                              const selected = categoryIds.includes(category.id);
+                              return (
+                                <label
+                                  key={category.id}
+                                  className={`flex min-h-9 items-center gap-2 text-sm ${adminFocusRing} ${
+                                    selected ? "font-semibold text-ink" : "text-ink/80"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() => toggleCategory(category.id)}
+                                  />
+                                  {category.name}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                       </div>
-                      ) : null}
-                    </div>
-                  );
+                    );
                   })}
                 </div>
                 {fieldSuggestions.categoryIds ? (
@@ -2672,7 +2742,9 @@ export function RecipeEditor({
                     suggestionLabel="Suggested categories"
                     busy={fieldAiBusy === "categoryIds"}
                     onUseSuggestion={() => applyFieldSuggestion("categoryIds")}
-                    onTryAnother={() => void runFieldAi("categoryIds", "categoryIds", "alternative")}
+                    onTryAnother={() =>
+                      void runFieldAi("categoryIds", "categoryIds", "alternative")
+                    }
                     onKeepCurrent={() => clearFieldSuggestion("categoryIds")}
                   />
                 ) : null}
@@ -2701,37 +2773,40 @@ export function RecipeEditor({
             description="Times, yield, and metadata shown on the public recipe card."
           >
             {renderSectionCompletenessBanner("details")}
-            <div className="grid gap-8">
+            <div className="grid gap-0">
               {pickFieldsOrdered(detailFields, YIELD_KEYS).length ? (
-                <DetailSubgroup label="Yield">
+                <DetailSubgroup label="Yield" layout="yield">
                   {pickFieldsOrdered(detailFields, YIELD_KEYS).map((field) =>
-                    renderField(field, { compact: true }),
+                    renderField(field, {
+                      compact: true,
+                      detailsLayout: field.key === "servingsUnit" ? "unit" : "servings",
+                    }),
                   )}
                 </DetailSubgroup>
               ) : null}
               {pickFieldsOrdered(detailFields, TIMING_KEYS).length ? (
-                <DetailSubgroup label="Timing">
+                <DetailSubgroup label="Timing" layout="timing">
                   {pickFieldsOrdered(detailFields, TIMING_KEYS).map((field) =>
-                    renderField(field, { compact: true }),
+                    renderField(field, { compact: true, detailsLayout: "timing" }),
                   )}
                 </DetailSubgroup>
               ) : null}
               {pickFieldsOrdered(detailFields, CLASSIFICATION_KEYS).length ? (
-                <DetailSubgroup label="Classification">
+                <DetailSubgroup label="Classification" layout="classification">
                   {pickFieldsOrdered(detailFields, CLASSIFICATION_KEYS).map((field) =>
                     renderField(field, { compact: true }),
                   )}
                 </DetailSubgroup>
               ) : null}
               {pickFieldsOrdered(detailFields, TOOLS_KEYS).length ? (
-                <DetailSubgroup label="Tools">
+                <DetailSubgroup label="Tools" layout="medium">
                   {pickFieldsOrdered(detailFields, TOOLS_KEYS).map((field) =>
                     renderField(field, { compact: true }),
                   )}
                 </DetailSubgroup>
               ) : null}
               {pickFieldsOrdered(detailFields, TAG_KEYS).length ? (
-                <DetailSubgroup label="Discovery">
+                <DetailSubgroup label="Tags" layout="medium">
                   {pickFieldsOrdered(detailFields, TAG_KEYS).map((field) =>
                     renderField(field, { compact: true }),
                   )}
@@ -2750,20 +2825,25 @@ export function RecipeEditor({
             emphasis
           >
             {renderSectionCompletenessBanner("content")}
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-8">
               {contentFields.map((field) => {
-                const emphasis =
-                  field.key === "ingredients" || field.key === "instructions";
+                const isInstructions = field.key === "instructions";
+                const isIngredients = field.key === "ingredients";
+                const isProse = field.key === "intro" || field.key === "whyItWorks";
                 return (
                   <div
                     key={field.key}
                     className={
-                      emphasis
-                        ? "md:col-span-2 rounded-sm border border-line/80 bg-cream/30 p-4 md:p-5"
-                        : "md:col-span-2"
+                      isInstructions
+                        ? "rounded-sm border border-line/80 bg-cream/30 p-4 md:p-5"
+                        : isIngredients
+                          ? "border-y border-line/70 py-5"
+                          : isProse
+                            ? "max-w-[72ch]"
+                            : "max-w-3xl border-t border-line/60 pt-5"
                     }
                   >
-                    {renderField(field, { emphasis })}
+                    {renderField(field, { emphasis: isInstructions || isIngredients })}
                   </div>
                 );
               })}
@@ -2956,6 +3036,8 @@ function GranularFieldAiSlot({
   onRunFieldAi,
   onApplyFieldSuggestion,
   onClearFieldSuggestion,
+  emphasized = false,
+  compact = false,
 }: {
   path: string;
   parentKey: string;
@@ -2975,6 +3057,8 @@ function GranularFieldAiSlot({
   onRunFieldAi: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
   onApplyFieldSuggestion: (path: string) => void;
   onClearFieldSuggestion: (path: string) => void;
+  emphasized?: boolean;
+  compact?: boolean;
 }) {
   if (!isRecipeFieldAiSupported(path, typeFields)) return null;
 
@@ -2990,10 +3074,17 @@ function GranularFieldAiSlot({
   const suggestion = fieldSuggestions[path];
   const notice = fieldAiNotice[path];
   const busy = fieldAiBusy === path;
+  const needsAttention = emphasized || Boolean(notice) || Boolean(suggestion);
 
   return (
-    <div className="grid gap-1.5">
-      <FieldAiActionButton label={label} busy={busy} onClick={() => onRunFieldAi(path, parentKey)} />
+    <div className={compact ? "min-w-0" : "grid gap-1.5"}>
+      <FieldAiActionButton
+        label={label}
+        busyLabel="Generating…"
+        busy={busy}
+        emphasized={needsAttention}
+        onClick={() => onRunFieldAi(path, parentKey)}
+      />
       {busy && !suggestion ? (
         <p className="text-xs text-muted" role="status">
           Generating suggestion…
@@ -3100,7 +3191,9 @@ function KindInput({
   ) => void;
 }) {
   const inputClass = `${compact ? compactInputClass : adminInputClass}${invalid ? ` ${inputErrorClass}` : ""}`;
-  const textAreaRows = emphasis ? 6 : 5;
+  const isProseField = fieldKey === "intro" || fieldKey === "whyItWorks";
+  const textAreaRows = isProseField ? 4 : emphasis ? 6 : 5;
+  const textAreaMin = isProseField ? "min-h-[4.5rem]" : "min-h-[5.5rem]";
 
   if (kind === "textarea") {
     return (
@@ -3109,7 +3202,7 @@ function KindInput({
         value={String(value || "")}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={invalid}
-        className={`${adminInputClass} h-auto min-h-[5.5rem] resize-y${invalid ? ` ${inputErrorClass}` : ""}`}
+        className={`${adminInputClass} h-auto ${textAreaMin} resize-y${invalid ? ` ${inputErrorClass}` : ""}`}
       />
     );
   }
@@ -3289,6 +3382,7 @@ function KindInput({
         onRunFieldAi={onRunFieldAi}
         onApplyFieldSuggestion={onApplyFieldSuggestion}
         onClearFieldSuggestion={onClearFieldSuggestion}
+        reviewPaths={reviewPaths}
       />
     );
   }
@@ -3362,8 +3456,8 @@ function MinutesInput({
   const hours = Math.floor(Math.max(0, value) / 60);
   const minutes = Math.max(0, value) % 60;
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <label className="grid gap-1 text-sm">
+    <div className="grid max-w-[14rem] grid-cols-2 gap-2">
+      <label className="grid gap-1 text-xs font-medium text-muted">
         Hours
         <input
           type="number"
@@ -3373,7 +3467,7 @@ function MinutesInput({
           className={inputClass}
         />
       </label>
-      <label className="grid gap-1 text-sm">
+      <label className="grid gap-1 text-xs font-medium text-muted">
         Minutes
         <input
           type="number"
@@ -3401,9 +3495,12 @@ function ListEditor({
   const inputClass = compact ? compactInputClass : adminInputClass;
   const rows = coerceStringList(items);
   return (
-    <div className="grid gap-2">
+    <div className="max-w-3xl space-y-2">
       {rows.map((item, index) => (
-        <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div
+          key={index}
+          className="flex flex-col gap-1.5 border-b border-line/50 pb-2 last:border-b-0 sm:flex-row sm:items-center sm:gap-2"
+        >
           <input
             value={item}
             placeholder={placeholder}
@@ -3443,6 +3540,7 @@ function IngredientsEditor({
   onRunFieldAi,
   onApplyFieldSuggestion,
   onClearFieldSuggestion,
+  reviewPaths = new Set<string>(),
 }: {
   groups: { name?: string; items: { item: string; amount: string; notes?: string }[] }[];
   onChange: (value: unknown) => void;
@@ -3461,16 +3559,46 @@ function IngredientsEditor({
   onRunFieldAi?: (path: string, parentKey: string, intent?: FieldAiIntent) => void;
   onApplyFieldSuggestion?: (path: string) => void;
   onClearFieldSuggestion?: (path: string) => void;
+  reviewPaths?: Set<string>;
 }) {
   function update(next: typeof groups) {
     onChange(next);
   }
 
+  function aiSlot(
+    path: string,
+    value: unknown,
+  ) {
+    if (!typeFields || !onRunFieldAi || !onApplyFieldSuggestion || !onClearFieldSuggestion) {
+      return null;
+    }
+    return (
+      <GranularFieldAiSlot
+        path={path}
+        parentKey={parentKey}
+        value={value}
+        kind="text"
+        typeFields={typeFields}
+        fieldAiBusy={fieldAiBusy}
+        fieldSuggestions={fieldSuggestions}
+        fieldAiNotice={fieldAiNotice}
+        onRunFieldAi={onRunFieldAi}
+        onApplyFieldSuggestion={onApplyFieldSuggestion}
+        onClearFieldSuggestion={onClearFieldSuggestion}
+        emphasized={reviewPaths.has(path)}
+        compact
+      />
+    );
+  }
+
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-6">
       {groups.map((group, groupIndex) => (
-        <div key={groupIndex} className="grid gap-3 border-t border-line/70 pt-4 first:border-t-0 first:pt-0">
-          <div className="flex flex-wrap items-start gap-2">
+        <div
+          key={groupIndex}
+          className="grid gap-2 border-t border-line/70 pt-5 first:border-t-0 first:pt-0"
+        >
+          <div className="flex flex-wrap items-center gap-2">
             <input
               value={group.name || ""}
               placeholder="Group name (optional)"
@@ -3480,23 +3608,11 @@ function IngredientsEditor({
                 next[groupIndex] = { ...group, name: event.target.value };
                 update(next);
               }}
-              className={`${compactInputClass} max-w-md flex-1`}
+              className={`${compactInputClass} max-w-md flex-1 font-semibold`}
             />
-            {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
-              <GranularFieldAiSlot
-                path={`values.${parentKey}.${groupIndex}.name`}
-                parentKey={parentKey}
-                value={group.name ?? ""}
-                kind="text"
-                typeFields={typeFields}
-                fieldAiBusy={fieldAiBusy}
-                fieldSuggestions={fieldSuggestions}
-                fieldAiNotice={fieldAiNotice}
-                onRunFieldAi={onRunFieldAi}
-                onApplyFieldSuggestion={onApplyFieldSuggestion}
-                onClearFieldSuggestion={onClearFieldSuggestion}
-              />
-            ) : null}
+            <div className="group/field flex items-center gap-1">
+              {aiSlot(`values.${parentKey}.${groupIndex}.name`, group.name ?? "")}
+            </div>
             {groups.length > 1 ? (
               <EditorRowActions
                 itemLabel={`ingredient group ${groupIndex + 1}`}
@@ -3508,140 +3624,138 @@ function IngredientsEditor({
               />
             ) : null}
           </div>
-          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted md:grid md:grid-cols-[8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_auto]">
+
+          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted xl:grid xl:grid-cols-[1.75rem_minmax(6.5rem,8.5rem)_minmax(0,1.4fr)_minmax(12rem,20rem)_auto]">
+            <span className="sr-only">Reorder</span>
             <span>Amount</span>
             <span>Ingredient</span>
             <span>Notes</span>
             <span className="sr-only">Actions</span>
           </div>
-          {group.items.map((item, itemIndex) => (
-            <div
-              key={itemIndex}
-              className="grid gap-2 md:grid-cols-[auto_8.5rem_minmax(0,1.6fr)_minmax(0,1fr)_auto] md:items-start"
-            >
-              <EditorDragHandle label={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`} />
-              <div className="grid gap-1.5">
-                <input
-                  value={item.amount}
-                  placeholder="Amount"
-                  aria-label={`Amount for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                  onChange={(event) => {
-                    const next = [...groups];
-                    const items = [...group.items];
-                    items[itemIndex] = { ...item, amount: event.target.value };
-                    next[groupIndex] = { ...group, items };
-                    update(next);
-                  }}
-                  className={compactInputClass}
-                />
-                {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
-                  <GranularFieldAiSlot
-                    path={`values.${parentKey}.${groupIndex}.items.${itemIndex}.amount`}
-                    parentKey={parentKey}
-                    value={item.amount}
-                    kind="text"
-                    typeFields={typeFields}
-                    fieldAiBusy={fieldAiBusy}
-                    fieldSuggestions={fieldSuggestions}
-                    fieldAiNotice={fieldAiNotice}
-                    onRunFieldAi={onRunFieldAi}
-                    onApplyFieldSuggestion={onApplyFieldSuggestion}
-                    onClearFieldSuggestion={onClearFieldSuggestion}
+          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted md:grid md:grid-cols-[1.75rem_minmax(6.5rem,8rem)_minmax(0,1fr)_auto] xl:hidden">
+            <span className="sr-only">Reorder</span>
+            <span>Amount</span>
+            <span>Ingredient</span>
+            <span className="sr-only">Actions</span>
+          </div>
+
+          {group.items.map((item, itemIndex) => {
+            const amountPath = `values.${parentKey}.${groupIndex}.items.${itemIndex}.amount`;
+            const itemPath = `values.${parentKey}.${groupIndex}.items.${itemIndex}.item`;
+            const notesPath = `values.${parentKey}.${groupIndex}.items.${itemIndex}.notes`;
+            return (
+              <div
+                key={itemIndex}
+                className="grid gap-1.5 border-b border-line/40 py-2 last:border-b-0 md:grid-cols-[1.75rem_minmax(6.5rem,8rem)_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[1.75rem_minmax(6.5rem,8.5rem)_minmax(0,1.4fr)_minmax(12rem,20rem)_auto]"
+              >
+                <div className="flex min-h-9 items-center md:pt-0">
+                  <EditorDragHandle
+                    label={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
                   />
-                ) : null}
-              </div>
-              <div className="grid gap-1.5">
-                <input
-                  value={item.item}
-                  placeholder="Ingredient"
-                  aria-label={`Ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                  onChange={(event) => {
-                    const next = [...groups];
-                    const items = [...group.items];
-                    items[itemIndex] = { ...item, item: event.target.value };
-                    next[groupIndex] = { ...group, items };
-                    update(next);
-                  }}
-                  className={compactInputClass}
-                />
-                {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
-                  <GranularFieldAiSlot
-                    path={`values.${parentKey}.${groupIndex}.items.${itemIndex}.item`}
-                    parentKey={parentKey}
-                    value={item.item}
-                    kind="text"
-                    typeFields={typeFields}
-                    fieldAiBusy={fieldAiBusy}
-                    fieldSuggestions={fieldSuggestions}
-                    fieldAiNotice={fieldAiNotice}
-                    onRunFieldAi={onRunFieldAi}
-                    onApplyFieldSuggestion={onApplyFieldSuggestion}
-                    onClearFieldSuggestion={onClearFieldSuggestion}
+                </div>
+
+                <div className="group/field grid gap-0.5">
+                  <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted md:sr-only">
+                    Amount
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      value={item.amount}
+                      placeholder="Amount"
+                      aria-label={`Amount for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                      onChange={(event) => {
+                        const next = [...groups];
+                        const items = [...group.items];
+                        items[itemIndex] = { ...item, amount: event.target.value };
+                        next[groupIndex] = { ...group, items };
+                        update(next);
+                      }}
+                      className={`min-w-0 flex-1 ${compactInputClass}`}
+                    />
+                    {aiSlot(amountPath, item.amount)}
+                  </div>
+                </div>
+
+                <div className="group/field grid gap-0.5">
+                  <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted md:sr-only">
+                    Ingredient
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      value={item.item}
+                      placeholder="Ingredient"
+                      aria-label={`Ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                      onChange={(event) => {
+                        const next = [...groups];
+                        const items = [...group.items];
+                        items[itemIndex] = { ...item, item: event.target.value };
+                        next[groupIndex] = { ...group, items };
+                        update(next);
+                      }}
+                      className={`min-w-0 flex-1 ${compactInputClass}`}
+                    />
+                    {aiSlot(itemPath, item.item)}
+                  </div>
+                </div>
+
+                <div className="group/field grid gap-0.5 md:col-span-3 md:col-start-2 xl:col-span-1 xl:col-start-4">
+                  <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted xl:sr-only">
+                    Notes
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      value={item.notes || ""}
+                      placeholder="Notes"
+                      aria-label={`Notes for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                      onChange={(event) => {
+                        const next = [...groups];
+                        const items = [...group.items];
+                        items[itemIndex] = { ...item, notes: event.target.value };
+                        next[groupIndex] = { ...group, items };
+                        update(next);
+                      }}
+                      className={`min-w-0 flex-1 ${compactInputClass}`}
+                    />
+                    {aiSlot(notesPath, item.notes ?? "")}
+                  </div>
+                </div>
+
+                <div className="flex min-h-9 items-center justify-end md:col-start-4 md:row-start-1 xl:col-start-5">
+                  <EditorRowActions
+                    itemLabel={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                    upDisabled={itemIndex === 0}
+                    downDisabled={itemIndex === group.items.length - 1}
+                    onMoveUp={() => {
+                      const next = [...groups];
+                      next[groupIndex] = {
+                        ...group,
+                        items: moveArrayItem(group.items, itemIndex, itemIndex - 1),
+                      };
+                      update(next);
+                    }}
+                    onMoveDown={() => {
+                      const next = [...groups];
+                      next[groupIndex] = {
+                        ...group,
+                        items: moveArrayItem(group.items, itemIndex, itemIndex + 1),
+                      };
+                      update(next);
+                    }}
+                    onRemove={() => {
+                      const next = [...groups];
+                      const items = group.items.filter((_, i) => i !== itemIndex);
+                      next[groupIndex] = {
+                        ...group,
+                        items: items.length ? items : [{ item: "", amount: "", notes: "" }],
+                      };
+                      update(next);
+                    }}
                   />
-                ) : null}
+                </div>
               </div>
-              <div className="grid gap-1.5">
-                <input
-                  value={item.notes || ""}
-                  placeholder="Notes"
-                  aria-label={`Notes for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                  onChange={(event) => {
-                    const next = [...groups];
-                    const items = [...group.items];
-                    items[itemIndex] = { ...item, notes: event.target.value };
-                    next[groupIndex] = { ...group, items };
-                    update(next);
-                  }}
-                  className={compactInputClass}
-                />
-                {typeFields && onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
-                  <GranularFieldAiSlot
-                    path={`values.${parentKey}.${groupIndex}.items.${itemIndex}.notes`}
-                    parentKey={parentKey}
-                    value={item.notes ?? ""}
-                    kind="text"
-                    typeFields={typeFields}
-                    fieldAiBusy={fieldAiBusy}
-                    fieldSuggestions={fieldSuggestions}
-                    fieldAiNotice={fieldAiNotice}
-                    onRunFieldAi={onRunFieldAi}
-                    onApplyFieldSuggestion={onApplyFieldSuggestion}
-                    onClearFieldSuggestion={onClearFieldSuggestion}
-                  />
-                ) : null}
-              </div>
-              <EditorRowActions
-                itemLabel={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                upDisabled={itemIndex === 0}
-                downDisabled={itemIndex === group.items.length - 1}
-                onMoveUp={() => {
-                  const next = [...groups];
-                  next[groupIndex] = {
-                    ...group,
-                    items: moveArrayItem(group.items, itemIndex, itemIndex - 1),
-                  };
-                  update(next);
-                }}
-                onMoveDown={() => {
-                  const next = [...groups];
-                  next[groupIndex] = {
-                    ...group,
-                    items: moveArrayItem(group.items, itemIndex, itemIndex + 1),
-                  };
-                  update(next);
-                }}
-                onRemove={() => {
-                  const next = [...groups];
-                  const items = group.items.filter((_, i) => i !== itemIndex);
-                  next[groupIndex] = {
-                    ...group,
-                    items: items.length ? items : [{ item: "", amount: "", notes: "" }],
-                  };
-                  update(next);
-                }}
-              />
-            </div>
-          ))}
+            );
+          })}
+
           <button
             type="button"
             className={editorTextAction}
@@ -3661,7 +3775,9 @@ function IngredientsEditor({
       <button
         type="button"
         className={editorTextAction}
-        onClick={() => update([...groups, { name: "", items: [{ item: "", amount: "", notes: "" }] }])}
+        onClick={() =>
+          update([...groups, { name: "", items: [{ item: "", amount: "", notes: "" }] }])
+        }
       >
         + Add group
       </button>

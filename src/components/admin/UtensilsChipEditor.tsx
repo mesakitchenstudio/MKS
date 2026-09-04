@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { adminFocusRing, adminSecondaryButtonClass, adminTertiaryButtonClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminTertiaryButtonClass } from "@/lib/admin-ui";
 import { coerceStringList } from "@/lib/coerce-string-list";
 
 export function UtensilsChipEditor({
@@ -29,27 +29,29 @@ export function UtensilsChipEditor({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {items.map((item, index) => (
-          <span
-            key={`${item}-${index}`}
-            className="inline-flex max-w-full items-center gap-1 rounded-sm border border-line bg-cream/40 px-2 py-1 text-sm text-ink"
-          >
-            <span className="truncate">{item}</span>
-            <button
-              type="button"
-              className={`${adminTertiaryButtonClass} px-1 py-0 text-xs`}
-              aria-label={`Remove ${item}`}
-              disabled={disabled}
-              onClick={() => onChange(items.filter((_, rowIndex) => rowIndex !== index))}
+    <div className="max-w-xl space-y-2.5">
+      {items.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {items.map((item, index) => (
+            <span
+              key={`${item}-${index}`}
+              className="inline-flex max-w-full items-center gap-1 rounded-sm border border-line bg-paper px-2 py-0.5 text-sm text-ink"
             >
-              ×
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
+              <span className="truncate">{item}</span>
+              <button
+                type="button"
+                className={`${adminTertiaryButtonClass} min-h-8 min-w-8 px-1 text-xs`}
+                aria-label={`Remove ${item}`}
+                disabled={disabled}
+                onClick={() => onChange(items.filter((_, rowIndex) => rowIndex !== index))}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="flex max-w-md items-center gap-2">
         <label className="sr-only" htmlFor={inputId}>
           Add utensil
         </label>
@@ -58,8 +60,8 @@ export function UtensilsChipEditor({
           type="text"
           value={draft}
           disabled={disabled}
-          placeholder="Add utensil"
-          className="h-9 min-w-[10rem] flex-1 rounded-sm border border-line bg-paper px-3 text-sm outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
+          placeholder="Add utensil…"
+          className="h-9 min-w-0 flex-1 rounded-sm border border-line bg-paper px-3 text-sm outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -70,11 +72,11 @@ export function UtensilsChipEditor({
         />
         <button
           type="button"
-          className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+          className={`${adminTertiaryButtonClass} ${adminFocusRing} min-h-9 shrink-0 px-2`}
           disabled={disabled || !draft.trim()}
           onClick={() => addItem(draft)}
         >
-          + Add utensil
+          Add
         </button>
       </div>
     </div>
