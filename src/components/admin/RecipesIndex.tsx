@@ -29,7 +29,7 @@ type RecipeTypeOption = {
 type StatusFilter = "all" | "published" | "draft";
 
 const editActionClass = `inline-flex min-h-[44px] items-center text-sm font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`;
-const viewActionClass = `inline-flex min-h-[44px] items-center text-sm font-normal text-muted/70 no-underline transition-colors duration-150 hover:text-muted ${adminFocusRing}`;
+const viewActionClass = `inline-flex min-h-[44px] items-center text-sm font-normal text-muted no-underline transition-colors duration-150 hover:text-olive ${adminFocusRing}`;
 const titleLinkClass = `block font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta hover:underline decoration-terracotta/40 underline-offset-2 ${adminFocusRing}`;
 
 function normalizeStatus(status: string) {
@@ -346,7 +346,7 @@ export function RecipesIndex({
                       {formatAdminDateTimeUtc(recipe.updatedAt)}
                     </time>
                   </p>
-                  <RecipeActions recipe={recipe} published={published} className="mt-1.5" />
+                  <RecipeActions recipe={recipe} published={published} className="mt-0.5" />
                 </li>
               );
             })}

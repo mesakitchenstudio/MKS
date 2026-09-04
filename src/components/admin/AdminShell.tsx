@@ -232,7 +232,7 @@ export function AdminShell({
 
       <main className="min-w-0 flex-1">
         <div className={adminWorkspacePaddingClass}>
-          <div className={`w-full ${workspaceWidth}`}>{children}</div>
+          <div className={`min-w-0 w-full ${workspaceWidth}`}>{children}</div>
         </div>
       </main>
     </div>

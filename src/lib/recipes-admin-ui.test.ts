@@ -91,6 +91,8 @@ describe("Recipes admin index UI contracts", () => {
     assert.match(index, /View ↗/);
     assert.match(index, /View \$\{recipe\.title\} on public site \(opens in new tab\)/);
     assert.match(index, /\{published \? \([\s\S]*View ↗[\s\S]*\) : null\}/);
+    assert.match(index, /text-muted no-underline[\s\S]*hover:text-olive/);
+    assert.doesNotMatch(index, /text-muted\/70/);
   });
 
   it("uses text-only status without decorative dots", () => {
@@ -128,6 +130,7 @@ describe("Recipes admin index UI contracts", () => {
     assert.doesNotMatch(index, /md:hidden/);
     assert.match(index, /divide-y divide-line\/70/);
     assert.match(index, /RecipeActions/);
+    assert.match(index, /className="mt-0\.5"/);
     assert.doesNotMatch(index, /overflow-x-auto/);
     assert.doesNotMatch(index, /space-y-3 xl:hidden/);
   });

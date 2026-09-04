@@ -27,7 +27,7 @@ import {
   instructionChapterCoverage,
   type InstructionGroupWithChapters,
 } from "@/lib/instruction-chapters";
-import { adminFocusRing, adminPrimaryButtonClass, adminSecondaryButtonClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminPrimaryButtonClass } from "@/lib/admin-ui";
 
 const quietBtn = `text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline ${adminFocusRing}`;
 
@@ -274,18 +274,18 @@ export function ChapterTimestampSuggestionsPanel({
   const selectedCount = countSelectedSuggestions(selections);
 
   return (
-    <div className="mb-4 rounded-sm border border-line/80 bg-paper/50 px-3 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted">
-          <span className="font-semibold text-ink">{coverageSummary}</span>
+    <div className="mb-4 border-b border-line/70 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="text-sm text-ink" data-testid="chapter-mapping-summary">
+          {coverageSummary}
         </p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {!batch ? (
             <>
               <button
                 type="button"
                 disabled={busy || !typeId}
-                className={`${adminSecondaryButtonClass} text-xs ${adminFocusRing}`}
+                className={quietBtn}
                 onClick={() => void generateSuggestions("missing")}
               >
                 {busy ? "Suggesting…" : primaryActionLabel}

@@ -425,14 +425,14 @@ export function InstructionsAccordionEditor({
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 pb-3">
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted" data-testid="instructions-density-summary">
           <span className="font-semibold text-ink">{totalSteps} steps</span>
           <span className="mx-1.5">·</span>
           {groups.length} section{groups.length === 1 ? "" : "s"}
           <span className="mx-1.5">·</span>
           {coverageSummary}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
           <button type="button" className={editorTextAction} onClick={onCollapseAll}>
             Collapse all
           </button>
@@ -481,15 +481,20 @@ export function InstructionsAccordionEditor({
         return (
           <div
             key={groupIndex}
-            className={`border border-line/80 bg-cream/20${
-              isActiveSection ? " ring-1 ring-olive/25" : ""
+            className={`border-b border-line/70 last:border-b-0${
+              isActiveSection ? " border-l-2 border-l-terracotta/70 pl-2 sm:pl-3" : ""
             }`}
+            data-instruction-section={groupIndex + 1}
+            data-section-expanded={expanded ? "true" : "false"}
           >
-            <div className="flex items-start gap-2 px-3 py-3">
+            <div className="flex items-start gap-2 py-2.5">
               <button
                 type="button"
                 aria-expanded={expanded}
-                aria-label={`${expanded ? "Collapse" : "Expand"} section ${groupIndex + 1}`}
+                aria-controls={`instruction-section-panel-${groupIndex}`}
+                aria-label={`${expanded ? "Collapse" : "Expand"} section ${groupIndex + 1}: ${sectionTitle}${
+                  canonicalStart != null ? `, ${formatTimestampInput(canonicalStart)}` : ""
+                }`}
                 className={`mt-0.5 shrink-0 text-sm text-muted hover:text-ink ${adminFocusRing}`}
                 onClick={() => handleToggleGroup(groupIndex)}
               >
@@ -503,60 +508,75 @@ export function InstructionsAccordionEditor({
                 >
                   <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-xs font-semibold tabular-nums text-muted">{groupIndex + 1}</span>
-                    <span className="font-semibold text-ink">{sectionTitle}</span>
+                    <span className="min-w-0 break-words font-semibold text-ink">{sectionTitle}</span>
                     {isPlayingSection ? (
                       <span className="text-xs font-semibold text-olive">Playing</span>
                     ) : null}
+                    <span className="ml-auto shrink-0 text-xs font-semibold tabular-nums text-muted">
+                      {canonicalStart != null ? (
+                        <span
+                          role="presentation"
+                          className={timestampMeta.legacy ? "text-olive/90" : "text-ink"}
+                        >
+                          {formatTimestampInput(canonicalStart)}
+                        </span>
+                      ) : (
+                        <span className={timestampMeta.quiet ? "text-muted/80" : ""}>
+                          {timestampMeta.text}
+                        </span>
+                      )}
+                    </span>
                   </span>
                 </button>
                 <p className="mt-0.5 text-xs text-muted">
                   {stepCount} step{stepCount === 1 ? "" : "s"}
                   {status ? <span className="text-terracotta/90"> · {status}</span> : null}
-                  {" · "}
                   {canonicalStart != null ? (
-                    <button
-                      type="button"
-                      className={`font-semibold tabular-nums underline-offset-2 hover:underline ${
-                        timestampMeta.legacy ? " text-olive/90" : " text-ink"
-                      } ${adminFocusRing}`}
-                      aria-label={`Seek video to ${formatTimestampInput(canonicalStart)} for ${sectionTitle}`}
-                      onClick={() => handleSeekTimestamp(groupIndex, canonicalStart)}
-                    >
-                      {formatTimestampInput(canonicalStart)}
-                    </button>
-                  ) : (
-                    <span className={timestampMeta.quiet ? " text-muted/80" : ""}>
-                      {timestampMeta.text}
-                    </span>
-                  )}
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        className={`font-semibold tabular-nums underline-offset-2 hover:underline ${
+                          timestampMeta.legacy ? " text-olive/90" : " text-ink"
+                        } ${adminFocusRing}`}
+                        aria-label={`Seek video to ${formatTimestampInput(canonicalStart)} for ${sectionTitle}`}
+                        onClick={() => handleSeekTimestamp(groupIndex, canonicalStart)}
+                      >
+                        Seek
+                      </button>
+                      {" · "}
+                      <button
+                        type="button"
+                        className={`font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
+                        aria-label={`Play section ${sectionTitle} from ${formatTimestampInput(canonicalStart)}`}
+                        onClick={() => handlePlaySection(groupIndex, canonicalStart)}
+                      >
+                        Play
+                      </button>
+                    </>
+                  ) : null}
                 </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                {canonicalStart != null ? (
-                  <button
-                    type="button"
-                    className={`text-xs font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
-                    aria-label={`Play section ${sectionTitle} from ${formatTimestampInput(canonicalStart)}`}
-                    onClick={() => handlePlaySection(groupIndex, canonicalStart)}
-                  >
-                    ▶ {formatTimestampInput(canonicalStart)}
-                  </button>
-                ) : null}
               </div>
             </div>
 
             {expanded ? (
-              <div className="grid gap-4 border-t border-line/70 px-3 pb-4 pt-3">
+              <div
+                id={`instruction-section-panel-${groupIndex}`}
+                className="grid gap-4 border-t border-line/60 pb-4 pt-3"
+              >
                 <div className="flex flex-wrap items-start gap-2">
                   <label className="grid min-w-0 flex-1 gap-1.5 text-sm">
-                    <span className="font-semibold text-ink">Section title</span>
+                    <span className="font-semibold text-ink">
+                      Section {groupIndex + 1}
+                      <span className="font-normal text-muted"> — title</span>
+                    </span>
                     <input
                       id={recipeGranularAnchorId(namePath)}
                       value={group.name || ""}
                       placeholder="Section name (optional)"
                       aria-label={`Instruction section ${groupIndex + 1} title`}
                       onChange={(event) => patchGroup(groupIndex, { name: event.target.value })}
-                      className={`${compactInputClass} max-w-md`}
+                      className={`${compactInputClass} max-w-xl`}
                     />
                   </label>
                   {onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
@@ -586,14 +606,14 @@ export function InstructionsAccordionEditor({
                   ) : null}
                 </div>
 
-                <div className="rounded-sm border border-line/60 bg-paper/40 p-3">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+                <div className="grid gap-3 border-t border-line/50 pt-3">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
                     Video chapter
                   </p>
                   {swappedChapterLabels &&
                   (groupIndex === swappedChapterLabels.indexA ||
                     groupIndex === swappedChapterLabels.indexB) ? (
-                    <div className="mt-2 rounded-sm border border-terracotta/35 bg-terracotta/5 px-3 py-2">
+                    <div className="border-l-2 border-terracotta/70 pl-3">
                       <p className="text-xs font-semibold text-terracotta">
                         Swapped YouTube chapter labels detected between sections{" "}
                         {swappedChapterLabels.indexA + 1} and {swappedChapterLabels.indexB + 1}.
@@ -609,8 +629,8 @@ export function InstructionsAccordionEditor({
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="mt-3 grid gap-3 md:grid-cols-3">
-                    <label className="grid gap-1.5 text-sm md:col-span-1">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                    <label className="grid min-w-0 gap-1.5 text-sm sm:col-span-2 2xl:col-span-1">
                       <span className="font-semibold text-muted">Chapter label</span>
                       <input
                         value={group.chapterLabel ?? ""}
@@ -624,18 +644,18 @@ export function InstructionsAccordionEditor({
                         className={`${compactInputClass}${labelOverride.hasOverride ? " border-terracotta/50" : ""}`}
                       />
                       {labelOverride.hasOverride ? (
-                        <div className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-2 py-2 text-xs">
-                          <p>
-                            <span className="font-semibold text-muted">Recipe section:</span>{" "}
+                        <div className="text-xs">
+                          <p className="text-muted">
+                            Mesa:{" "}
                             <span className="font-medium text-ink">{labelOverride.sectionTitle}</span>
                           </p>
-                          <p className="mt-1">
-                            <span className="font-semibold text-muted">YouTube chapter label:</span>{" "}
-                            <span className="font-semibold text-terracotta">{labelOverride.youtubeLabel}</span>
+                          <p className="mt-0.5 text-muted">
+                            YouTube label:{" "}
+                            <span className="font-medium text-terracotta">{labelOverride.youtubeLabel}</span>
                           </p>
                           <button
                             type="button"
-                            className={`mt-2 font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
+                            className={`mt-1.5 font-semibold text-terracotta underline-offset-2 hover:underline ${adminFocusRing}`}
                             onClick={() => {
                               onChapterFieldChange?.(groupIndex, "chapterLabel", undefined);
                               patchGroup(groupIndex, { chapterLabel: undefined });
@@ -762,7 +782,7 @@ export function InstructionsAccordionEditor({
                   {groupIssues.map((issue) => (
                     <p
                       key={`${issue.code}-${issue.message}`}
-                      className={`mt-2 text-xs font-semibold ${
+                      className={`text-xs font-semibold ${
                         issue.severity === "error" ? "text-terracotta" : "text-muted"
                       }`}
                       role={issue.severity === "error" ? "alert" : "status"}
@@ -772,7 +792,11 @@ export function InstructionsAccordionEditor({
                   ))}
                 </div>
 
-                {group.steps.map((step, stepIndex) => {
+                <div className="grid gap-0 border-t border-line/50 pt-3">
+                  <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
+                    Steps
+                  </p>
+                  {group.steps.map((step, stepIndex) => {
                   const stepPath = `values.${parentKey}.${groupIndex}.steps.${stepIndex}`;
                   const stepNumber = (stepOffsetByGroup[groupIndex] ?? 0) + stepIndex + 1;
                   const isPulsing = pulsingPath === stepPath;
@@ -781,17 +805,17 @@ export function InstructionsAccordionEditor({
                       key={stepIndex}
                       id={recipeGranularAnchorId(stepPath)}
                       data-recipe-field-path={stepPath}
-                      className={`flex flex-col gap-2 rounded-sm sm:flex-row sm:items-start sm:gap-3 ${
+                      className={`flex flex-col gap-1.5 border-b border-line/40 py-2.5 last:border-b-0 sm:flex-row sm:items-start sm:gap-2 ${
                         isPulsing ? "mesa-nav-field-pulse" : ""
                       }`}
                     >
                       <div className="flex items-start gap-2 sm:contents">
                         <EditorDragHandle label={`step ${stepNumber}`} />
-                        <span className="shrink-0 text-xs font-semibold tabular-nums text-muted sm:mt-2.5 sm:w-5">
+                        <span className="shrink-0 text-xs font-semibold tabular-nums text-muted sm:mt-2 sm:w-5">
                           {stepNumber}
                         </span>
                       </div>
-                      <div className="grid min-w-0 flex-1 gap-1.5">
+                      <div className="grid min-w-0 flex-1 gap-1">
                         <textarea
                           value={step}
                           rows={2}
@@ -803,7 +827,7 @@ export function InstructionsAccordionEditor({
                             next[groupIndex] = { ...group, steps };
                             onChange(next);
                           }}
-                          className={`${adminInputClass} h-auto min-h-[4.5rem] flex-1 resize-y sm:min-h-[2.75rem]`}
+                          className={`${adminInputClass} h-auto min-h-[2.75rem] flex-1 resize-y`}
                         />
                         {onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
                           <GranularFieldAiSlot
@@ -854,7 +878,7 @@ export function InstructionsAccordionEditor({
 
                 <button
                   type="button"
-                  className={editorTextAction}
+                  className={`${editorTextAction} mt-2`}
                   onClick={() => {
                     const next = [...groups];
                     next[groupIndex] = { ...group, steps: [...group.steps, ""] };
@@ -863,6 +887,7 @@ export function InstructionsAccordionEditor({
                 >
                   + Add step
                 </button>
+                </div>
               </div>
             ) : null}
           </div>

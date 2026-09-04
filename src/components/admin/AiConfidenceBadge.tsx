@@ -22,7 +22,7 @@ export function AiConfidenceBadge({
   const title = sourceNote?.trim() || confidenceLabel(confidence);
   return (
     <span
-      className={`shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.08em] ${styles[confidence]}`}
+      className={`max-w-full text-[0.65rem] font-semibold uppercase tracking-[0.08em] ${styles[confidence]}`}
       title={title}
     >
       {confidenceLabel(confidence)}

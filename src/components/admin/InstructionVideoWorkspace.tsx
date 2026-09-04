@@ -80,7 +80,7 @@ export function InstructionVideoWorkspace({
     <aside
       className={
         videoPanelVisible
-          ? "overflow-y-auto rounded-sm border border-line/80 bg-cream/25 p-3 lg:sticky lg:self-start"
+          ? "overflow-y-auto border-b border-line/70 pb-4 2xl:sticky 2xl:self-start 2xl:border-b-0 2xl:border-l 2xl:border-line/70 2xl:pb-0 2xl:pl-4"
           : "pointer-events-none fixed left-0 top-0 -z-50 h-px w-px overflow-hidden opacity-0"
       }
       style={
@@ -111,8 +111,8 @@ export function InstructionVideoWorkspace({
 
       {!linkedVideo ? (
         videoPanelVisible ? (
-          <div className="rounded-sm border border-dashed border-line/80 bg-paper/60 px-3 py-4 text-sm text-muted">
-            <p className="font-semibold text-ink">No linked video</p>
+          <div className="py-2 text-sm text-muted">
+            <p className="font-medium text-ink">No linked video</p>
             <p className="mt-1 text-xs leading-relaxed">
               Link a YouTube video in Media to verify instruction timestamps.
             </p>

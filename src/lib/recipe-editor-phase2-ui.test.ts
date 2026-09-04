@@ -74,6 +74,7 @@ describe("Recipe editor Phase 2 Basics/Details contracts", () => {
     assert.match(editor, /layout="yield"/);
     assert.match(editor, /layout="timing"/);
     assert.match(editor, /layout="classification"/);
+    assert.match(editor, /max-w-lg grid-cols-1 gap-4 min-\[480px\]:grid-cols-2/);
   });
 
   it("keeps utensils and tags as canonical string[] with Phase 0 coerce", () => {

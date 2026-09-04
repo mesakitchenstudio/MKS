@@ -320,14 +320,14 @@ function DetailSubgroup({
 }) {
   const gridClass =
     layout === "yield"
-      ? "grid max-w-md grid-cols-[minmax(4.5rem,5.5rem)_minmax(8rem,1fr)] gap-3"
+      ? "grid max-w-lg grid-cols-1 gap-4 min-[480px]:grid-cols-2"
       : layout === "timing"
-        ? "grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
+        ? "grid min-w-0 gap-5 sm:grid-cols-2 2xl:grid-cols-3"
         : layout === "classification"
-          ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          ? "grid min-w-0 gap-4 sm:grid-cols-2 2xl:grid-cols-3"
           : layout === "medium"
             ? "grid max-w-3xl gap-4"
-            : "grid gap-4 md:grid-cols-2 lg:grid-cols-3";
+            : "grid min-w-0 gap-4 md:grid-cols-2 2xl:grid-cols-3";
 
   return (
     <div className="border-t border-line/70 pt-5 first:border-t-0 first:pt-0">
@@ -358,16 +358,16 @@ function FieldLabel({
   overflow?: ReactNode;
 }) {
   return (
-    <div className={compact ? "mb-1.5" : "mb-2"}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+    <div className={`min-w-0 ${compact ? "mb-1.5" : "mb-2"}`}>
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <p className={`font-semibold text-ink ${compact ? "text-sm" : ""}`}>
+          <p className={`min-w-0 font-semibold text-ink ${compact ? "text-sm" : ""}`}>
             {label}
             {required ? <span className="text-terracotta"> *</span> : null}
           </p>
           {aiAction}
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">
           <AiConfidenceBadge confidence={confidence} sourceNote={sourceNote} />
           {overflow}
         </div>
@@ -1919,8 +1919,8 @@ export function RecipeEditor({
             : detailsLayout === "servings" || detailsLayout === "unit"
               ? "min-w-0"
               : isWide
-                ? "md:col-span-2"
-                : ""
+                ? "md:col-span-2 min-w-0"
+                : "min-w-0"
         }
       >
         <FieldLabel
@@ -2448,8 +2448,8 @@ export function RecipeEditor({
                   style={scrollTargetStyle}
                 >
                   <label className="grid gap-1.5">
-                    <span className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="flex flex-wrap items-center gap-2">
+                    <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+                      <span className="flex min-w-0 flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold text-ink">
                           Title<span className="text-terracotta"> *</span>
                         </span>
@@ -2525,8 +2525,8 @@ export function RecipeEditor({
                   className="group/field grid max-w-[72ch] gap-1.5"
                   style={scrollTargetStyle}
                 >
-                  <span className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="flex flex-wrap items-center gap-2">
+                  <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+                    <span className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold text-ink">Excerpt</span>
                       <FieldAiFieldActions
                         path="excerpt"
@@ -2579,7 +2579,7 @@ export function RecipeEditor({
                   className="grid max-w-sm gap-1.5"
                   style={scrollTargetStyle}
                 >
-                  <span className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
                     <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
                       Slug
                     </span>
@@ -2629,9 +2629,9 @@ export function RecipeEditor({
                 </label>
               </div>
               <div className="mt-5">
-                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <div className="mb-2 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <p className="text-sm font-semibold text-ink">Categories</p>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
                     <FieldAiFieldActions
                       path="categoryIds"
                       categoryIds={categoryIds}
@@ -2706,13 +2706,13 @@ export function RecipeEditor({
                           </span>
                         </button>
                         {!collapsed ? (
-                          <div className="flex flex-wrap gap-x-4 gap-y-2 pb-3">
+                          <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-2 pb-3">
                             {group.categories.map((category) => {
                               const selected = categoryIds.includes(category.id);
                               return (
                                 <label
                                   key={category.id}
-                                  className={`flex min-h-9 items-center gap-2 text-sm ${adminFocusRing} ${
+                                  className={`flex min-h-9 min-w-0 max-w-full items-start gap-2 text-sm ${adminFocusRing} ${
                                     selected ? "font-semibold text-ink" : "text-ink/80"
                                   }`}
                                 >
@@ -2720,8 +2720,9 @@ export function RecipeEditor({
                                     type="checkbox"
                                     checked={selected}
                                     onChange={() => toggleCategory(category.id)}
+                                    className="mt-1 shrink-0"
                                   />
-                                  {category.name}
+                                  <span className="min-w-0 break-words">{category.name}</span>
                                 </label>
                               );
                             })}
@@ -2837,7 +2838,7 @@ export function RecipeEditor({
                       isInstructions
                         ? "rounded-sm border border-line/80 bg-cream/30 p-4 md:p-5"
                         : isIngredients
-                          ? "border-y border-line/70 py-5"
+                          ? "min-w-0 border-y border-line/70 py-5"
                           : isProse
                             ? "max-w-[72ch]"
                             : "max-w-3xl border-t border-line/60 pt-5"
@@ -3565,10 +3566,7 @@ function IngredientsEditor({
     onChange(next);
   }
 
-  function aiSlot(
-    path: string,
-    value: unknown,
-  ) {
+  function aiSlot(path: string, value: unknown) {
     if (!typeFields || !onRunFieldAi || !onApplyFieldSuggestion || !onClearFieldSuggestion) {
       return null;
     }
@@ -3592,13 +3590,13 @@ function IngredientsEditor({
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid w-full min-w-0 max-w-full gap-6">
       {groups.map((group, groupIndex) => (
         <div
           key={groupIndex}
-          className="grid gap-2 border-t border-line/70 pt-5 first:border-t-0 first:pt-0"
+          className="grid min-w-0 gap-2 border-t border-line/70 pt-5 first:border-t-0 first:pt-0"
         >
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <input
               value={group.name || ""}
               placeholder="Group name (optional)"
@@ -3608,34 +3606,36 @@ function IngredientsEditor({
                 next[groupIndex] = { ...group, name: event.target.value };
                 update(next);
               }}
-              className={`${compactInputClass} max-w-md flex-1 font-semibold`}
+              className={`${compactInputClass} min-w-0 max-w-md flex-1 font-semibold`}
             />
-            <div className="group/field flex items-center gap-1">
-              {aiSlot(`values.${parentKey}.${groupIndex}.name`, group.name ?? "")}
-            </div>
+            <div className="group/field min-w-0 shrink">{aiSlot(`values.${parentKey}.${groupIndex}.name`, group.name ?? "")}</div>
             {groups.length > 1 ? (
-              <EditorRowActions
-                itemLabel={`ingredient group ${groupIndex + 1}`}
-                upDisabled={groupIndex === 0}
-                downDisabled={groupIndex === groups.length - 1}
-                showRemove={false}
-                onMoveUp={() => update(moveArrayItem(groups, groupIndex, groupIndex - 1))}
-                onMoveDown={() => update(moveArrayItem(groups, groupIndex, groupIndex + 1))}
-              />
+              <div className="shrink-0">
+                <EditorRowActions
+                  itemLabel={`ingredient group ${groupIndex + 1}`}
+                  upDisabled={groupIndex === 0}
+                  downDisabled={groupIndex === groups.length - 1}
+                  showRemove={false}
+                  onMoveUp={() => update(moveArrayItem(groups, groupIndex, groupIndex - 1))}
+                  onMoveDown={() => update(moveArrayItem(groups, groupIndex, groupIndex + 1))}
+                />
+              </div>
             ) : null}
           </div>
 
-          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted xl:grid xl:grid-cols-[1.75rem_minmax(6.5rem,8.5rem)_minmax(0,1.4fr)_minmax(12rem,20rem)_auto]">
+          {/* Desktop column headers — only when usable width supports 5 columns */}
+          <div className="hidden gap-x-3 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted 2xl:grid 2xl:grid-cols-[1.75rem_minmax(6.5rem,8.5rem)_minmax(0,1.4fr)_minmax(12rem,20rem)_auto]">
             <span className="sr-only">Reorder</span>
             <span>Amount</span>
             <span>Ingredient</span>
             <span>Notes</span>
             <span className="sr-only">Actions</span>
           </div>
-          <div className="hidden gap-2 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted md:grid md:grid-cols-[1.75rem_minmax(6.5rem,8rem)_minmax(0,1fr)_auto] xl:hidden">
+          {/* Tablet column headers — Amount / Ingredient only (Notes is row 2) */}
+          <div className="hidden gap-x-3 px-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted md:grid md:grid-cols-[1.75rem_minmax(5rem,6.5rem)_minmax(0,1fr)_2.5rem] 2xl:hidden">
             <span className="sr-only">Reorder</span>
-            <span>Amount</span>
-            <span>Ingredient</span>
+            <span className="min-w-0 truncate">Amount</span>
+            <span className="min-w-0 truncate">Ingredient</span>
             <span className="sr-only">Actions</span>
           </div>
 
@@ -3646,81 +3646,75 @@ function IngredientsEditor({
             return (
               <div
                 key={itemIndex}
-                className="grid gap-1.5 border-b border-line/40 py-2 last:border-b-0 md:grid-cols-[1.75rem_minmax(6.5rem,8rem)_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[1.75rem_minmax(6.5rem,8.5rem)_minmax(0,1.4fr)_minmax(12rem,20rem)_auto]"
+                className="grid min-w-0 gap-1.5 border-b border-line/40 py-2 last:border-b-0 md:grid-cols-[1.75rem_minmax(5rem,6.5rem)_minmax(0,1fr)_2.5rem] md:items-start 2xl:grid-cols-[1.75rem_minmax(6.5rem,8.5rem)_minmax(0,1.4fr)_minmax(12rem,20rem)_auto]"
               >
-                <div className="flex min-h-9 items-center md:pt-0">
+                <div className="flex min-h-9 shrink-0 items-center">
                   <EditorDragHandle
                     label={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
                   />
                 </div>
 
-                <div className="group/field grid gap-0.5">
+                <div className="group/field grid min-w-0 gap-0.5">
                   <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted md:sr-only">
                     Amount
                   </span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      value={item.amount}
-                      placeholder="Amount"
-                      aria-label={`Amount for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                      onChange={(event) => {
-                        const next = [...groups];
-                        const items = [...group.items];
-                        items[itemIndex] = { ...item, amount: event.target.value };
-                        next[groupIndex] = { ...group, items };
-                        update(next);
-                      }}
-                      className={`min-w-0 flex-1 ${compactInputClass}`}
-                    />
-                    {aiSlot(amountPath, item.amount)}
-                  </div>
+                  <input
+                    value={item.amount}
+                    placeholder="Amount"
+                    aria-label={`Amount for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                    onChange={(event) => {
+                      const next = [...groups];
+                      const items = [...group.items];
+                      items[itemIndex] = { ...item, amount: event.target.value };
+                      next[groupIndex] = { ...group, items };
+                      update(next);
+                    }}
+                    className={`w-full min-w-0 ${compactInputClass}`}
+                  />
+                  <div className="min-w-0">{aiSlot(amountPath, item.amount)}</div>
                 </div>
 
-                <div className="group/field grid gap-0.5">
+                <div className="group/field grid min-w-0 gap-0.5">
                   <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted md:sr-only">
                     Ingredient
                   </span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      value={item.item}
-                      placeholder="Ingredient"
-                      aria-label={`Ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                      onChange={(event) => {
-                        const next = [...groups];
-                        const items = [...group.items];
-                        items[itemIndex] = { ...item, item: event.target.value };
-                        next[groupIndex] = { ...group, items };
-                        update(next);
-                      }}
-                      className={`min-w-0 flex-1 ${compactInputClass}`}
-                    />
-                    {aiSlot(itemPath, item.item)}
-                  </div>
+                  <input
+                    value={item.item}
+                    placeholder="Ingredient"
+                    aria-label={`Ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                    onChange={(event) => {
+                      const next = [...groups];
+                      const items = [...group.items];
+                      items[itemIndex] = { ...item, item: event.target.value };
+                      next[groupIndex] = { ...group, items };
+                      update(next);
+                    }}
+                    className={`w-full min-w-0 ${compactInputClass}`}
+                  />
+                  <div className="min-w-0">{aiSlot(itemPath, item.item)}</div>
                 </div>
 
-                <div className="group/field grid gap-0.5 md:col-span-3 md:col-start-2 xl:col-span-1 xl:col-start-4">
-                  <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted xl:sr-only">
+                <div className="group/field grid min-w-0 gap-0.5 md:col-span-3 md:col-start-2 2xl:col-span-1 2xl:col-start-4">
+                  <span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted 2xl:sr-only">
                     Notes
                   </span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      value={item.notes || ""}
-                      placeholder="Notes"
-                      aria-label={`Notes for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
-                      onChange={(event) => {
-                        const next = [...groups];
-                        const items = [...group.items];
-                        items[itemIndex] = { ...item, notes: event.target.value };
-                        next[groupIndex] = { ...group, items };
-                        update(next);
-                      }}
-                      className={`min-w-0 flex-1 ${compactInputClass}`}
-                    />
-                    {aiSlot(notesPath, item.notes ?? "")}
-                  </div>
+                  <input
+                    value={item.notes || ""}
+                    placeholder="Notes"
+                    aria-label={`Notes for ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
+                    onChange={(event) => {
+                      const next = [...groups];
+                      const items = [...group.items];
+                      items[itemIndex] = { ...item, notes: event.target.value };
+                      next[groupIndex] = { ...group, items };
+                      update(next);
+                    }}
+                    className={`w-full min-w-0 ${compactInputClass}`}
+                  />
+                  <div className="min-w-0">{aiSlot(notesPath, item.notes ?? "")}</div>
                 </div>
 
-                <div className="flex min-h-9 items-center justify-end md:col-start-4 md:row-start-1 xl:col-start-5">
+                <div className="flex min-h-9 shrink-0 items-center justify-end md:col-start-4 md:row-start-1 2xl:col-start-5">
                   <EditorRowActions
                     itemLabel={`ingredient ${itemIndex + 1} in group ${groupIndex + 1}`}
                     upDisabled={itemIndex === 0}

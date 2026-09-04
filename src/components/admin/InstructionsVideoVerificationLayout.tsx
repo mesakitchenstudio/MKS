@@ -84,7 +84,7 @@ function VideoPanelRestoreButton() {
   const { videoPanelVisible, setVideoPanelVisible } = useInstructionVideoWorkspace();
   if (videoPanelVisible) return null;
   return (
-    <div className="mb-3 rounded-sm border border-line/80 bg-cream/20 p-3">
+    <div className="mb-3">
       <button
         type="button"
         className={`text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline ${adminFocusRing}`}
@@ -156,8 +156,28 @@ function InstructionsVideoVerificationBody({
   const { videoPanelVisible } = useInstructionVideoWorkspace();
 
   return (
-    <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-      <div className={`min-w-0 ${videoPanelVisible ? "flex-[1_1_68%]" : "flex-1"}`}>
+    <div
+      className="flex flex-col gap-5 2xl:flex-row 2xl:items-start"
+      data-instructions-video-layout="phase4"
+    >
+      <div
+        className={
+          videoPanelVisible
+            ? "order-1 min-w-0 2xl:order-2 2xl:flex-[0_1_32%] 2xl:max-w-md"
+            : "pointer-events-none fixed left-0 top-0 -z-50 h-px w-px overflow-hidden opacity-0"
+        }
+        aria-hidden={!videoPanelVisible}
+      >
+        <InstructionVideoWorkspace
+          instructionGroups={groups}
+          onSetStartFromPlayhead={handleSetStartFromPlayhead}
+          onSetEndFromPlayhead={handleSetEndFromPlayhead}
+          endPlayheadFeedbackByGroup={endPlayheadFeedbackByGroup}
+        />
+      </div>
+      <div
+        className={`order-2 min-w-0 2xl:order-1 ${videoPanelVisible ? "2xl:flex-[1_1_68%]" : "flex-1"}`}
+      >
         <VideoPanelRestoreButton />
         <InstructionsAccordionEditor
           groups={groups}
@@ -184,21 +204,6 @@ function InstructionsVideoVerificationBody({
           onChapterFieldChange={onChapterFieldChange}
           onClearStartTimestamp={handleClearStart}
           onClearEndTimestamp={handleClearEnd}
-          onSetStartFromPlayhead={handleSetStartFromPlayhead}
-          onSetEndFromPlayhead={handleSetEndFromPlayhead}
-          endPlayheadFeedbackByGroup={endPlayheadFeedbackByGroup}
-        />
-      </div>
-      <div
-        className={
-          videoPanelVisible
-            ? "min-w-0 flex-[0_1_32%] lg:max-w-md"
-            : "pointer-events-none fixed left-0 top-0 -z-50 h-px w-px overflow-hidden opacity-0"
-        }
-        aria-hidden={!videoPanelVisible}
-      >
-        <InstructionVideoWorkspace
-          instructionGroups={groups}
           onSetStartFromPlayhead={handleSetStartFromPlayhead}
           onSetEndFromPlayhead={handleSetEndFromPlayhead}
           endPlayheadFeedbackByGroup={endPlayheadFeedbackByGroup}

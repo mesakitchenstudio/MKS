@@ -43,6 +43,27 @@ describe("Recipe editor Phase 3 Content contracts", () => {
     assert.match(editor, /reviewPaths\.has\(path\)/);
   });
 
+  it("keeps tablet ingredient rows contained without AI columns or horizontal scroll", () => {
+    const ingredients = editor.slice(
+      editor.indexOf("function IngredientsEditor"),
+      editor.indexOf("function ImageField"),
+    );
+    assert.match(ingredients, /min-w-0/);
+    assert.match(ingredients, /md:grid-cols-\[1\.75rem_minmax\(5rem,6\.5rem\)_minmax\(0,1fr\)_2\.5rem\]/);
+    assert.match(
+      ingredients,
+      /2xl:grid-cols-\[1\.75rem_minmax\(6\.5rem,8\.5rem\)_minmax\(0,1\.4fr\)_minmax\(12rem,20rem\)_auto\]/,
+    );
+    assert.match(ingredients, /md:col-span-3 md:col-start-2/);
+    assert.doesNotMatch(ingredients, /\bxl:grid-cols-\[1\.75rem_minmax\(6\.5rem/);
+    assert.doesNotMatch(ingredients, /overflow-x-auto/);
+    assert.doesNotMatch(ingredients, /flex items-center gap-1[\s\S]*aiSlot\(amountPath/);
+    assert.match(ingredients, /aiSlot\(amountPath/);
+    assert.match(ingredients, /aiSlot\(itemPath/);
+    assert.match(ingredients, /aiSlot\(notesPath/);
+    assert.match(ingredients, /EditorRowActions/);
+  });
+
   it("keeps Notes/Tips as string[] and Key ingredients/FAQ as namedNotes", () => {
     assert.match(editor, /fieldKey === "tips"/);
     assert.match(editor, /StudioTipsCompactEditor/);

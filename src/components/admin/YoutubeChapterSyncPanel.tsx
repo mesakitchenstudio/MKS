@@ -80,7 +80,7 @@ function formatSyncedAt(value: string | null | undefined): string | null {
   return date.toLocaleString();
 }
 
-export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurationSeconds }: Props) {
+export function YoutubeChapterSyncPanel({ recipeId, values, isDirty }: Props) {
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -234,47 +234,73 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
     !preview.oauth.canWrite ||
     Boolean(preview.byteError);
 
+  const needsAttention = chapterLabelOverrides.length > 0;
+  const healthyReadyLabel = preview?.export.ready
+    ? "Ready for YouTube"
+    : preview
+      ? (STATUS_LABELS[preview.syncStatus] ?? preview.syncStatus)
+      : "Ready for YouTube";
+
   return (
-    <section className="mb-5 rounded-sm border border-line/80 bg-white/60 p-4">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-bold uppercase tracking-wide text-muted">YouTube chapter sync</h3>
-        {preview ? (
-          <span className="text-xs font-medium text-muted">
-            {STATUS_LABELS[preview.syncStatus] ?? preview.syncStatus}
-          </span>
-        ) : null}
+    <section
+      className="mb-5"
+      data-testid="youtube-chapter-sync"
+      data-sync-state={needsAttention ? "needs-attention" : "healthy"}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div className="min-w-0">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
+            YouTube chapters
+          </p>
+          <p className="mt-0.5 text-sm text-ink">
+            {coverage.mappedSections}/{coverage.totalSections} mapped
+            {preview?.export.ready || !preview ? (
+              <span className="text-muted"> · {healthyReadyLabel}</span>
+            ) : (
+              <span className="text-muted">
+                {" "}
+                · {STATUS_LABELS[preview.syncStatus] ?? preview.syncStatus}
+              </span>
+            )}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={loading || isDirty || !recipeId}
+          className={`text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline disabled:opacity-50 ${adminFocusRing}`}
+          onClick={() => void loadPreview()}
+        >
+          {loading ? "Generating preview…" : preview ? "Refresh preview" : "Preview YouTube chapters"}
+        </button>
       </div>
 
-      <p className="mb-3 text-sm text-muted">
-        {coverage.mappedSections}/{coverage.totalSections} Mesa chapters mapped
-        {preview?.export.ready ? " · YouTube ready ✓" : ""}
-      </p>
-
       {displayedLastSyncedAt ? (
-        <p className="mb-3 text-sm text-muted">
-          Last synced: <span className="font-medium text-ink">{formatSyncedAt(displayedLastSyncedAt)}</span>
+        <p className="mt-1 text-xs text-muted">
+          Last synced: {formatSyncedAt(displayedLastSyncedAt)}
         </p>
       ) : null}
 
       {isDirty ? (
-        <p className="mb-3 text-sm text-terracotta/90">
+        <p className="mt-2 text-sm text-terracotta/90">
           Save recipe changes before syncing chapters to YouTube.
         </p>
       ) : null}
 
-      {chapterLabelOverrides.length ? (
-        <div className="mb-3 rounded-sm border border-terracotta/30 bg-terracotta/5 px-3 py-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-terracotta">
-            YouTube chapter label overrides
-          </p>
-          <ul className="mt-2 space-y-2 text-sm">
+      {needsAttention ? (
+        <div className="mt-3 border-l-2 border-terracotta/70 pl-3">
+          <p className="text-sm font-semibold text-terracotta">Chapter labels need review</p>
+          <ul className="mt-2 space-y-2.5 text-sm">
             {chapterLabelOverrides.map((row) => (
               <li key={row.groupIndex}>
-                <span className="text-muted">Section {row.groupIndex + 1}:</span>{" "}
-                <span className="font-medium text-ink">{row.sectionTitle}</span>
-                <br />
-                <span className="text-muted">YouTube chapter label:</span>{" "}
-                <span className="font-semibold text-terracotta">{row.youtubeLabel}</span>
+                <p className="font-medium text-ink">
+                  Section {row.groupIndex + 1}
+                </p>
+                <p className="text-muted">
+                  Mesa: <span className="text-ink">{row.sectionTitle}</span>
+                </p>
+                <p className="text-muted">
+                  YouTube: <span className="font-medium text-terracotta">{row.youtubeLabel}</span>
+                </p>
               </li>
             ))}
           </ul>
@@ -286,45 +312,35 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
       ) : null}
 
       {error ? (
-        <p className="mb-3 text-sm font-semibold text-terracotta" role="alert">
+        <p className="mt-2 text-sm font-semibold text-terracotta" role="alert">
           {error}
         </p>
       ) : null}
       {success ? (
-        <p className="mb-3 text-sm font-semibold text-emerald-800" role="status">
+        <p className="mt-2 text-sm font-semibold text-ink" role="status">
           {success}
         </p>
       ) : null}
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={loading || isDirty || !recipeId}
-          className={`rounded-sm border border-line bg-cream/40 px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-50 ${adminFocusRing}`}
-          onClick={() => void loadPreview()}
+      {preview?.videoId ? (
+        <a
+          href={youtubeWatchUrl(preview.videoId) ?? "#"}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-block text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline"
         >
-          {loading ? "Generating preview…" : preview ? "Refresh preview" : "Preview YouTube chapters"}
-        </button>
-        {preview?.videoId ? (
-          <a
-            href={youtubeWatchUrl(preview.videoId) ?? "#"}
-            target="_blank"
-            rel="noreferrer"
-            className="self-center text-xs font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline"
-          >
-            View on YouTube
-          </a>
-        ) : null}
-      </div>
+          View on YouTube
+        </a>
+      ) : null}
 
       {preview ? (
-        <div className="space-y-4 border-t border-line/70 pt-4">
+        <div className="mt-4 space-y-4 border-t border-line/70 pt-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Video</p>
             <p className="text-sm font-medium text-ink">{preview.videoTitle}</p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <p className="text-sm text-muted">
               Mesa chapters: <span className="font-medium text-ink">{preview.mappedSections} mapped</span>
             </p>
@@ -341,7 +357,7 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
               ))}
             </ul>
           ) : (
-            <p className="text-sm font-medium text-emerald-800">Ready for YouTube ✓</p>
+            <p className="text-sm text-muted">Ready for YouTube</p>
           )}
 
           {preview.export.items.some((item) => item.source === "synthetic_intro") ? (
@@ -369,7 +385,7 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
               Proposed chapters
             </p>
-            <pre className="overflow-x-auto rounded-sm bg-cream/30 p-3 text-xs leading-relaxed text-ink">
+            <pre className="overflow-x-auto bg-cream/20 p-3 text-xs leading-relaxed text-ink">
               {proposedChapterBlock}
             </pre>
           </div>
@@ -394,31 +410,36 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
             </p>
           ) : null}
           {preview.replacementStrategy === "already_in_sync" ? (
-            <p className="text-sm font-semibold text-emerald-800">Already in sync with YouTube.</p>
+            <p className="text-sm font-medium text-ink">Already in sync with YouTube.</p>
           ) : null}
 
           {chapterDiff && preview.existingChapterBlock ? (
             <div className="grid gap-3 md:grid-cols-2">
               <div>
                 <p className="mb-1 text-xs font-semibold uppercase text-muted">Current chapter block</p>
-                <pre className="max-h-40 overflow-auto rounded-sm bg-cream/20 p-2 text-xs">
+                <pre className="overflow-x-auto bg-cream/20 p-2 text-xs">
                   {preview.existingChapterBlock}
                 </pre>
               </div>
               <div>
                 <p className="mb-1 text-xs font-semibold uppercase text-muted">Proposed chapter block</p>
-                <pre className="max-h-40 overflow-auto rounded-sm bg-cream/20 p-2 text-xs">
+                <pre className="overflow-x-auto bg-cream/20 p-2 text-xs">
                   {proposedChapterBlock}
                 </pre>
               </div>
             </div>
           ) : null}
 
-          <p className="text-xs text-muted">
-            Unchanged description text: {preview.unchangedDescriptionBytes.toLocaleString()} bytes ·
-            Chapter block: {preview.chapterBlockBytes.toLocaleString()} bytes · Proposed:{" "}
-            {preview.proposedBytes.toLocaleString()} / {preview.byteLimit.toLocaleString()} bytes
-          </p>
+          <details className="text-xs text-muted">
+            <summary className={`cursor-pointer font-semibold hover:text-ink ${adminFocusRing}`}>
+              Description size details
+            </summary>
+            <p className="mt-2">
+              Unchanged description text: {preview.unchangedDescriptionBytes.toLocaleString()} bytes ·
+              Chapter block: {preview.chapterBlockBytes.toLocaleString()} bytes · Proposed:{" "}
+              {preview.proposedBytes.toLocaleString()} / {preview.byteLimit.toLocaleString()} bytes
+            </p>
+          </details>
           {preview.byteError ? <p className="text-sm text-terracotta">{preview.byteError}</p> : null}
 
           <div className="flex flex-wrap gap-3">
@@ -438,12 +459,12 @@ export function YoutubeChapterSyncPanel({ recipeId, values, isDirty, videoDurati
             </button>
           </div>
           {showBefore ? (
-            <pre className="max-h-48 overflow-auto rounded-sm border border-line/70 bg-white p-3 text-xs whitespace-pre-wrap">
+            <pre className="overflow-x-auto border border-line/70 bg-white p-3 text-xs whitespace-pre-wrap">
               {preview.beforeDescription}
             </pre>
           ) : null}
           {showProposed ? (
-            <pre className="max-h-48 overflow-auto rounded-sm border border-line/70 bg-white p-3 text-xs whitespace-pre-wrap">
+            <pre className="overflow-x-auto border border-line/70 bg-white p-3 text-xs whitespace-pre-wrap">
               {preview.proposedDescription}
             </pre>
           ) : null}
