@@ -142,7 +142,8 @@ describe("Series public Phase 2 presentation contracts", () => {
 
   it("renders every visible Series item exactly once inside the ordered grid", () => {
     assert.match(page, /series\.items\.map/);
-    assert.match(page, /<ol className="mt-6 grid/);
+    assert.match(page, /<ol[\s\S]*?className=\{itemGridClass\}/);
+    assert.match(page, /data-mesa-series-grid=\{itemGridMode\}/);
     assert.doesNotMatch(page, /filter\(\(item\) => !item\.featured\)/);
     assert.doesNotMatch(page, /filter\(\(item\) => item\.id !==/);
     assert.equal((page.match(/series\.items\.map/g) || []).length, 1);
@@ -199,11 +200,12 @@ describe("Series public Phase 2 presentation contracts", () => {
     assert.match(page, /Cooking Series/);
     assert.match(page, /series\.heroImage/);
     assert.match(page, /aspect-video/);
-    assert.match(page, /xl:aspect-auto xl:h-\[34rem\]/);
+    assert.match(page, /xl:aspect-auto xl:h-\[30rem\]/);
     assert.match(page, /object-cover object-center/);
     assert.match(page, /series\.intro/);
     assert.match(page, /formatSeriesCollectionMeta/);
     assert.match(page, /max-w-6xl/);
+    assert.match(page, /visibleItemCount === 2/);
     assert.match(page, /sm:grid-cols-2 lg:grid-cols-3/);
     assert.match(page, /max-w-\[72ch\]/);
     // Guard against restoring an unrestricted large-desktop 16:9-only hero wrapper.

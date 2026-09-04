@@ -65,6 +65,16 @@ export default async function SeriesDetailPage({ params }: Props) {
   /** Same effective featured item the former standalone panel used (`series.featured`). */
   const effectiveFeaturedId = series.featured?.id ?? null;
   const collectionMeta = formatSeriesCollectionMeta(series.items);
+  const visibleItemCount = series.items.length;
+  /** Adaptive columns from visible count — avoid an implied empty third column for 2-item Series. */
+  const itemGridClass =
+    visibleItemCount <= 1
+      ? "mt-6 grid max-w-xl gap-6"
+      : visibleItemCount === 2
+        ? "mt-6 grid gap-6 sm:grid-cols-2"
+        : "mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3";
+  const itemGridMode =
+    visibleItemCount <= 1 ? "one" : visibleItemCount === 2 ? "two" : "many";
 
   return (
     <article data-mesa-series-layout="phase2-collection">
@@ -103,7 +113,7 @@ export default async function SeriesDetailPage({ params }: Props) {
         </div>
 
         {series.heroImage ? (
-          <div className="relative mt-8 aspect-video overflow-hidden border border-line bg-sand xl:aspect-auto xl:h-[34rem]">
+          <div className="relative mt-8 aspect-video overflow-hidden border border-line bg-sand xl:aspect-auto xl:h-[30rem]">
             <Image
               src={series.heroImage}
               alt=""
@@ -126,7 +136,11 @@ export default async function SeriesDetailPage({ params }: Props) {
           <h2 id="series-items-heading" className="font-serif text-3xl text-ink">
             In this series
           </h2>
-          <ol className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <ol
+            className={itemGridClass}
+            data-mesa-series-item-count={visibleItemCount}
+            data-mesa-series-grid={itemGridMode}
+          >
             {series.items.map((item) => {
               const isEffectiveFeatured = effectiveFeaturedId === item.id;
               return (
@@ -161,7 +175,7 @@ export default async function SeriesDetailPage({ params }: Props) {
                         {item.description}
                       </p>
                     ) : null}
-                    <div className="mt-4 flex min-w-0 flex-wrap gap-x-4 gap-y-2">
+                    <div className="mt-4 flex min-w-0 flex-wrap gap-x-5 gap-y-3">
                       {item.recipeSlug ? (
                         <SeriesItemTrackLink
                           href={`/recipes/${item.recipeSlug}`}
@@ -202,14 +216,12 @@ export default async function SeriesDetailPage({ params }: Props) {
           </ol>
         </section>
 
-        <div className="mx-auto max-w-3xl">
-          <SeriesContinueWithMesa
-            seriesId={series.id}
-            seriesSlug={series.slug}
-            youtubePlaylistUrl={series.youtubePlaylistUrl}
-            youtubePlaylistId={series.youtubePlaylistId}
-          />
-        </div>
+        <SeriesContinueWithMesa
+          seriesId={series.id}
+          seriesSlug={series.slug}
+          youtubePlaylistUrl={series.youtubePlaylistUrl}
+          youtubePlaylistId={series.youtubePlaylistId}
+        />
       </div>
     </article>
   );

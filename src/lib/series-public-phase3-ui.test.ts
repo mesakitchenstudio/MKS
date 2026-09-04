@@ -159,14 +159,16 @@ describe("Series public Phase 3 conversion + metadata", () => {
   it("tightens hero-to-intro rhythm and keeps a readable intro measure", () => {
     assert.match(page, /mt-6 max-w-\[72ch\]/);
     assert.match(page, /section className="mt-10"/);
-    assert.match(page, /xl:h-\[34rem\]/);
+    assert.match(page, /xl:h-\[30rem\]/);
   });
 
   it("avoids early desktop layout breakpoints for metadata and conclusion actions", () => {
     assert.match(page, /sm:flex-row sm:flex-wrap sm:items-center/);
     assert.match(conclusion, /sm:flex-row sm:flex-wrap sm:items-center/);
     assert.doesNotMatch(page, /md:flex-row.*series_page_header|lg:flex-row.*playlist/);
-    assert.doesNotMatch(conclusion, /lg:flex-row|xl:flex-row|2xl:flex-row/);
+    // Conclusion text/actions split only at xl (conservative vs tablet content width).
+    assert.match(conclusion, /xl:flex-row xl:items-end xl:justify-between/);
+    assert.doesNotMatch(conclusion, /md:flex-row|lg:flex-row/);
   });
 
   it("preserves ItemList JSON-LD and item analytics event names", () => {
