@@ -90,6 +90,92 @@ describe("admin Team Access list chrome", () => {
   });
 });
 
+describe("admin Team Access Add/Edit form chrome", () => {
+  const photoFieldSource = readFileSync(
+    path.join(root, "../components/admin/AdminPhotoField.tsx"),
+    "utf8",
+  );
+  const compactPhotoStart = photoFieldSource.indexOf("export function AdminPhotoField");
+  const compactPhotoEnd = photoFieldSource.indexOf("export function AdminProfilePhotoForm");
+  const compactPhoto = photoFieldSource.slice(compactPhotoStart, compactPhotoEnd);
+  const profilePhotoForm = photoFieldSource.slice(compactPhotoEnd);
+
+  it("keeps the edit panel inside the same member list item as an expanded row", () => {
+    assert.match(teamListSource, /<li id=\{`admin-\$\{member\.id\}`\}/);
+    assert.match(teamListSource, /id=\{panelId\}/);
+    assert.match(teamListSource, /border-y border-line\/80 bg-cream\/30/);
+    assert.doesNotMatch(
+      teamListSource.slice(teamListSource.indexOf("{open ?"), teamListSource.indexOf("{confirmRemove")),
+      /className="border border-line bg-paper"/,
+    );
+    assert.match(teamListSource, /Save changes/);
+    assert.match(teamListSource, /Full name/);
+    assert.match(teamListSource, /New password/);
+    assert.match(teamListSource, /Access level/);
+    assert.match(teamListSource, /You cannot remove your own account/);
+    assert.match(teamListSource, /Mesa must keep at least one owner/);
+    assert.match(teamListSource, /deleteAdminAction/);
+    assert.match(teamListSource, /Remove \{member\.name\} from Mesa admin\?/);
+    assert.match(teamListSource, /aria-expanded=\{open\}/);
+    assert.match(teamListSource, /aria-controls=\{panelId\}/);
+  });
+
+  it("shows a visible leave-blank helper for New password", () => {
+    assert.match(teamListSource, /Leave blank to keep current/);
+    assert.match(teamListSource, /aria-describedby=\{passwordHelpId\}/);
+    assert.match(teamListSource, /autoComplete="new-password"/);
+    assert.match(teamListSource, /minLength=\{MIN_ADMIN_PASSWORD_LENGTH\}/);
+    assert.doesNotMatch(teamListSource, /placeholder="Leave blank to keep current"/);
+  });
+
+  it("softens the Add panel without a boxed cream header strip", () => {
+    const panelStart = addPanelSource.indexOf('id="staff-add-member"');
+    const panel = addPanelSource.slice(panelStart, addPanelSource.indexOf("{children}"));
+    assert.match(panel, /border-y border-line\/80 bg-cream\/30/);
+    assert.doesNotMatch(panel, /className="[^"]*border border-line bg-paper/);
+    assert.doesNotMatch(panel, /border-b border-line bg-cream px-5 py-4/);
+    assert.match(addPanelSource, />\s*Add team member\s*</);
+    assert.match(panel, /Create a Mesa admin account/);
+    assert.match(panel, /name="name"/);
+    assert.match(panel, /name="email"/);
+    assert.match(panel, /name="password"/);
+    assert.match(panel, /name="role"/);
+    assert.match(panel, />\s*Add admin\s*</);
+    assert.match(addPanelSource, /aria-controls="staff-add-member"/);
+    assert.match(panel, /saveAdminAction/);
+  });
+
+  it("aligns compact AdminPhotoField with Profile photo language", () => {
+    assert.match(compactPhoto, /displayInitials\(actorName\)/);
+    assert.doesNotMatch(compactPhoto, /No photo/);
+    assert.match(compactPhoto, /Upload photo/);
+    assert.match(compactPhoto, /Change photo/);
+    assert.match(compactPhoto, /Remove photo/);
+    assert.doesNotMatch(compactPhoto, /Upload profile photo/);
+    assert.doesNotMatch(compactPhoto, /Change profile photo/);
+    assert.doesNotMatch(compactPhoto, /recipe comment replies/);
+    assert.doesNotMatch(compactPhoto, /Google sign-in sets this by default/);
+    assert.match(compactPhoto, /adminProfileGooglePhotoHelper\(savedUrl\)/);
+    assert.match(compactPhoto, /ADMIN_PROFILE_PHOTO_FILE_HELP/);
+    assert.match(compactPhoto, /h-20 w-20/);
+    assert.match(teamListSource, /actorName=\{member\.name\}/);
+    // Immediate upload path preserved
+    assert.match(compactPhoto, /fetch\("\/api\/admin\/upload"/);
+    assert.match(compactPhoto, /setUrl\(data\.url\)/);
+  });
+
+  it("does not regress AdminProfilePhotoForm presentation", () => {
+    assert.match(profilePhotoForm, /displayInitials/);
+    assert.match(profilePhotoForm, /Upload photo/);
+    assert.match(profilePhotoForm, /Change photo/);
+    assert.match(profilePhotoForm, /adminProfileGooglePhotoHelper\(savedUrl\)/);
+    assert.match(profilePhotoForm, /ADMIN_PROFILE_PHOTO_FILE_HELP/);
+    assert.match(profilePhotoForm, /saveOwnAdminProfileAction/);
+    assert.doesNotMatch(profilePhotoForm, /No photo/);
+    assert.doesNotMatch(profilePhotoForm, /recipe comment replies/);
+  });
+});
+
 describe("admin Team Access owner safety unchanged", () => {
   it("still blocks demoting or deleting the final named owner", () => {
     const demote = validateAdminRoleChange({

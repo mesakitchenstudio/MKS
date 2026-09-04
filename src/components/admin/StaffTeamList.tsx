@@ -70,6 +70,7 @@ function StaffTeamMemberRow({
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const titleId = useId();
+  const passwordHelpId = useId();
   const panelId = `staff-editor-${member.id}`;
   const showSaved = useTransientSavedFlag(Boolean(member.noticeOk), STAFF_SAVED_PARAMS);
   const initials = displayInitials(member.name) || "?";
@@ -142,7 +143,7 @@ function StaffTeamMemberRow({
       </div>
 
       {open ? (
-        <div id={panelId} className="border border-line bg-paper">
+        <div id={panelId} className="border-y border-line/80 bg-cream/30">
           {showSaved && member.noticeOk ? (
             <p className={`mx-5 ${noticeOk}`}>{member.noticeOk}</p>
           ) : null}
@@ -153,7 +154,10 @@ function StaffTeamMemberRow({
             <div className="md:col-span-2">
               <p className="text-sm font-semibold text-ink">Profile photo</p>
               <div className="mt-2">
-                <AdminPhotoField defaultValue={member.photoUrl || ""} />
+                <AdminPhotoField
+                  defaultValue={member.photoUrl || ""}
+                  actorName={member.name}
+                />
               </div>
             </div>
             <label className="grid text-sm font-semibold text-ink">
@@ -176,10 +180,13 @@ function StaffTeamMemberRow({
                 name="password"
                 type="password"
                 minLength={MIN_ADMIN_PASSWORD_LENGTH}
-                placeholder="Leave blank to keep current"
                 autoComplete="new-password"
+                aria-describedby={passwordHelpId}
                 className={fieldClass}
               />
+              <span id={passwordHelpId} className="mt-1.5 text-xs font-normal text-muted">
+                Leave blank to keep current.
+              </span>
             </label>
             {member.lockOwnerRole ? (
               <div className="grid text-sm font-semibold text-ink">

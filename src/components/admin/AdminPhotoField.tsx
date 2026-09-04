@@ -11,7 +11,6 @@ import {
 import { displayInitials } from "@/lib/display-initials";
 import {
   ADMIN_IMAGE_ACCEPT,
-  ADMIN_IMAGE_HELP,
   resolveAdminImageUploadPolicy,
   validateAdminImageFile,
 } from "@/lib/admin-upload";
@@ -44,6 +43,8 @@ export function AdminPhotoField({
   const helpId = useId();
   const fileLabelId = useId();
   const isProfile = presentation === "profile";
+  const googleHelper = adminProfileGooglePhotoHelper(savedUrl);
+  const initials = displayInitials(actorName) || "?";
 
   function clearObjectPreview() {
     if (previewObjectUrl.current) {
@@ -123,6 +124,8 @@ export function AdminPhotoField({
       : "Profile photo"
     : "";
 
+  const actionMinHeight = isProfile ? "min-h-9" : "min-h-11";
+
   return (
     <div
       className={
@@ -133,15 +136,14 @@ export function AdminPhotoField({
     >
       <input type="hidden" name={name} value={url} />
       <div
-        className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-sand ${avatarSize}`}
+        className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-sand text-sm font-semibold text-ink ${avatarSize}`}
+        aria-hidden={!previewUrl}
       >
         {previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={previewUrl} alt={altText} className="h-full w-full object-cover" />
         ) : (
-          <span className="px-2 text-center text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
-            No photo
-          </span>
+          <span>{initials}</span>
         )}
       </div>
 
@@ -150,11 +152,11 @@ export function AdminPhotoField({
           <button
             type="button"
             disabled={busy}
-            className={`inline-flex min-h-9 items-center text-sm font-semibold text-terracotta underline-offset-4 transition-colors duration-150 hover:text-terracotta-dark hover:underline disabled:cursor-wait disabled:opacity-70 ${adminFocusRing}`}
+            className={`inline-flex ${actionMinHeight} items-center text-sm font-semibold text-terracotta underline-offset-4 transition-colors duration-150 hover:text-terracotta-dark hover:underline disabled:cursor-wait disabled:opacity-70 ${adminFocusRing}`}
             aria-describedby={`${helpId}${error ? ` ${errorId}` : ""}`}
             onClick={() => inputRef.current?.click()}
           >
-            {busy ? "Uploading…" : previewUrl ? "Change profile photo" : "Upload profile photo"}
+            {busy ? "Uploading…" : previewUrl ? "Change photo" : "Upload photo"}
           </button>
           <span id={fileLabelId} className="sr-only">
             Profile photo image file
@@ -180,16 +182,17 @@ export function AdminPhotoField({
               type="button"
               disabled={busy}
               onClick={removePhoto}
-              className={`inline-flex min-h-9 items-center text-xs font-semibold text-muted transition-colors duration-150 hover:text-terracotta disabled:opacity-70 ${adminFocusRing}`}
+              className={`inline-flex ${actionMinHeight} items-center text-xs font-semibold text-muted transition-colors duration-150 hover:text-terracotta disabled:opacity-70 ${adminFocusRing}`}
             >
               Remove photo
             </button>
           ) : null}
         </div>
 
-        <p id={helpId} className="max-w-md text-xs leading-5 text-muted">
-          Shown on recipe comment replies. Google sign-in sets this by default; {ADMIN_IMAGE_HELP}
-        </p>
+        <div id={helpId} className="max-w-md space-y-1 break-words text-xs leading-5 text-muted">
+          {googleHelper ? <p>{googleHelper}</p> : null}
+          <p>{ADMIN_PROFILE_PHOTO_FILE_HELP}</p>
+        </div>
 
         <div className="min-h-5" aria-live="polite">
           {error ? (

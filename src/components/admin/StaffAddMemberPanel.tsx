@@ -59,8 +59,8 @@ export function StaffTeamSection({
       </div>
 
       {open ? (
-        <div id="staff-add-member" className="mt-5 border border-line bg-paper">
-          <div className="border-b border-line bg-cream px-5 py-4">
+        <div id="staff-add-member" className="mt-5 border-y border-line/80 bg-cream/30">
+          <div className="px-5 pt-5">
             <h3 className="font-serif text-xl text-ink">Add team member</h3>
             <p className="mt-1 text-sm text-muted">
               Create a Mesa admin account and choose what they can access.
