@@ -5,6 +5,8 @@ import { AdminPhotoField } from "@/components/admin/AdminPhotoField";
 import { PendingSubmitButton } from "@/components/admin/PendingSubmitButton";
 import { ACCESS_LEVELS, accessLabel } from "@/lib/admin-access";
 import { MIN_ADMIN_PASSWORD_LENGTH } from "@/lib/admin-staff";
+import { adminFocusRing } from "@/lib/admin-ui";
+import { displayInitials } from "@/lib/display-initials";
 import {
   STAFF_SAVED_PARAMS,
   useTransientSavedFlag,
@@ -16,21 +18,6 @@ const fieldClass =
 
 const noticeOk = "mt-4 border border-olive/30 bg-olive/10 px-4 py-3 text-sm text-olive-dark";
 const noticeErr = "mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-3 text-sm text-terracotta-dark";
-
-function roleTone(role: string) {
-  if (role === "owner") return "bg-terracotta/15 text-terracotta-dark";
-  if (role === "editor") return "bg-olive/15 text-olive-dark";
-  return "bg-sand text-ink";
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 export type StaffTeamMember = {
   id: string;
@@ -52,15 +39,16 @@ export type StaffTeamMember = {
 export function StaffTeamList({ members }: { members: StaffTeamMember[] }) {
   const initiallyOpenId = members.find((member) => member.initiallyOpen)?.id ?? null;
   const [openId, setOpenId] = useState<string | null>(initiallyOpenId);
-
-  useEffect(() => {
+  const [trackedOpenId, setTrackedOpenId] = useState(initiallyOpenId);
+  if (initiallyOpenId !== trackedOpenId) {
+    setTrackedOpenId(initiallyOpenId);
     if (initiallyOpenId) setOpenId(initiallyOpenId);
-  }, [initiallyOpenId]);
+  }
 
   return (
-    <ul className="mt-5 space-y-3">
+    <ul className="mt-5 divide-y divide-line/80 border-t border-line/80">
       {members.map((member) => (
-        <StaffTeamMemberCard
+        <StaffTeamMemberRow
           key={member.id}
           member={member}
           open={openId === member.id}
@@ -71,7 +59,7 @@ export function StaffTeamList({ members }: { members: StaffTeamMember[] }) {
   );
 }
 
-function StaffTeamMemberCard({
+function StaffTeamMemberRow({
   member,
   open,
   onToggle,
@@ -84,6 +72,7 @@ function StaffTeamMemberCard({
   const titleId = useId();
   const panelId = `staff-editor-${member.id}`;
   const showSaved = useTransientSavedFlag(Boolean(member.noticeOk), STAFF_SAVED_PARAMS);
+  const initials = displayInitials(member.name) || "?";
 
   useEffect(() => {
     if (!confirmRemove) return;
@@ -95,46 +84,57 @@ function StaffTeamMemberCard({
   }, [confirmRemove]);
 
   return (
-    <li id={`admin-${member.id}`} className="border border-line bg-paper">
-      <div className="flex flex-wrap items-center gap-4 px-5 py-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sand text-sm font-semibold text-ink">
-          {member.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={member.photoUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            initials(member.name) || "?"
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-ink">{member.name}</p>
-            {member.isYou ? (
-              <span className="rounded-full bg-cream px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
-                You
-              </span>
-            ) : null}
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${roleTone(member.role)}`}
-            >
-              {accessLabel(member.role)}
-            </span>
+    <li id={`admin-${member.id}`} className="list-none">
+      <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center sm:gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sand text-sm font-semibold text-ink">
+            {member.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={member.photoUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initials
+            )}
           </div>
-          <p className="mt-1 truncate text-sm text-muted">{member.email}</p>
-          {member.reservedEmailConflict ? (
-            <p className="mt-2 text-sm leading-5 text-terracotta-dark">
-              This email belongs to the System Owner. Change it to a unique address for this team
-              member.
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <p className="font-semibold text-ink">{member.name}</p>
+              {member.isYou ? <span className="text-xs text-muted">You</span> : null}
+            </div>
+            <p className="mt-0.5 truncate text-sm text-muted">{member.email}</p>
+            {member.reservedEmailConflict ? (
+              <p className="mt-2 text-sm leading-5 text-terracotta-dark">
+                This email belongs to the System Owner. Change it to a unique address for this team
+                member.
+              </p>
+            ) : null}
+            <p className="mt-2 text-sm text-muted sm:hidden">
+              <span className="text-ink">{accessLabel(member.role)}</span>
+              <span aria-hidden> · </span>
+              Last login {member.lastLoginLabel}
             </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-xs text-muted">Last login {member.lastLoginLabel}</p>
+          </div>
           <button
             type="button"
             onClick={onToggle}
             aria-expanded={open}
             aria-controls={panelId}
-            className="rounded-full border border-line bg-paper px-4 py-1.5 text-sm font-semibold text-ink hover:border-terracotta hover:text-terracotta"
+            aria-label={open ? `Close editing ${member.name}` : `Edit ${member.name}`}
+            className={`inline-flex min-h-11 shrink-0 items-center text-sm font-semibold text-ink transition-colors hover:text-terracotta sm:hidden ${adminFocusRing}`}
+          >
+            {open ? "Close" : "Edit"}
+          </button>
+        </div>
+
+        <div className="hidden min-w-0 items-center gap-6 sm:flex sm:shrink-0">
+          <p className="w-20 text-sm text-ink">{accessLabel(member.role)}</p>
+          <p className="min-w-[11rem] text-xs text-muted">Last login {member.lastLoginLabel}</p>
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            aria-controls={panelId}
+            aria-label={open ? `Close editing ${member.name}` : `Edit ${member.name}`}
+            className={`inline-flex min-h-9 items-center text-sm font-semibold text-ink transition-colors hover:text-terracotta ${adminFocusRing}`}
           >
             {open ? "Close" : "Edit"}
           </button>
@@ -142,7 +142,7 @@ function StaffTeamMemberCard({
       </div>
 
       {open ? (
-        <div id={panelId} className="border-t border-line">
+        <div id={panelId} className="border border-line bg-paper">
           {showSaved && member.noticeOk ? (
             <p className={`mx-5 ${noticeOk}`}>{member.noticeOk}</p>
           ) : null}
@@ -217,7 +217,7 @@ function StaffTeamMemberCard({
                 <button
                   type="button"
                   onClick={() => setConfirmRemove(true)}
-                  className="rounded-full border border-line px-5 py-2 text-sm font-semibold text-muted hover:border-terracotta hover:text-terracotta"
+                  className={`inline-flex min-h-11 items-center rounded-full border border-line px-5 text-sm font-semibold text-muted hover:border-terracotta hover:text-terracotta ${adminFocusRing}`}
                 >
                   Remove
                 </button>
@@ -253,7 +253,7 @@ function StaffTeamMemberCard({
               <button
                 type="button"
                 onClick={() => setConfirmRemove(false)}
-                className="rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta"
+                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
               >
                 Cancel
               </button>

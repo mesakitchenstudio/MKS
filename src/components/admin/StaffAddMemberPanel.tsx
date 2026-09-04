@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { AdminPhotoField } from "@/components/admin/AdminPhotoField";
 import { PendingSubmitButton } from "@/components/admin/PendingSubmitButton";
 import { ACCESS_LEVELS } from "@/lib/admin-access";
 import { MIN_ADMIN_PASSWORD_LENGTH } from "@/lib/admin-staff";
+import { adminFocusRing } from "@/lib/admin-ui";
 import {
   STAFF_CREATED_PARAMS,
   useTransientSavedFlag,
@@ -30,16 +31,20 @@ export function StaffTeamSection({
 }) {
   const [open, setOpen] = useState(Boolean(created || errorMessage));
   const showCreated = useTransientSavedFlag(Boolean(created), STAFF_CREATED_PARAMS);
-
-  useEffect(() => {
-    if (created || errorMessage) setOpen(true);
-  }, [created, errorMessage]);
+  const shouldForceOpen = Boolean(created || errorMessage);
+  const [wasForcedOpen, setWasForcedOpen] = useState(shouldForceOpen);
+  if (shouldForceOpen !== wasForcedOpen) {
+    setWasForcedOpen(shouldForceOpen);
+    if (shouldForceOpen) setOpen(true);
+  }
 
   return (
-    <section className="mt-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="mt-8" aria-labelledby="team-heading">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-serif text-2xl text-ink">Team</h2>
+          <h2 id="team-heading" className="font-serif text-2xl text-ink">
+            Team
+          </h2>
           <p className="mt-1 text-sm text-muted">{countLabel}</p>
         </div>
         <button
@@ -47,9 +52,9 @@ export function StaffTeamSection({
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
           aria-controls="staff-add-member"
-          className="rounded-full border border-line bg-paper px-4 py-1.5 text-sm font-semibold text-ink hover:border-terracotta hover:text-terracotta"
+          className={`inline-flex min-h-11 items-center justify-center rounded-sm border border-line bg-paper px-4 text-sm font-semibold text-ink transition-colors hover:border-terracotta hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
         >
-          {open ? "Close" : "Add team member +"}
+          {open ? "Close" : "Add team member"}
         </button>
       </div>
 

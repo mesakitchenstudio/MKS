@@ -2,17 +2,17 @@ export const ACCESS_LEVELS = [
   {
     id: "owner",
     label: "Owner",
-    help: "Full access to Mesa, including staff and settings.",
+    help: "Full admin access, including Team access.",
   },
   {
     id: "editor",
     label: "Editor",
-    help: "Can create and manage recipes, types, and categories.",
+    help: "Publishing, library, reviews, and YouTube.",
   },
   {
     id: "members",
     label: "Audience",
-    help: "Can view member and visitor information only.",
+    help: "Members and Visitors only.",
   },
 ] as const;
 

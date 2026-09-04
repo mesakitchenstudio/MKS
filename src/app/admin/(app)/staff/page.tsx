@@ -13,12 +13,6 @@ import {
 } from "@/lib/admin-staff";
 import { AdminFlashStatus, STAFF_REMOVED_PARAMS } from "@/lib/admin-transient-feedback";
 
-function roleTone(role: string) {
-  if (role === "owner") return "bg-terracotta/15 text-terracotta-dark";
-  if (role === "editor") return "bg-olive/15 text-olive-dark";
-  return "bg-sand text-ink";
-}
-
 function staffErrorMessage(error?: string) {
   switch (error) {
     case "missing":
@@ -79,7 +73,8 @@ export default async function AdminStaffPage({
   const createError = errorMessage && !focusAdminId ? errorMessage : "";
 
   const teamMembers = admins.map((admin) => {
-    const isYou = isCurrentStaffAccount(actor, admin);
+    // Exactly one "You": env session → System owner section only; named → matching row only.
+    const isYou = signedInAsSystemOwner ? false : isCurrentStaffAccount(actor, admin);
     const canRemove = !isYou && !(admin.role === "owner" && namedOwnerCount <= 1);
     const reservedEmailConflict = isReservedSystemOwnerEmail(admin.email, envOwnerEmail);
     return {
@@ -105,17 +100,12 @@ export default async function AdminStaffPage({
 
   return (
     <div className="w-full">
-      <div className="border-b border-line pb-6">
-        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-          Studio access
-        </p>
-        <h1 className="mt-2 font-serif text-4xl text-ink">Team access</h1>
+      <header className="border-b border-line pb-6">
+        <h1 className="font-serif text-4xl text-ink">Team access</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Manage who can access Mesa admin and what each person can do.
-          <br />
-          Multiple owners are allowed; Mesa always keeps at least one owner.
+          Who can use Mesa’s admin, and what they can do.
         </p>
-      </div>
+      </header>
 
       {removed ? (
         <AdminFlashStatus active clearParams={STAFF_REMOVED_PARAMS}>
@@ -123,64 +113,57 @@ export default async function AdminStaffPage({
         </AdminFlashStatus>
       ) : null}
 
-      {showSystemOwner ? (
-        <section className="mt-8">
-          <h2 className="font-serif text-2xl text-ink">System owner</h2>
-          <div className="mt-4 border border-line bg-paper px-5 py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold text-ink">Owner</p>
-              <span className="rounded-full bg-cream px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
-                System
-              </span>
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${roleTone("owner")}`}
-              >
-                Owner
-              </span>
-              {signedInAsSystemOwner ? (
-                <span className="rounded-full bg-cream px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
-                  You
-                </span>
-              ) : null}
-            </div>
-            <p className="mt-1 text-sm text-muted">{envOwnerEmail}</p>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-              Primary recovery account for Mesa administration. This account is managed through the
-              server configuration.
-            </p>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="mt-8">
-        <h2 className="font-serif text-2xl text-ink">Access levels</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {ACCESS_LEVELS.map((level) => (
-            <div key={level.id} className="border border-line bg-paper px-4 py-3">
-              <span
-                className={`inline-block rounded-full px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wide ${roleTone(level.id)}`}
-              >
-                {level.label}
-              </span>
-              <p className="mt-2 text-sm leading-5 text-muted">{level.help}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       <StaffTeamSection
         countLabel={countLabel}
         created={Boolean(created)}
         errorMessage={createError || undefined}
       >
         {teamCount === 0 ? (
-          <div className="mt-5 border border-dashed border-line bg-paper px-5 py-10 text-center text-sm leading-6 text-muted">
+          <div className="mt-5 border-t border-dashed border-line py-10 text-center text-sm leading-6 text-muted">
             Add a team member to give someone access to Mesa admin.
           </div>
         ) : (
           <StaffTeamList members={teamMembers} />
         )}
       </StaffTeamSection>
+
+      {showSystemOwner ? (
+        <section className="mt-12" aria-labelledby="system-owner-heading">
+          <h2 id="system-owner-heading" className="font-serif text-2xl text-ink">
+            System owner
+          </h2>
+          <div className="mt-3 max-w-2xl space-y-1 text-sm leading-6">
+            <p className="font-medium text-ink">
+              System owner
+              {signedInAsSystemOwner ? (
+                <span className="ml-2 text-xs font-normal text-muted">You</span>
+              ) : null}
+            </p>
+            <p className="text-muted">Owner · Recovery</p>
+            <p className="break-words text-muted">{envOwnerEmail}</p>
+            <p className="pt-2 text-muted">
+              Recovery sign-in for Mesa. It is managed outside Team Access and is not edited here.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="mt-12" aria-labelledby="access-levels-heading">
+        <h2 id="access-levels-heading" className="font-serif text-2xl text-ink">
+          Access levels
+        </h2>
+        <dl className="mt-4 max-w-2xl space-y-3">
+          {ACCESS_LEVELS.map((level) => (
+            <div
+              key={level.id}
+              className="sm:grid sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:items-baseline sm:gap-x-4"
+            >
+              <dt className="text-sm font-medium text-ink">{level.label}</dt>
+              <dd className="mt-0.5 text-sm leading-6 text-muted sm:mt-0">{level.help}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     </div>
   );
 }
