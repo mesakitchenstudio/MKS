@@ -16,11 +16,14 @@ import {
   uniqueVisitorsForEvents,
 } from "@/lib/youtube-funnel/aggregate";
 import {
+  compactLowSampleNotice,
   formatContinuedViewingOutcome,
   formatRecipeMultiVideoVisitorsLabel,
   formatRecipeVisitorOutcome,
   FUNNEL_LOW_SAMPLE_THRESHOLD,
+  FUNNEL_METHODOLOGY,
   isFunnelLowSample,
+  quietZeroVisitorOutcomeLabel,
   RECIPE_MULTI_VIDEO_VISITORS_HELP,
   RECIPE_MULTI_VIDEO_VISITORS_LABEL,
 } from "@/lib/youtube-funnel/funnel-display";
@@ -265,6 +268,27 @@ describe("youtube-funnel display", () => {
     assert.equal(isFunnelLowSample(19), true);
     assert.equal(isFunnelLowSample(FUNNEL_LOW_SAMPLE_THRESHOLD), false);
     assert.equal(isFunnelLowSample(0), false);
+  });
+
+  it("uses Website video intro and compact low-sample copy", () => {
+    assert.equal(
+      FUNNEL_METHODOLOGY.intro,
+      "First-party actions on recipe pages with a video. Not YouTube views or subscriptions.",
+    );
+    assert.equal(
+      compactLowSampleNotice(5),
+      "Limited sample · 5 unique visitors — rates can swing on one person.",
+    );
+    assert.equal(
+      compactLowSampleNotice(1),
+      "Limited sample · 1 unique visitor — rates can swing on one person.",
+    );
+  });
+
+  it("quiets only zero-of-zero visitor outcome labels", () => {
+    assert.equal(quietZeroVisitorOutcomeLabel("0 of 0 visitors"), "—");
+    assert.equal(quietZeroVisitorOutcomeLabel("0 of 4 visitors"), "0 of 4 visitors");
+    assert.equal(quietZeroVisitorOutcomeLabel("2 of 12 visitors"), "2 of 12 visitors");
   });
 
   it("names recipe-level multi-video metric without implying sequence from that recipe", () => {

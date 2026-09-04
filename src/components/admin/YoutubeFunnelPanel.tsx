@@ -5,10 +5,12 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import {
+  compactLowSampleNotice,
   formatContinuedViewingOutcome,
   formatRecipeVisitorOutcome,
   FUNNEL_METHODOLOGY,
   isFunnelLowSample,
+  quietZeroVisitorOutcomeLabel,
   RECIPE_MULTI_VIDEO_VISITORS_HELP,
   RECIPE_MULTI_VIDEO_VISITORS_LABEL,
 } from "@/lib/youtube-funnel/funnel-display";
@@ -17,70 +19,15 @@ import { ANALYTICS_RANGE_DAYS, type AnalyticsRangeDays } from "@/lib/youtube-ana
 
 type RecipeFilter = "all" | "has-video" | "no-video";
 
-function OutcomeCard({
-  title,
-  numerator,
-  denominator,
-  rawEventLabel,
-  rawEventCount,
-  ariaLabel,
-}: {
-  title: string;
-  numerator: number;
-  denominator: number;
-  rawEventLabel: string;
-  rawEventCount: number;
-  ariaLabel: string;
-}) {
+function outcomePrimary(
+  numerator: number,
+  denominator: number,
+): { fractionLabel: string; rateLabel: string | null; primary: string } {
   const outcome = formatRecipeVisitorOutcome(numerator, denominator);
-  const primary =
-    outcome.rateLabel && !outcome.limitedSample
-      ? `${outcome.fractionLabel} · ${outcome.rateLabel}`
-      : outcome.rateLabel
-        ? `${outcome.fractionLabel} · ${outcome.rateLabel}`
-        : outcome.fractionLabel;
-
-  return (
-    <article
-      className="rounded-sm border border-line bg-paper px-4 py-4"
-      aria-label={ariaLabel}
-    >
-      <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-        {title}
-      </h3>
-      <p className="mt-2 font-serif text-xl text-ink">{primary}</p>
-      <p className="mt-1 text-sm text-muted">
-        {rawEventCount.toLocaleString("en-US")} {rawEventLabel}
-      </p>
-    </article>
-  );
-}
-
-function ContinuedOutcomeCard({
-  continued,
-  interacted,
-}: {
-  continued: number;
-  interacted: number;
-}) {
-  const outcome = formatContinuedViewingOutcome(continued, interacted);
-  const primary =
-    outcome.rateLabel && interacted > 0
-      ? `${outcome.fractionLabel} · ${outcome.rateLabel}`
-      : outcome.headline;
-
-  return (
-    <article
-      className="rounded-sm border border-line bg-paper px-4 py-4"
-      aria-label={`Continued viewing: ${outcome.headline}`}
-    >
-      <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-        Continued viewing
-      </h3>
-      <p className="mt-2 font-serif text-xl text-ink">{primary}</p>
-      <p className="mt-1 text-sm text-muted">{outcome.headline}</p>
-    </article>
-  );
+  const primary = outcome.rateLabel
+    ? `${outcome.fractionLabel} · ${outcome.rateLabel}`
+    : outcome.fractionLabel;
+  return { fractionLabel: outcome.fractionLabel, rateLabel: outcome.rateLabel, primary };
 }
 
 export function YoutubeFunnelPanel({
@@ -96,6 +43,18 @@ export function YoutubeFunnelPanel({
   const summary = funnel.summary;
   const visitorBase = summary.uniquePageviewVisitors;
   const lowSample = isFunnelLowSample(visitorBase);
+
+  const play = outcomePrimary(summary.uniquePlayVisitors, visitorBase);
+  const watch = outcomePrimary(summary.uniqueWatchOnYoutubeVisitors, visitorBase);
+  const subscribe = outcomePrimary(summary.uniqueSubscribeVisitors, visitorBase);
+  const continued = formatContinuedViewingOutcome(
+    summary.continuedViewingSessions,
+    summary.videoInteractionSessions,
+  );
+  const continuedPrimary =
+    continued.rateLabel && summary.videoInteractionSessions > 0
+      ? `${continued.fractionLabel} · ${continued.rateLabel}`
+      : continued.fractionLabel;
 
   const filteredRecipes = useMemo(() => {
     if (recipeFilter === "no-video") return [];
@@ -116,172 +75,114 @@ export function YoutubeFunnelPanel({
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-lg text-ink">Website funnel</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted">{FUNNEL_METHODOLOGY.intro}</p>
-          <p className="mt-2 text-xs text-muted">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl space-y-1.5">
+          <p className="text-sm text-muted">{FUNNEL_METHODOLOGY.intro}</p>
+          <p className="text-xs text-muted">
             {funnel.startDate} → {funnel.endDate} UTC (includes today)
           </p>
         </div>
         <div
-          className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1 text-xs"
+          className="flex flex-wrap gap-1 rounded-sm border border-line/70 p-1 text-xs"
           role="group"
           aria-label="Date range"
         >
-          {ANALYTICS_RANGE_DAYS.map((days) => (
-            <button
-              key={days}
-              type="button"
-              className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
-                funnel.rangeDays === days ? "bg-sand text-ink" : "text-muted hover:text-ink"
-              } ${adminFocusRing}`}
-              onClick={() => updateRange(days)}
-            >
-              {days} days
-            </button>
-          ))}
+          {ANALYTICS_RANGE_DAYS.map((days) => {
+            const selected = funnel.rangeDays === days;
+            return (
+              <button
+                key={days}
+                type="button"
+                aria-pressed={selected}
+                className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                  selected ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                } ${adminFocusRing}`}
+                onClick={() => updateRange(days)}
+              >
+                {days} days
+              </button>
+            );
+          })}
         </div>
-      </header>
+      </div>
 
       {lowSample ? (
-        <div
-          className="rounded-sm border border-line bg-cream/40 px-4 py-3 text-sm text-ink"
-          role="status"
-        >
-          <p className="font-semibold">Limited sample</p>
-          <p className="mt-1 text-muted">{FUNNEL_METHODOLOGY.lowSampleNotice(visitorBase)}</p>
-        </div>
-      ) : null}
-
-      <section aria-labelledby="funnel-visitor-base-heading">
-        <h3
-          id="funnel-visitor-base-heading"
-          className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive"
-        >
-          Video-linked recipe visitors
-        </h3>
-        <div className="mt-3 rounded-sm border border-line bg-paper px-4 py-4">
-          <p className="font-serif text-2xl text-ink">
-            {visitorBase.toLocaleString("en-US")} unique visitor{visitorBase === 1 ? "" : "s"}
-          </p>
-          <p className="mt-1 text-sm text-muted">
-            {summary.linkedRecipePageviews.toLocaleString("en-US")} linked-recipe pageviews
-          </p>
-          <p className="mt-2 text-xs text-muted">
-            Of those recipe visitors, these parallel outcomes are independent — a visitor may do
-            none, one, or several.
-          </p>
-        </div>
-      </section>
-
-      <section aria-labelledby="funnel-outcomes-heading">
-        <h3
-          id="funnel-outcomes-heading"
-          className="sr-only"
-        >
-          Parallel behavior outcomes
-        </h3>
-        <ul className="grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
-          <li>
-            <OutcomeCard
-              title="Played embedded video"
-              numerator={summary.uniquePlayVisitors}
-              denominator={visitorBase}
-              rawEventLabel="plays"
-              rawEventCount={summary.videoPlays}
-              ariaLabel={`Played embedded video: ${summary.uniquePlayVisitors} of ${visitorBase} visitors`}
-            />
-          </li>
-          <li>
-            <OutcomeCard
-              title="Watch on YouTube"
-              numerator={summary.uniqueWatchOnYoutubeVisitors}
-              denominator={visitorBase}
-              rawEventLabel="clicks"
-              rawEventCount={summary.watchOnYoutubeClicks}
-              ariaLabel={`Watch on YouTube: ${summary.uniqueWatchOnYoutubeVisitors} of ${visitorBase} visitors`}
-            />
-          </li>
-          <li>
-            <OutcomeCard
-              title="Subscribe CTA"
-              numerator={summary.uniqueSubscribeVisitors}
-              denominator={visitorBase}
-              rawEventLabel="Subscribe CTA clicks"
-              rawEventCount={summary.subscribeCtaClicks}
-              ariaLabel={`Subscribe CTA: ${summary.uniqueSubscribeVisitors} of ${visitorBase} visitors`}
-            />
-          </li>
-          <li>
-            <ContinuedOutcomeCard
-              continued={summary.continuedViewingSessions}
-              interacted={summary.videoInteractionSessions}
-            />
-          </li>
-        </ul>
-      </section>
-
-      {summary.chapterClicks > 0 ? (
-        <p className="text-sm text-muted">
-          Also recorded: {summary.chapterClicks.toLocaleString("en-US")} chapter clicks
-          {summary.uniqueChapterVisitors > 0
-            ? ` from ${summary.uniqueChapterVisitors.toLocaleString("en-US")} visitor${summary.uniqueChapterVisitors === 1 ? "" : "s"}`
-            : ""}
-          .
+        <p className="text-sm text-muted" role="status">
+          {compactLowSampleNotice(visitorBase)}
         </p>
       ) : null}
 
-      {funnel.placements.length > 0 ? (
-        <section aria-labelledby="funnel-placements-heading">
-          <h3 id="funnel-placements-heading" className="font-serif text-lg text-ink">
-            CTA placement
-          </h3>
-          <p className="mt-1 text-sm text-muted">
-            Where Watch on YouTube and Subscribe CTA clicks occur on the page.
-          </p>
-          <div className="mt-3 overflow-x-auto rounded-sm border border-line">
-            <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr className={adminTableHeadClass}>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Placement
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Watch on YouTube
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Subscribe CTA
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {funnel.placements.map((row) => (
-                  <tr key={row.placement} className="border-t border-line/70">
-                    <td className="px-4 py-3">{row.label}</td>
-                    <td className="px-4 py-3">{row.watchOnYoutubeClicks}</td>
-                    <td className="px-4 py-3">{row.subscribeCtaClicks}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <p className="text-sm text-ink">
+        {visitorBase.toLocaleString("en-US")} unique visitor{visitorBase === 1 ? "" : "s"} ·{" "}
+        {summary.linkedRecipePageviews.toLocaleString("en-US")} linked-recipe pageviews
+      </p>
+
+      <section aria-labelledby="funnel-outcomes-heading">
+        <h2 id="funnel-outcomes-heading" className="font-serif text-lg text-ink">
+          Independent outcomes
+        </h2>
+        <div className="mt-3 flex flex-wrap gap-x-10 gap-y-5 border-y border-line/70 py-4">
+          <div aria-label={`Played embedded video: ${play.fractionLabel}`}>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
+              Played
+            </p>
+            <p className="mt-1.5 font-serif text-xl text-ink">{play.primary}</p>
+            <p className="mt-1 text-sm text-muted">
+              {summary.videoPlays.toLocaleString("en-US")} plays
+            </p>
+            {summary.chapterClicks > 0 ? (
+              <p className="mt-1.5 text-xs text-muted">
+                {summary.chapterClicks.toLocaleString("en-US")} chapter clicks
+                {summary.uniqueChapterVisitors > 0
+                  ? ` · ${summary.uniqueChapterVisitors.toLocaleString("en-US")} visitor${summary.uniqueChapterVisitors === 1 ? "" : "s"}`
+                  : ""}
+              </p>
+            ) : null}
           </div>
-        </section>
-      ) : null}
+
+          <div aria-label={`Watch on YouTube: ${watch.fractionLabel}`}>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
+              Watch on YouTube
+            </p>
+            <p className="mt-1.5 font-serif text-xl text-ink">{watch.primary}</p>
+            <p className="mt-1 text-sm text-muted">
+              {summary.watchOnYoutubeClicks.toLocaleString("en-US")} clicks
+            </p>
+          </div>
+
+          <div aria-label={`Subscribe CTA: ${subscribe.fractionLabel}`}>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
+              Subscribe CTA
+            </p>
+            <p className="mt-1.5 font-serif text-xl text-ink">{subscribe.primary}</p>
+            <p className="mt-1 text-sm text-muted">
+              {summary.subscribeCtaClicks.toLocaleString("en-US")} Subscribe CTA clicks
+            </p>
+          </div>
+
+          <div aria-label={`Continued viewing: ${continued.fractionLabel}`}>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
+              Continued viewing
+            </p>
+            <p className="mt-1.5 font-serif text-xl text-ink">{continuedPrimary}</p>
+            <p className="mt-1 text-sm text-muted">{continued.headline}</p>
+          </div>
+        </div>
+      </section>
 
       <section aria-labelledby="funnel-recipes-heading">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 id="funnel-recipes-heading" className="font-serif text-lg text-ink">
+            <h2 id="funnel-recipes-heading" className="font-serif text-lg text-ink">
               Recipe performance
-            </h3>
+            </h2>
             <p className="mt-1 text-sm text-muted">
               Visitor counts use each recipe&apos;s unique visitors as the denominator. Sorted by
               visitors descending. {RECIPE_MULTI_VIDEO_VISITORS_HELP}
             </p>
           </div>
           <div
-            className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1 text-xs"
+            className="flex flex-wrap gap-1 rounded-sm border border-line/70 p-1 text-xs"
             role="group"
             aria-label="Recipe filter"
           >
@@ -291,46 +192,50 @@ export function YoutubeFunnelPanel({
                 ["has-video", "Has video"],
                 ["no-video", "No video"],
               ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
-                  recipeFilter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
-                } ${adminFocusRing}`}
-                onClick={() => setRecipeFilter(value)}
-              >
-                {label}
-              </button>
-            ))}
+            ).map(([value, label]) => {
+              const selected = recipeFilter === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={selected}
+                  className={`rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                    selected ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                  } ${adminFocusRing}`}
+                  onClick={() => setRecipeFilter(value)}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {recipeFilter !== "no-video" ? (
           <>
-            <div className="mt-3 hidden overflow-x-auto rounded-sm border border-line md:block">
+            <div className="mt-3 hidden overflow-x-auto border-y border-line/70 md:block">
               <table className="min-w-full text-left text-sm">
                 <thead>
                   <tr className={adminTableHeadClass}>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Recipe
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Visitors
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Played
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Watch on YouTube
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Subscribe CTA
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       {RECIPE_MULTI_VIDEO_VISITORS_LABEL}
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Action
                     </th>
                   </tr>
@@ -338,26 +243,34 @@ export function YoutubeFunnelPanel({
                 <tbody>
                   {filteredRecipes.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-muted">
+                      <td colSpan={7} className="px-3 py-8 text-muted">
                         No linked recipes with traffic in this period.
                       </td>
                     </tr>
                   ) : (
                     filteredRecipes.map((row) => (
                       <tr key={row.recipeId} className="border-t border-line/70">
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3">
                           <Link href={`/admin/recipes/${row.recipeId}`} className={adminLinkClass}>
                             {row.recipeTitle}
                           </Link>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3">
                           {row.uniquePageviewVisitors.toLocaleString("en-US")}
                         </td>
-                        <td className="px-4 py-3">{row.playOutcomeLabel}</td>
-                        <td className="px-4 py-3">{row.watchOutcomeLabel}</td>
-                        <td className="px-4 py-3">{row.subscribeOutcomeLabel}</td>
-                        <td className="px-4 py-3">{row.multiVideoVisitorsLabel}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3">
+                          {quietZeroVisitorOutcomeLabel(row.playOutcomeLabel)}
+                        </td>
+                        <td className="px-3 py-3">
+                          {quietZeroVisitorOutcomeLabel(row.watchOutcomeLabel)}
+                        </td>
+                        <td className="px-3 py-3">
+                          {quietZeroVisitorOutcomeLabel(row.subscribeOutcomeLabel)}
+                        </td>
+                        <td className="px-3 py-3">
+                          {quietZeroVisitorOutcomeLabel(row.multiVideoVisitorsLabel)}
+                        </td>
+                        <td className="px-3 py-3">
                           <Link
                             href={`/admin/youtube/videos/${row.youtubeVideoId}?range=${funnel.rangeDays}`}
                             className={`text-xs font-semibold ${adminLinkClass}`}
@@ -372,17 +285,14 @@ export function YoutubeFunnelPanel({
               </table>
             </div>
 
-            <ul className="mt-3 space-y-3 md:hidden">
+            <ul className="mt-3 divide-y divide-line/70 border-y border-line/70 md:hidden">
               {filteredRecipes.length === 0 ? (
-                <li className="rounded-sm border border-line px-4 py-6 text-sm text-muted">
+                <li className="px-1 py-6 text-sm text-muted">
                   No linked recipes with traffic in this period.
                 </li>
               ) : (
                 filteredRecipes.map((row) => (
-                  <li
-                    key={row.recipeId}
-                    className="rounded-sm border border-line bg-paper px-4 py-3 text-sm"
-                  >
+                  <li key={row.recipeId} className="px-1 py-3 text-sm">
                     <Link href={`/admin/recipes/${row.recipeId}`} className={adminLinkClass}>
                       <span className="font-semibold text-ink">{row.recipeTitle}</span>
                     </Link>
@@ -390,13 +300,13 @@ export function YoutubeFunnelPanel({
                       <dt className="text-muted">Visitors</dt>
                       <dd>{row.uniquePageviewVisitors.toLocaleString("en-US")}</dd>
                       <dt className="text-muted">Played</dt>
-                      <dd>{row.playOutcomeLabel}</dd>
+                      <dd>{quietZeroVisitorOutcomeLabel(row.playOutcomeLabel)}</dd>
                       <dt className="text-muted">Watch on YouTube</dt>
-                      <dd>{row.watchOutcomeLabel}</dd>
+                      <dd>{quietZeroVisitorOutcomeLabel(row.watchOutcomeLabel)}</dd>
                       <dt className="text-muted">Subscribe CTA</dt>
-                      <dd>{row.subscribeOutcomeLabel}</dd>
+                      <dd>{quietZeroVisitorOutcomeLabel(row.subscribeOutcomeLabel)}</dd>
                       <dt className="text-muted">{RECIPE_MULTI_VIDEO_VISITORS_LABEL}</dt>
-                      <dd>{row.multiVideoVisitorsLabel}</dd>
+                      <dd>{quietZeroVisitorOutcomeLabel(row.multiVideoVisitorsLabel)}</dd>
                     </dl>
                     <Link
                       href={`/admin/youtube/videos/${row.youtubeVideoId}?range=${funnel.rangeDays}`}
@@ -413,27 +323,27 @@ export function YoutubeFunnelPanel({
 
         {showNoVideoSection ? (
           <div className="mt-6">
-            <h4 className="text-sm font-semibold text-ink">Recipes with traffic but no video</h4>
+            <h3 className="text-sm font-semibold text-ink">Recipes with traffic but no video</h3>
             <p className="mt-1 text-xs text-muted">
               Published recipes receiving visitors without a linked YouTube video.
             </p>
-            <div className="mt-3 hidden overflow-x-auto rounded-sm border border-line md:block">
+            <div className="mt-3 hidden overflow-x-auto border-y border-line/70 md:block">
               <table className="min-w-full text-left text-sm">
                 <thead>
                   <tr className={adminTableHeadClass}>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Recipe
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Visitors
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Pageviews
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Video
                     </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
+                    <th scope="col" className="px-3 py-3 font-medium">
                       Action
                     </th>
                   </tr>
@@ -441,17 +351,17 @@ export function YoutubeFunnelPanel({
                 <tbody>
                   {funnel.noVideoTraffic.map((row) => (
                     <tr key={row.recipeId} className="border-t border-line/70">
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <Link href={`/admin/recipes/${row.recipeId}`} className={adminLinkClass}>
                           {row.recipeTitle}
                         </Link>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         {row.uniquePageviewVisitors.toLocaleString("en-US")}
                       </td>
-                      <td className="px-4 py-3">{row.pageviews.toLocaleString("en-US")}</td>
-                      <td className="px-4 py-3 text-muted">No video</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">{row.pageviews.toLocaleString("en-US")}</td>
+                      <td className="px-3 py-3 text-muted">No video</td>
+                      <td className="px-3 py-3">
                         <Link
                           href={`/admin/recipes/${row.recipeId}`}
                           className={`text-xs font-semibold ${adminLinkClass}`}
@@ -464,12 +374,9 @@ export function YoutubeFunnelPanel({
                 </tbody>
               </table>
             </div>
-            <ul className="mt-3 space-y-3 md:hidden">
+            <ul className="mt-3 divide-y divide-line/70 border-y border-line/70 md:hidden">
               {funnel.noVideoTraffic.map((row) => (
-                <li
-                  key={row.recipeId}
-                  className="rounded-sm border border-line bg-paper px-4 py-3 text-sm"
-                >
+                <li key={row.recipeId} className="px-1 py-3 text-sm">
                   <Link href={`/admin/recipes/${row.recipeId}`} className={adminLinkClass}>
                     <span className="font-semibold text-ink">{row.recipeTitle}</span>
                   </Link>
@@ -494,11 +401,48 @@ export function YoutubeFunnelPanel({
         ) : null}
       </section>
 
-      <details className="rounded-sm border border-line bg-cream/30 px-4 py-3">
+      {funnel.placements.length > 0 ? (
+        <section aria-labelledby="funnel-placements-heading">
+          <h2 id="funnel-placements-heading" className="font-serif text-lg text-ink">
+            CTA placement
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Where Watch on YouTube and Subscribe CTA clicks occur on the page.
+          </p>
+          <div className="mt-3 overflow-x-auto border-y border-line/70">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className={adminTableHeadClass}>
+                  <th scope="col" className="px-3 py-3 font-medium">
+                    Placement
+                  </th>
+                  <th scope="col" className="px-3 py-3 font-medium">
+                    Watch on YouTube
+                  </th>
+                  <th scope="col" className="px-3 py-3 font-medium">
+                    Subscribe CTA
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {funnel.placements.map((row) => (
+                  <tr key={row.placement} className="border-t border-line/70">
+                    <td className="px-3 py-3">{row.label}</td>
+                    <td className="px-3 py-3">{row.watchOnYoutubeClicks}</td>
+                    <td className="px-3 py-3">{row.subscribeCtaClicks}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      <details className="border-t border-line/70 pt-3">
         <summary
           className={`cursor-pointer text-sm font-semibold text-ink ${adminFocusRing} rounded-sm`}
         >
-          About these metrics
+          Methodology
         </summary>
         <div className="mt-3 space-y-3 text-xs leading-5 text-muted">
           <p>
@@ -550,7 +494,7 @@ export function YoutubeFunnelPanel({
       </details>
 
       {funnel.diagnostics ? (
-        <details className="rounded-sm border border-dashed border-line bg-cream/30 px-4 py-3 text-xs text-muted">
+        <details className="border-t border-line/70 pt-3 text-xs text-muted">
           <summary
             className={`cursor-pointer text-sm font-semibold text-ink ${adminFocusRing} rounded-sm`}
           >
@@ -577,7 +521,7 @@ export function YoutubeFunnelPanel({
           </div>
         </details>
       ) : funnel.editorTracking ? (
-        <details className="rounded-sm border border-dashed border-line bg-cream/30 px-4 py-3 text-xs text-muted">
+        <details className="border-t border-line/70 pt-3 text-xs text-muted">
           <summary
             className={`cursor-pointer text-sm font-semibold text-ink ${adminFocusRing} rounded-sm`}
           >

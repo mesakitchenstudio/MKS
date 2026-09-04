@@ -77,8 +77,15 @@ export default async function AdminYoutubePage({
     return s ? `/admin/youtube?${s}` : "/admin/youtube";
   }
 
+  const navLinkClass = (active: boolean) =>
+    `inline-flex min-h-11 items-center border-b-2 px-1 pb-1 text-sm font-semibold transition-colors sm:min-h-9 ${adminFocusRing} ${
+      active
+        ? "border-terracotta text-ink"
+        : "border-transparent text-muted hover:border-line hover:text-ink"
+    }`;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {successFlash ? (
         <AdminFlashStatus
           active
@@ -98,45 +105,46 @@ export default async function AdminYoutubePage({
         </AdminFlashStatus>
       ) : null}
 
-      <div className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1 text-sm">
-        <Link
-          href={viewHref("channel")}
-          className={`rounded-sm px-3 py-1.5 font-semibold transition-colors ${
-            view === "channel" ? "bg-sand text-ink" : "text-muted hover:text-ink"
-          } ${adminFocusRing}`}
-        >
-          Channel analytics
-        </Link>
-        <Link
-          href={viewHref("funnel")}
-          className={`rounded-sm px-3 py-1.5 font-semibold transition-colors ${
-            view === "funnel" ? "bg-sand text-ink" : "text-muted hover:text-ink"
-          } ${adminFocusRing}`}
-        >
-          Website funnel
-        </Link>
-      </div>
+      <header className="space-y-4">
+        <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+          YouTube
+        </h1>
+        <nav className="flex flex-wrap gap-5" aria-label="YouTube views">
+          <Link
+            href={viewHref("channel")}
+            className={navLinkClass(view === "channel")}
+            aria-current={view === "channel" ? "page" : undefined}
+          >
+            Channel
+          </Link>
+          <Link
+            href={viewHref("funnel")}
+            className={navLinkClass(view === "funnel")}
+            aria-current={view === "funnel" ? "page" : undefined}
+          >
+            Website video
+          </Link>
+        </nav>
+      </header>
 
       {view === "funnel" && funnel ? (
         <YoutubeFunnelPanel funnel={funnel} filterQuery={filterQuery || undefined} />
       ) : (
-        <>
         <YoutubeDashboard
-            channel={dashboard.channel}
-            summary={dashboard.summary}
-            coverage={dashboard.coverage}
-            attention={dashboard.attention}
-            videos={dashboard.videos}
-            canSync={canManageYoutubeSync(admin.role)}
-            canManageAnalytics={canManageYoutubeAnalytics(admin.role)}
-            canCreateRecipes={canCreateRecipes}
-            recipeTypes={recipeTypes}
-            initialFilter={filter}
-            analytics={dashboard.analytics}
-            importedSeriesCount={importedSeriesCount}
-            showSeriesUtility={canCreateRecipes}
-          />
-        </>
+          channel={dashboard.channel}
+          summary={dashboard.summary}
+          coverage={dashboard.coverage}
+          attention={dashboard.attention}
+          videos={dashboard.videos}
+          canSync={canManageYoutubeSync(admin.role)}
+          canManageAnalytics={canManageYoutubeAnalytics(admin.role)}
+          canCreateRecipes={canCreateRecipes}
+          recipeTypes={recipeTypes}
+          initialFilter={filter}
+          analytics={dashboard.analytics}
+          importedSeriesCount={importedSeriesCount}
+          showSeriesUtility={canCreateRecipes}
+        />
       )}
     </div>
   );

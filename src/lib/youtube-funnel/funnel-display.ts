@@ -52,10 +52,23 @@ export function formatFunnelRateInteger(value: number | null, denominator: numbe
 
 export const FUNNEL_METHODOLOGY = {
   intro:
-    "Tracks first-party Mesa website actions around recipe videos. These are Mesa interactions, not confirmed YouTube views or subscriptions.",
+    "First-party actions on recipe pages with a video. Not YouTube views or subscriptions.",
   lowSampleNotice: (visitorCount: number) =>
     `${visitorCount} unique visitor${visitorCount === 1 ? "" : "s"} in this period. A single visitor can materially change these rates.`,
 } as const;
+
+/** Compact one-line limited-sample notice for the Website video panel. */
+export function compactLowSampleNotice(visitorCount: number): string {
+  return `Limited sample · ${visitorCount} unique visitor${visitorCount === 1 ? "" : "s"} — rates can swing on one person.`;
+}
+
+/**
+ * Soften zero-over-zero recipe outcome cells only.
+ * Never hide real denominators such as "0 of 4 visitors".
+ */
+export function quietZeroVisitorOutcomeLabel(label: string): string {
+  return /^0 of 0\b/.test(label) ? "—" : label;
+}
 
 export const FUNNEL_RATE_LABELS = {
   playRate: "Play rate",

@@ -135,6 +135,13 @@ const FILTER_OPTIONS: { value: YoutubeDashboardVideoFilter; label: string }[] = 
   { value: "metadata", label: "Metadata issues" },
 ];
 
+const FORMAT_FILTERS = FILTER_OPTIONS.filter((option) =>
+  option.value === "all" || option.value === "long" || option.value === "shorts",
+);
+const WORK_FILTERS = FILTER_OPTIONS.filter(
+  (option) => option.value !== "all" && option.value !== "long" && option.value !== "shorts",
+);
+
 const SORT_OPTIONS: { value: CatalogVideoSortKey; label: string }[] = [
   { value: "performance", label: "Performance" },
   { value: "subscribersGained", label: "Subscribers gained" },
@@ -151,7 +158,7 @@ const secondaryBtn =
   "inline-flex min-h-[44px] items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
 
 function relationshipClass(value: string) {
-  if (value === "Linked") return "text-olive";
+  if (value === "Linked") return "text-muted";
   if (value === "Possible match") return "text-terracotta";
   return "text-muted";
 }
@@ -538,9 +545,12 @@ export function YoutubeDashboard({
 
     if (video.recipe) {
       return (
-        <Link href={`/admin/recipes/${video.recipe.id}`} className={`line-clamp-2 ${adminLinkClass}`}>
-          {video.recipe.title}
-        </Link>
+        <div className="space-y-0.5">
+          <p className={`text-xs ${relationshipClass(video.relationship)}`}>{video.relationship}</p>
+          <Link href={`/admin/recipes/${video.recipe.id}`} className={`line-clamp-2 font-medium ${adminLinkClass}`}>
+            {video.recipe.title}
+          </Link>
+        </div>
       );
     }
 
@@ -561,9 +571,11 @@ export function YoutubeDashboard({
         {video.possibleMatch ? (
           <p className="text-xs text-muted">
             Possible match:{" "}
-            <span className="font-semibold text-ink">{video.possibleMatch.title}</span>
+            <span className="font-medium text-ink">{video.possibleMatch.title}</span>
           </p>
-        ) : null}
+        ) : (
+          <p className="text-xs text-muted">Unlinked</p>
+        )}
         {phase === "error" && rowError[video.videoId] ? (
           <p className="text-xs text-terracotta" role="alert">
             {rowError[video.videoId]}
@@ -591,13 +603,28 @@ export function YoutubeDashboard({
             type="button"
             className={compactLinkBtn}
             disabled={busy}
+            aria-label={`Create recipe for ${video.title}`}
             onClick={() => void startCreate(video.videoId)}
           >
-            {video.possibleMatch ? "Create new" : "+ Create recipe"}
+            {video.possibleMatch ? "Create new" : "Create recipe"}
           </button>
         </div>
       </div>
     );
+  }
+
+  function renderPerformanceCell(video: VideoRow) {
+    if (analyticsConnected) {
+      return (
+        <div className="space-y-0.5 text-xs">
+          <p>{video.analytics?.periodViews ?? "—"} views</p>
+          <p className="text-muted">
+            {video.analytics?.watchTime ?? "—"} · {video.analytics?.averageViewPercentage ?? "—"} viewed
+          </p>
+        </div>
+      );
+    }
+    return <span className="text-muted">{video.views7d} · 7d views</span>;
   }
 
   const periodSuffix = `${analytics.rangeDays}d`;
@@ -605,26 +632,19 @@ export function YoutubeDashboard({
 
   return (
     <div className="space-y-10">
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">YouTube</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted">
-              Operational channel dashboard — performance, catalog coverage, and Mesa recipe relationships.
-            </p>
-          </div>
-          <FreshnessStrip
-            analytics={analytics}
-            channel={channel}
-            canSync={canSync}
-            canManageAnalytics={canManageAnalytics}
-            analyticsPending={analyticsPending}
-            dataPending={pending}
-            onSync={onSync}
-            onRefreshAnalytics={onRefreshAnalytics}
-            onDisconnectAnalytics={onDisconnectAnalytics}
-          />
-        </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-2xl text-sm text-muted">Performance, coverage, and what to publish next.</p>
+        <FreshnessStrip
+          analytics={analytics}
+          channel={channel}
+          canSync={canSync}
+          canManageAnalytics={canManageAnalytics}
+          analyticsPending={analyticsPending}
+          dataPending={pending}
+          onSync={onSync}
+          onRefreshAnalytics={onRefreshAnalytics}
+          onDisconnectAnalytics={onDisconnectAnalytics}
+        />
       </div>
 
       {syncMessage ? (
@@ -668,91 +688,87 @@ export function YoutubeDashboard({
       <section className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-serif text-xl text-ink">
-              Period performance
-              <SourceMark source="ANALYTICS" />
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              Last {analytics.rangeDays} days · independent of public Data API counters.
-            </p>
+            <h2 className="font-serif text-xl text-ink">Period performance</h2>
+            <p className="mt-1 text-sm text-muted">Last {analytics.rangeDays} days</p>
           </div>
           {analyticsConnected ? (
-            <div className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1 text-xs">
-              {ANALYTICS_RANGE_DAYS.map((days) => (
-                <button
-                  key={days}
-                  type="button"
-                  className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
-                    analytics.rangeDays === days ? "bg-sand text-ink" : "text-muted hover:text-ink"
-                  } ${adminFocusRing}`}
-                  onClick={() => updateRange(days)}
-                >
-                  Last {days} days
-                </button>
-              ))}
+            <div
+              className="flex flex-wrap gap-1 rounded-sm border border-line/70 p-1 text-xs"
+              role="group"
+              aria-label="Analytics date range"
+            >
+              {ANALYTICS_RANGE_DAYS.map((days) => {
+                const selected = analytics.rangeDays === days;
+                return (
+                  <button
+                    key={days}
+                    type="button"
+                    aria-pressed={selected}
+                    className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                      selected ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                    } ${adminFocusRing}`}
+                    onClick={() => updateRange(days)}
+                  >
+                    {days} days
+                  </button>
+                );
+              })}
             </div>
           ) : null}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <SummaryCard
-            label="Views"
-            value={analyticsConnected ? analytics.channel.views : "—"}
-            note={analyticsConnected ? `Last ${analytics.rangeDays} days` : "Connect Analytics"}
-          />
-          <SummaryCard
-            label="Watch time"
-            value={analyticsConnected ? analytics.channel.watchTime : "—"}
-            note={analyticsConnected ? `Estimated hours · last ${analytics.rangeDays} days` : undefined}
-          />
-          <SummaryCard
-            label="Net subscribers"
-            value={analyticsConnected ? analytics.channel.subscriberGrowth : "—"}
-            note={analyticsConnected ? `Gained − lost · last ${analytics.rangeDays} days` : undefined}
-          />
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-sm border border-line bg-paper px-4 py-4">
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
-              Retention · Analytics
+        <div className="flex flex-wrap gap-x-10 gap-y-4 border-y border-line/70 py-4">
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Views</p>
+            <p className="mt-1 font-serif text-2xl text-ink">
+              {analyticsConnected ? analytics.channel.views : "—"}
             </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <MiniStat
-                label="Average % viewed"
-                value={analyticsConnected ? analytics.channel.averageViewPercentage : "—"}
-              />
-              <MiniStat
-                label="Average view duration"
-                value={analyticsConnected ? analytics.channel.averageViewDuration : "—"}
-              />
-            </div>
+          </div>
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Watch time</p>
+            <p className="mt-1 font-serif text-2xl text-ink">
+              {analyticsConnected ? analytics.channel.watchTime : "—"}
+            </p>
+            {analyticsConnected ? <p className="mt-0.5 text-xs text-muted">Estimated</p> : null}
+          </div>
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Net subscribers</p>
+            <p className="mt-1 font-serif text-2xl text-ink">
+              {analyticsConnected ? analytics.channel.subscriberGrowth : "—"}
+            </p>
             {analyticsConnected ? (
-              <p className="mt-3 text-xs leading-snug text-muted">{YOUTUBE_ANALYTICS_RETENTION_FOOTNOTE}</p>
+              <p className="mt-0.5 text-xs text-muted">
+                {analytics.channel.subscribersGained} gained · {analytics.channel.subscribersLost} lost
+              </p>
             ) : null}
           </div>
-          <div className="rounded-sm border border-line bg-paper px-4 py-4">
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
-              Diagnostics · Analytics
+        </div>
+
+        <div className="flex flex-wrap gap-x-10 gap-y-3">
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Average % viewed</p>
+            <p className="mt-1 text-sm text-ink">
+              {analyticsConnected ? analytics.channel.averageViewPercentage : "—"}
             </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <MiniStat
-                label="Subscribers gained"
-                value={analyticsConnected ? analytics.channel.subscribersGained : "—"}
-              />
-              <MiniStat
-                label="Subscribers lost"
-                value={analyticsConnected ? analytics.channel.subscribersLost : "—"}
-              />
-              <MiniStat label="Shares" value={analyticsConnected ? analytics.channel.shares : "—"} />
-            </div>
+          </div>
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Average view duration</p>
+            <p className="mt-1 text-sm text-ink">
+              {analyticsConnected ? analytics.channel.averageViewDuration : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Shares</p>
+            <p className="mt-1 text-sm text-ink">{analyticsConnected ? analytics.channel.shares : "—"}</p>
           </div>
         </div>
+        {analyticsConnected ? (
+          <p className="text-xs leading-snug text-muted">{YOUTUBE_ANALYTICS_RETENTION_FOOTNOTE}</p>
+        ) : null}
       </section>
 
       {channel ? (
         <>
-          <ChannelSnapshot channel={channel} />
           <CatalogCoverageSection
             coverage={coverage}
             summary={summary}
@@ -761,9 +777,10 @@ export function YoutubeDashboard({
             importedSeriesCount={importedSeriesCount}
             showSeriesUtility={showSeriesUtility}
           />
+          <ChannelSnapshot channel={channel} />
         </>
       ) : (
-        <div className="rounded-sm border border-line bg-sand/30 p-6 text-sm text-muted">
+        <div className="border-t border-line/70 py-4 text-sm text-muted">
           <p>No YouTube channel data yet.</p>
           {canSync ? (
             <p className="mt-2">Use Refresh public YouTube to fetch Mesa Kitchen Studio channel metadata.</p>
@@ -774,16 +791,17 @@ export function YoutubeDashboard({
       )}
 
       <section>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-serif text-xl text-ink">Videos</h2>
-            <p className="mt-1 text-xs text-muted">
-              Full synced public catalog · Long {summary.longVideos ?? 0} · Shorts {summary.shorts ?? 0}
-              {(summary.unknownFormat ?? 0) > 0 ? ` · Unknown ${summary.unknownFormat}` : ""}
-            </p>
-          </div>
-          <label className="grid w-full max-w-xs gap-1 text-xs sm:w-auto">
-            <span className="font-semibold text-ink">Search videos</span>
+        <div>
+          <h2 className="font-serif text-xl text-ink">Videos</h2>
+          <p className="mt-1 text-xs text-muted">
+            Full synced public catalog · Long {summary.longVideos ?? 0} · Shorts {summary.shorts ?? 0}
+            {(summary.unknownFormat ?? 0) > 0 ? ` · Unknown ${summary.unknownFormat}` : ""}
+          </p>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3">
+          <label className="grid w-full max-w-xs gap-1 text-xs">
+            <span className="font-semibold text-ink">Search titles</span>
             <input
               type="search"
               value={searchQuery}
@@ -792,73 +810,104 @@ export function YoutubeDashboard({
               className={`min-h-[44px] rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
             />
           </label>
-        </div>
 
-        <div className="mt-3 flex max-w-full flex-wrap gap-1 rounded-sm border border-line bg-paper p-1 text-xs">
-          {FILTER_OPTIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
-                filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
-              } ${adminFocusRing}`}
-              onClick={() => updateFilter(value)}
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div
+              className="flex flex-wrap gap-1 rounded-sm border border-line/70 p-1 text-xs"
+              role="group"
+              aria-label="Format"
             >
-              {label}
-            </button>
-          ))}
-        </div>
+              {FORMAT_FILTERS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                    filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                  } ${adminFocusRing}`}
+                  onClick={() => updateFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-        <div className="mt-3 flex max-w-full flex-wrap gap-1 rounded-sm border border-line bg-cream/30 p-1 text-xs">
-          {SORT_OPTIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
-                sortKey === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
-              } ${adminFocusRing}`}
-              onClick={() => selectSort(value)}
+            <div
+              className="flex flex-wrap gap-1 rounded-sm border border-line/70 p-1 text-xs"
+              role="group"
+              aria-label="Work"
             >
-              {label}
-              {sortKey === value && value !== "performance" ? (
-                <span aria-hidden="true" className="ml-1">
-                  {sortDirection === "asc" ? "↑" : "↓"}
-                </span>
-              ) : null}
-            </button>
-          ))}
+              {WORK_FILTERS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                    filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                  } ${adminFocusRing}`}
+                  onClick={() => updateFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <label className="grid gap-1 text-xs sm:ml-auto">
+              <span className="font-semibold text-ink">Sort</span>
+              <select
+                value={sortKey}
+                onChange={(event) => selectSort(event.target.value as CatalogVideoSortKey)}
+                className={`min-h-[44px] rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
+              >
+                {SORT_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
-        <div className="mt-4 hidden overflow-x-auto rounded-sm border border-line md:block">
+        <div className="mt-4 hidden overflow-x-auto md:block">
           <table className="min-w-full text-left text-sm">
             <thead className="sticky top-0 z-10 bg-paper">
               <tr className={adminTableHeadClass}>
-                <th className="px-4 py-3 font-medium">Video</th>
-                <th className="px-4 py-3 font-medium">Format</th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Video
+                </th>
                 <th
+                  scope="col"
                   className="px-4 py-3 font-medium"
                   aria-sort={
-                    sortKey === "performance" || sortKey === "periodViews"
-                      ? "descending"
-                      : "none"
+                    sortKey === "performance" || sortKey === "periodViews" ? "descending" : "none"
                   }
                 >
                   Performance · {periodSuffix}
                 </th>
                 <th
+                  scope="col"
                   className="px-4 py-3 font-medium"
-                  aria-sort={sortKey === "subscribersGained" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+                  aria-sort={
+                    sortKey === "subscribersGained"
+                      ? sortDirection === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
                 >
-                  Subscribers
+                  Subs gained · {periodSuffix}
                 </th>
-                <th className="px-4 py-3 font-medium">Recipe relationship</th>
-                <th className="px-4 py-3 font-medium">Content health / action</th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Recipe
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Content health
+                </th>
               </tr>
             </thead>
             <tbody>
               {catalogVideos.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-muted">
+                  <td colSpan={5} className="px-4 py-8 text-muted">
                     {videos.length === 0 ? "No synced public videos yet." : "No videos match this filter."}
                   </td>
                 </tr>
@@ -872,28 +921,21 @@ export function YoutubeDashboard({
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={video.thumbnailUrl} alt="" className="h-10 w-[4.5rem] shrink-0 rounded-sm object-cover" />
-                        <span className="line-clamp-2 font-medium text-ink">{video.title}</span>
+                        <span className="min-w-0">
+                          <span className="line-clamp-2 font-medium text-ink" title={video.title}>
+                            {video.title}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-muted">{video.formatLabel}</span>
+                        </span>
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted">{video.formatLabel}</td>
+                    <td className="px-4 py-3">{renderPerformanceCell(video)}</td>
                     <td className="px-4 py-3">
-                      {analyticsConnected ? (
-                        <div className="space-y-0.5 text-xs">
-                          <p>{video.analytics?.periodViews ?? "—"} views</p>
-                          <p className="text-muted">{video.analytics?.watchTime ?? "—"} watch</p>
-                          <p className="text-muted">{video.analytics?.averageViewPercentage ?? "—"} avg % viewed</p>
-                        </div>
-                      ) : (
-                        <span className="text-muted">{video.views7d} · 7d views</span>
-                      )}
+                      {analyticsConnected ? video.analytics?.subscribersGained ?? "—" : "—"}
                     </td>
-                    <td className="px-4 py-3">{analyticsConnected ? video.analytics?.subscribersGained ?? "—" : "—"}</td>
+                    <td className="px-4 py-3">{renderRecipeActions(video)}</td>
                     <td className="px-4 py-3">
-                      <p className={`font-semibold ${relationshipClass(video.relationship)}`}>{video.relationship}</p>
-                      {renderRecipeActions(video)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className={`font-semibold ${contentHealthClass(video.contentHealth)}`}>
+                      <p className={`text-xs ${contentHealthClass(video.contentHealth)}`}>
                         <ContentHealthText value={video.contentHealth} />
                       </p>
                     </td>
@@ -906,35 +948,49 @@ export function YoutubeDashboard({
 
         <div className="mt-4 space-y-3 md:hidden">
           {catalogVideos.length === 0 ? (
-            <p className="rounded-sm border border-line bg-paper px-4 py-6 text-sm text-muted">
+            <p className="border-t border-line/70 py-6 text-sm text-muted">
               {videos.length === 0 ? "No synced public videos yet." : "No videos match this filter."}
             </p>
           ) : (
             catalogVideos.map((video) => (
-              <article key={video.videoId} className="rounded-sm border border-line bg-paper p-4">
+              <article key={video.videoId} className="border-t border-line/70 py-4">
                 <Link
                   href={`/admin/youtube/videos/${video.videoId}?range=${analytics.rangeDays}`}
                   className={`flex items-start gap-3 ${adminLinkClass}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={video.thumbnailUrl} alt="" className="h-14 w-24 shrink-0 rounded-sm object-cover" />
-                  <div>
-                    <p className="font-medium text-ink">{video.title}</p>
-                    <p className="mt-1 text-xs text-muted">
-                      {video.formatLabel} · {video.relationship}
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 font-medium text-ink" title={video.title}>
+                      {video.title}
                     </p>
+                    <p className="mt-1 text-xs text-muted">{video.formatLabel}</p>
                   </div>
                 </Link>
-                {analyticsConnected ? (
-                  <p className="mt-3 text-xs text-muted">
-                    {video.analytics?.periodViews ?? "—"} views · {video.analytics?.watchTime ?? "—"} ·{" "}
-                    {video.analytics?.averageViewPercentage ?? "—"} avg % viewed
-                  </p>
-                ) : null}
-                <div className="mt-3">{renderRecipeActions(video)}</div>
-                <p className={`mt-2 text-xs font-semibold ${contentHealthClass(video.contentHealth)}`}>
-                  <ContentHealthText value={video.contentHealth} />
-                </p>
+                <div className="mt-3 space-y-2 text-xs">
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.12em] text-muted">Performance</p>
+                    <div className="mt-1">{renderPerformanceCell(video)}</div>
+                  </div>
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.12em] text-muted">
+                      Subs gained · {periodSuffix}
+                    </p>
+                    <p className="mt-1 text-ink">
+                      {analyticsConnected ? video.analytics?.subscribersGained ?? "—" : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.12em] text-muted">Recipe</p>
+                    <div className="mt-1">{renderRecipeActions(video)}</div>
+                  </div>
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.12em] text-muted">Content health</p>
+                    <p className={`mt-1 ${contentHealthClass(video.contentHealth)}`}>
+                      <ContentHealthText value={video.contentHealth} />
+                    </p>
+                  </div>
+                </div>
               </article>
             ))
           )}
@@ -1038,16 +1094,16 @@ function FreshnessStrip({
     : "Not connected";
   const youtubeLabel = channel?.lastSyncedAt ? channel.lastSyncedAt.replace(" GMT", "") : "Not synced";
 
-  const stripText = `Analytics ${analyticsLabel} · Public YouTube ${youtubeLabel} · Mesa catalog live`;
+  const stripText = `Analytics updated ${analyticsLabel} · Public YouTube ${youtubeLabel} · Catalog live`;
 
   return (
     <details className="group relative w-full max-w-xl text-sm">
       <summary
-        className={`cursor-pointer list-none rounded-sm border border-line/80 bg-cream/30 px-3 py-2 text-xs text-muted marker:content-none ${adminFocusRing}`}
+        className={`cursor-pointer list-none px-1 py-1.5 text-xs text-muted marker:content-none ${adminFocusRing}`}
       >
         <span className="block truncate group-open:hidden">{stripText}</span>
-        <span className="hidden group-open:block">Data freshness</span>
-        <span className="ml-2 font-semibold text-ink group-open:hidden">Data freshness ▾</span>
+        <span className="hidden group-open:block font-semibold text-ink">Data status</span>
+        <span className="ml-2 font-semibold text-ink group-open:hidden">Data status ▾</span>
         <span className="ml-2 hidden font-semibold text-ink group-open:inline">▴</span>
       </summary>
       <div className="absolute right-0 z-20 mt-1 w-full min-w-[16rem] rounded-sm border border-line bg-paper px-3 py-3 shadow-sm">
@@ -1068,7 +1124,7 @@ function FreshnessStrip({
         {canManageAnalytics || canSync ? (
           <div className="mt-3 space-y-2 border-t border-line/70 pt-3">
             {canManageAnalytics ? (
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-2">
                 {!analytics.connection.connected ? (
                   <a href="/api/admin/youtube/analytics/oauth/start" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
                     Connect Analytics
@@ -1078,14 +1134,16 @@ function FreshnessStrip({
                     <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={analyticsPending} onClick={onRefreshAnalytics}>
                       {analyticsPending ? "Refreshing…" : "Refresh Analytics"}
                     </button>
-                    <button
-                      type="button"
-                      className={`text-xs font-semibold text-terracotta underline ${adminFocusRing}`}
-                      disabled={analyticsPending}
-                      onClick={onDisconnectAnalytics}
-                    >
-                      Disconnect Analytics
-                    </button>
+                    <div className="border-t border-line/50 pt-2">
+                      <button
+                        type="button"
+                        className={`text-xs font-semibold text-terracotta underline ${adminFocusRing}`}
+                        disabled={analyticsPending}
+                        onClick={onDisconnectAnalytics}
+                      >
+                        Disconnect Analytics
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
@@ -1125,7 +1183,7 @@ function NeedsAttentionSection({
 }) {
   if (total === 0) {
     return (
-      <section className="rounded-sm border border-line bg-paper px-4 py-4">
+      <section className="border-t border-line/70 py-4">
         <h2 className="font-serif text-xl text-ink">Needs attention</h2>
         <p className="mt-2 text-sm text-muted">No operational items right now.</p>
       </section>
@@ -1148,34 +1206,31 @@ function NeedsAttentionSection({
           </button>
         ) : null}
       </div>
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="divide-y divide-line/70 border-t border-line/70">
         {items.map((item) => (
-          <div key={item.id} className="rounded-sm border border-line bg-paper px-4 py-4">
+          <div key={item.id} className="py-4">
             {item.actionKind === "link-recipe" && item.possibleMatchRecipeId ? (
               <>
-                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-terracotta">
-                  Possible match
-                </p>
-                <p className="mt-2 font-semibold text-ink">{item.possibleMatchRecipeTitle}</p>
+                <p className="text-xs font-semibold text-terracotta">{item.title}</p>
+                <p className="mt-1 font-medium text-ink">{item.possibleMatchRecipeTitle}</p>
                 {item.videoTitle ? <p className="mt-1 text-sm text-muted">{item.videoTitle}</p> : null}
+                {item.detail ? <p className="mt-1 text-sm text-muted">{item.detail}</p> : null}
               </>
             ) : (
               <>
-                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-terracotta">
-                  {item.title}
-                </p>
-                <p className="mt-2 text-sm text-ink">{item.detail}</p>
+                <p className="text-xs font-semibold text-terracotta">{item.title}</p>
+                <p className="mt-1 text-sm text-ink">{item.detail}</p>
                 {item.metricsContext ? (
                   <p className="mt-1 text-xs text-muted">{item.metricsContext}</p>
                 ) : null}
               </>
             )}
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-3">
               {item.actionKind === "link-recipe" && item.videoId && item.possibleMatchRecipeId && canCreateRecipes ? (
                 <>
                   <button
                     type="button"
-                    className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                    className={compactLinkBtn}
                     onClick={() =>
                       onLink(
                         item.videoId!,
@@ -1187,20 +1242,25 @@ function NeedsAttentionSection({
                   >
                     Link recipe
                   </button>
-                  <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} onClick={() => onCreate(item.videoId!)}>
+                  <button type="button" className={compactLinkBtn} onClick={() => onCreate(item.videoId!)}>
                     Create new
                   </button>
                 </>
               ) : item.actionKind === "create-recipe" && item.videoId && canCreateRecipes ? (
-                <button type="button" className={`${adminPrimaryButtonClass} ${adminFocusRing}`} onClick={() => onCreate(item.videoId!)}>
+                <button
+                  type="button"
+                  className={compactLinkBtn}
+                  aria-label={item.videoTitle ? `Create recipe for ${item.videoTitle}` : "Create recipe"}
+                  onClick={() => onCreate(item.videoId!)}
+                >
                   Create recipe
                 </button>
               ) : item.actionKind === "review-queue" && item.filterTarget ? (
-                <button type="button" className={`${adminPrimaryButtonClass} ${adminFocusRing}`} onClick={() => onFilter(item.filterTarget!)}>
+                <button type="button" className={compactLinkBtn} onClick={() => onFilter(item.filterTarget!)}>
                   {item.actionLabel}
                 </button>
               ) : item.href ? (
-                <Link href={item.href} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+                <Link href={item.href} className={compactLinkBtn}>
                   {item.actionLabel}
                 </Link>
               ) : null}
@@ -1274,13 +1334,13 @@ function AttentionReviewPanel({
                   {group.collapsed.actionKind === "review-queue" && group.collapsed.filterTarget ? (
                     <button
                       type="button"
-                      className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                      className={compactLinkBtn}
                       onClick={() => onFilter(group.collapsed!.filterTarget!)}
                     >
                       {group.collapsed.actionLabel}
                     </button>
                   ) : group.collapsed.href ? (
-                    <Link href={group.collapsed.href} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+                    <Link href={group.collapsed.href} className={compactLinkBtn}>
                       {group.collapsed.actionLabel}
                     </Link>
                   ) : null}
@@ -1289,18 +1349,16 @@ function AttentionReviewPanel({
             ) : (
               <ul className="mt-2 space-y-3">
                 {group.entities.map((entity) => (
-                  <li key={entity.id} className="rounded-sm border border-line/70 px-3 py-3">
+                  <li key={entity.id} className="border-t border-line/70 pt-3 first:border-t-0 first:pt-0">
                     {entity.actionKind === "link-recipe" && entity.possibleMatchRecipeId ? (
                       <>
-                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-terracotta">
-                          Possible match
-                        </p>
-                        <p className="mt-1 font-semibold text-ink">{entity.possibleMatchRecipeTitle}</p>
+                        <p className="text-xs font-semibold text-terracotta">Possible match</p>
+                        <p className="mt-1 font-medium text-ink">{entity.possibleMatchRecipeTitle}</p>
                         {entity.videoTitle ? <p className="mt-1 text-xs text-muted">{entity.videoTitle}</p> : null}
                       </>
                     ) : (
                       <>
-                        <p className="font-semibold text-ink">{entity.entityLabel}</p>
+                        <p className="font-medium text-ink">{entity.entityLabel}</p>
                         <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
                           {entity.issues.map((issue) => (
                             <li key={issue}>{issue}</li>
@@ -1308,12 +1366,12 @@ function AttentionReviewPanel({
                         </ul>
                       </>
                     )}
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-3">
                       {entity.actionKind === "link-recipe" && entity.videoId && entity.possibleMatchRecipeId && canCreateRecipes ? (
                         <>
                           <button
                             type="button"
-                            className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                            className={compactLinkBtn}
                             onClick={() =>
                               onLink(
                                 entity.videoId!,
@@ -1325,16 +1383,21 @@ function AttentionReviewPanel({
                           >
                             Link recipe
                           </button>
-                          <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} onClick={() => onCreate(entity.videoId!)}>
+                          <button type="button" className={compactLinkBtn} onClick={() => onCreate(entity.videoId!)}>
                             Create new
                           </button>
                         </>
                       ) : entity.actionKind === "create-recipe" && entity.videoId && canCreateRecipes ? (
-                        <button type="button" className={`${adminPrimaryButtonClass} ${adminFocusRing}`} onClick={() => onCreate(entity.videoId!)}>
+                        <button
+                          type="button"
+                          className={compactLinkBtn}
+                          aria-label={entity.videoTitle ? `Create recipe for ${entity.videoTitle}` : "Create recipe"}
+                          onClick={() => onCreate(entity.videoId!)}
+                        >
                           Create recipe
                         </button>
                       ) : entity.href ? (
-                        <Link href={entity.href} className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+                        <Link href={entity.href} className={compactLinkBtn}>
                           {entity.actionLabel}
                         </Link>
                       ) : null}
@@ -1355,22 +1418,13 @@ function ChannelSnapshot({ channel }: { channel: ChannelSummary }) {
   const subscriberTrendTitle = channel.trendSubscribersTitle || subscriberTrend || undefined;
 
   return (
-    <section className="rounded-sm border border-line bg-paper px-4 py-4">
-      <h2 className="font-serif text-xl text-ink">
-        Public channel snapshot
-        <SourceMark source="DATA API" />
-      </h2>
-      <p className="mt-1 text-xs text-muted">Independent of selected Analytics period.</p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MiniStat label="Subscribers" value={channel.subscriberCount} />
-        <MiniStat label="Public videos" value={channel.videoCount} />
-        <MiniStat label="Lifetime views" value={channel.viewCount} />
-        <MiniStat
-          label="Subscriber change"
-          value={subscriberTrend || "—"}
-          title={subscriberTrendTitle}
-        />
-      </div>
+    <section className="border-t border-line/70 py-3">
+      <h2 className="text-sm font-semibold text-ink">Public channel</h2>
+      <p className="mt-1 text-sm text-muted" title={subscriberTrendTitle}>
+        {channel.subscriberCount} subscribers · {channel.videoCount} videos · {channel.viewCount} lifetime views
+        {subscriberTrend ? ` · ${subscriberTrend}` : ""}
+      </p>
+      <p className="mt-1 text-xs text-muted">Public totals are independent of the selected Analytics period.</p>
     </section>
   );
 }
@@ -1395,7 +1449,7 @@ function CatalogCoverageSection({
   showSeriesUtility: boolean;
 }) {
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       <div>
         <h2 className="font-serif text-xl text-ink">
           Catalog coverage
@@ -1408,9 +1462,9 @@ function CatalogCoverageSection({
           </p>
         ) : null}
       </div>
-      <div className="space-y-4 rounded-sm border border-line bg-paper px-4 py-4">
+      <div className="space-y-4">
         <CoverageRow
-          label="Videos linked to any Mesa recipe"
+          label="Videos with a Mesa recipe"
           numerator={coverage.video.linkedCount}
           denominator={coverage.video.syncedPublicVideoCount}
           percentage={coverage.video.percentage}
@@ -1421,7 +1475,7 @@ function CatalogCoverageSection({
           }
         />
         <CoverageRow
-          label="Published recipes with YouTube videos"
+          label="Published recipes with a video"
           numerator={coverage.recipe.withVideoCount}
           denominator={coverage.recipe.publishedRecipeCount}
           percentage={coverage.recipe.percentage}
@@ -1429,12 +1483,11 @@ function CatalogCoverageSection({
           onRemainderClick={onRecipesWithoutVideo}
         />
         {showSeriesUtility ? (
-          <div className="border-t border-line/70 pt-4 text-sm">
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Series</p>
-            <p className="mt-1 text-ink">
+          <div className="border-t border-line/50 pt-3 text-sm text-muted">
+            <p>
               {importedSeriesCount} YouTube playlist{importedSeriesCount === 1 ? "" : "s"} imported as Mesa Series
             </p>
-            <Link href="/admin/series" className={`mt-2 inline-block font-semibold text-olive hover:underline ${adminFocusRing}`}>
+            <Link href="/admin/series" className={`mt-1 inline-block text-xs font-semibold text-olive hover:underline ${adminFocusRing}`}>
               Manage Series →
             </Link>
           </div>
@@ -1464,13 +1517,13 @@ function CoverageRow({
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold text-ink">{label}</p>
+        <p className="text-sm text-ink">{label}</p>
         <p className="text-sm text-muted" aria-label={`${numerator} of ${denominator}, ${percentage} percent`}>
           {numerator} of {denominator} · {percentage}%
         </p>
       </div>
       <div
-        className="mt-2 h-2 overflow-hidden rounded-full bg-sand/60"
+        className="mt-1.5 h-1 overflow-hidden rounded-full bg-sand/60"
         role="progressbar"
         aria-valuenow={percentage}
         aria-valuemin={0}
@@ -1480,7 +1533,7 @@ function CoverageRow({
         <div className="h-full rounded-full bg-olive/70" style={{ width: `${Math.min(100, percentage)}%` }} />
       </div>
       {scopeNote ? <p className="mt-1 text-xs text-muted">{scopeNote}</p> : null}
-      <button type="button" className={`mt-2 text-xs font-semibold ${adminLinkClass}`} onClick={onRemainderClick}>
+      <button type="button" className={`mt-1.5 text-xs font-semibold ${adminLinkClass}`} onClick={onRemainderClick}>
         {remainderLabel}
       </button>
     </div>
@@ -1489,29 +1542,8 @@ function CoverageRow({
 
 function SourceMark({ source }: { source: "ANALYTICS" | "DATA API" | "MESA" }) {
   return (
-    <span className="ml-2 align-middle text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-muted">
+    <span className="ml-2 align-middle text-[0.55rem] font-medium uppercase tracking-[0.12em] text-muted/70">
       {source}
     </span>
-  );
-}
-
-function SummaryCard({ label, value, note }: { label: string; value: string; note?: string }) {
-  return (
-    <div className="rounded-sm border border-line bg-paper px-4 py-4">
-      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">{label}</p>
-      <p className="mt-2 font-serif text-2xl text-ink">{value}</p>
-      {note ? <p className="mt-1 text-xs text-muted">{note}</p> : null}
-    </div>
-  );
-}
-
-function MiniStat({ label, value, title }: { label: string; value: string; title?: string }) {
-  return (
-    <div>
-      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">{label}</p>
-      <p className="mt-1 font-serif text-lg text-ink" title={title}>
-        {value}
-      </p>
-    </div>
   );
 }
