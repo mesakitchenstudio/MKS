@@ -8,6 +8,7 @@ import {
   adminLinkClass,
   adminPrimaryButtonClass,
   adminSelectClass,
+  adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
 import {
   AdminSavedStatus,
@@ -934,7 +935,7 @@ export function TypeFieldsManager({
               setExpandedId(null);
               setAddOpen(true);
             }}
-            className={`self-start text-sm font-semibold text-terracotta transition-colors hover:text-terracotta-dark ${adminFocusRing}`}
+            className={`${adminTertiaryButtonClass} ${adminFocusRing} self-start text-terracotta hover:text-terracotta-dark`}
           >
             Add type-specific field
           </button>

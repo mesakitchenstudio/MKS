@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { refreshSeriesFromYoutubeAction } from "@/app/admin/actions";
-import { adminFocusRing } from "@/lib/admin-ui";
+import { adminFocusRing, adminIconButtonClass } from "@/lib/admin-ui";
 
 export function SeriesIndexRowOverflow({
   seriesId,
@@ -51,7 +51,7 @@ export function SeriesIndexRowOverflow({
         aria-expanded={open}
         aria-controls={menuId}
         aria-label={`More actions for ${seriesTitle}`}
-        className={`${adminFocusRing} inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm px-1.5 text-sm leading-none text-muted/60 transition-colors duration-150 motion-reduce:transition-none hover:text-muted sm:min-h-8 sm:min-w-8`}
+        className={`${adminFocusRing} ${adminIconButtonClass}`}
         onClick={() => setOpen((value) => !value)}
       >
         ⋯

@@ -96,6 +96,7 @@ import {
   adminCompactPrimaryButtonClass,
   adminFocusRing,
   adminInputClass,
+  adminPrimaryButtonClass,
   adminRecipeEditorStickyBleedClass,
   adminSecondaryButtonClass,
 } from "@/lib/admin-ui";
@@ -3053,14 +3054,14 @@ export function RecipeEditor({
                 ref={moveToDraftCancelRef}
                 type="button"
                 onClick={() => setMoveToDraftOpen(false)}
-                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={proceedSaveDraft}
-                className={`rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark ${adminFocusRing}`}
+                className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
               >
                 Move to draft
               </button>
@@ -3092,14 +3093,14 @@ export function RecipeEditor({
               <button
                 type="button"
                 onClick={() => setPublishAiWarningOpen(false)}
-                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={proceedPublishAnyway}
-                className={`rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark ${adminFocusRing}`}
+                className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
               >
                 Publish anyway
               </button>
@@ -3902,7 +3903,7 @@ function ImageField({
       <p className="text-xs text-muted">{helpText}</p>
       <label className="cursor-pointer">
         <span
-          className={`inline-flex h-10 items-center justify-center rounded-full bg-terracotta px-5 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 hover:bg-terracotta-dark active:scale-[0.995] ${adminFocusRing}`}
+          className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
         >
           {busy ? "Uploading…" : buttonLabel}
         </span>

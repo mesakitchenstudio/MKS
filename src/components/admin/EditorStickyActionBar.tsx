@@ -3,8 +3,8 @@
 import Link from "next/link";
 import {
   adminCompactPrimaryButtonClass,
+  adminCompactSecondaryButtonClass,
   adminFocusRing,
-  adminSecondaryButtonClass,
 } from "@/lib/admin-ui";
 
 export function EditorStickyActionBar({
@@ -49,7 +49,7 @@ export function EditorStickyActionBar({
               href={previewHref}
               target="_blank"
               rel="noreferrer"
-              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-9 px-3 text-sm`}
+              className={`${adminCompactSecondaryButtonClass} ${adminFocusRing}`}
             >
               Preview
             </Link>

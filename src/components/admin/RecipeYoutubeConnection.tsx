@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminLinkClass, adminSecondaryButtonClass } from "@/lib/admin-ui";
 import type { MetadataSyncField, SyncedYoutubeVideo } from "@/lib/youtube-data/recipe-link";
 import {
   applyYoutubeMetadataSync,
@@ -31,8 +31,7 @@ type LinkedVideoPreview = {
   watchUrl: string;
 };
 
-const secondaryBtn =
-  "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
+const secondaryBtn = adminSecondaryButtonClass;
 
 export function RecipeYoutubeConnection({
   recipeId,

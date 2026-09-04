@@ -6,7 +6,6 @@ import { isRecipeAiVerified } from "@/lib/ai-recipe/field-tracking";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import {
   adminFocusRing,
-  adminPrimaryButtonClass,
   adminSecondaryButtonClass,
   adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
@@ -646,7 +645,7 @@ export function AiRecipeAssistant({
                 </button>
                 <button
                   type="button"
-                  className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
                   onClick={() => void confirmInitialAnalyze("fill_empty")}
                 >
                   Fill empty fields only
@@ -680,7 +679,7 @@ export function AiRecipeAssistant({
                 </button>
                 <button
                   type="button"
-                  className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
                   onClick={() => applyDraft(pendingDraft, "fill_empty")}
                 >
                   Fill empty fields only
@@ -717,7 +716,7 @@ export function AiRecipeAssistant({
                 </button>
                 <button
                   type="button"
-                  className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
                   onClick={() => {
                     if (pendingDraft && pendingReplaceMode) {
                       applyDraft(pendingDraft, pendingReplaceMode);
@@ -762,7 +761,7 @@ export function AiRecipeAssistant({
                 </button>
                 <button
                   type="button"
-                  className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
                   onClick={confirmMarkStaffVerified}
                 >
                   Confirm staff verified

@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { saveTypeAction } from "@/app/admin/actions";
 import {
+  adminCompactPrimaryButtonClass,
   adminFocusRing,
   adminInputClass,
-  adminPrimaryButtonClass,
 } from "@/lib/admin-ui";
 import {
   AdminSavedStatus,
@@ -53,7 +53,7 @@ export function TypeDetailsForm({
             type="submit"
             form="type-details-form"
             disabled={!dirty}
-            className={`${adminPrimaryButtonClass} ${adminFocusRing} !h-9 !px-3.5`}
+            className={`${adminCompactPrimaryButtonClass} ${adminFocusRing}`}
           >
             Save type
           </button>

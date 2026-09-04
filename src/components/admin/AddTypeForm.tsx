@@ -3,7 +3,6 @@
 import { useId, useState } from "react";
 import { saveTypeAction } from "@/app/admin/actions";
 import {
-  adminCompactPrimaryButtonClass,
   adminFocusRing,
   adminInputClass,
   adminPrimaryButtonClass,
@@ -214,7 +213,7 @@ export function AddTypeForm({
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
           aria-controls={panelId}
-          className={`${adminCompactPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
+          className={`${adminPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
         >
           {open ? "Close" : "New recipe type"}
         </button>

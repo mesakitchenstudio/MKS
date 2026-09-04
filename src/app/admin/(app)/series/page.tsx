@@ -107,7 +107,7 @@ export default async function AdminSeriesPage({
           </Link>
           <Link
             href="/admin/series/new"
-            className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 px-5`}
+            className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
           >
             Create custom Series
           </Link>

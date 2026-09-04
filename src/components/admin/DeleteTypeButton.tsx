@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { deleteTypeAction } from "@/app/admin/actions";
-import { adminFocusRing } from "@/lib/admin-ui";
+import { adminFocusRing, adminIconButtonClass } from "@/lib/admin-ui";
 
 export function DeleteTypeButton({
   id,
@@ -49,7 +49,7 @@ export function DeleteTypeButton({
         aria-expanded={open}
         aria-controls={menuId}
         aria-label={`More actions for ${name}`}
-        className={`${adminFocusRing} inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm text-base leading-none tracking-tight text-muted/70 transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-ink sm:min-h-8 sm:min-w-8 sm:text-sm`}
+        className={`${adminFocusRing} ${adminIconButtonClass}`}
         onClick={() => setOpen((value) => !value)}
       >
         ⋯

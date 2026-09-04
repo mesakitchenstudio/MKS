@@ -13,24 +13,40 @@ export const adminInputClass =
 export const adminSelectClass =
   "h-11 rounded-sm border border-line bg-paper px-3.5 text-sm text-ink outline-none transition-[color,box-shadow,border-color] duration-150 motion-reduce:transition-none focus:border-olive focus:ring-2 focus:ring-olive/15 focus-visible:border-olive focus-visible:ring-2 focus-visible:ring-olive/15";
 
-export const adminPrimaryButtonClass =
-  "inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-terracotta px-5 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 motion-reduce:transition-none hover:bg-terracotta-dark active:scale-[0.995] active:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60";
+/**
+ * Admin button system — modest rectangular controls (not pills).
+ * Desktop standard ~40px; touch/narrow layouts expand to ~44px via min-h-11.
+ * Radius ~6px (`rounded-md`). Disabled keeps the same geometry with muted opacity.
+ */
+const adminButtonGeometry =
+  "inline-flex shrink-0 items-center justify-center rounded-md text-sm font-semibold transition-[color,transform,background-color,border-color] duration-150 motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-55";
 
-/** Compact primary for dense editorial chrome (recipe editor Update, index New recipe). */
-export const adminCompactPrimaryButtonClass =
-  "inline-flex min-h-9 shrink-0 items-center justify-center rounded-sm bg-terracotta px-3.5 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 motion-reduce:transition-none hover:bg-terracotta-dark active:scale-[0.995] active:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60";
+/** Primary — terracotta fill, light text. */
+export const adminPrimaryButtonClass = `${adminButtonGeometry} min-h-11 bg-terracotta px-4 text-paper hover:bg-terracotta-dark active:scale-[0.995] active:bg-terracotta-dark sm:min-h-10`;
 
-/** Secondary editor actions (save draft, move to draft, fill missing). */
-export const adminSecondaryButtonClass =
-  "inline-flex items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
+/** Compact primary — dense chrome (sticky Update, inline Add). ~36px desktop. */
+export const adminCompactPrimaryButtonClass = `${adminButtonGeometry} min-h-11 bg-terracotta px-3.5 text-paper hover:bg-terracotta-dark active:scale-[0.995] active:bg-terracotta-dark sm:min-h-9`;
 
-/** Text / tertiary actions (View on YouTube, Cancel, Remove). */
+/** Secondary — paper + hairline border, same geometry as primary. */
+export const adminSecondaryButtonClass = `${adminButtonGeometry} min-h-11 border border-line bg-paper px-4 text-ink hover:bg-cream hover:text-ink sm:min-h-10`;
+
+/** Compact secondary — Preview / Cancel in dense bars. */
+export const adminCompactSecondaryButtonClass = `${adminButtonGeometry} min-h-11 border border-line bg-paper px-3.5 text-ink hover:bg-cream hover:text-ink sm:min-h-9`;
+
+/** Tertiary — quiet text action (Edit, View, Add type-specific field). */
 export const adminTertiaryButtonClass =
-  "inline-flex items-center justify-center rounded-sm px-2 py-1 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center rounded-md px-1.5 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-55 sm:min-h-0";
 
-/** Destructive actions (Delete). */
+/** Destructive — quiet terracotta text (not a filled red button). */
 export const adminDangerButtonClass =
-  "inline-flex items-center justify-center rounded-sm border border-terracotta/40 bg-paper px-3 py-1.5 text-sm font-semibold text-terracotta transition-colors duration-150 motion-reduce:transition-none hover:bg-terracotta/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center rounded-md px-1.5 text-sm font-semibold text-terracotta transition-colors duration-150 motion-reduce:transition-none hover:bg-terracotta/5 hover:text-terracotta-dark disabled:cursor-not-allowed disabled:opacity-55 sm:min-h-0";
+
+/**
+ * Icon / overflow trigger — square hit target; expand on touch.
+ * Pair with an accessible name (e.g. More actions for …).
+ */
+export const adminIconButtonClass =
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-base leading-none tracking-tight text-muted/70 transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-ink disabled:cursor-not-allowed disabled:opacity-55 sm:min-h-8 sm:min-w-8 sm:text-sm";
 
 export const adminLinkClass =
   "font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:text-terracotta";

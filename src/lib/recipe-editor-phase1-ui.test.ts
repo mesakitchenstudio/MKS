@@ -65,7 +65,7 @@ describe("Recipe editor Phase 1 presentation contracts", () => {
     assert.match(editor, /Download AI JSON/);
     assert.match(editor, /DeleteRecipeButton/);
     assert.match(editor, /adminCompactPrimaryButtonClass/);
-    assert.ok(adminCompactPrimaryButtonClass.includes("rounded-sm"));
+    assert.ok(adminCompactPrimaryButtonClass.includes("rounded-md"));
     assert.ok(adminCompactPrimaryButtonClass.includes("bg-terracotta"));
   });
 

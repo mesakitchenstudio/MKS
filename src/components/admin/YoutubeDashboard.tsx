@@ -19,7 +19,7 @@ import type { AttentionQueueItem } from "@/lib/youtube-data/dashboard";
 import type { AttentionReviewGroup } from "@/lib/youtube-data/attention-review";
 import type { RecipeCoverageStats, VideoCoverageStats } from "@/lib/youtube-data/coverage";
 import { formatVideoLinkScopeBreakdown } from "@/lib/youtube-data/coverage";
-import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass, adminTableHeadClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass, adminSecondaryButtonClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { YOUTUBE_ANALYTICS_RETENTION_FOOTNOTE } from "@/lib/youtube-analytics/metric-copy";
 import {
   parseYoutubeDashboardFilter,
@@ -154,8 +154,7 @@ const SORT_OPTIONS: { value: CatalogVideoSortKey; label: string }[] = [
 const compactLinkBtn =
   "inline-flex min-h-[44px] items-center rounded-sm px-1 text-xs font-semibold text-terracotta transition-colors duration-150 motion-reduce:transition-none hover:text-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-50";
 
-const secondaryBtn =
-  "inline-flex min-h-[44px] items-center justify-center rounded-sm border border-line bg-paper px-3 py-1.5 text-sm font-semibold text-muted transition-colors duration-150 motion-reduce:transition-none hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60";
+const secondaryBtn = adminSecondaryButtonClass;
 
 function relationshipClass(value: string) {
   if (value === "Linked") return "text-muted";

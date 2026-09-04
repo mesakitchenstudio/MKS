@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { deleteCategoryAction, saveCategoryAction } from "@/app/admin/actions";
 import {
-  adminCompactPrimaryButtonClass,
+  adminDangerButtonClass,
   adminFocusRing,
   adminInputClass,
   adminLinkClass,
   adminPrimaryButtonClass,
+  adminSecondaryButtonClass,
   adminSelectClass,
 } from "@/lib/admin-ui";
 import {
@@ -27,9 +28,6 @@ import {
 import { slugify } from "@/lib/fields";
 
 const helperRowClass = "mt-1.5 min-h-[1.75rem] text-xs leading-4 text-muted";
-
-const secondaryBtnClass =
-  "inline-flex min-h-11 items-center justify-center rounded-sm border border-line bg-paper px-3 text-sm font-semibold text-muted transition-colors duration-150 hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta sm:min-h-9";
 
 type CategoryDraft = {
   name: string;
@@ -193,7 +191,7 @@ function CategoryEditor({
           </EditorFieldColumn>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={handleCancel} className={`${secondaryBtnClass} ${adminFocusRing}`}>
+          <button type="button" onClick={handleCancel} className={`${adminSecondaryButtonClass} ${adminFocusRing}`}>
             Cancel
           </button>
           <button
@@ -210,7 +208,7 @@ function CategoryEditor({
         <input type="hidden" name="id" value={category.id} />
         <button
           type="button"
-          className={`inline-flex min-h-11 items-center text-sm font-semibold text-terracotta/90 transition-colors hover:text-terracotta sm:min-h-0 ${adminFocusRing}`}
+          className={`${adminDangerButtonClass} ${adminFocusRing}`}
           onClick={() => {
             const recipeNote =
               category.recipeCount > 0
@@ -412,7 +410,7 @@ function AddCategoryPanel({
           </EditorFieldColumn>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={onCancel} className={`${secondaryBtnClass} ${adminFocusRing}`}>
+          <button type="button" onClick={onCancel} className={`${adminSecondaryButtonClass} ${adminFocusRing}`}>
             Cancel
           </button>
           <button type="submit" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
@@ -518,7 +516,7 @@ export function CategoriesManager({
           }}
           aria-expanded={addOpen}
           aria-controls={addPanelId}
-          className={`${adminCompactPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
+          className={`${adminPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
         >
           {addOpen ? "Close" : "New category"}
         </button>
