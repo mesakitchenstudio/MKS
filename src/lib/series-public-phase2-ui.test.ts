@@ -194,13 +194,20 @@ describe("Series public Phase 2 presentation contracts", () => {
     assert.match(page, /SeriesItemTrackLink/);
   });
 
-  it("keeps hero and top hierarchy intact", () => {
+  it("keeps hero and top hierarchy intact with a capped large-desktop height", () => {
     assert.match(page, /Cooking Series/);
     assert.match(page, /series\.heroImage/);
     assert.match(page, /aspect-video/);
+    assert.match(page, /xl:aspect-auto xl:h-\[34rem\]/);
+    assert.match(page, /object-cover object-center/);
     assert.match(page, /series\.intro/);
     assert.match(page, /series\.itemCount/);
     assert.match(page, /max-w-6xl/);
     assert.match(page, /sm:grid-cols-2 lg:grid-cols-3/);
+    // Guard against restoring an unrestricted large-desktop 16:9-only hero wrapper.
+    assert.doesNotMatch(
+      page,
+      /relative mt-8 aspect-video overflow-hidden border border-line bg-sand">/,
+    );
   });
 });

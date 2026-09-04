@@ -79,13 +79,13 @@ export default async function SeriesDetailPage({ params }: Props) {
         </p>
 
         {series.heroImage ? (
-          <div className="relative mt-8 aspect-video overflow-hidden border border-line bg-sand">
+          <div className="relative mt-8 aspect-video overflow-hidden border border-line bg-sand xl:aspect-auto xl:h-[34rem]">
             <Image
               src={series.heroImage}
               alt=""
               fill
               priority
-              className="object-cover"
+              className="object-cover object-center"
               sizes="(min-width: 768px) 64rem, 100vw"
             />
           </div>
