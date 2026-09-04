@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
-import { YouTubeSubscribeCTA } from "@/components/youtube/YouTubeSubscribeCTA";
+import { SeriesContinueWithMesa } from "@/components/series/SeriesContinueWithMesa";
 import { SeriesItemTrackLink } from "@/components/series/SeriesItemTrackLink";
 import { site } from "@/data/site";
 import {
@@ -11,6 +11,10 @@ import {
   listSeriesSlugsForStaticParams,
   seriesItemListJsonLd,
 } from "@/lib/series";
+import {
+  formatSeriesCollectionMeta,
+  SERIES_PLAYLIST_CTA_LABEL,
+} from "@/lib/series-public-meta";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -60,6 +64,7 @@ export default async function SeriesDetailPage({ params }: Props) {
 
   /** Same effective featured item the former standalone panel used (`series.featured`). */
   const effectiveFeaturedId = series.featured?.id ?? null;
+  const collectionMeta = formatSeriesCollectionMeta(series.items);
 
   return (
     <article data-mesa-series-layout="phase2-collection">
@@ -74,9 +79,28 @@ export default async function SeriesDetailPage({ params }: Props) {
         {series.description ? (
           <p className="mt-3 max-w-2xl text-lg leading-8 text-ink/90">{series.description}</p>
         ) : null}
-        <p className="mt-3 text-sm text-muted">
-          {series.itemCount} {series.itemCount === 1 ? "item" : "items"}
-        </p>
+
+        <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+            {collectionMeta}
+          </p>
+          {series.youtubePlaylistUrl ? (
+            <SeriesItemTrackLink
+              href={series.youtubePlaylistUrl}
+              external
+              className="inline-flex min-h-11 items-center text-sm font-semibold text-muted underline-offset-2 hover:text-ink hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+              event="series_watch_playlist_on_youtube_click"
+              seriesId={series.id}
+              seriesSlug={series.slug}
+              playlistId={series.youtubePlaylistId || undefined}
+              placement="series_page_header"
+              ariaLabel="Watch the full series on YouTube (opens in a new tab)"
+            >
+              {SERIES_PLAYLIST_CTA_LABEL}
+              <span className="sr-only"> (opens in a new tab)</span>
+            </SeriesItemTrackLink>
+          ) : null}
+        </div>
 
         {series.heroImage ? (
           <div className="relative mt-8 aspect-video overflow-hidden border border-line bg-sand xl:aspect-auto xl:h-[34rem]">
@@ -92,13 +116,13 @@ export default async function SeriesDetailPage({ params }: Props) {
         ) : null}
 
         {series.intro ? (
-          <div className="prose-mesa mt-10 max-w-3xl text-base leading-8 text-ink/90">
+          <div className="prose-mesa mt-6 max-w-[72ch] text-base leading-8 text-ink/90">
             <p>{series.intro}</p>
           </div>
         ) : null}
 
         {/* Phase 2: no standalone Featured showcase between intro and the item grid. */}
-        <section className="mt-12" aria-labelledby="series-items-heading">
+        <section className="mt-10" aria-labelledby="series-items-heading">
           <h2 id="series-items-heading" className="font-serif text-3xl text-ink">
             In this series
           </h2>
@@ -106,7 +130,7 @@ export default async function SeriesDetailPage({ params }: Props) {
             {series.items.map((item) => {
               const isEffectiveFeatured = effectiveFeaturedId === item.id;
               return (
-                <li key={item.id} className="flex flex-col border border-line bg-paper">
+                <li key={item.id} className="flex min-w-0 flex-col border border-line bg-paper">
                   <div className="relative aspect-video overflow-hidden bg-sand">
                     <Image
                       src={item.thumbnail}
@@ -116,7 +140,7 @@ export default async function SeriesDetailPage({ params }: Props) {
                       sizes="(min-width: 1024px) 18rem, (min-width: 640px) 45vw, 100vw"
                     />
                   </div>
-                  <div className="flex flex-1 flex-col px-4 py-4">
+                  <div className="flex min-w-0 flex-1 flex-col px-4 py-4">
                     {isEffectiveFeatured ? (
                       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
                         Featured
@@ -137,34 +161,37 @@ export default async function SeriesDetailPage({ params }: Props) {
                         {item.description}
                       </p>
                     ) : null}
-                    <div className="mt-4 flex flex-wrap gap-3">
+                    <div className="mt-4 flex min-w-0 flex-wrap gap-x-4 gap-y-2">
                       {item.recipeSlug ? (
                         <SeriesItemTrackLink
                           href={`/recipes/${item.recipeSlug}`}
-                          className="text-sm font-semibold text-terracotta hover:underline"
+                          className="inline-flex min-h-11 items-center text-sm font-semibold text-terracotta hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                           event="series_item_click"
                           seriesId={series.id}
                           seriesSlug={series.slug}
                           itemPosition={item.position}
                           destinationRecipeSlug={item.recipeSlug}
                           destinationVideoId={item.youtubeVideoId || undefined}
+                          ariaLabel={`Read recipe: ${item.title}`}
                         >
-                          View recipe
+                          Read recipe
                         </SeriesItemTrackLink>
                       ) : null}
                       {item.watchUrl ? (
                         <SeriesItemTrackLink
                           href={item.watchUrl}
                           external
-                          className="text-sm font-semibold text-olive hover:underline"
+                          className="inline-flex min-h-11 items-center text-sm font-semibold text-olive hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                           event="series_watch_click"
                           seriesId={series.id}
                           seriesSlug={series.slug}
                           itemPosition={item.position}
                           destinationRecipeSlug={item.recipeSlug || undefined}
                           destinationVideoId={item.youtubeVideoId || undefined}
+                          ariaLabel={`Watch video: ${item.title} (opens in a new tab)`}
                         >
-                          Watch
+                          Watch video
+                          <span className="sr-only"> (opens in a new tab)</span>
                         </SeriesItemTrackLink>
                       ) : null}
                     </div>
@@ -175,24 +202,13 @@ export default async function SeriesDetailPage({ params }: Props) {
           </ol>
         </section>
 
-        <div className="mx-auto mt-12 max-w-3xl">
-          <YouTubeSubscribeCTA placement="series_page" />
-          {series.youtubePlaylistUrl ? (
-            <p className="mt-5 text-center">
-              <SeriesItemTrackLink
-                href={series.youtubePlaylistUrl}
-                external
-                className="text-sm font-semibold text-olive hover:underline"
-                event="series_watch_playlist_on_youtube_click"
-                seriesId={series.id}
-                seriesSlug={series.slug}
-                playlistId={series.youtubePlaylistId || undefined}
-                placement="series_page_footer"
-              >
-                Watch the full series on YouTube →
-              </SeriesItemTrackLink>
-            </p>
-          ) : null}
+        <div className="mx-auto max-w-3xl">
+          <SeriesContinueWithMesa
+            seriesId={series.id}
+            seriesSlug={series.slug}
+            youtubePlaylistUrl={series.youtubePlaylistUrl}
+            youtubePlaylistId={series.youtubePlaylistId}
+          />
         </div>
       </div>
     </article>

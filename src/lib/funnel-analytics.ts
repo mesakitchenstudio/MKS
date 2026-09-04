@@ -72,7 +72,9 @@ const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   watch_method_subscribe: "watch_method_subscribe",
   recipe_end_subscribe: "recipe_end_subscribe",
   series_page: "series_page",
+  series_page_header: "series_page",
   series_page_footer: "series_page",
+  series_page_conclusion: "series_page",
 };
 
 const BLOCKED_META_KEYS = new Set([

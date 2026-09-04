@@ -101,7 +101,6 @@ describe("Series public Phase 2 presentation contracts", () => {
   });
 
   it("removes every legacy standalone Featured showcase marker from the Series page", () => {
-    assert.doesNotMatch(page, /Watch video/);
     assert.doesNotMatch(page, /Watch playlist on YouTube/);
     assert.doesNotMatch(page, /Prefer binge-watching on YouTube/);
     assert.doesNotMatch(page, /bg-cream\/40 p-4 md:p-6/);
@@ -110,7 +109,9 @@ describe("Series public Phase 2 presentation contracts", () => {
     assert.doesNotMatch(page, /featured\.title/);
     assert.doesNotMatch(page, /featured\.recipeSlug/);
     assert.doesNotMatch(page, /featured\.watchUrl/);
-    // Legacy CTA cluster lived only on this page historically; recipe embeds may still say Watch video.
+    assert.doesNotMatch(page, /View recipe/);
+    // Card labels use Watch video; recipe embeds may also say Watch video.
+    assert.match(page, /Watch video/);
     assert.match(recipeContinued, /Watch video/);
   });
 
@@ -121,7 +122,7 @@ describe("Series public Phase 2 presentation contracts", () => {
     const between = page.slice(introBlock, gridHeading);
     assert.doesNotMatch(between, /SeriesItemTrackLink/);
     assert.doesNotMatch(between, /featured\.(thumbnail|title|recipeSlug|watchUrl)/);
-    assert.doesNotMatch(between, /Watch video|Watch playlist/);
+    assert.doesNotMatch(between, /Watch playlist/);
     assert.match(page, /no standalone Featured showcase between intro and the item grid/);
   });
 
@@ -148,24 +149,24 @@ describe("Series public Phase 2 presentation contracts", () => {
   });
 
   it("preserves per-item recipe and watch CTA combinations without a Featured CTA cluster", () => {
-    assert.match(page, /item\.recipeSlug \? \([\s\S]*View recipe/);
-    assert.match(page, /item\.watchUrl \? \([\s\S]*Watch/);
+    assert.match(page, /item\.recipeSlug \? \([\s\S]*Read recipe/);
+    assert.match(page, /item\.watchUrl \? \([\s\S]*Watch video/);
     assert.match(page, /event="series_item_click"/);
     assert.match(page, /event="series_watch_click"/);
     assert.equal((page.match(/event="series_item_click"/g) || []).length, 1);
     assert.equal((page.match(/event="series_watch_click"/g) || []).length, 1);
   });
 
-  it("renders exactly one collection-level playlist CTA with footer placement", () => {
-    const playlistEvents = page.match(/series_watch_playlist_on_youtube_click/g) || [];
-    assert.equal(playlistEvents.length, 1);
-    assert.match(page, /placement="series_page_footer"/);
-    assert.match(page, /Watch the full series on YouTube →/);
-    assert.match(page, /series\.youtubePlaylistUrl \?/);
+  it("uses header + conclusion playlist placements for playlist-backed Series", () => {
+    assert.match(page, /placement="series_page_header"/);
+    assert.match(page, /SeriesContinueWithMesa/);
+    assert.match(page, /SERIES_PLAYLIST_CTA_LABEL/);
+    assert.doesNotMatch(page, /placement="series_page_footer"/);
+    assert.equal((page.match(/series_watch_playlist_on_youtube_click/g) || []).length, 1);
   });
 
-  it("keeps Subscribe composed with Series placement without rewriting the shared component API", () => {
-    assert.match(page, /YouTubeSubscribeCTA placement="series_page"/);
+  it("keeps Series subscribe event parity without rewriting the shared Subscribe CTA API", () => {
+    assert.match(page, /SeriesContinueWithMesa/);
     assert.match(subscribe, /placement\?: SubscribePlacement/);
     assert.match(subscribe, /Cook along with Mesa/);
     assert.match(subscribe, /recipe_youtube_subscribe_click/);
@@ -201,9 +202,10 @@ describe("Series public Phase 2 presentation contracts", () => {
     assert.match(page, /xl:aspect-auto xl:h-\[34rem\]/);
     assert.match(page, /object-cover object-center/);
     assert.match(page, /series\.intro/);
-    assert.match(page, /series\.itemCount/);
+    assert.match(page, /formatSeriesCollectionMeta/);
     assert.match(page, /max-w-6xl/);
     assert.match(page, /sm:grid-cols-2 lg:grid-cols-3/);
+    assert.match(page, /max-w-\[72ch\]/);
     // Guard against restoring an unrestricted large-desktop 16:9-only hero wrapper.
     assert.doesNotMatch(
       page,

@@ -22,6 +22,7 @@ export function SeriesItemTrackLink({
   playlistId,
   placement,
   external = false,
+  ariaLabel,
 }: {
   href: string;
   children: ReactNode;
@@ -35,6 +36,7 @@ export function SeriesItemTrackLink({
   playlistId?: string;
   placement?: string;
   external?: boolean;
+  ariaLabel?: string;
 }) {
   function onClick() {
     trackEvent(event, {
@@ -50,14 +52,21 @@ export function SeriesItemTrackLink({
 
   if (external) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={className} onClick={onClick}>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+        onClick={onClick}
+        aria-label={ariaLabel}
+      >
         {children}
       </a>
     );
   }
 
   return (
-    <Link href={href} className={className} onClick={onClick}>
+    <Link href={href} className={className} onClick={onClick} aria-label={ariaLabel}>
       {children}
     </Link>
   );
