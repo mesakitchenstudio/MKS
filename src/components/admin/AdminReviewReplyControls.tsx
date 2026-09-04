@@ -10,14 +10,13 @@ import {
   adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
 
-/** Reply + optional sibling actions (e.g. review overflow) for Admin → Reviews. */
+/** Reply composer trigger for Admin → Reviews (footer of each review entry). */
 export function AdminReviewReplyControls({
   reviewId,
   page,
   authorName,
   recipeTitle,
   staffReplyCount = 0,
-  children,
 }: {
   reviewId: string;
   page: number;
@@ -25,8 +24,6 @@ export function AdminReviewReplyControls({
   recipeTitle: string;
   /** Staff Mesa replies only — drives Reply vs Add another reply. */
   staffReplyCount?: number;
-  /** Shown beside Reply (typically review overflow). */
-  children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const labelId = useId();
@@ -47,7 +44,7 @@ export function AdminReviewReplyControls({
 
   return (
     <div className="mt-6 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+      <div>
         <button
           ref={triggerRef}
           type="button"
@@ -59,7 +56,6 @@ export function AdminReviewReplyControls({
         >
           {replyLabel}
         </button>
-        {children}
       </div>
 
       {open ? (

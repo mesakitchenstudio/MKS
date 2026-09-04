@@ -64,7 +64,7 @@ export function RemoveReviewButton({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-controls={menuId}
-        aria-label={`More actions for ${authorName}'s review of ${recipeTitle}`}
+        aria-label={`Review actions for ${recipeTitle} by ${authorName}`}
         className={`${adminFocusRing} ${adminIconButtonClass}`}
         onClick={() => setMenuOpen((value) => !value)}
       >

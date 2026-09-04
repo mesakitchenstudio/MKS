@@ -34,7 +34,7 @@ type LiveReview = Omit<AdminReviewListItem, "createdAt" | "replies"> & {
 
 function NeedsResponseIndicator() {
   return (
-    <p className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-olive">
+    <p className="inline-flex items-center gap-1.5 text-xs text-olive">
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-olive" aria-hidden />
       Needs response
     </p>
@@ -65,7 +65,7 @@ function ReviewArticle({
 
   return (
     <article aria-labelledby={titleId} className="py-7 first:pt-0 last:pb-0">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">
           {recipeLink ? (
             <Link
@@ -93,37 +93,46 @@ function ReviewArticle({
               {review.recipeTitle}
             </p>
           )}
-
-          <div className="mt-2.5 min-w-0">
-            <p className="text-sm leading-5 text-ink">
-              {memberHref ? (
-                <Link
-                  href={memberHref}
-                  className={`font-semibold hover:text-terracotta ${adminFocusRing}`}
-                >
-                  {review.authorName}
-                </Link>
-              ) : (
-                <span className="font-semibold">{review.authorName}</span>
-              )}
-              <span className="text-muted"> · {formatAdminDate(review.createdAt)}</span>
-            </p>
-            {review.authorEmail ? (
-              <p className="mt-0.5 break-all text-xs leading-4 text-muted/75">
-                {review.authorEmail}
-              </p>
-            ) : null}
-          </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 sm:flex-col sm:items-end sm:gap-y-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5">
           <p className="text-sm tabular-nums text-muted">
             <span aria-hidden>★ {ratingLabel}</span>
             <span className="sr-only">{ratingAccessible}</span>
           </p>
           {needsResponse ? <NeedsResponseIndicator /> : null}
+          <RemoveReviewButton
+            id={review.id}
+            authorName={review.authorName}
+            recipeTitle={review.recipeTitle}
+          />
         </div>
       </div>
+
+      <p className="mt-2.5 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm leading-5">
+        {memberHref ? (
+          <Link
+            href={memberHref}
+            className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
+          >
+            {review.authorName}
+          </Link>
+        ) : (
+          <span className="font-semibold text-ink">{review.authorName}</span>
+        )}
+        <span className="text-muted" aria-hidden>
+          ·
+        </span>
+        <span className="text-muted">{formatAdminDate(review.createdAt)}</span>
+        {review.authorEmail ? (
+          <>
+            <span className="text-muted/50" aria-hidden>
+              ·
+            </span>
+            <span className="break-all text-xs text-muted/75">{review.authorEmail}</span>
+          </>
+        ) : null}
+      </p>
 
       <p className="mt-4 whitespace-pre-wrap break-words text-base leading-7 text-ink">
         {review.body}
@@ -148,13 +157,7 @@ function ReviewArticle({
         authorName={review.authorName}
         recipeTitle={review.recipeTitle}
         staffReplyCount={staffReplyCount}
-      >
-        <RemoveReviewButton
-          id={review.id}
-          authorName={review.authorName}
-          recipeTitle={review.recipeTitle}
-        />
-      </AdminReviewReplyControls>
+      />
     </article>
   );
 }

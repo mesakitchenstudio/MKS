@@ -157,18 +157,38 @@ describe("admin Reviews page contracts", () => {
     assert.match(liveFeed, /Needs response/);
     assert.match(liveFeed, /NeedsResponseIndicator/);
     assert.doesNotMatch(liveFeed, /unreplied|Answered|Resolved/);
+    assert.doesNotMatch(liveFeed, /uppercase tracking-/);
     assert.doesNotMatch(replyControls, /Needs response|Answered|Resolved/);
+  });
+
+  it("places review overflow in the header; footer is reply-only", () => {
+    const headerCluster = liveFeed.slice(
+      liveFeed.indexOf("★ {ratingLabel}"),
+      liveFeed.indexOf("whitespace-pre-wrap break-words text-base"),
+    );
+    assert.match(headerCluster, /NeedsResponseIndicator/);
+    assert.match(headerCluster, /RemoveReviewButton/);
+    assert.match(liveFeed, /authorEmail/);
+    assert.match(liveFeed, /flex-wrap items-baseline/);
+
+    assert.match(replyControls, /staffReplyCount > 0 \? "Add another reply" : "Reply"/);
+    assert.doesNotMatch(replyControls, /children/);
+    assert.doesNotMatch(replyControls, /RemoveReviewButton/);
+    assert.doesNotMatch(replyControls, /justify-between/);
+    assert.match(liveFeed, /<AdminReviewReplyControls[\s\S]*?\/>/);
+    assert.doesNotMatch(
+      liveFeed,
+      /<AdminReviewReplyControls[\s\S]*?<RemoveReviewButton/,
+    );
   });
 
   it("uses Reply vs Add another reply from staff reply count only", () => {
     assert.match(liveFeed, /countStaffReviewReplies/);
     assert.match(replyControls, /staffReplyCount > 0 \? "Add another reply" : "Reply"/);
-    assert.match(replyControls, /justify-between/);
     assert.match(liveFeed, /RemoveReviewButton/);
   });
 
   it("keeps Reply composer a11y and returns focus on Cancel", () => {
-    assert.match(replyControls, /justify-between/);
     assert.match(replyControls, /aria-expanded=\{open\}/);
     assert.match(replyControls, /aria-controls=\{panelId\}/);
     assert.match(replyControls, /minLength=\{3\}/);
@@ -183,7 +203,10 @@ describe("admin Reviews page contracts", () => {
 
   it("places Remove review in overflow and Remove reply reply-locally", () => {
     assert.match(removeReview, /adminIconButtonClass/);
-    assert.match(removeReview, /More actions for \$\{authorName\}'s review of \$\{recipeTitle\}/);
+    assert.match(
+      removeReview,
+      /Review actions for \$\{recipeTitle\} by \$\{authorName\}/,
+    );
     assert.match(removeReview, /role="menuitem"/);
     assert.match(removeReview, /including any\s+replies/);
     assert.match(removeReview, /adminSecondaryButtonClass/);
