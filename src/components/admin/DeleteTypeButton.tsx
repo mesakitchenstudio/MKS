@@ -75,7 +75,7 @@ export function DeleteTypeButton({
               }
             }}
           >
-            Delete
+            Delete recipe type
           </button>
         </div>
       ) : null}

@@ -75,6 +75,9 @@ describe("Recipe Types Phase 1 presentation contracts", () => {
     assert.match(deleteTypeButton, /deleteTypeAction/);
     assert.match(deleteTypeButton, /role="menu"/);
     assert.match(deleteTypeButton, /More actions for/);
+    assert.match(deleteTypeButton, /aria-label=\{`More actions for \$\{name\}`\}/);
+    assert.match(deleteTypeButton, />\s*Delete recipe type\s*</);
+    assert.doesNotMatch(deleteTypeButton, />\s*Delete\s*</);
     assert.match(deleteTypeButton, /currently has no recipes/);
     assert.match(deleteTypeButton, /Other Recipe Types are unaffected/);
     assert.doesNotMatch(deleteTypeButton, /type the type name|type its name/i);
