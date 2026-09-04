@@ -574,6 +574,14 @@ export async function getUserByEmail(email: string) {
   }
 }
 
+/** Max members removable in one Owner/Audience bulk action (matches admin list take). */
+export const MEMBER_BULK_DELETE_MAX = 200;
+
+/** Dedupe and trim member user ids for bulk admin deletes. */
+export function normalizeMemberIds(ids: string[]) {
+  return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+}
+
 export async function listUsersForAdmin(limit = 200) {
   const db = getDb();
   const staff = await db.admin.findMany({ select: { email: true } });

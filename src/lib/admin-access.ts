@@ -61,6 +61,14 @@ export function canDeleteGuestVisitors(role: string) {
   return role === "owner";
 }
 
+/**
+ * Destructive member account deletion (single + bulk).
+ * Owner only — Audience may view Members without remove controls.
+ */
+export function canDeleteMembers(role: string) {
+  return role === "owner";
+}
+
 export function homeForRole(role: string) {
   if (role === "members") return "/admin/members";
   if (role === "editor" || role === "owner") return "/admin";

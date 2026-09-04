@@ -9,13 +9,9 @@ import type {
   GuestVisitorAdminListResult,
   VisitorAudienceSummary,
 } from "@/lib/guest-analytics";
-import {
-  GUEST_TRAFFIC_SOURCES,
-  guestTrafficSourceLabel,
-  type GuestTrafficSource,
-} from "@/lib/guest-acquisition";
+import type { GuestTrafficSource } from "@/lib/guest-acquisition";
 import { adminFocusRing } from "@/lib/admin-ui";
-import { VisitorsTable } from "@/components/admin/VisitorsTable";
+import { VisitorsRecentSection } from "@/components/admin/VisitorsRecentSection";
 
 function buildVisitorsHref(input: {
   range: AnalyticsRangeDays;
@@ -80,9 +76,6 @@ export function VisitorsOverview({
   canDeleteVisitors?: boolean;
 }) {
   const totalSourceVisitors = trafficSources.reduce((sum, row) => sum + row.visitors, 0);
-  const from = list.total === 0 ? 0 : (list.page - 1) * list.pageSize + 1;
-  const to = Math.min(list.page * list.pageSize, list.total);
-  const totalPages = Math.max(1, Math.ceil(list.total / list.pageSize));
 
   return (
     <div className="mt-8 space-y-10">
@@ -203,122 +196,15 @@ export function VisitorsOverview({
         </section>
       </div>
 
-      <section aria-labelledby="recent-visitors-heading" className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 id="recent-visitors-heading" className="font-serif text-xl text-ink">
-              Recent visitors
-            </h2>
-            <p className="mt-1 text-xs text-muted">
-              {list.total === 0
-                ? "No matching visitors"
-                : `${from.toLocaleString("en-US")}–${to.toLocaleString("en-US")} of ${list.total.toLocaleString("en-US")}`}
-            </p>
-          </div>
-        </div>
-
-        <div
-          className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1"
-          role="group"
-          aria-label="Visitor classification"
-        >
-          {(
-            [
-              ["humans", "Humans"],
-              ["likely_automated", "Likely automated"],
-              ["bots", "Bots"],
-              ["unknown", "Unknown"],
-              ["all", "All"],
-            ] as const
-          ).map(([value, label]) => (
-            <Link
-              key={value}
-              href={buildVisitorsHref({ range, kind: value, source, q })}
-              className={`${chipBase} ${kind === value ? chipActive : chipIdle}`}
-              aria-current={kind === value ? "page" : undefined}
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
-
-        <form
-          className="flex min-w-0 flex-wrap items-center gap-2"
-          method="get"
-          action="/admin/visitors"
-        >
-          <input type="hidden" name="range" value={String(range)} />
-          <input type="hidden" name="kind" value={kind} />
-          <label className="sr-only" htmlFor="visitors-search">
-            Search guest or page
-          </label>
-          <input
-            id="visitors-search"
-            name="q"
-            defaultValue={q}
-            placeholder="Search guest or page…"
-            className={`min-w-[12rem] flex-1 rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
-          />
-          <label htmlFor="visitors-source" className="sr-only">
-            Filter by traffic source
-          </label>
-          <select
-            id="visitors-source"
-            name="source"
-            defaultValue={source}
-            className={`rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
-          >
-            <option value="all">All sources</option>
-            {GUEST_TRAFFIC_SOURCES.map((value) => (
-              <option key={value} value={value}>
-                {guestTrafficSourceLabel(value)}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className={`rounded-sm border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
-          >
-            Apply
-          </button>
-        </form>
-
-        <VisitorsTable
-          key={`${range}-${kind}-${source}-${q}-${list.page}`}
-          visitors={list.rows}
-          canDelete={canDeleteVisitors}
-        />
-
-        {totalPages > 1 ? (
-          <nav className="flex flex-wrap items-center justify-between gap-3 text-sm" aria-label="Pagination">
-            <p className="text-muted">
-              Page {list.page} of {totalPages}
-            </p>
-            <div className="flex gap-2">
-              {list.page > 1 ? (
-                <Link
-                  href={buildVisitorsHref({ range, kind, source, q, page: list.page - 1 })}
-                  className={`rounded-sm border border-line bg-paper px-3 py-1.5 font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
-                >
-                  Previous
-                </Link>
-              ) : (
-                <span className="rounded-sm border border-line px-3 py-1.5 text-muted">Previous</span>
-              )}
-              {list.page < totalPages ? (
-                <Link
-                  href={buildVisitorsHref({ range, kind, source, q, page: list.page + 1 })}
-                  className={`rounded-sm border border-line bg-paper px-3 py-1.5 font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
-                >
-                  Next
-                </Link>
-              ) : (
-                <span className="rounded-sm border border-line px-3 py-1.5 text-muted">Next</span>
-              )}
-            </div>
-          </nav>
-        ) : null}
-      </section>
+      <VisitorsRecentSection
+        key={`${range}-${kind}-${source}-${q}-${list.page}`}
+        list={list}
+        range={range}
+        kind={kind}
+        source={source}
+        q={q}
+        canDeleteVisitors={canDeleteVisitors}
+      />
     </div>
   );
 }

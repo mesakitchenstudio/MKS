@@ -112,4 +112,11 @@ describe("Phase 2B visitor permissions", () => {
     assert.equal(owner.canNetwork, true);
     assert.equal(owner.canDelete, true);
   });
+
+  it("bulk-delete UI capability follows the same Owner-only gate", () => {
+    // Mirrors VisitorsSelectModeToggle / checkbox chrome: canDelete={canDeleteGuestVisitors(role)}
+    assert.equal(canDeleteGuestVisitors("owner"), true);
+    assert.equal(canDeleteGuestVisitors("members"), false);
+    assert.equal(canDeleteGuestVisitors("editor"), false);
+  });
 });

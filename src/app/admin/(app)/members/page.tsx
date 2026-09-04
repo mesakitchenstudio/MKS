@@ -3,19 +3,28 @@ import {
   AdminFlashStatus,
   MEMBER_REMOVED_PARAMS,
 } from "@/lib/admin-transient-feedback";
+import { canDeleteMembers } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { listUsersForAdmin } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
+
+function memberRemovedMessage(removed: string | undefined) {
+  const count = Number.parseInt(String(removed || ""), 10);
+  if (!Number.isFinite(count) || count < 1) return null;
+  return count === 1 ? "1 member removed." : `${count} members removed.`;
+}
 
 export default async function AdminMembersPage({
   searchParams,
 }: {
   searchParams: Promise<{ removed?: string }>;
 }) {
-  await requireAccess("members");
+  const admin = await requireAccess("members");
   const { removed } = await searchParams;
   const users = await listUsersForAdmin();
+  const removedMessage = memberRemovedMessage(removed);
+  const canDelete = canDeleteMembers(admin.role);
 
   return (
     <div>
@@ -23,11 +32,13 @@ export default async function AdminMembersPage({
         Members
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">People with Mesa accounts.</p>
-      <AdminFlashStatus active={Boolean(removed)} clearParams={MEMBER_REMOVED_PARAMS}>
-        Member removed.
-      </AdminFlashStatus>
+      {removedMessage ? (
+        <AdminFlashStatus active clearParams={MEMBER_REMOVED_PARAMS}>
+          {removedMessage}
+        </AdminFlashStatus>
+      ) : null}
 
-      <MembersTable users={users} />
+      <MembersTable users={users} canDelete={canDelete} />
     </div>
   );
 }

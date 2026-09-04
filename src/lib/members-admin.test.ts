@@ -5,8 +5,10 @@ import { describe, it, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   canAccess,
+  canDeleteMembers,
   canViewGuestNetworkDiagnostics,
 } from "./admin-access";
+import { normalizeMemberIds } from "./accounts";
 import { adminWorkspaceWidthForPath } from "./admin-nav";
 import {
   adminWorkspaceMembersDetail,
@@ -84,7 +86,7 @@ describe("admin Members list contracts", () => {
     assert.match(membersTable, /online · Sorted by last seen · Times in GMT/);
     assert.doesNotMatch(membersTable, /Updates automatically/);
     assert.doesNotMatch(membersTable, /border border-line bg-paper px-4 py-3/);
-    assert.match(membersPage, /Member removed\./);
+    assert.match(membersPage, /member removed\./i);
     assert.doesNotMatch(membersPage, /Team access/);
   });
 
@@ -109,6 +111,176 @@ describe("admin Members list contracts", () => {
     assert.equal(adminWorkspaceWidthForPath("/admin/members"), adminWorkspaceMembersList);
     assert.notEqual(adminWorkspaceWidthForPath("/admin/visitors"), adminWorkspaceMembersList);
     assert.equal(adminWorkspaceWidthForPath("/admin/visitors"), adminWorkspaceWide);
+  });
+});
+
+describe("admin Members bulk selection/deletion", () => {
+  const actionsSource = readFileSync(
+    path.join(root, "../app/admin/actions.ts"),
+    "utf8",
+  );
+  const schema = readFileSync(path.join(root, "../../prisma/schema.prisma"), "utf8");
+  const accountsSource = readFileSync(path.join(root, "./accounts.ts"), "utf8");
+
+  it("normalizes and dedupes member ids for bulk delete", () => {
+    assert.deepEqual(
+      normalizeMemberIds([" abc ", "abc", "", "  ", "def"]),
+      ["abc", "def"],
+    );
+  });
+
+  it("Owner-only delete helper gates list Select and detail Remove", () => {
+    assert.equal(canDeleteMembers("owner"), true);
+    assert.equal(canDeleteMembers("members"), false);
+    assert.equal(canDeleteMembers("editor"), false);
+    assert.equal(canDeleteMembers(""), false);
+    // Area access unchanged
+    assert.equal(canAccess("owner", "members"), true);
+    assert.equal(canAccess("members", "members"), true);
+    assert.equal(canAccess("editor", "members"), false);
+    assert.match(membersPage, /canDeleteMembers\(admin\.role\)/);
+    assert.match(membersPage, /canDelete=\{canDelete\}/);
+    assert.match(memberDetail, /canDeleteMembers\(admin\.role\)/);
+    assert.match(memberDetail, /\{canDelete \? \(/);
+  });
+
+  it("permission matrix: Owner deletes; Audience views only; Editor denied Members", () => {
+    // Owner
+    assert.equal(canAccess("owner", "members"), true);
+    assert.equal(canDeleteMembers("owner"), true);
+    // Audience — view Members, never delete
+    assert.equal(canAccess("members", "members"), true);
+    assert.equal(canDeleteMembers("members"), false);
+    // Editor — no Members area
+    assert.equal(canAccess("editor", "members"), false);
+    assert.equal(canDeleteMembers("editor"), false);
+    // UI wiring: selection / Remove only when canDelete (Owner)
+    assert.match(membersTable, /canDelete && sortedUsers\.length > 0/);
+    assert.match(membersTable, /showSelectionChrome = canDelete && selectMode/);
+    assert.match(memberDetail, /\{canDelete \? \([\s\S]*Remove account/);
+    // Server rejects non-Owner on both actions
+    assert.match(actionsSource, /deleteMemberAction[\s\S]*?if \(!canDeleteMembers\(admin\.role\)\)/);
+    assert.match(
+      actionsSource,
+      /deleteMembersAction[\s\S]*?if \(!canDeleteMembers\(admin\.role\)\) \{\s*return \{ ok: false, error: "forbidden" \};/,
+    );
+  });
+
+  it("default Owner view can show Select members; checkboxes only in selection mode", () => {
+    assert.match(membersTable, /Select members/);
+    assert.match(membersTable, /canDelete && sortedUsers\.length > 0/);
+    assert.match(membersTable, /showSelectionChrome = canDelete && selectMode/);
+    assert.match(membersTable, /\{showSelectionChrome \? \(/);
+  });
+
+  it("selection mode reveals Select page, count, Delete selected, and Cancel", () => {
+    assert.match(membersTable, /aria-label="Select page"/);
+    assert.match(membersTable, />Select page</);
+    assert.match(membersTable, /\{selectedCount\} selected/);
+    assert.match(membersTable, /Delete selected/);
+    assert.match(membersTable, /Cancel selection/);
+    assert.match(membersTable, /Select members on this page/);
+  });
+
+  it("Select page toggles only currently visible member ids", () => {
+    assert.match(
+      membersTable,
+      /setSelectedIds\(checked \? new Set\(visibleIds\) : new Set\(\)\)/,
+    );
+    assert.match(membersTable, /indeterminate = someVisibleSelected/);
+    assert.doesNotMatch(membersTable, /Select all \d+/i);
+    assert.doesNotMatch(membersTable, /Delete all members/i);
+  });
+
+  it("member checkboxes use stable ids and name/email accessible labels", () => {
+    assert.match(membersTable, /checked=\{selectedIds\.has\(user\.id\)\}/);
+    assert.match(membersTable, /aria-label=\{`Select member \$\{label\}`\}/);
+    assert.match(membersTable, /function memberSelectLabel/);
+    assert.doesNotMatch(
+      membersTable,
+      /aria-label=\{`Select member \$\{user\.id\}`\}/,
+    );
+  });
+
+  it("presence polling updates presence only and does not clear selection by itself", () => {
+    assert.match(membersTable, /MEMBER_ADMIN_PRESENCE_POLL_MS/);
+    assert.match(membersTable, /setPresenceById\(\(current\) =>/);
+    assert.match(membersTable, /usersIdsKey !== trackedIdsKey/);
+    const pollBlock = membersTable.slice(
+      membersTable.indexOf("async function poll()"),
+      membersTable.indexOf("const pollTimer"),
+    );
+    assert.doesNotMatch(pollBlock, /setSelectedIds/);
+    assert.doesNotMatch(pollBlock, /setSelectMode/);
+  });
+
+  it("requires confirmation with accurate cascade copy (reviews retained, not deleted)", () => {
+    assert.match(
+      membersTable,
+      /Permanently delete \$\{countLabel\} selected member\$\{selectedCount === 1 \? "" : "s"\}\? Their saved recipes and member activity will also be removed\. Their reviews will remain, but will no longer be linked to the member account\. This cannot be undone\./,
+    );
+    assert.doesNotMatch(membersTable, /reviews will also be (deleted|removed)/i);
+    assert.match(removeMember, /saved recipes, and account activity/);
+  });
+
+  it("single and bulk delete enforce Owner-only canDeleteMembers server-side", () => {
+    const singleStart = actionsSource.indexOf("export async function deleteMemberAction");
+    const bulkStart = actionsSource.indexOf("export async function deleteMembersAction");
+    const bulkEnd = actionsSource.indexOf(
+      "export type DeleteGuestVisitorResult",
+      bulkStart,
+    );
+    const singleBlock = actionsSource.slice(singleStart, bulkStart);
+    const bulkBlock = actionsSource.slice(bulkStart, bulkEnd);
+    assert.match(singleBlock, /await requireAccess\("members"\)/);
+    assert.match(singleBlock, /if \(!canDeleteMembers\(admin\.role\)\)/);
+    assert.match(bulkBlock, /await requireAccess\("members"\)/);
+    assert.match(
+      bulkBlock,
+      /if \(!canDeleteMembers\(admin\.role\)\) \{\s*return \{ ok: false, error: "forbidden" \};/,
+    );
+    assert.doesNotMatch(bulkBlock, /canDeleteGuestVisitors/);
+  });
+
+  it("bulk action validates ids, caps count, and deletes atomically in a transaction", () => {
+    assert.match(accountsSource, /export function normalizeMemberIds/);
+    assert.match(accountsSource, /MEMBER_BULK_DELETE_MAX = 200/);
+    assert.match(actionsSource, /normalizeMemberIds\(memberIds\)/);
+    assert.match(actionsSource, /MEMBER_BULK_DELETE_MAX/);
+    assert.match(actionsSource, /\$transaction/);
+    assert.match(actionsSource, /MEMBER_DELETE_INCOMPLETE/);
+    assert.match(actionsSource, /user\.deleteMany\(\{\s*where: \{ id: \{ in: ids \} \}/);
+    assert.match(membersTable, /deleteMembersAction\(ids\)/);
+    assert.doesNotMatch(membersTable, /deleteMemberAction\(/);
+  });
+
+  it("preserves cascade and review SetNull semantics", () => {
+    assert.match(
+      schema,
+      /model RecipeSave[\s\S]*onDelete: Cascade/,
+    );
+    assert.match(
+      schema,
+      /model UserConnection[\s\S]*onDelete: Cascade/,
+    );
+    assert.match(
+      schema,
+      /model MemberPresenceSession[\s\S]*onDelete: Cascade/,
+    );
+    assert.match(
+      schema,
+      /model RecipeReview[\s\S]*onDelete: SetNull/,
+    );
+  });
+
+  it("success flash uses correct singular/plural count", () => {
+    assert.match(membersPage, /memberRemovedMessage/);
+    assert.match(membersPage, /1 member removed\./);
+    assert.match(membersPage, /members removed\./);
+    assert.match(membersTable, /\/admin\/members\?removed=\$\{result\.deletedCount\}/);
+    assert.match(membersTable, /router\.push/);
+    assert.match(membersTable, /router\.refresh/);
+    assert.match(actionsSource, /redirect\("\/admin\/members\?removed=1"\)/);
   });
 });
 
@@ -146,8 +318,16 @@ describe("admin Member detail contracts", () => {
     assert.match(memberDetail, /Last device/);
     assert.match(memberDetail, /Approx\. location/);
     assert.match(memberDetail, /Remove account/);
+    assert.match(memberDetail, /canDelete \? \(/);
     assert.match(memberDetail, /account\s+activity/);
     assert.match(removeMember, /account activity/);
+  });
+
+  it("Owner sees Remove account; Audience does not via canDeleteMembers", () => {
+    assert.equal(canDeleteMembers("owner"), true);
+    assert.equal(canDeleteMembers("members"), false);
+    assert.match(memberDetail, /canDeleteMembers\(admin\.role\)/);
+    assert.match(memberDetail, /\{canDelete \? \([\s\S]*Remove account/);
   });
 
   it("uses Members-specific network section without regressing Visitors", () => {

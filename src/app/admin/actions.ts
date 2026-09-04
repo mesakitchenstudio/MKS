@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
-import { homeForRole, isAccessLevel, canManageYoutubeSync, canManageYoutubeAnalytics, canDeleteGuestVisitors } from "@/lib/admin-access";
+import { homeForRole, isAccessLevel, canManageYoutubeSync, canManageYoutubeAnalytics, canDeleteGuestVisitors, canDeleteMembers } from "@/lib/admin-access";
 
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
 import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
@@ -27,7 +27,11 @@ import {
   validateAdminRoleChange,
 } from "@/lib/admin-staff";
 import { hashPassword } from "@/lib/passwords";
-import { removeMemberByEmail } from "@/lib/accounts";
+import {
+  MEMBER_BULK_DELETE_MAX,
+  normalizeMemberIds,
+  removeMemberByEmail,
+} from "@/lib/accounts";
 import { enrichRecipeValuesYoutubeFromDescription } from "@/lib/youtube-description";
 import {
   enrichRecipeValuesWithDerivedChapters,
@@ -634,7 +638,10 @@ export async function saveAdminAction(formData: FormData) {
 }
 
 export async function deleteMemberAction(formData: FormData) {
-  await requireAccess("members");
+  const admin = await requireAccess("members");
+  if (!canDeleteMembers(admin.role)) {
+    redirect("/admin/members");
+  }
   const id = String(formData.get("id") || "");
   if (!id) redirect("/admin/members");
   try {
@@ -646,6 +653,61 @@ export async function deleteMemberAction(formData: FormData) {
   revalidatePath(`/admin/members/${id}`);
   revalidatePath("/profile");
   redirect("/admin/members?removed=1");
+}
+
+export type DeleteMembersBulkResult =
+  | { ok: true; deletedCount: number }
+  | {
+      ok: false;
+      error: "missing" | "not-found" | "failed" | "too-many" | "forbidden";
+    };
+
+/**
+ * Bulk member delete — Owner only (same gate as deleteMemberAction).
+ * Cascades match single delete (saves/connections/presence); reviews SetNull.
+ * All selected IDs must exist or the transaction aborts (no partial delete).
+ */
+export async function deleteMembersAction(
+  memberIds: string[],
+): Promise<DeleteMembersBulkResult> {
+  const admin = await requireAccess("members");
+  if (!canDeleteMembers(admin.role)) {
+    return { ok: false, error: "forbidden" };
+  }
+  const ids = normalizeMemberIds(memberIds);
+  if (!ids.length) return { ok: false, error: "missing" };
+  if (ids.length > MEMBER_BULK_DELETE_MAX) {
+    return { ok: false, error: "too-many" };
+  }
+
+  try {
+    const deletedCount = await getDb().$transaction(async (tx) => {
+      const existing = await tx.user.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
+      });
+      if (existing.length !== ids.length) {
+        throw new Error("MEMBER_DELETE_INCOMPLETE");
+      }
+      const result = await tx.user.deleteMany({
+        where: { id: { in: ids } },
+      });
+      return result.count;
+    });
+    if (deletedCount === 0) return { ok: false, error: "not-found" };
+    revalidatePath("/admin/members");
+    for (const id of ids) {
+      revalidatePath(`/admin/members/${id}`);
+    }
+    revalidatePath("/profile");
+    return { ok: true, deletedCount };
+  } catch (error) {
+    if (error instanceof Error && error.message === "MEMBER_DELETE_INCOMPLETE") {
+      return { ok: false, error: "not-found" };
+    }
+    console.error("Could not delete members", error);
+    return { ok: false, error: "failed" };
+  }
 }
 
 export type DeleteGuestVisitorResult =

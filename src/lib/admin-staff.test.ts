@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canAccess, canDeleteGuestVisitors, canManageYoutubeAnalytics, canManageYoutubeSync, canViewGuestNetworkDiagnostics, homeForRole } from "./admin-access";
+import { canAccess, canDeleteGuestVisitors, canDeleteMembers, canManageYoutubeAnalytics, canManageYoutubeSync, canViewGuestNetworkDiagnostics, homeForRole } from "./admin-access";
 import {
   applyPersistedStaffRole,
   emailsConflictCaseInsensitive,
@@ -235,9 +235,16 @@ test("Phase 2B: guest network diagnostics and delete are Owner-only", () => {
   assert.equal(canDeleteGuestVisitors("editor"), false);
   assert.equal(canDeleteGuestVisitors(""), false);
 
+  // Member account deletion is Owner-only (area access still Owner + Audience)
+  assert.equal(canDeleteMembers("owner"), true);
+  assert.equal(canDeleteMembers("members"), false);
+  assert.equal(canDeleteMembers("editor"), false);
+  assert.equal(canDeleteMembers(""), false);
+
   // Audience keeps behavioral Visitors access without network/delete
   assert.equal(canAccess("members", "members") && !canViewGuestNetworkDiagnostics("members"), true);
   assert.equal(canAccess("members", "members") && !canDeleteGuestVisitors("members"), true);
+  assert.equal(canAccess("members", "members") && !canDeleteMembers("members"), true);
 });
 
 /** Presence API JSON must stay free of raw IP / UA for Audience-safe polling. */

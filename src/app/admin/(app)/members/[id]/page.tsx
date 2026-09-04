@@ -5,7 +5,7 @@ import { MemberLiveLastSeen } from "@/components/admin/MemberLivePresence";
 import { MemberConnectionHistory } from "@/components/admin/MemberConnectionHistory";
 import { MemberNetworkSection } from "@/components/admin/MemberNetworkSection";
 import { RemoveMemberButton } from "@/components/admin/RemoveMemberButton";
-import { canViewGuestNetworkDiagnostics } from "@/lib/admin-access";
+import { canDeleteMembers, canViewGuestNetworkDiagnostics } from "@/lib/admin-access";
 import { getUserForAdmin } from "@/lib/accounts";
 import { adminFocusRing } from "@/lib/admin-ui";
 import { requireAccess } from "@/lib/auth";
@@ -37,6 +37,7 @@ export default async function AdminMemberDetailPage({
   if (!user) notFound();
 
   const canEnrich = canViewGuestNetworkDiagnostics(admin.role);
+  const canDelete = canDeleteMembers(admin.role);
   const latest =
     user.connections.find((item) => item.ip && item.ip !== "unknown") || user.connections[0];
   const lastSeen = user.lastSeenAt || latest?.createdAt;
@@ -116,16 +117,18 @@ export default async function AdminMemberDetailPage({
         canEnrich={canEnrich}
       />
 
-      <section className="mt-12 border-t border-line/80 pt-8">
-        <h2 className="text-sm font-semibold text-ink">Remove account</h2>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Removing this member permanently deletes their account, saved recipes, and account
-          activity. This cannot be undone.
-        </p>
-        <div className="mt-4">
-          <RemoveMemberButton id={user.id} name={user.name} email={user.email} />
-        </div>
-      </section>
+      {canDelete ? (
+        <section className="mt-12 border-t border-line/80 pt-8">
+          <h2 className="text-sm font-semibold text-ink">Remove account</h2>
+          <p className="mt-2 max-w-2xl text-sm text-muted">
+            Removing this member permanently deletes their account, saved recipes, and account
+            activity. This cannot be undone.
+          </p>
+          <div className="mt-4">
+            <RemoveMemberButton id={user.id} name={user.name} email={user.email} />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

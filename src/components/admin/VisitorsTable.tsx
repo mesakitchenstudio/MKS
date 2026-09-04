@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { PresenceDot } from "@/components/admin/MemberPresence";
-import { adminFocusRing } from "@/lib/admin-ui";
+import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
 import { formatAdminShortDateTime } from "@/lib/datetime";
 import type { GuestVisitorAdminListRow } from "@/lib/guest-analytics";
 import { GUEST_ADMIN_PRESENCE_POLL_MS } from "@/lib/guest-tracking";
@@ -76,16 +76,36 @@ function PagePair({
 export function VisitorsTable({
   visitors,
   canDelete = false,
+  selectMode = false,
+  onSelectModeChange,
 }: {
   visitors: GuestVisitorAdminListRow[];
   canDelete?: boolean;
+  /** When provided with onSelectModeChange, selection mode is controlled by the parent. */
+  selectMode?: boolean;
+  onSelectModeChange?: (next: boolean) => void;
 }) {
   const [presenceById, setPresenceById] = useState<Record<string, PresenceSnap>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [selectMode, setSelectMode] = useState(false);
+  const [internalSelectMode, setInternalSelectMode] = useState(false);
   const [bulkPending, startBulk] = useTransition();
   const [bulkError, setBulkError] = useState<string | null>(null);
 
+  const controlled = typeof onSelectModeChange === "function";
+  const activeSelectMode = controlled ? selectMode : internalSelectMode;
+
+  // Reset row selection whenever selection mode turns on/off (incl. parent Cancel).
+  const [selectionModeSnapshot, setSelectionModeSnapshot] = useState(activeSelectMode);
+  if (selectionModeSnapshot !== activeSelectMode) {
+    setSelectionModeSnapshot(activeSelectMode);
+    setSelectedIds(new Set());
+    setBulkError(null);
+  }
+
+  function setSelectMode(next: boolean) {
+    if (controlled) onSelectModeChange(next);
+    else setInternalSelectMode(next);
+  }
   const refreshPresence = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/visitors/presence", { cache: "no-store" });
@@ -146,16 +166,16 @@ export function VisitorsTable({
     });
   }
 
-  function toggleAll(checked: boolean) {
+  function togglePage(checked: boolean) {
     setSelectedIds(checked ? new Set(visibleIds) : new Set());
   }
 
   function handleBulkDelete() {
     if (!canDelete || bulkPending || selectedCount === 0) return;
-    const label = selectedCount === 1 ? "1 visitor" : `${selectedCount} visitors`;
+    const countLabel = String(selectedCount);
     if (
       !window.confirm(
-        `Delete ${label} and all recorded page views? This action cannot be undone.`,
+        `Permanently delete ${countLabel} selected visitor${selectedCount === 1 ? "" : "s"} and their associated visitor data? This cannot be undone.`,
       )
     ) {
       return;
@@ -184,14 +204,16 @@ export function VisitorsTable({
     );
   }
 
+  const showSelectionChrome = canDelete && activeSelectMode;
+
   return (
     <div className="space-y-3">
-      {canDelete ? (
+      {!controlled && canDelete ? (
         <div className="flex flex-wrap items-center gap-3">
-          {!selectMode ? (
+          {!activeSelectMode ? (
             <button
               type="button"
-              className={`text-xs text-muted hover:text-ink ${adminFocusRing}`}
+              className={`inline-flex min-h-11 items-center text-sm font-semibold text-ink transition-colors hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
               onClick={() => setSelectMode(true)}
             >
               Select visitors
@@ -199,11 +221,8 @@ export function VisitorsTable({
           ) : (
             <button
               type="button"
-              className={`text-sm text-muted underline-offset-2 hover:underline ${adminFocusRing}`}
-              onClick={() => {
-                setSelectMode(false);
-                setSelectedIds(new Set());
-              }}
+              className={`inline-flex min-h-11 items-center text-sm font-semibold text-muted transition-colors hover:text-ink sm:min-h-9 ${adminFocusRing}`}
+              onClick={() => setSelectMode(false)}
             >
               Cancel selection
             </button>
@@ -211,24 +230,33 @@ export function VisitorsTable({
         </div>
       ) : null}
 
-      {canDelete && selectMode && selectedCount > 0 ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-sm border border-line bg-cream/50 px-3 py-2 text-sm">
-          <span className="font-semibold text-ink">{selectedCount} selected</span>
-          <button
-            type="button"
-            disabled={bulkPending}
-            onClick={handleBulkDelete}
-            className={`rounded-sm border border-line bg-paper px-3 py-1.5 font-semibold text-terracotta hover:border-terracotta disabled:opacity-60 ${adminFocusRing}`}
-          >
-            {bulkPending ? "Deleting…" : "Delete selected"}
-          </button>
-          <button
-            type="button"
-            className={`text-muted underline-offset-2 hover:underline ${adminFocusRing}`}
-            onClick={() => setSelectedIds(new Set())}
-          >
-            Clear
-          </button>
+      {showSelectionChrome ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-ink sm:min-h-9">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={(event) => togglePage(event.target.checked)}
+              aria-label="Select page"
+            />
+            <span className="font-semibold">Select page</span>
+          </label>
+          {selectedCount > 0 ? (
+            <>
+              <span className="text-muted">{selectedCount} selected</span>
+              <button
+                type="button"
+                disabled={bulkPending}
+                onClick={handleBulkDelete}
+                className={`inline-flex min-h-11 items-center font-semibold text-terracotta transition-colors hover:text-terracotta-dark disabled:opacity-60 sm:min-h-9 ${adminFocusRing}`}
+                aria-label={`Delete ${selectedCount} selected visitor${selectedCount === 1 ? "" : "s"}`}
+              >
+                {bulkPending ? "Deleting…" : "Delete selected"}
+              </button>
+            </>
+          ) : (
+            <span className="text-muted">Select visitors on this page</span>
+          )}
           {bulkError ? <p className="w-full text-sm text-terracotta">{bulkError}</p> : null}
         </div>
       ) : null}
@@ -238,15 +266,9 @@ export function VisitorsTable({
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-line bg-cream/40 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
             <tr>
-              {canDelete && selectMode ? (
+              {showSelectionChrome ? (
                 <th scope="col" className="w-10 px-3 py-3">
                   <span className="sr-only">Select</span>
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={(event) => toggleAll(event.target.checked)}
-                    aria-label="Select all visitors on this page"
-                  />
                 </th>
               ) : null}
               <th scope="col" className="px-3 py-3">
@@ -277,13 +299,14 @@ export function VisitorsTable({
               const short = guest.visitorKey.slice(0, 8);
               return (
                 <tr key={guest.id} className="align-top">
-                  {canDelete && selectMode ? (
+                  {showSelectionChrome ? (
                     <td className="px-3 py-3">
                       <input
                         type="checkbox"
+                        className="h-4 w-4"
                         checked={selectedIds.has(guest.id)}
                         onChange={(event) => toggleOne(guest.id, event.target.checked)}
-                        aria-label={`Select guest ${short}`}
+                        aria-label={`Select visitor ${short}`}
                       />
                     </td>
                   ) : null}
@@ -346,13 +369,14 @@ export function VisitorsTable({
           return (
             <li key={guest.id} className="border border-line bg-paper p-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  {canDelete && selectMode ? (
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {showSelectionChrome ? (
                     <input
                       type="checkbox"
+                      className="mt-1 h-4 w-4 shrink-0"
                       checked={selectedIds.has(guest.id)}
                       onChange={(event) => toggleOne(guest.id, event.target.checked)}
-                      aria-label={`Select guest ${short}`}
+                      aria-label={`Select visitor ${short}`}
                     />
                   ) : null}
                   <PresenceDot online={guest.online} />
@@ -366,7 +390,7 @@ export function VisitorsTable({
                 </div>
                 <Link
                   href={`/admin/visitors/${guest.id}`}
-                  className={`text-sm font-semibold text-terracotta ${adminFocusRing}`}
+                  className={`shrink-0 text-sm font-semibold text-terracotta ${adminFocusRing}`}
                 >
                   View
                 </Link>
@@ -395,5 +419,30 @@ export function VisitorsTable({
         })}
       </ul>
     </div>
+  );
+}
+
+/** Owner-only Select visitors / Cancel selection control for the Recent visitors heading. */
+export function VisitorsSelectModeToggle({
+  canDelete,
+  selectMode,
+  onSelectModeChange,
+}: {
+  canDelete: boolean;
+  selectMode: boolean;
+  onSelectModeChange: (next: boolean) => void;
+}) {
+  if (!canDelete) return null;
+  return (
+    <button
+      type="button"
+      className={`inline-flex min-h-11 items-center text-sm font-semibold transition-colors sm:min-h-9 ${adminLinkClass} ${adminFocusRing} ${
+        selectMode ? "text-muted hover:text-ink" : "text-ink hover:text-terracotta"
+      }`}
+      onClick={() => onSelectModeChange(!selectMode)}
+      aria-pressed={selectMode}
+    >
+      {selectMode ? "Cancel selection" : "Select visitors"}
+    </button>
   );
 }

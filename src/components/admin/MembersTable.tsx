@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { deleteMembersAction } from "@/app/admin/actions";
 import { MemberAvatar } from "@/components/admin/MemberPresence";
-import { adminFocusRing, adminTableHeadClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { formatAdminDate, formatAdminRelativeDateTime } from "@/lib/datetime";
 import {
   formatSignInMethod,
@@ -50,13 +52,42 @@ function presenceFromUsers(users: MemberRow[]): Record<string, PresencePatch> {
   return next;
 }
 
-export function MembersTable({ users }: { users: MemberRow[] }) {
+function memberSelectLabel(user: Pick<MemberRow, "name" | "email">) {
+  const name = user.name.trim();
+  return name || user.email;
+}
+
+export function MembersTable({
+  users,
+  canDelete = false,
+}: {
+  users: MemberRow[];
+  canDelete?: boolean;
+}) {
+  const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
   const [presenceById, setPresenceById] = useState(() => presenceFromUsers(users));
   const [trackedUsers, setTrackedUsers] = useState(users);
+  const [trackedIdsKey, setTrackedIdsKey] = useState(() =>
+    users.map((user) => user.id).join("\0"),
+  );
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkPending, startBulk] = useTransition();
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const selectPageRef = useRef<HTMLInputElement>(null);
+
+  const usersIdsKey = users.map((user) => user.id).join("\0");
   if (users !== trackedUsers) {
     setTrackedUsers(users);
     setPresenceById(presenceFromUsers(users));
+  }
+  if (usersIdsKey !== trackedIdsKey) {
+    setTrackedIdsKey(usersIdsKey);
+    // Membership of the rendered list changed — drop stale selection IDs.
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    setBulkError(null);
   }
 
   useEffect(() => {
@@ -105,6 +136,19 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
     });
   }, [users, presenceById]);
 
+  const visibleIds = sortedUsers.map((user) => user.id);
+  const selectedCount = selectedIds.size;
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected =
+    visibleIds.some((id) => selectedIds.has(id)) && !allVisibleSelected;
+
+  useEffect(() => {
+    if (selectPageRef.current) {
+      selectPageRef.current.indeterminate = someVisibleSelected;
+    }
+  }, [someVisibleSelected, selectMode]);
+
   const onlineCount = sortedUsers.filter((user) => {
     const patch = presenceById[user.id];
     return isMemberOnlineFromPresence(
@@ -117,22 +161,140 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
   }).length;
   const nowDate = useMemo(() => new Date(now), [now]);
 
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setBulkError(null);
+  }
+
+  function enterSelectMode() {
+    setSelectMode(true);
+    setSelectedIds(new Set());
+    setBulkError(null);
+  }
+
+  function toggleOne(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function togglePage(checked: boolean) {
+    setSelectedIds(checked ? new Set(visibleIds) : new Set());
+  }
+
+  function handleBulkDelete() {
+    if (!canDelete || bulkPending || selectedCount === 0) return;
+    const countLabel = String(selectedCount);
+    if (
+      !window.confirm(
+        `Permanently delete ${countLabel} selected member${selectedCount === 1 ? "" : "s"}? Their saved recipes and member activity will also be removed. Their reviews will remain, but will no longer be linked to the member account. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    const ids = [...selectedIds];
+    setBulkError(null);
+    startBulk(async () => {
+      const result = await deleteMembersAction(ids);
+      if (!result.ok) {
+        setBulkError(
+          result.error === "forbidden"
+            ? "Not allowed."
+            : result.error === "too-many"
+              ? "Too many members selected."
+              : result.error === "not-found"
+                ? "No matching members found."
+                : result.error || "Delete failed.",
+        );
+        return;
+      }
+      router.push(`/admin/members?removed=${result.deletedCount}`);
+      router.refresh();
+    });
+  }
+
+  const showSelectionChrome = canDelete && selectMode;
+  const colSpan = showSelectionChrome ? 5 : 4;
+
   return (
     <div className="mt-6">
-      <p className="text-sm text-muted">
-        {onlineCount} online · Sorted by last seen · Times in GMT
-      </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <p className="text-sm text-muted">
+          {onlineCount} online · Sorted by last seen · Times in GMT
+        </p>
+        {canDelete && sortedUsers.length > 0 ? (
+          selectMode ? (
+            <button
+              type="button"
+              className={`inline-flex min-h-11 items-center text-sm font-semibold text-muted transition-colors hover:text-ink sm:min-h-9 ${adminLinkClass} ${adminFocusRing}`}
+              onClick={exitSelectMode}
+            >
+              Cancel selection
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={`inline-flex min-h-11 items-center text-sm font-semibold text-ink transition-colors hover:text-terracotta sm:min-h-9 ${adminLinkClass} ${adminFocusRing}`}
+              onClick={enterSelectMode}
+            >
+              Select members
+            </button>
+          )
+        ) : null}
+      </div>
+
+      {showSelectionChrome ? (
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-ink sm:min-h-9">
+            <input
+              ref={selectPageRef}
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={(event) => togglePage(event.target.checked)}
+              aria-label="Select page"
+            />
+            <span className="font-semibold">Select page</span>
+          </label>
+          {selectedCount > 0 ? (
+            <>
+              <span className="text-muted">{selectedCount} selected</span>
+              <button
+                type="button"
+                disabled={bulkPending}
+                onClick={handleBulkDelete}
+                className={`inline-flex min-h-11 items-center font-semibold text-terracotta transition-colors hover:text-terracotta-dark disabled:opacity-60 sm:min-h-9 ${adminFocusRing}`}
+                aria-label={`Delete ${selectedCount} selected member${selectedCount === 1 ? "" : "s"}`}
+              >
+                {bulkPending ? "Deleting…" : "Delete selected"}
+              </button>
+            </>
+          ) : (
+            <span className="text-muted">Select members on this page</span>
+          )}
+          {bulkError ? <p className="w-full text-sm text-terracotta">{bulkError}</p> : null}
+        </div>
+      ) : null}
 
       <div className="mt-4 hidden md:block">
         <table className="w-full table-fixed text-left text-sm">
           <colgroup>
-            <col className="w-[42%]" />
+            {showSelectionChrome ? <col className="w-10" /> : null}
+            <col className={showSelectionChrome ? "w-[40%]" : "w-[42%]"} />
             <col className="w-[22%]" />
             <col className="w-[20%]" />
-            <col className="w-[16%]" />
+            <col className={showSelectionChrome ? "w-[14%]" : "w-[16%]"} />
           </colgroup>
           <thead className={adminTableHeadClass}>
             <tr className="border-b border-line/80">
+              {showSelectionChrome ? (
+                <th scope="col" className="px-0 py-3 font-medium">
+                  <span className="sr-only">Select</span>
+                </th>
+              ) : null}
               <th scope="col" className="px-0 py-3 font-medium">
                 Member
               </th>
@@ -162,9 +324,21 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                 now,
               );
               const signIn = formatSignInMethod(latest?.method);
+              const label = memberSelectLabel(user);
 
               return (
                 <tr key={user.id} className="border-b border-line/80 align-middle">
+                  {showSelectionChrome ? (
+                    <td className="px-0 py-3.5">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={selectedIds.has(user.id)}
+                        onChange={(event) => toggleOne(user.id, event.target.checked)}
+                        aria-label={`Select member ${label}`}
+                      />
+                    </td>
+                  ) : null}
                   <td className="px-0 py-3.5">
                     <div className="inline-flex max-w-full items-center gap-3">
                       <MemberAvatar name={user.name} photoUrl={user.photoUrl} />
@@ -196,7 +370,7 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
             })}
             {sortedUsers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-0 py-8 text-muted">
+                <td colSpan={colSpan} className="px-0 py-8 text-muted">
                   No member accounts yet.{" "}
                   <Link href="/" className={`font-semibold text-terracotta ${adminFocusRing}`}>
                     View the site
@@ -224,10 +398,20 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
             now,
           );
           const signIn = formatSignInMethod(latest?.method);
+          const label = memberSelectLabel(user);
 
           return (
             <li key={user.id} className="py-4">
               <div className="flex min-w-0 items-start gap-3">
+                {showSelectionChrome ? (
+                  <input
+                    type="checkbox"
+                    className="mt-3 h-4 w-4 shrink-0"
+                    checked={selectedIds.has(user.id)}
+                    onChange={(event) => toggleOne(user.id, event.target.checked)}
+                    aria-label={`Select member ${label}`}
+                  />
+                ) : null}
                 <MemberAvatar name={user.name} photoUrl={user.photoUrl} />
                 <div className="min-w-0 flex-1">
                   <Link
