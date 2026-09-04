@@ -32,6 +32,15 @@ type LiveReview = Omit<AdminReviewListItem, "createdAt" | "replies"> & {
   }>;
 };
 
+function NeedsResponseIndicator() {
+  return (
+    <p className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-olive">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-olive" aria-hidden />
+      Needs response
+    </p>
+  );
+}
+
 function ReviewArticle({
   review,
   page,
@@ -52,65 +61,71 @@ function ReviewArticle({
   const memberHref =
     canOpenMembers && review.userId ? `/admin/members/${review.userId}` : null;
   const staffReplyCount = countStaffReviewReplies(review.replies);
+  const needsResponse = staffReplyCount === 0;
 
   return (
     <article aria-labelledby={titleId} className="py-7 first:pt-0 last:pb-0">
-      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-        {recipeLink ? (
-          <Link
-            id={titleId}
-            href={recipeLink.href}
-            target={recipeLink.external ? "_blank" : undefined}
-            rel={recipeLink.external ? "noreferrer" : undefined}
-            className={`min-w-0 break-words font-serif text-xl leading-snug text-ink hover:text-terracotta ${adminFocusRing}`}
-          >
-            {review.recipeTitle}
-            {recipeLink.external ? (
-              <span className="ml-1 text-sm font-sans font-normal text-muted" aria-hidden>
-                ↗
-              </span>
-            ) : null}
-            {recipeLink.external ? (
-              <span className="sr-only"> (opens in a new tab)</span>
-            ) : null}
-          </Link>
-        ) : (
-          <p
-            id={titleId}
-            className="min-w-0 break-words font-serif text-xl leading-snug text-ink"
-          >
-            {review.recipeTitle}
-          </p>
-        )}
-        <p className="shrink-0 text-sm tabular-nums text-muted sm:text-right">
-          <span aria-hidden>{ratingLabel}</span>
-          <span className="sr-only">{ratingAccessible}</span>
-        </p>
-      </div>
-
-      <div className="mt-3 min-w-0">
-        <p className="text-sm text-ink">
-          {memberHref ? (
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0 flex-1">
+          {recipeLink ? (
             <Link
-              href={memberHref}
-              className={`font-semibold hover:text-terracotta ${adminFocusRing}`}
+              id={titleId}
+              href={recipeLink.href}
+              target={recipeLink.external ? "_blank" : undefined}
+              rel={recipeLink.external ? "noreferrer" : undefined}
+              className={`min-w-0 break-words font-serif text-xl leading-snug text-ink hover:text-terracotta ${adminFocusRing}`}
             >
-              {review.authorName}
+              {review.recipeTitle}
+              {recipeLink.external ? (
+                <span className="ml-1 text-sm font-sans font-normal text-muted" aria-hidden>
+                  ↗
+                </span>
+              ) : null}
+              {recipeLink.external ? (
+                <span className="sr-only"> (opens in a new tab)</span>
+              ) : null}
             </Link>
           ) : (
-            <span className="font-semibold">{review.authorName}</span>
+            <p
+              id={titleId}
+              className="min-w-0 break-words font-serif text-xl leading-snug text-ink"
+            >
+              {review.recipeTitle}
+            </p>
           )}
-          <span className="text-muted">
-            {" "}
-            · {formatAdminDate(review.createdAt)}
-          </span>
-        </p>
-        {review.authorEmail ? (
-          <p className="mt-0.5 break-all text-xs text-muted/80">{review.authorEmail}</p>
-        ) : null}
+
+          <div className="mt-2.5 min-w-0">
+            <p className="text-sm leading-5 text-ink">
+              {memberHref ? (
+                <Link
+                  href={memberHref}
+                  className={`font-semibold hover:text-terracotta ${adminFocusRing}`}
+                >
+                  {review.authorName}
+                </Link>
+              ) : (
+                <span className="font-semibold">{review.authorName}</span>
+              )}
+              <span className="text-muted"> · {formatAdminDate(review.createdAt)}</span>
+            </p>
+            {review.authorEmail ? (
+              <p className="mt-0.5 break-all text-xs leading-4 text-muted/75">
+                {review.authorEmail}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 sm:flex-col sm:items-end sm:gap-y-2">
+          <p className="text-sm tabular-nums text-muted">
+            <span aria-hidden>★ {ratingLabel}</span>
+            <span className="sr-only">{ratingAccessible}</span>
+          </p>
+          {needsResponse ? <NeedsResponseIndicator /> : null}
+        </div>
       </div>
 
-      <p className="mt-4 max-w-[42rem] whitespace-pre-wrap break-words text-base leading-7 text-ink">
+      <p className="mt-4 whitespace-pre-wrap break-words text-base leading-7 text-ink">
         {review.body}
       </p>
 

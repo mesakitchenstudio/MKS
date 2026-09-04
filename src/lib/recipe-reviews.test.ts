@@ -139,19 +139,32 @@ describe("admin Reviews page contracts", () => {
     assert.doesNotMatch(liveFeed, /border border-line bg-paper/);
     assert.doesNotMatch(repliesSection, /Conversation/);
     assert.match(repliesSection, /border-l-2 border-line\/80/);
+    assert.match(repliesSection, /grid-cols-\[auto_minmax\(0,1fr\)_auto\]/);
     assert.match(repliesSection, /h-8 w-8/);
     assert.match(liveFeed, /RECIPE_REVIEW_POLL_MS/);
     assert.match(liveFeed, /Reviews pagination/);
     assert.match(liveFeed, /formatReviewRatingAccessible/);
     assert.match(liveFeed, /formatReviewRating\(/);
-    assert.doesNotMatch(liveFeed, /★|StarRating|star-rating/i);
+    assert.match(liveFeed, /★ \{ratingLabel\}/);
+    assert.doesNotMatch(liveFeed, /StarRating|star-rating/i);
+    assert.doesNotMatch(liveFeed, /max-w-\[42rem\]/);
+    assert.doesNotMatch(liveFeed, /max-w-\[36rem\]|max-w-xl|max-w-2xl|max-w-3xl/);
+  });
+
+  it("derives Needs response from zero staff replies only", () => {
+    assert.match(liveFeed, /countStaffReviewReplies/);
+    assert.match(liveFeed, /staffReplyCount === 0/);
+    assert.match(liveFeed, /Needs response/);
+    assert.match(liveFeed, /NeedsResponseIndicator/);
+    assert.doesNotMatch(liveFeed, /unreplied|Answered|Resolved/);
+    assert.doesNotMatch(replyControls, /Needs response|Answered|Resolved/);
   });
 
   it("uses Reply vs Add another reply from staff reply count only", () => {
     assert.match(liveFeed, /countStaffReviewReplies/);
     assert.match(replyControls, /staffReplyCount > 0 \? "Add another reply" : "Reply"/);
-    assert.doesNotMatch(replyControls, /Needs response|Answered|Resolved/);
-    assert.doesNotMatch(liveFeed, /unreplied/);
+    assert.match(replyControls, /justify-between/);
+    assert.match(liveFeed, /RemoveReviewButton/);
   });
 
   it("keeps Reply composer a11y and returns focus on Cancel", () => {
@@ -199,11 +212,15 @@ describe("admin Reviews page contracts", () => {
     assert.match(replyDelete, /replyRemoved=1/);
   });
 
-  it("uses a Reviews-specific workspace width around 58rem", () => {
+  it("uses a Reviews-specific workspace width around 58rem without nested narrow caps", () => {
     assert.equal(adminWorkspaceReviews, "max-w-[58rem]");
     assert.equal(adminWorkspaceWidthForPath("/admin/reviews"), adminWorkspaceReviews);
     assert.notEqual(adminWorkspaceWidthForPath("/admin/staff"), adminWorkspaceReviews);
     assert.equal(adminWorkspaceWidthForPath("/admin/staff"), adminWorkspaceStandard);
+    assert.doesNotMatch(liveFeed, /max-w-\[42rem\]/);
+    assert.doesNotMatch(repliesSection, /max-w-\[42rem\]/);
+    assert.match(reviewsPage, /max-w-2xl/);
+    assert.doesNotMatch(reviewsPage, /max-w-\[42rem\]|max-w-\[58rem\]/);
   });
 
   it("keeps content-role access for Reviews; members area remains Owner-only for links", () => {

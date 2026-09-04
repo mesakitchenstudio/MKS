@@ -65,7 +65,7 @@ export function ReviewRepliesSection({ replies, count }: { replies: Reply[]; cou
           {total} {total === 1 ? "reply" : "replies"}
         </p>
       ) : null}
-      <ul className="space-y-0 border-l-2 border-line/80 pl-4 sm:pl-5 md:pl-6">
+      <ul className="space-y-0 border-l-2 border-line/80 pl-4 sm:pl-5">
         {replies.map((reply) => {
           const display = formatAdminReplyAuthorDisplay({
             authorName: reply.authorName,
@@ -76,32 +76,28 @@ export function ReviewRepliesSection({ replies, count }: { replies: Reply[]; cou
 
           return (
             <li key={reply.id} className="py-3 first:pt-0 last:pb-0">
-              <div className="flex min-w-0 items-start gap-3">
+              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
                 <ReplyAvatar
                   name={avatarName}
                   photoUrl={reply.authorPhotoUrl}
                   staff={reply.isStaff}
                 />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">{display.primary}</p>
-                      {display.secondary ? (
-                        <p className="text-xs text-muted">{display.secondary}</p>
-                      ) : reply.isStaff && !reply.authorTitle?.trim() ? (
-                        <p className="text-xs text-muted">Staff</p>
-                      ) : null}
-                    </div>
-                    <RemoveReplyButton
-                      id={reply.id}
-                      authorName={display.primary || reply.authorName}
-                    />
-                  </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{display.primary}</p>
+                  {display.secondary ? (
+                    <p className="text-xs text-muted">{display.secondary}</p>
+                  ) : reply.isStaff && !reply.authorTitle?.trim() ? (
+                    <p className="text-xs text-muted">Staff</p>
+                  ) : null}
                   <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-ink">
                     {reply.body}
                   </p>
                   <p className="mt-1 text-xs text-muted">{formatAdminDate(reply.createdAt)}</p>
                 </div>
+                <RemoveReplyButton
+                  id={reply.id}
+                  authorName={display.primary || reply.authorName}
+                />
               </div>
             </li>
           );
