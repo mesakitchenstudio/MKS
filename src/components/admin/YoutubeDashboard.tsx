@@ -825,7 +825,7 @@ export function YoutubeDashboard({
             </label>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-6 sm:gap-y-2">
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-10 sm:gap-y-2">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" role="group" aria-label="Format">
               <span className="shrink-0 font-semibold text-olive">Format</span>
               {FORMAT_FILTERS.map(({ value, label }) => (
@@ -1090,7 +1090,7 @@ function FreshnessStrip({
   const stripText = `Analytics updated ${analyticsLabel} · Public YouTube ${youtubeLabel} · Catalog live`;
 
   return (
-    <details className="group relative w-full max-w-[30rem] text-sm">
+    <details className="group w-full max-w-[30rem] text-sm">
       <summary
         className={`cursor-pointer list-none py-0.5 text-xs text-muted marker:content-none ${adminFocusRing}`}
       >
@@ -1100,7 +1100,7 @@ function FreshnessStrip({
         </span>
         <span className="hidden font-semibold text-ink group-open:inline">Data status ▴</span>
       </summary>
-      <div className="absolute left-0 z-20 mt-1 w-[min(100%,30rem)] max-w-[30rem] rounded-sm border border-line bg-paper px-3 py-3 shadow-sm">
+      <div className="mt-2 w-full max-w-[30rem] rounded-sm border border-line bg-paper px-3 py-3">
         <dl className="space-y-2 text-xs">
           <div>
             <dt className="font-semibold text-ink">Analytics</dt>

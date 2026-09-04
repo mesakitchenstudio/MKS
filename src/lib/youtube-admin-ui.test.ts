@@ -49,6 +49,7 @@ describe("YouTube admin UI redesign contracts", () => {
     assert.match(dashboard, /Performance, coverage, and what to publish next/);
     assert.match(dashboard, /Data status/);
     assert.match(dashboard, /max-w-\[30rem\]/);
+    assert.doesNotMatch(dashboard, /absolute left-0 z-20/);
     assert.match(dashboard, /Needs attention/);
     assert.match(dashboard, /reviewAllOpen/);
     assert.doesNotMatch(dashboard, /max-h-\[min\(28rem/);
