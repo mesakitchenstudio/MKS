@@ -144,7 +144,10 @@ export default async function SeriesDetailPage({ params }: Props) {
             {series.items.map((item) => {
               const isEffectiveFeatured = effectiveFeaturedId === item.id;
               return (
-                <li key={item.id} className="flex min-w-0 flex-col border border-line bg-paper">
+                <li
+                  key={item.id}
+                  className="flex h-full min-w-0 flex-col border border-line bg-paper"
+                >
                   <div className="relative aspect-video overflow-hidden bg-sand">
                     <Image
                       src={item.thumbnail}
@@ -175,7 +178,7 @@ export default async function SeriesDetailPage({ params }: Props) {
                         {item.description}
                       </p>
                     ) : null}
-                    <div className="mt-4 flex min-w-0 flex-wrap gap-x-5 gap-y-3">
+                    <div className="mt-auto flex min-w-0 flex-wrap gap-x-5 gap-y-3 pt-4">
                       {item.recipeSlug ? (
                         <SeriesItemTrackLink
                           href={`/recipes/${item.recipeSlug}`}

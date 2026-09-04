@@ -83,6 +83,18 @@ describe("Series public Phase 4 visual/conversion polish", () => {
     assert.match(page, /gap-x-5 gap-y-3/);
   });
 
+  it("bottom-anchors card CTAs via equal-height flex layout (no fixed-height hacks)", () => {
+    assert.match(page, /flex h-full min-w-0 flex-col border border-line bg-paper/);
+    assert.match(page, /flex min-w-0 flex-1 flex-col px-4 py-4/);
+    assert.match(page, /mt-auto flex min-w-0 flex-wrap gap-x-5 gap-y-3 pt-4/);
+    // Same structural card for Featured and non-Featured — only the label is conditional.
+    assert.match(page, /isEffectiveFeatured \? \([\s\S]*Featured[\s\S]*\) : null/);
+    // No fixed card/description height — exclude hero's intentional xl:h-[30rem].
+    const cardRegion = page.slice(page.indexOf("In this series"), page.indexOf("SeriesContinueWithMesa"));
+    assert.doesNotMatch(cardRegion, /min-h-\[|h-\[(?:\d)|h-96|h-80|h-72/);
+    assert.doesNotMatch(cardRegion, /invisible|opacity-0/);
+  });
+
   it("modestly reduces large-desktop hero height without changing source logic", () => {
     assert.match(page, /xl:aspect-auto xl:h-\[30rem\]/);
     assert.doesNotMatch(page, /xl:h-\[34rem\]/);
