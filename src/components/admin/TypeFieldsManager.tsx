@@ -23,6 +23,12 @@ import {
   isCoreFieldKey,
   isStructuralFieldDraftChange,
 } from "@/lib/field-admin";
+import {
+  TYPE_FIELD_SECTION_DESCRIPTIONS,
+  TYPE_FIELD_SECTION_LABELS,
+  annotateTypeFieldSectionRuns,
+  type EditorSectionId,
+} from "@/lib/recipe-type-field-sections";
 import { FIELD_KINDS, keyFromLabel } from "@/lib/fields";
 
 const helperRowClass = "mt-1.5 min-h-[2rem] text-xs leading-4 text-muted";
@@ -93,6 +99,25 @@ function EditorFieldColumn({
         {helper || "\u00A0"}
       </p>
     </div>
+  );
+}
+
+function FieldSectionMarker({
+  section,
+  isFirst,
+}: {
+  section: EditorSectionId;
+  isFirst: boolean;
+}) {
+  return (
+    <header className={`${isFirst ? "pt-1" : "pt-7"} mb-1 border-b border-line/70 pb-2`}>
+      <h3 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+        {TYPE_FIELD_SECTION_LABELS[section]}
+      </h3>
+      <p className="mt-1 text-xs leading-5 text-muted">
+        {TYPE_FIELD_SECTION_DESCRIPTIONS[section]}
+      </p>
+    </header>
   );
 }
 
@@ -819,6 +844,7 @@ export function TypeFieldsManager({
   const total = fields.length;
   const orderedFields = [...fields].sort((a, b) => a.sortOrder - b.sortOrder);
   const visibleFields = orderedFields.filter((field) => matchesFilter(field, filter));
+  const visibleSectionRuns = annotateTypeFieldSectionRuns(visibleFields);
   const reorderDisabled = filter !== "all";
   const existingKeys = new Set(fields.map((field) => field.key));
 
@@ -942,15 +968,18 @@ export function TypeFieldsManager({
       ) : null}
 
       <ul className="mt-4 divide-y divide-line/80 border-y border-line/80">
-        {visibleFields.length === 0 ? (
+        {visibleSectionRuns.length === 0 ? (
           <li className="py-6 text-sm text-muted">No fields match this filter.</li>
         ) : null}
-        {visibleFields.map((field) => {
+        {visibleSectionRuns.map(({ field, section, showSectionMarker }, index) => {
           const expanded = expandedId === field.id;
           const saved = visibleSavedFieldId === field.id;
           const showFieldError = expanded && fieldError && initialExpandedFieldId === field.id;
           return (
             <li key={field.id} id={`field-${field.id}`}>
+              {showSectionMarker ? (
+                <FieldSectionMarker section={section} isFirst={index === 0} />
+              ) : null}
               {expanded ? (
                 <FieldEditor
                   field={field}

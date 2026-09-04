@@ -155,8 +155,9 @@ describe("Recipe Types Phase 1 presentation contracts", () => {
     assert.doesNotMatch(typeFieldsManager, /sm:flex-row sm:flex-wrap sm:items-center sm:justify-between/);
   });
 
-  it("does not introduce Basics/Details/Content grouping in Phase 1", () => {
-    assert.doesNotMatch(typeFieldsManager, /Basics|CONTENT_KEYS|DETAILS_KEYS|section grouping/i);
+  it("keeps Recipe Types index free of field-section grouping chrome", () => {
+    assert.doesNotMatch(typesPage, /FieldSectionMarker|annotateTypeFieldSectionRuns/);
+    assert.doesNotMatch(addTypeForm, /TYPE_FIELD_SECTION_LABELS|editorSectionForTypeFieldKey/);
     assert.doesNotMatch(typeDetailPage, /Basics \/ Details \/ Content/);
   });
 });
