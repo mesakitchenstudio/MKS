@@ -1,10 +1,11 @@
-import { AdminReviewsLiveFeed } from "@/components/admin/AdminReviewsLiveFeed";
-import { canAccess } from "@/lib/admin-access";
 import {
   AdminFlashStatus,
   REVIEW_REMOVED_PARAMS,
   REVIEW_REPLIED_PARAMS,
+  REVIEW_REPLY_REMOVED_PARAMS,
 } from "@/lib/admin-transient-feedback";
+import { AdminReviewsLiveFeed } from "@/components/admin/AdminReviewsLiveFeed";
+import { canAccess } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { listReviewsForAdmin } from "@/lib/recipe-reviews";
 
@@ -15,6 +16,7 @@ export default async function AdminReviewsPage({
 }: {
   searchParams: Promise<{
     removed?: string;
+    replyRemoved?: string;
     replied?: string;
     error?: string;
     page?: string;
@@ -22,7 +24,7 @@ export default async function AdminReviewsPage({
 }) {
   const admin = await requireAccess("content");
   const canOpenMembers = canAccess(admin.role, "members");
-  const { removed, replied, error, page: pageParam } = await searchParams;
+  const { removed, replyRemoved, replied, error, page: pageParam } = await searchParams;
   const requestedPage = Number.parseInt(pageParam || "1", 10);
   const { reviews, page, totalPages, total } = await listReviewsForAdmin({
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
@@ -34,7 +36,7 @@ export default async function AdminReviewsPage({
         Reviews
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Read and reply to member reviews on Mesa recipes.
+        Read and respond to member reviews on Mesa recipes.
       </p>
 
       <AdminFlashStatus active={Boolean(replied)} clearParams={REVIEW_REPLIED_PARAMS}>
@@ -42,6 +44,9 @@ export default async function AdminReviewsPage({
       </AdminFlashStatus>
       <AdminFlashStatus active={Boolean(removed)} clearParams={REVIEW_REMOVED_PARAMS}>
         Review removed.
+      </AdminFlashStatus>
+      <AdminFlashStatus active={Boolean(replyRemoved)} clearParams={REVIEW_REPLY_REMOVED_PARAMS}>
+        Reply removed.
       </AdminFlashStatus>
       {error === "reply" ? (
         <p className="mt-4 text-sm text-terracotta" role="alert">

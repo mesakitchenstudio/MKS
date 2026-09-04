@@ -424,6 +424,11 @@ export function formatReviewRatingAccessible(rating: number) {
   return `Rated ${Math.round(rating)} out of 5`;
 }
 
+/** Count staff Mesa replies only — member follow-ups do not count as Mesa having responded. */
+export function countStaffReviewReplies(replies: { isStaff: boolean }[]) {
+  return replies.reduce((sum, reply) => sum + (reply.isStaff ? 1 : 0), 0);
+}
+
 /**
  * Presentation-only reply author lines for Admin → Reviews.
  * Does not mutate persisted authorName / authorTitle.

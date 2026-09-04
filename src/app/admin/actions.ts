@@ -899,7 +899,7 @@ export async function deleteReviewReplyAction(formData: FormData) {
   if (!slug) redirect("/admin/reviews?error=missing");
   revalidatePath(`/recipes/${slug}`);
   revalidatePath("/admin/reviews");
-  redirect("/admin/reviews?removed=1");
+  redirect("/admin/reviews?replyRemoved=1");
 }
 
 export async function replyToReviewAction(formData: FormData) {

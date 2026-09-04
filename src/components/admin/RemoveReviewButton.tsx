@@ -3,8 +3,16 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { deleteReviewAction } from "@/app/admin/actions";
 import { PendingSubmitButton } from "@/components/admin/PendingSubmitButton";
-import { adminFocusRing } from "@/lib/admin-ui";
+import {
+  adminDangerButtonClass,
+  adminFocusRing,
+  adminIconButtonClass,
+  adminSecondaryButtonClass,
+} from "@/lib/admin-ui";
 
+const menuItemClass = `flex w-full px-3 py-2.5 text-left text-sm font-semibold text-terracotta hover:bg-cream sm:py-2 ${adminFocusRing}`;
+
+/** Remove review — resting UI is an overflow menu; confirm in a modal. */
 export function RemoveReviewButton({
   id,
   authorName,
@@ -14,36 +22,80 @@ export function RemoveReviewButton({
   authorName: string;
   recipeTitle: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const titleId = useId();
+  const menuId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!menuOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!confirmOpen) return;
     cancelRef.current?.focus();
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") setConfirmOpen(false);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [confirmOpen]);
 
   return (
-    <>
+    <div ref={rootRef} className="relative inline-flex">
       <button
+        ref={triggerRef}
         type="button"
-        className={`inline-flex min-h-11 items-center text-sm font-semibold text-muted transition-colors hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
-        aria-label={`Remove review by ${authorName} on ${recipeTitle}`}
-        onClick={() => setOpen(true)}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-controls={menuId}
+        aria-label={`More actions for ${authorName}'s review of ${recipeTitle}`}
+        className={`${adminFocusRing} ${adminIconButtonClass}`}
+        onClick={() => setMenuOpen((value) => !value)}
       >
-        Remove review
+        ⋯
       </button>
 
-      {open ? (
+      {menuOpen ? (
+        <div
+          id={menuId}
+          role="menu"
+          className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] border border-line bg-paper py-1 shadow-sm"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className={menuItemClass}
+            onClick={() => {
+              setMenuOpen(false);
+              setConfirmOpen(true);
+            }}
+          >
+            Remove review
+          </button>
+        </div>
+      ) : null}
+
+      {confirmOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
           role="presentation"
-          onClick={() => setOpen(false)}
+          onClick={() => setConfirmOpen(false)}
         >
           <div
             role="dialog"
@@ -64,14 +116,14 @@ export function RemoveReviewButton({
               <button
                 ref={cancelRef}
                 type="button"
-                onClick={() => setOpen(false)}
-                className={`rounded-full border border-line px-5 py-2 text-sm font-semibold text-ink hover:border-terracotta ${adminFocusRing}`}
+                onClick={() => setConfirmOpen(false)}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
               >
                 Cancel
               </button>
               <PendingSubmitButton
                 pendingLabel="Removing…"
-                className="rounded-full bg-terracotta px-5 py-2 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:hover:bg-terracotta"
+                className={`${adminDangerButtonClass} ${adminFocusRing} min-h-11 border border-terracotta/40 bg-paper px-4 sm:min-h-10`}
               >
                 Remove review
               </PendingSubmitButton>
@@ -79,6 +131,6 @@ export function RemoveReviewButton({
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

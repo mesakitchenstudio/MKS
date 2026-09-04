@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AdminReviewReplyControls } from "@/components/admin/AdminReviewReplyControls";
 import { RemoveReviewButton } from "@/components/admin/RemoveReviewButton";
 import { ReviewRepliesSection } from "@/components/admin/ReviewRepliesSection";
-import { adminFocusRing } from "@/lib/admin-ui";
+import { adminFocusRing, adminTertiaryButtonClass } from "@/lib/admin-ui";
 import { formatAdminDate } from "@/lib/datetime";
 import {
   adminReviewsListSignature,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/recipe-reviews-client";
 import {
   adminReviewRecipeHref,
+  countStaffReviewReplies,
   formatReviewRating,
   formatReviewRatingAccessible,
   type AdminReviewListItem,
@@ -50,18 +51,18 @@ function ReviewArticle({
   });
   const memberHref =
     canOpenMembers && review.userId ? `/admin/members/${review.userId}` : null;
-  const unreplied = review.replyCount === 0;
+  const staffReplyCount = countStaffReviewReplies(review.replies);
 
   return (
-    <article aria-labelledby={titleId} className="py-6 first:pt-0">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+    <article aria-labelledby={titleId} className="py-7 first:pt-0 last:pb-0">
+      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
         {recipeLink ? (
           <Link
             id={titleId}
             href={recipeLink.href}
             target={recipeLink.external ? "_blank" : undefined}
             rel={recipeLink.external ? "noreferrer" : undefined}
-            className={`min-w-0 break-words font-serif text-lg text-ink hover:text-terracotta ${adminFocusRing}`}
+            className={`min-w-0 break-words font-serif text-xl leading-snug text-ink hover:text-terracotta ${adminFocusRing}`}
           >
             {review.recipeTitle}
             {recipeLink.external ? (
@@ -74,41 +75,42 @@ function ReviewArticle({
             ) : null}
           </Link>
         ) : (
-          <p id={titleId} className="min-w-0 break-words font-serif text-lg text-ink">
+          <p
+            id={titleId}
+            className="min-w-0 break-words font-serif text-xl leading-snug text-ink"
+          >
             {review.recipeTitle}
           </p>
         )}
-        <span className="shrink-0 text-sm text-muted">
-          <span aria-hidden>· {ratingLabel}</span>
+        <p className="shrink-0 text-sm tabular-nums text-muted sm:text-right">
+          <span aria-hidden>{ratingLabel}</span>
           <span className="sr-only">{ratingAccessible}</span>
-        </span>
-      </div>
-
-      <div className="mt-3 min-w-0">
-        {memberHref ? (
-          <Link
-            href={memberHref}
-            className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-          >
-            {review.authorName}
-          </Link>
-        ) : (
-          <p className="font-semibold text-ink">{review.authorName}</p>
-        )}
-        <p className="mt-0.5 text-xs text-muted">
-          {review.authorEmail ? (
-            <>
-              <span className="break-all">{review.authorEmail}</span>
-              <span className="mx-1.5 text-line" aria-hidden>
-                ·
-              </span>
-            </>
-          ) : null}
-          {formatAdminDate(review.createdAt)}
         </p>
       </div>
 
-      <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-7 text-ink">
+      <div className="mt-3 min-w-0">
+        <p className="text-sm text-ink">
+          {memberHref ? (
+            <Link
+              href={memberHref}
+              className={`font-semibold hover:text-terracotta ${adminFocusRing}`}
+            >
+              {review.authorName}
+            </Link>
+          ) : (
+            <span className="font-semibold">{review.authorName}</span>
+          )}
+          <span className="text-muted">
+            {" "}
+            · {formatAdminDate(review.createdAt)}
+          </span>
+        </p>
+        {review.authorEmail ? (
+          <p className="mt-0.5 break-all text-xs text-muted/80">{review.authorEmail}</p>
+        ) : null}
+      </div>
+
+      <p className="mt-4 max-w-[42rem] whitespace-pre-wrap break-words text-base leading-7 text-ink">
         {review.body}
       </p>
 
@@ -130,7 +132,7 @@ function ReviewArticle({
         page={page}
         authorName={review.authorName}
         recipeTitle={review.recipeTitle}
-        unreplied={unreplied}
+        staffReplyCount={staffReplyCount}
       >
         <RemoveReviewButton
           id={review.id}
@@ -235,14 +237,14 @@ export function AdminReviewsLiveFeed({
   }, [page]);
 
   if (!reviews.length) {
-    return <p className="mt-8 text-sm text-muted">No reviews yet.</p>;
+    return <p className="mt-10 text-sm text-muted">No reviews yet.</p>;
   }
 
   return (
     <>
-      <ul className="mt-8 divide-y divide-line/80 border-t border-line/80">
+      <ul className="mt-10 divide-y divide-line/80 border-y border-line/80">
         {reviews.map((review) => (
-          <li key={review.id}>
+          <li key={review.id} className="min-w-0">
             <ReviewArticle
               review={review}
               page={listMeta.page}
@@ -269,7 +271,7 @@ export function AdminReviewsLiveFeed({
                     ? "/admin/reviews"
                     : `/admin/reviews?page=${listMeta.page - 1}`
                 }
-                className={`inline-flex min-h-11 items-center font-semibold text-ink hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
+                className={`${adminTertiaryButtonClass} ${adminFocusRing} text-ink hover:text-terracotta`}
               >
                 Previous
               </Link>
@@ -279,7 +281,7 @@ export function AdminReviewsLiveFeed({
             {listMeta.page < listMeta.totalPages ? (
               <Link
                 href={`/admin/reviews?page=${listMeta.page + 1}`}
-                className={`inline-flex min-h-11 items-center font-semibold text-ink hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
+                className={`${adminTertiaryButtonClass} ${adminFocusRing} text-ink hover:text-terracotta`}
               >
                 Next
               </Link>

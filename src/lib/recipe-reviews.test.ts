@@ -5,11 +5,17 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { canAccess } from "./admin-access.ts";
 import { adminWorkspaceWidthForPath } from "./admin-nav.ts";
-import { adminWorkspaceReviews, adminWorkspaceStandard } from "./admin-ui.ts";
+import {
+  adminPrimaryButtonClass,
+  adminSecondaryButtonClass,
+  adminWorkspaceReviews,
+  adminWorkspaceStandard,
+} from "./admin-ui.ts";
 import {
   adminReviewRecipeHref,
   canManageRecipeReviewReplies,
   canReplyToRecipeReview,
+  countStaffReviewReplies,
   formatAdminReplyAuthorDisplay,
   formatReviewRating,
   formatReviewRatingAccessible,
@@ -37,7 +43,16 @@ const replyControls = readFileSync(
   path.join(root, "../components/admin/AdminReviewReplyControls.tsx"),
   "utf8",
 );
+const removeReview = readFileSync(
+  path.join(root, "../components/admin/RemoveReviewButton.tsx"),
+  "utf8",
+);
+const removeReply = readFileSync(
+  path.join(root, "../components/admin/RemoveReplyButton.tsx"),
+  "utf8",
+);
 const recipeReviewsLib = readFileSync(path.join(root, "./recipe-reviews.ts"), "utf8");
+const actions = readFileSync(path.join(root, "../app/admin/actions.ts"), "utf8");
 
 describe("admin review helpers", () => {
   it("formats valid 1–5 ratings", () => {
@@ -50,6 +65,16 @@ describe("admin review helpers", () => {
     assert.equal(formatReviewRating(Number.NaN), "—");
     assert.equal(formatReviewRating(0), "—");
     assert.equal(formatReviewRating(9), "—");
+  });
+
+  it("counts staff replies separately from member follow-ups", () => {
+    assert.equal(countStaffReviewReplies([]), 0);
+    assert.equal(countStaffReviewReplies([{ isStaff: false }]), 0);
+    assert.equal(countStaffReviewReplies([{ isStaff: true }]), 1);
+    assert.equal(
+      countStaffReviewReplies([{ isStaff: true }, { isStaff: false }, { isStaff: true }]),
+      2,
+    );
   });
 
   it("avoids Owner · Mesa Kitchen Studio duplication in presentation", () => {
@@ -103,50 +128,99 @@ describe("admin Reviews page contracts", () => {
   it("uses restrained header copy without Community or cascade lede", () => {
     assert.match(reviewsPage, />\s*Reviews\s*</);
     assert.doesNotMatch(reviewsPage, /Community/);
-    assert.match(reviewsPage, /Read and reply to member reviews on Mesa recipes\./);
+    assert.match(reviewsPage, /Read and respond to member reviews on Mesa recipes\./);
     assert.doesNotMatch(reviewsPage, /Removing a review also removes/);
     assert.match(liveFeed, /No reviews yet\./);
     assert.doesNotMatch(liveFeed, /No reviews to moderate/);
   });
 
-  it("removes the outer cage and Conversation label while keeping poll/pagination", () => {
-    assert.match(liveFeed, /divide-y divide-line\/80 border-t border-line\/80/);
+  it("keeps an open hairline ledger without per-review card cages", () => {
+    assert.match(liveFeed, /divide-y divide-line\/80 border-y border-line\/80/);
     assert.doesNotMatch(liveFeed, /border border-line bg-paper/);
     assert.doesNotMatch(repliesSection, /Conversation/);
-    assert.doesNotMatch(repliesSection, /border border-line/);
     assert.match(repliesSection, /border-l-2 border-line\/80/);
     assert.match(repliesSection, /h-8 w-8/);
     assert.match(liveFeed, /RECIPE_REVIEW_POLL_MS/);
     assert.match(liveFeed, /Reviews pagination/);
     assert.match(liveFeed, /formatReviewRatingAccessible/);
-    assert.doesNotMatch(liveFeed, /star/i);
+    assert.match(liveFeed, /formatReviewRating\(/);
+    assert.doesNotMatch(liveFeed, /★|StarRating|star-rating/i);
   });
 
-  it("separates Reply and Remove review and improves reply form a11y", () => {
+  it("uses Reply vs Add another reply from staff reply count only", () => {
+    assert.match(liveFeed, /countStaffReviewReplies/);
+    assert.match(replyControls, /staffReplyCount > 0 \? "Add another reply" : "Reply"/);
+    assert.doesNotMatch(replyControls, /Needs response|Answered|Resolved/);
+    assert.doesNotMatch(liveFeed, /unreplied/);
+  });
+
+  it("keeps Reply composer a11y and returns focus on Cancel", () => {
     assert.match(replyControls, /justify-between/);
     assert.match(replyControls, /aria-expanded=\{open\}/);
     assert.match(replyControls, /aria-controls=\{panelId\}/);
     assert.match(replyControls, /minLength=\{3\}/);
     assert.match(replyControls, /maxLength=\{5000\}/);
     assert.match(replyControls, /Post reply/);
-    assert.match(replyControls, /Cancel/);
-    assert.match(replyControls, /border-y border-line\/80 bg-cream\/30/);
+    assert.match(replyControls, /adminPrimaryButtonClass/);
+    assert.match(replyControls, /triggerRef\.current\?\.focus/);
     assert.match(liveFeed, /canOpenMembers && review\.userId/);
     assert.match(recipeReviewsLib, /recipeStatus/);
-    assert.match(recipeReviewsLib, /status: true/);
+    assert.match(recipeReviewsLib, /ADMIN_REVIEWS_PAGE_SIZE = 40/);
   });
 
-  it("uses a Reviews-specific workspace width", () => {
-    assert.equal(adminWorkspaceReviews, "max-w-3xl");
+  it("places Remove review in overflow and Remove reply reply-locally", () => {
+    assert.match(removeReview, /adminIconButtonClass/);
+    assert.match(removeReview, /More actions for \$\{authorName\}'s review of \$\{recipeTitle\}/);
+    assert.match(removeReview, /role="menuitem"/);
+    assert.match(removeReview, /including any\s+replies/);
+    assert.match(removeReview, /adminSecondaryButtonClass/);
+    assert.doesNotMatch(removeReview, /rounded-full/);
+    assert.match(removeReply, /More actions for reply by \$\{authorName\}/);
+    assert.match(removeReply, /adminIconButtonClass/);
+    assert.match(repliesSection, /RemoveReplyButton/);
+    assert.match(liveFeed, /RemoveReviewButton/);
+    assert.doesNotMatch(liveFeed, />\s*Remove review\s*</);
+  });
+
+  it("distinguishes review vs reply removal flash messages", () => {
+    assert.match(reviewsPage, /Review removed\./);
+    assert.match(reviewsPage, /Reply removed\./);
+    assert.match(reviewsPage, /REVIEW_REPLY_REMOVED_PARAMS/);
+    assert.match(actions, /deleteReviewAction[\s\S]*?redirect\("\/admin\/reviews\?removed=1"\)/);
+    assert.match(
+      actions,
+      /deleteReviewReplyAction[\s\S]*?redirect\("\/admin\/reviews\?replyRemoved=1"\)/,
+    );
+    const replyDelete = actions.slice(
+      actions.indexOf("export async function deleteReviewReplyAction"),
+      actions.indexOf("export async function replyToReviewAction"),
+    );
+    assert.doesNotMatch(replyDelete, /removed=1/);
+    assert.match(replyDelete, /replyRemoved=1/);
+  });
+
+  it("uses a Reviews-specific workspace width around 58rem", () => {
+    assert.equal(adminWorkspaceReviews, "max-w-[58rem]");
     assert.equal(adminWorkspaceWidthForPath("/admin/reviews"), adminWorkspaceReviews);
     assert.notEqual(adminWorkspaceWidthForPath("/admin/staff"), adminWorkspaceReviews);
     assert.equal(adminWorkspaceWidthForPath("/admin/staff"), adminWorkspaceStandard);
   });
 
-  it("keeps content-role access for Reviews", () => {
+  it("keeps content-role access for Reviews; members area remains Owner-only for links", () => {
     assert.equal(canAccess("owner", "content"), true);
     assert.equal(canAccess("editor", "content"), true);
     assert.equal(canAccess("members", "content"), false);
+    assert.equal(canAccess("owner", "members"), true);
+    assert.equal(canAccess("editor", "members"), false);
+    assert.match(reviewsPage, /canAccess\(admin\.role, "members"\)/);
+  });
+
+  it("uses standardized modal button tokens", () => {
+    assert.ok(adminPrimaryButtonClass.includes("rounded-md"));
+    assert.ok(adminSecondaryButtonClass.includes("border border-line"));
+    assert.match(removeReview, /adminSecondaryButtonClass/);
+    assert.match(removeReply, /adminSecondaryButtonClass/);
+    assert.doesNotMatch(removeReply, /rounded-full/);
   });
 });
 

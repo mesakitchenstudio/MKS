@@ -3,51 +3,61 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { replyToReviewAction } from "@/app/admin/actions";
 import { PendingSubmitButton } from "@/components/admin/PendingSubmitButton";
-import { adminFocusRing, adminInputClass, adminPrimaryButtonClass } from "@/lib/admin-ui";
+import {
+  adminFocusRing,
+  adminInputClass,
+  adminPrimaryButtonClass,
+  adminTertiaryButtonClass,
+} from "@/lib/admin-ui";
 
-/** Reply + optional sibling actions (e.g. Remove review) for Admin → Reviews. */
+/** Reply + optional sibling actions (e.g. review overflow) for Admin → Reviews. */
 export function AdminReviewReplyControls({
   reviewId,
   page,
   authorName,
   recipeTitle,
-  unreplied,
+  staffReplyCount = 0,
   children,
 }: {
   reviewId: string;
   page: number;
   authorName: string;
   recipeTitle: string;
-  unreplied?: boolean;
-  /** Shown beside Reply (typically Remove review). */
+  /** Staff Mesa replies only — drives Reply vs Add another reply. */
+  staffReplyCount?: number;
+  /** Shown beside Reply (typically review overflow). */
   children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const labelId = useId();
   const panelId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const replyLabel = staffReplyCount > 0 ? "Add another reply" : "Reply";
 
   useEffect(() => {
     if (!open) return;
     textareaRef.current?.focus();
   }, [open]);
 
+  function closeComposer() {
+    setOpen(false);
+    queueMicrotask(() => triggerRef.current?.focus());
+  }
+
   return (
-    <div className="mt-5 space-y-3">
+    <div className="mt-6 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
         <button
+          ref={triggerRef}
           type="button"
-          className={`inline-flex min-h-11 items-center text-sm font-semibold transition-colors sm:min-h-9 ${
-            unreplied
-              ? "text-terracotta hover:text-terracotta-dark"
-              : "text-olive hover:text-olive-dark"
-          } ${adminFocusRing}`}
+          className={`${adminTertiaryButtonClass} ${adminFocusRing} text-olive hover:text-olive-dark`}
           aria-expanded={open}
           aria-controls={panelId}
-          aria-label={`Reply to ${authorName} on ${recipeTitle}`}
+          aria-label={`${replyLabel} to ${authorName} on ${recipeTitle}`}
           onClick={() => setOpen((value) => !value)}
         >
-          Reply
+          {replyLabel}
         </button>
         {children}
       </div>
@@ -75,13 +85,16 @@ export function AdminReviewReplyControls({
             />
           </label>
           <div className="flex flex-wrap items-center gap-3">
-            <PendingSubmitButton pendingLabel="Posting…" className={adminPrimaryButtonClass}>
+            <PendingSubmitButton
+              pendingLabel="Posting…"
+              className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+            >
               Post reply
             </PendingSubmitButton>
             <button
               type="button"
-              onClick={() => setOpen(false)}
-              className={`inline-flex min-h-11 items-center text-sm font-semibold text-muted hover:text-ink sm:min-h-9 ${adminFocusRing}`}
+              onClick={closeComposer}
+              className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
             >
               Cancel
             </button>
