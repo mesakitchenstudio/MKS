@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { saveTypeAction } from "@/app/admin/actions";
 import {
   adminFocusRing,
@@ -29,11 +29,12 @@ export function TypeDetailsForm({
   error?: string;
 }) {
   const [values, setValues] = useState({ name, slug, description });
-  const showSaved = useTransientSavedFlag(saved, TYPE_DETAILS_SAVED_PARAMS);
-
-  useEffect(() => {
+  const [synced, setSynced] = useState({ name, slug, description });
+  if (name !== synced.name || slug !== synced.slug || description !== synced.description) {
+    setSynced({ name, slug, description });
     setValues({ name, slug, description });
-  }, [description, name, slug]);
+  }
+  const showSaved = useTransientSavedFlag(saved, TYPE_DETAILS_SAVED_PARAMS);
 
   const dirty =
     values.name.trim() !== name.trim() ||
@@ -41,12 +42,22 @@ export function TypeDetailsForm({
     values.description.trim() !== description.trim();
 
   return (
-    <section className="mt-8 border border-line bg-paper p-5 md:p-6">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+    <section className="mt-8 border-y border-line/80 py-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-          Type details
+          Details
         </h2>
-        <AdminSavedStatus show={showSaved} />
+        <div className="flex flex-wrap items-center gap-3">
+          <AdminSavedStatus show={showSaved} />
+          <button
+            type="submit"
+            form="type-details-form"
+            disabled={!dirty}
+            className={`${adminPrimaryButtonClass} ${adminFocusRing} !h-9 !px-3.5`}
+          >
+            Save type
+          </button>
+        </div>
       </div>
       {error === "duplicate-slug" ? (
         <p className="mt-2 text-sm text-terracotta" role="alert">
@@ -54,8 +65,9 @@ export function TypeDetailsForm({
         </p>
       ) : null}
       <form
+        id="type-details-form"
         action={saveTypeAction}
-        className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto]"
+        className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]"
       >
         <input type="hidden" name="id" value={id} />
         <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-ink">
@@ -77,7 +89,7 @@ export function TypeDetailsForm({
             className={adminInputClass}
           />
         </label>
-        <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-ink">
+        <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-ink sm:col-span-2 xl:col-span-1">
           Description
           <input
             name="description"
@@ -88,20 +100,6 @@ export function TypeDetailsForm({
             className={adminInputClass}
           />
         </label>
-        <div className="flex min-w-0 flex-col">
-          <span className="min-h-[1.25rem] text-sm font-semibold leading-5 opacity-0" aria-hidden>
-            Action
-          </span>
-          <div className="mt-1.5">
-            <button
-              type="submit"
-              disabled={!dirty}
-              className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-            >
-              Save type
-            </button>
-          </div>
-        </div>
       </form>
     </section>
   );

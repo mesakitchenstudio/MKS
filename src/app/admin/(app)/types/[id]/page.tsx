@@ -105,30 +105,26 @@ export default async function AdminTypePage({
       ? errorFieldId
       : savedFieldId;
 
+  const recipeCount = type._count.recipes;
+  const recipeLabel = `${recipeCount} ${recipeCount === 1 ? "recipe" : "recipes"}`;
+  const fieldLabel = `${type.fields.length} ${type.fields.length === 1 ? "field" : "fields"}`;
+  const headerMeta =
+    typeSpecificCount > 0
+      ? `${recipeLabel} · ${fieldLabel} · ${typeSpecificCount} type-specific`
+      : `${recipeLabel} · ${fieldLabel}`;
+
   return (
-    <div>
+    <div className="min-w-0">
       <Link
         href="/admin/types"
         className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
       >
         ← Recipe types
       </Link>
-      <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-          {type.name}
-        </h1>
-        <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive/90">
-          Type template
-        </span>
-      </div>
-      <p className="mt-3 max-w-2xl text-sm text-muted">
-        {type._count.recipes} {type._count.recipes === 1 ? "recipe uses" : "recipes use"} this type.{" "}
-        {type.fields.length} fields total
-        {typeSpecificCount > 0
-          ? ` (${typeSpecificCount} type-specific, ${sharedCount} shared)`
-          : " (all shared recipe fields)"}
-        .
-      </p>
+      <h1 className="mt-2 font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+        {type.name}
+      </h1>
+      <p className="mt-2 text-sm text-muted">{headerMeta}</p>
 
       <TypeDetailsForm
         id={type.id}
