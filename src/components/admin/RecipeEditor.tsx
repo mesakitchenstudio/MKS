@@ -329,11 +329,28 @@ function DetailSubgroup({
             ? "grid max-w-3xl gap-4"
             : "grid min-w-0 gap-4 md:grid-cols-2 2xl:grid-cols-3";
 
+  /** Subgrid aligns label / meta / helper / control baselines across sibling fields. */
+  const alignFieldsClass =
+    layout === "yield"
+      ? "min-[480px]:[&>*]:row-span-3 min-[480px]:[&>*]:grid min-[480px]:[&>*]:grid-rows-subgrid min-[480px]:[&>*]:gap-y-0.5"
+      : layout === "timing" || layout === "classification"
+        ? "sm:[&>*]:row-span-4 sm:[&>*]:grid sm:[&>*]:grid-rows-subgrid sm:[&>*]:gap-y-0.5"
+        : "";
+
   return (
     <div className="border-t border-line/70 pt-5 first:border-t-0 first:pt-0">
       <h3 className="mb-1 text-sm font-semibold text-ink">{label}</h3>
       {description ? <p className="mb-3 text-xs text-muted">{description}</p> : null}
-      <div className={`${gridClass} ${description ? "" : "mt-3"}`}>{children}</div>
+      <div
+        className={`${gridClass} ${alignFieldsClass} ${description ? "" : "mt-3"}`.trim()}
+        data-details-align={
+          layout === "yield" || layout === "timing" || layout === "classification"
+            ? layout
+            : undefined
+        }
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -347,6 +364,8 @@ function FieldLabel({
   sourceNote,
   aiAction,
   overflow,
+  alignSlots = false,
+  reserveHelper = false,
 }: {
   label: string;
   required?: boolean;
@@ -356,22 +375,64 @@ function FieldLabel({
   sourceNote?: string;
   aiAction?: ReactNode;
   overflow?: ReactNode;
+  /** Split into label / meta / helper slots for Details row subgrid alignment. */
+  alignSlots?: boolean;
+  /** Keep an empty helper cell so sibling helpers share a baseline (timing / classification). */
+  reserveHelper?: boolean;
 }) {
-  return (
-    <div className={`min-w-0 ${compact ? "mb-1.5" : "mb-2"}`}>
-      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <p className={`min-w-0 font-semibold text-ink ${compact ? "text-sm" : ""}`}>
-            {label}
-            {required ? <span className="text-terracotta"> *</span> : null}
-          </p>
-          {aiAction}
-        </div>
+  const labelRow = (
+    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+        <p className={`min-w-0 font-semibold text-ink ${compact ? "text-sm" : ""}`}>
+          {label}
+          {required ? <span className="text-terracotta"> *</span> : null}
+        </p>
+        {aiAction}
+      </div>
+      {alignSlots ? (
+        <div className="flex shrink-0 items-center justify-end">{overflow}</div>
+      ) : (
         <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">
           <AiConfidenceBadge confidence={confidence} sourceNote={sourceNote} />
           {overflow}
         </div>
-      </div>
+      )}
+    </div>
+  );
+
+  const metaRow = (
+    <div className="flex min-h-0 min-w-0 items-center">
+      <AiConfidenceBadge confidence={confidence} sourceNote={sourceNote} />
+    </div>
+  );
+
+  const helperRow = helpText ? (
+    <p className="text-xs leading-snug text-muted">{helpText}</p>
+  ) : reserveHelper ? (
+    <p className="hidden sm:block" aria-hidden="true" />
+  ) : null;
+
+  if (alignSlots) {
+    return (
+      <>
+        <div className="min-w-0 self-start" data-field-slot="label">
+          {labelRow}
+        </div>
+        <div className="min-w-0 self-start" data-field-slot="meta">
+          {metaRow}
+        </div>
+        {reserveHelper || helpText ? (
+          <div className="min-w-0 self-start" data-field-slot="help">
+            {helperRow}
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <div className={`min-w-0 ${compact ? "mb-1.5" : "mb-2"}`}>
+      {labelRow}
       {helpText ? <p className="mt-0.5 text-xs text-muted">{helpText}</p> : null}
     </div>
   );
@@ -1858,7 +1919,7 @@ export function RecipeEditor({
     }: {
       compact?: boolean;
       emphasis?: boolean;
-      detailsLayout?: "servings" | "unit" | "timing";
+      detailsLayout?: "servings" | "unit" | "timing" | "classification";
     } = {},
   ) {
     const isWide =
@@ -1870,6 +1931,14 @@ export function RecipeEditor({
       field.kind === "nutrition" ||
       field.key === "utensils" ||
       field.key === "tags";
+
+    const alignDetails =
+      detailsLayout === "servings" ||
+      detailsLayout === "unit" ||
+      detailsLayout === "timing" ||
+      detailsLayout === "classification";
+    const reserveHelper =
+      detailsLayout === "timing" || detailsLayout === "classification";
 
     const displayLabel =
       field.key === "bakeMinutes"
@@ -1914,13 +1983,14 @@ export function RecipeEditor({
         isPulsing={pulsingFieldKey === field.key}
         style={scrollTargetStyle}
         className={
-          detailsLayout === "timing"
+          detailsLayout === "timing" ||
+          detailsLayout === "servings" ||
+          detailsLayout === "unit" ||
+          detailsLayout === "classification"
             ? "min-w-0"
-            : detailsLayout === "servings" || detailsLayout === "unit"
-              ? "min-w-0"
-              : isWide
-                ? "md:col-span-2 min-w-0"
-                : "min-w-0"
+            : isWide
+              ? "md:col-span-2 min-w-0"
+              : "min-w-0"
         }
       >
         <FieldLabel
@@ -1930,6 +2000,8 @@ export function RecipeEditor({
           compact={compact}
           confidence={fieldAnnotation.confidence}
           sourceNote={fieldAnnotation.sourceNote}
+          alignSlots={alignDetails}
+          reserveHelper={reserveHelper}
           aiAction={
             showFieldAi ? (
               <FieldAiFieldActions
@@ -1959,6 +2031,10 @@ export function RecipeEditor({
             ) : undefined
           }
         />
+        <div
+          className={alignDetails ? "min-w-0 self-start pt-0.5" : "contents"}
+          data-field-slot={alignDetails ? "control" : undefined}
+        >
         {field.key === "youtube" ? (
           <YoutubeMetadataEditor
             value={values[field.key]}
@@ -2150,6 +2226,7 @@ export function RecipeEditor({
             {fieldErrors[field.key]}
           </p>
         ) : null}
+        </div>
       </MissingRequiredFieldFrame>
     );
   }
@@ -2795,7 +2872,7 @@ export function RecipeEditor({
               {pickFieldsOrdered(detailFields, CLASSIFICATION_KEYS).length ? (
                 <DetailSubgroup label="Classification" layout="classification">
                   {pickFieldsOrdered(detailFields, CLASSIFICATION_KEYS).map((field) =>
-                    renderField(field, { compact: true }),
+                    renderField(field, { compact: true, detailsLayout: "classification" }),
                   )}
                 </DetailSubgroup>
               ) : null}

@@ -35,12 +35,12 @@ export function MissingRequiredFieldFrame({
       id={id}
       data-recipe-field={fieldKey}
       data-missing-required=""
-      className={`group/field rounded-sm border border-terracotta/40 bg-terracotta/[0.07] p-3 ${isPulsing ? "mesa-missing-field-pulse" : ""} ${className}`.trim()}
+      className={`group/field relative rounded-sm border border-terracotta/40 bg-terracotta/[0.07] p-3 pb-8 ${isPulsing ? "mesa-missing-field-pulse" : ""} ${className}`.trim()}
       style={style}
     >
       {children}
       <p
-        className="mt-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-terracotta/90"
+        className="absolute bottom-2 left-3 right-3 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-terracotta/90"
         role="status"
       >
         <span className="sr-only">{label} is required and currently missing.</span>
