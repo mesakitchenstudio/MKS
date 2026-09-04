@@ -23,17 +23,19 @@ const rowActions = readFileSync(path.join(root, "../components/admin/EditorRowAc
 describe("Recipe editor sticky chrome coverage", () => {
   it("uses full-bleed opaque sticky header without translucent blur", () => {
     assert.match(editor, /ref=\{stickyHeaderRef\}/);
-    assert.match(editor, /sticky top-0 z-50/);
-    assert.match(editor, /-mx-5[^\n]*bg-\[var\(--cream\)\]/);
-    assert.doesNotMatch(editor, /sticky top-0[\s\S]{0,120}bg-\[var\(--cream\)\]\/95/);
-    assert.doesNotMatch(editor, /sticky top-0[\s\S]{0,160}backdrop-blur/);
+    assert.match(editor, /sticky top-0 z-50 isolate/);
+    assert.match(editor, /adminRecipeEditorStickyBleedClass/);
+    assert.match(editor, /bg-\[var\(--cream\)\]/);
+    assert.doesNotMatch(editor, /sticky top-0[\s\S]{0,160}bg-\[var\(--cream\)\]\/95/);
+    assert.doesNotMatch(editor, /sticky top-0[\s\S]{0,200}backdrop-blur/);
     assert.doesNotMatch(editor, /sticky top-0 z-50 -mx-5 mb-6/);
   });
 
   it("keeps section nav sticky under the header with matching opaque coverage", () => {
-    assert.match(sectionNav, /sticky z-50/);
+    assert.match(sectionNav, /sticky z-50 isolate/);
     assert.match(sectionNav, /style=\{\{ top: stickyTop/);
-    assert.match(sectionNav, /-mx-5[^\n]*bg-\[var\(--cream\)\]/);
+    assert.match(sectionNav, /adminRecipeEditorStickyBleedClass/);
+    assert.match(sectionNav, /bg-\[var\(--cream\)\]/);
     assert.doesNotMatch(sectionNav, /bg-\[var\(--cream\)\]\/95/);
     assert.doesNotMatch(sectionNav, /backdrop-blur/);
     assert.doesNotMatch(sectionNav, /sticky z-40/);

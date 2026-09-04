@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
-import { adminFocusRing } from "@/lib/admin-ui";
+import { adminFocusRing, adminRecipeEditorStickyBleedClass } from "@/lib/admin-ui";
 
 export type RecipeEditorSectionLink = {
   id: string;
@@ -45,7 +45,7 @@ export const RecipeEditorSectionNav = forwardRef<
     <nav
       ref={ref}
       aria-label="On this recipe"
-      className={`sticky z-50 -mx-5 w-auto border-b border-line/60 bg-[var(--cream)] px-5 md:-mx-6 md:px-6 ${
+      className={`sticky z-50 isolate border-b border-line/60 bg-[var(--cream)] ${adminRecipeEditorStickyBleedClass} ${
         compact ? "mb-3 py-1" : "mb-5 py-1.5"
       }`}
       style={{ top: stickyTop, scrollMarginTop }}

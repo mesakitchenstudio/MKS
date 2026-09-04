@@ -96,6 +96,7 @@ import {
   adminCompactPrimaryButtonClass,
   adminFocusRing,
   adminInputClass,
+  adminRecipeEditorStickyBleedClass,
   adminSecondaryButtonClass,
 } from "@/lib/admin-ui";
 import {
@@ -2243,11 +2244,11 @@ export function RecipeEditor({
   const previewHref = slug.trim() ? `/recipes/${slug.trim()}` : undefined;
 
   return (
-    <>
+    <div className="relative isolate min-w-0 max-w-full overflow-x-clip">
       <div ref={actionBarSentinelRef} className="h-px w-full" aria-hidden />
       <div
         ref={stickyHeaderRef}
-        className="sticky top-0 z-50 -mx-5 w-auto border-b border-line/70 bg-[var(--cream)] px-5 transition-[padding] duration-150 motion-reduce:transition-none md:-mx-6 md:px-6"
+        className={`sticky top-0 z-50 isolate border-b border-line/70 bg-[var(--cream)] transition-[padding] duration-150 motion-reduce:transition-none ${adminRecipeEditorStickyBleedClass}`}
       >
         <div className={mobileHeaderCompact ? "hidden md:block" : "block"}>
           <div className="flex flex-col gap-2.5 py-2.5 md:py-2 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
@@ -2713,9 +2714,9 @@ export function RecipeEditor({
                   Seasonal
                 </label>
               </div>
-              <div className="mt-5">
+              <div className="mt-5 min-w-0 max-w-full">
                 <div className="mb-2 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <p className="text-sm font-semibold text-ink">Categories</p>
+                  <p className="min-w-0 text-sm font-semibold text-ink">Categories</p>
                   <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
                     <FieldAiFieldActions
                       path="categoryIds"
@@ -2759,7 +2760,7 @@ export function RecipeEditor({
                     })}
                   </div>
                 ) : null}
-                <div className="grid gap-1">
+                <div className="grid min-w-0 max-w-full gap-1">
                   {categoryGroups.map((group) => {
                     const selectedInGroup = group.categories.filter((category) =>
                       categoryIds.includes(category.id),
@@ -2767,11 +2768,11 @@ export function RecipeEditor({
                     const hasSelected = selectedInGroup > 0;
                     const collapsed = categoryGroupCollapsed[group.group] ?? !hasSelected;
                     return (
-                      <div key={group.group} className="border-b border-line/60 last:border-b-0">
+                      <div key={group.group} className="min-w-0 max-w-full border-b border-line/60 last:border-b-0">
                         <button
                           type="button"
                           aria-expanded={!collapsed}
-                          className={`flex w-full items-center justify-between gap-2 py-2.5 text-left ${adminFocusRing}`}
+                          className={`flex w-full min-w-0 max-w-full items-center justify-between gap-2 py-2.5 text-left ${adminFocusRing}`}
                           onClick={() =>
                             setCategoryGroupCollapsed((current) => ({
                               ...current,
@@ -2779,10 +2780,10 @@ export function RecipeEditor({
                             }))
                           }
                         >
-                          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+                          <span className="min-w-0 flex-1 truncate text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
                             {group.label}
                           </span>
-                          <span className="text-xs text-muted">
+                          <span className="shrink-0 text-xs text-muted">
                             {hasSelected
                               ? `${selectedInGroup} selected`
                               : collapsed
@@ -3106,7 +3107,7 @@ export function RecipeEditor({
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 

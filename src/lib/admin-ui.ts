@@ -69,6 +69,14 @@ export const adminWorkspaceMaxWidth = adminWorkspaceWide;
 export const adminWorkspacePaddingClass =
   "px-5 py-8 md:px-6 md:py-10 lg:pl-24 lg:pr-10 lg:py-10 xl:pl-28";
 
+/**
+ * Recipe-editor sticky chrome horizontal bleed.
+ * Must mirror adminWorkspacePaddingClass so the opaque sticky layer covers the full
+ * padded editor column (esp. iPad Safari with the persistent sidebar).
+ */
+export const adminRecipeEditorStickyBleedClass =
+  "-mx-5 px-5 md:-mx-6 md:px-6 lg:-ml-24 lg:-mr-10 lg:pl-24 lg:pr-10 xl:-ml-28 xl:pl-28";
+
 /** Left admin navigation width (~240px) — desktop sidebar only. */
 export const adminSidebarWidthClass = "w-[15rem]";
 

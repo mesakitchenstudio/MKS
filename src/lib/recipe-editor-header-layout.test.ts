@@ -31,7 +31,8 @@ describe("Recipe editor sticky header title layout", () => {
   });
 
   it("preserves opaque sticky chrome and mobile compact stacking", () => {
-    assert.match(headerJsx, /sticky top-0 z-50/);
+    assert.match(headerJsx, /sticky top-0 z-50 isolate/);
+    assert.match(headerJsx, /adminRecipeEditorStickyBleedClass/);
     assert.match(headerJsx, /bg-\[var\(--cream\)\]/);
     assert.doesNotMatch(headerJsx, /bg-\[var\(--cream\)\]\/95/);
     assert.doesNotMatch(headerJsx, /backdrop-blur/);
