@@ -44,7 +44,7 @@ function SidebarLink({
 
   const linkClass = `${adminSidebarLinkClass} ${adminSidebarFocusRing} ${
     active
-      ? "border-l-2 border-terracotta bg-sand/25 pl-[calc(0.75rem-2px)] text-terracotta"
+      ? "border-l-2 border-terracotta bg-sand/15 pl-[calc(0.75rem-2px)] text-terracotta"
       : muted
         ? "border-l-2 border-transparent text-muted hover:bg-sand/20 hover:text-terracotta"
         : "border-l-2 border-transparent text-ink hover:bg-sand/20 hover:text-ink"
@@ -98,7 +98,7 @@ function NavSections({
     <>
       {sections.map((section, index) => (
         <div key={section.id}>
-          <p className={`${adminSidebarSectionLabelClass} ${index === 0 ? "pt-0" : "pt-5"}`}>
+          <p className={`${adminSidebarSectionLabelClass} ${index === 0 ? "pt-0" : "pt-[1.125rem]"}`}>
             {section.label}
           </p>
           <ul className="m-0 list-none space-y-0 p-0">
