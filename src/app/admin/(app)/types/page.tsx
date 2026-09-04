@@ -75,19 +75,24 @@ export default async function AdminTypesPage({
                 )}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+            <div
+              className="grid shrink-0 grid-cols-[auto_2.75rem] items-center gap-x-1 sm:gap-x-2"
+              data-mesa-type-row-actions="edit-overflow"
+            >
               <Link
                 href={`/admin/types/${type.id}`}
                 aria-label={`Edit ${type.name}`}
-                className={`inline-flex min-h-11 items-center text-sm ${adminLinkClass} ${adminFocusRing} sm:min-h-0`}
+                className={`inline-flex min-h-11 items-center justify-self-start text-sm ${adminLinkClass} ${adminFocusRing} sm:min-h-0`}
               >
                 Edit
               </Link>
-              <DeleteTypeButton
-                id={type.id}
-                name={type.name}
-                recipeCount={type._count.recipes}
-              />
+              <div className="flex items-center justify-center">
+                <DeleteTypeButton
+                  id={type.id}
+                  name={type.name}
+                  recipeCount={type._count.recipes}
+                />
+              </div>
             </div>
           </li>
         ))}

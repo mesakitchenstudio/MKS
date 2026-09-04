@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { canAccess } from "./admin-access";
-import { adminWorkspaceStandard, adminWorkspaceTypes, adminWorkspaceWide } from "./admin-ui";
+import { adminWorkspaceCategories, adminWorkspaceStandard, adminWorkspaceTypes, adminWorkspaceWide } from "./admin-ui";
 import { adminWorkspaceWidthForPath } from "./admin-nav";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -31,7 +31,7 @@ describe("Recipe Types Phase 1 presentation contracts", () => {
     assert.equal(adminWorkspaceWidthForPath("/admin/types/abc"), adminWorkspaceTypes);
     assert.notEqual(adminWorkspaceWidthForPath("/admin/types"), adminWorkspaceStandard);
     assert.notEqual(adminWorkspaceWidthForPath("/admin/types"), adminWorkspaceWide);
-    assert.equal(adminWorkspaceWidthForPath("/admin/categories"), adminWorkspaceStandard);
+    assert.equal(adminWorkspaceWidthForPath("/admin/categories"), adminWorkspaceCategories);
     assert.equal(adminWorkspaceWidthForPath("/admin/staff"), adminWorkspaceStandard);
   });
 
@@ -78,6 +78,17 @@ describe("Recipe Types Phase 1 presentation contracts", () => {
     assert.match(deleteTypeButton, /currently has no recipes/);
     assert.match(deleteTypeButton, /Other Recipe Types are unaffected/);
     assert.doesNotMatch(deleteTypeButton, /type the type name|type its name/i);
+  });
+
+  it("uses a fixed two-slot row action region so Edit stays aligned with or without overflow", () => {
+    assert.match(typesPage, /data-mesa-type-row-actions="edit-overflow"/);
+    assert.match(typesPage, /grid-cols-\[auto_2\.75rem\]/);
+    assert.match(typesPage, /aria-label=\{`Edit \$\{type\.name\}`\}/);
+    assert.match(typesPage, /DeleteTypeButton/);
+    // Overflow remains gated by recipeCount; no fake menu button when unavailable.
+    assert.match(deleteTypeButton, /if \(recipeCount > 0\) \{[\s\S]*?return null/);
+    assert.doesNotMatch(deleteTypeButton, /aria-hidden[\s\S]*More actions|More actions[\s\S]*aria-hidden/);
+    assert.doesNotMatch(typesPage, /aria-hidden[\s\S]{0,80}More actions|invisible[\s\S]{0,40}⋯/);
   });
 
   it("de-escalates type details and header chrome on the editor page", () => {
