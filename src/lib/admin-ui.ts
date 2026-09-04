@@ -52,6 +52,9 @@ export const adminWorkspaceMembersList = "max-w-5xl";
 /** Member detail editorial measure (~832px). */
 export const adminWorkspaceMembersDetail = "max-w-[52rem]";
 
+/** Reviews conversation feed (~768px). */
+export const adminWorkspaceReviews = "max-w-3xl";
+
 /** @deprecated Use adminWorkspaceWide */
 export const adminWorkspaceMaxWidth = adminWorkspaceWide;
 

@@ -2,6 +2,7 @@
 
 import { RemoveReplyButton } from "@/components/admin/RemoveReplyButton";
 import { formatAdminDate } from "@/lib/datetime";
+import { formatAdminReplyAuthorDisplay } from "@/lib/recipe-reviews";
 
 type Reply = {
   id: string;
@@ -52,44 +53,50 @@ function ReplyAvatar({
   );
 }
 
-/** Always shows existing replies under a review for Admin → Reviews moderation. */
+/** Always shows existing replies under a review for Admin → Reviews. */
 export function ReviewRepliesSection({ replies, count }: { replies: Reply[]; count: number }) {
   const total = count || replies.length;
   if (total <= 0) return null;
 
   return (
-    <div className="mt-4 border-t border-line pt-3">
-        <p className="text-sm font-semibold text-ink">
-          Conversation
-          <span className="ml-2 font-normal text-muted">· {total}</span>
+    <div className="mt-5">
+      {total > 1 ? (
+        <p className="mb-2 text-xs text-muted">
+          {total} {total === 1 ? "reply" : "replies"}
         </p>
-      <ul className="mt-3 divide-y divide-line border border-line">
+      ) : null}
+      <ul className="space-y-0 border-l-2 border-line/80 pl-4 sm:pl-5">
         {replies.map((reply) => {
-          const title = reply.authorTitle?.trim();
-          const label = title ? `${reply.authorName} · ${title}` : reply.authorName;
+          const display = formatAdminReplyAuthorDisplay({
+            authorName: reply.authorName,
+            authorTitle: reply.authorTitle,
+            isStaff: reply.isStaff,
+          });
+          const avatarName = display.primary;
+
           return (
-            <li key={reply.id} className="px-3 py-3 sm:px-4">
+            <li key={reply.id} className="py-3 first:pt-0 last:pb-0">
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                 <div className="flex min-w-0 flex-1 gap-3">
                   <ReplyAvatar
-                    name={reply.authorName}
+                    name={avatarName}
                     photoUrl={reply.authorPhotoUrl}
                     staff={reply.isStaff}
                   />
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">
-                      {label}
-                      {reply.isStaff && !title ? (
-                        <span className="font-normal text-muted"> · Staff</span>
-                      ) : null}
-                    </p>
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-ink/90">
+                    <p className="text-sm font-semibold text-ink">{display.primary}</p>
+                    {display.secondary ? (
+                      <p className="text-xs text-muted">{display.secondary}</p>
+                    ) : reply.isStaff && !reply.authorTitle?.trim() ? (
+                      <p className="text-xs text-muted">Staff</p>
+                    ) : null}
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-ink">
                       {reply.body}
                     </p>
                     <p className="mt-1 text-xs text-muted">{formatAdminDate(reply.createdAt)}</p>
                   </div>
                 </div>
-                <RemoveReplyButton id={reply.id} authorName={reply.authorName} />
+                <RemoveReplyButton id={reply.id} authorName={display.primary || reply.authorName} />
               </div>
             </li>
           );

@@ -3,6 +3,7 @@ import {
   adminWorkspaceMembersDetail,
   adminWorkspaceMembersList,
   adminWorkspaceProfile,
+  adminWorkspaceReviews,
   adminWorkspaceStandard,
   adminWorkspaceWide,
 } from "@/lib/admin-ui";
@@ -93,6 +94,7 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/profile")) return adminWorkspaceProfile;
   if (pathname.startsWith("/admin/members/")) return adminWorkspaceMembersDetail;
   if (pathname === "/admin/members") return adminWorkspaceMembersList;
+  if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviews;
   if (
     pathname === "/admin" ||
     pathname.startsWith("/admin/recipes") ||

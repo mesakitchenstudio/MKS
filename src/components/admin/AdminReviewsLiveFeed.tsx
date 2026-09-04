@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AdminReviewReplyControls } from "@/components/admin/AdminReviewReplyControls";
 import { RemoveReviewButton } from "@/components/admin/RemoveReviewButton";
 import { ReviewRepliesSection } from "@/components/admin/ReviewRepliesSection";
@@ -11,7 +11,12 @@ import {
   adminReviewsListSignature,
   RECIPE_REVIEW_POLL_MS,
 } from "@/lib/recipe-reviews-client";
-import { formatReviewRating, type AdminReviewListItem } from "@/lib/recipe-reviews";
+import {
+  adminReviewRecipeHref,
+  formatReviewRating,
+  formatReviewRatingAccessible,
+  type AdminReviewListItem,
+} from "@/lib/recipe-reviews";
 
 type LiveReview = Omit<AdminReviewListItem, "createdAt" | "replies"> & {
   createdAt: string | Date;
@@ -25,6 +30,117 @@ type LiveReview = Omit<AdminReviewListItem, "createdAt" | "replies"> & {
     createdAt: string | Date;
   }>;
 };
+
+function ReviewArticle({
+  review,
+  page,
+  canOpenMembers,
+}: {
+  review: LiveReview;
+  page: number;
+  canOpenMembers: boolean;
+}) {
+  const titleId = useId();
+  const ratingLabel = formatReviewRating(review.rating);
+  const ratingAccessible = formatReviewRatingAccessible(review.rating);
+  const recipeLink = adminReviewRecipeHref({
+    recipeId: review.recipeId,
+    recipeSlug: review.recipeSlug,
+    recipeStatus: review.recipeStatus,
+  });
+  const memberHref =
+    canOpenMembers && review.userId ? `/admin/members/${review.userId}` : null;
+  const unreplied = review.replyCount === 0;
+
+  return (
+    <article aria-labelledby={titleId} className="py-6 first:pt-0">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        {recipeLink ? (
+          <Link
+            id={titleId}
+            href={recipeLink.href}
+            target={recipeLink.external ? "_blank" : undefined}
+            rel={recipeLink.external ? "noreferrer" : undefined}
+            className={`min-w-0 break-words font-serif text-lg text-ink hover:text-terracotta ${adminFocusRing}`}
+          >
+            {review.recipeTitle}
+            {recipeLink.external ? (
+              <span className="ml-1 text-sm font-sans font-normal text-muted" aria-hidden>
+                ↗
+              </span>
+            ) : null}
+            {recipeLink.external ? (
+              <span className="sr-only"> (opens in a new tab)</span>
+            ) : null}
+          </Link>
+        ) : (
+          <p id={titleId} className="min-w-0 break-words font-serif text-lg text-ink">
+            {review.recipeTitle}
+          </p>
+        )}
+        <span className="shrink-0 text-sm text-muted">
+          <span aria-hidden>· {ratingLabel}</span>
+          <span className="sr-only">{ratingAccessible}</span>
+        </span>
+      </div>
+
+      <div className="mt-3 min-w-0">
+        {memberHref ? (
+          <Link
+            href={memberHref}
+            className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
+          >
+            {review.authorName}
+          </Link>
+        ) : (
+          <p className="font-semibold text-ink">{review.authorName}</p>
+        )}
+        <p className="mt-0.5 text-xs text-muted">
+          {review.authorEmail ? (
+            <>
+              <span className="break-all">{review.authorEmail}</span>
+              <span className="mx-1.5 text-line" aria-hidden>
+                ·
+              </span>
+            </>
+          ) : null}
+          {formatAdminDate(review.createdAt)}
+        </p>
+      </div>
+
+      <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-7 text-ink">
+        {review.body}
+      </p>
+
+      <ReviewRepliesSection
+        count={review.replyCount}
+        replies={review.replies.map((reply) => ({
+          id: reply.id,
+          authorName: reply.authorName,
+          authorTitle: reply.authorTitle,
+          authorPhotoUrl: reply.authorPhotoUrl,
+          body: reply.body,
+          isStaff: reply.isStaff,
+          createdAt: reply.createdAt,
+        }))}
+      />
+
+      <AdminReviewReplyControls
+        reviewId={review.id}
+        page={page}
+        authorName={review.authorName}
+        recipeTitle={review.recipeTitle}
+        unreplied={unreplied}
+      >
+        <RemoveReviewButton
+          id={review.id}
+          authorName={review.authorName}
+          recipeTitle={review.recipeTitle}
+        />
+      </AdminReviewReplyControls>
+    </article>
+  );
+}
 
 export function AdminReviewsLiveFeed({
   initialReviews,
@@ -41,18 +157,23 @@ export function AdminReviewsLiveFeed({
 }) {
   const [reviews, setReviews] = useState(initialReviews);
   const [listMeta, setListMeta] = useState({ page, totalPages, total });
+  const [listSignature, setListSignature] = useState(() =>
+    adminReviewsListSignature(initialReviews),
+  );
   const pageRef = useRef(page);
-  const sigRef = useRef(adminReviewsListSignature(initialReviews));
-
-  // Only re-seed from the server when the admin changes page — never overwrite
-  // live poll state with a stale RSC snapshot while staying on the same page.
-  useEffect(() => {
-    pageRef.current = page;
+  const sigRef = useRef(listSignature);
+  const [trackedPage, setTrackedPage] = useState(page);
+  if (page !== trackedPage) {
+    setTrackedPage(page);
     setReviews(initialReviews);
     setListMeta({ page, totalPages, total });
-    sigRef.current = adminReviewsListSignature(initialReviews);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: page-only reseeding
-  }, [page]);
+    setListSignature(adminReviewsListSignature(initialReviews));
+  }
+
+  useEffect(() => {
+    pageRef.current = page;
+    sigRef.current = listSignature;
+  }, [page, listSignature]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +203,7 @@ export function AdminReviewsLiveFeed({
         const signature = adminReviewsListSignature(payload.reviews || []);
         if (signature === sigRef.current) return;
         sigRef.current = signature;
+        setListSignature(signature);
         setReviews(payload.reviews || []);
         setListMeta({
           page: payload.page,
@@ -113,76 +235,21 @@ export function AdminReviewsLiveFeed({
   }, [page]);
 
   if (!reviews.length) {
-    return <p className="mt-8 text-sm text-muted">No reviews to moderate.</p>;
+    return <p className="mt-8 text-sm text-muted">No reviews yet.</p>;
   }
 
   return (
     <>
-      <ul className="mt-8 divide-y divide-line border border-line bg-paper">
-        {reviews.map((review) => {
-          const ratingLabel = formatReviewRating(review.rating);
-          const publicRecipeHref = `/recipes/${encodeURIComponent(review.recipeSlug)}`;
-          const memberHref =
-            canOpenMembers && review.userId ? `/admin/members/${review.userId}` : null;
-
-          return (
-            <li key={review.id} className="p-5 md:p-6">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <Link
-                    href={publicRecipeHref}
-                    className={`min-w-0 break-words font-serif text-xl text-ink hover:text-terracotta ${adminFocusRing}`}
-                  >
-                    {review.recipeTitle}
-                  </Link>
-                  <span className="shrink-0 text-sm text-muted">{ratingLabel}</span>
-                </div>
-
-                <div className="mt-3 min-w-0">
-                  {memberHref ? (
-                    <Link
-                      href={memberHref}
-                      className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-                    >
-                      {review.authorName}
-                    </Link>
-                  ) : (
-                    <p className="font-semibold text-ink">{review.authorName}</p>
-                  )}
-                  {review.authorEmail ? (
-                    <p className="mt-0.5 break-all text-xs text-muted">{review.authorEmail}</p>
-                  ) : null}
-                  <p className="mt-1 text-xs text-muted">{formatAdminDate(review.createdAt)}</p>
-                </div>
-
-                <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-ink/90">
-                  {review.body}
-                </p>
-
-                <ReviewRepliesSection
-                  count={review.replyCount}
-                  replies={review.replies.map((reply) => ({
-                    id: reply.id,
-                    authorName: reply.authorName,
-                    authorTitle: reply.authorTitle,
-                    authorPhotoUrl: reply.authorPhotoUrl,
-                    body: reply.body,
-                    isStaff: reply.isStaff,
-                    createdAt: reply.createdAt,
-                  }))}
-                />
-
-                <AdminReviewReplyControls reviewId={review.id} page={listMeta.page}>
-                  <RemoveReviewButton
-                    id={review.id}
-                    authorName={review.authorName}
-                    recipeTitle={review.recipeTitle}
-                  />
-                </AdminReviewReplyControls>
-              </div>
-            </li>
-          );
-        })}
+      <ul className="mt-8 divide-y divide-line/80 border-t border-line/80">
+        {reviews.map((review) => (
+          <li key={review.id}>
+            <ReviewArticle
+              review={review}
+              page={listMeta.page}
+              canOpenMembers={canOpenMembers}
+            />
+          </li>
+        ))}
       </ul>
 
       {listMeta.totalPages > 1 ? (
@@ -202,7 +269,7 @@ export function AdminReviewsLiveFeed({
                     ? "/admin/reviews"
                     : `/admin/reviews?page=${listMeta.page - 1}`
                 }
-                className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
+                className={`inline-flex min-h-11 items-center font-semibold text-ink hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
               >
                 Previous
               </Link>
@@ -212,7 +279,7 @@ export function AdminReviewsLiveFeed({
             {listMeta.page < listMeta.totalPages ? (
               <Link
                 href={`/admin/reviews?page=${listMeta.page + 1}`}
-                className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
+                className={`inline-flex min-h-11 items-center font-semibold text-ink hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
               >
                 Next
               </Link>

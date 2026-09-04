@@ -359,13 +359,14 @@ export async function submitMemberRecipeReviewReply(input: {
 }
 
 /** @deprecated Use staff/member authorized submit helpers instead. */
-export async function submitRecipeReviewReply(_input: {
+export async function submitRecipeReviewReply(input: {
   recipeSlug: string;
   reviewId: string;
   authorName: string;
   authorEmail: string;
   body: string;
 }): Promise<RecipeReviewData> {
+  void input;
   throw new Error("Unauthorized reply.");
 }
 
@@ -374,6 +375,8 @@ export type AdminReviewListItem = {
   recipeSlug: string;
   recipeTitle: string;
   recipeId: string | null;
+  /** Recipe.status when the recipe row exists; null if missing. */
+  recipeStatus: string | null;
   userId: string | null;
   authorName: string;
   authorEmail: string;
@@ -413,6 +416,51 @@ function humanizeRecipeSlug(slug: string) {
 export function formatReviewRating(rating: number) {
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) return "—";
   return `${Math.round(rating)} / 5`;
+}
+
+/** Screen-reader phrase for the numeric rating (visible label stays "N / 5"). */
+export function formatReviewRatingAccessible(rating: number) {
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) return "Rating unavailable";
+  return `Rated ${Math.round(rating)} out of 5`;
+}
+
+/**
+ * Presentation-only reply author lines for Admin → Reviews.
+ * Does not mutate persisted authorName / authorTitle.
+ */
+export function formatAdminReplyAuthorDisplay(input: {
+  authorName: string;
+  authorTitle?: string | null;
+  isStaff?: boolean;
+}) {
+  const name = input.authorName.trim();
+  const title = (input.authorTitle || "").trim();
+  const genericName = /^(owner|staff|admin|editor|audience)$/i.test(name);
+
+  if (genericName && title) {
+    return { primary: title, secondary: "" };
+  }
+  if (name && title && name.toLowerCase() !== title.toLowerCase()) {
+    return { primary: name, secondary: title };
+  }
+  if (name) return { primary: name, secondary: "" };
+  if (title) return { primary: title, secondary: "" };
+  return { primary: input.isStaff ? "Staff" : "Member", secondary: "" };
+}
+
+/** Admin recipe link policy: public only when published; otherwise editor when id exists. */
+export function adminReviewRecipeHref(input: {
+  recipeId: string | null;
+  recipeSlug: string;
+  recipeStatus: string | null;
+}): { href: string; external: boolean } | null {
+  if (input.recipeStatus === "published" && input.recipeSlug) {
+    return { href: `/recipes/${encodeURIComponent(input.recipeSlug)}`, external: true };
+  }
+  if (input.recipeId) {
+    return { href: `/admin/recipes/${encodeURIComponent(input.recipeId)}`, external: false };
+  }
+  return null;
 }
 
 export async function listReviewsForAdmin(options?: {
@@ -462,7 +510,7 @@ export async function listReviewsForAdmin(options?: {
     const recipes = slugs.length
       ? await db.recipe.findMany({
           where: { slug: { in: slugs } },
-          select: { id: true, slug: true, title: true },
+          select: { id: true, slug: true, title: true, status: true },
         })
       : [];
     const recipeBySlug = new Map(recipes.map((recipe) => [recipe.slug, recipe]));
@@ -479,6 +527,7 @@ export async function listReviewsForAdmin(options?: {
           recipeSlug: row.recipeSlug,
           recipeTitle: recipe?.title?.trim() || humanizeRecipeSlug(row.recipeSlug),
           recipeId: recipe?.id ?? null,
+          recipeStatus: recipe?.status ?? null,
           userId: row.userId,
           authorName: row.authorName,
           authorEmail: row.authorEmail,

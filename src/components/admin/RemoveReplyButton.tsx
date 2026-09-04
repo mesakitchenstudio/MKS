@@ -24,7 +24,8 @@ export function RemoveReplyButton({ id, authorName }: { id: string; authorName: 
     <>
       <button
         type="button"
-        className={`text-xs font-semibold text-terracotta/90 transition-colors hover:text-terracotta ${adminFocusRing}`}
+        className={`inline-flex min-h-11 items-center text-xs font-semibold text-muted transition-colors hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
+        aria-label={`Remove reply by ${authorName}`}
         onClick={() => setOpen(true)}
       >
         Remove reply

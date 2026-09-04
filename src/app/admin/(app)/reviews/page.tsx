@@ -30,15 +30,11 @@ export default async function AdminReviewsPage({
 
   return (
     <div>
-      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-        Community
-      </p>
-      <h1 className="mt-2 font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
         Reviews
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-muted">
-        Moderate member conversations on recipes. Reply from here without opening the public
-        recipe page. Removing a review also removes its replies.
+        Read and reply to member reviews on Mesa recipes.
       </p>
 
       <AdminFlashStatus active={Boolean(replied)} clearParams={REVIEW_REPLIED_PARAMS}>

@@ -32,7 +32,8 @@ export function RemoveReviewButton({
     <>
       <button
         type="button"
-        className={`text-sm font-semibold text-terracotta/90 transition-colors hover:text-terracotta ${adminFocusRing}`}
+        className={`inline-flex min-h-11 items-center text-sm font-semibold text-muted transition-colors hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
+        aria-label={`Remove review by ${authorName} on ${recipeTitle}`}
         onClick={() => setOpen(true)}
       >
         Remove review
