@@ -44,11 +44,14 @@ export const adminWorkspaceWide = "max-w-[77.5rem]";
 /** Recipes index publishing ledger (~1120px) — tighter than adminWorkspaceWide. */
 export const adminWorkspaceRecipes = "max-w-[70rem]";
 
-/** Forms and editorial lists (categories, team). */
+/** Forms and editorial lists (team). */
 export const adminWorkspaceStandard = "max-w-4xl";
 
 /** Recipe Types template ledger (~1024px) — wider than standard, tighter than Recipes index. */
 export const adminWorkspaceTypes = "max-w-5xl";
+
+/** Categories taxonomy ledger (~1024px) — matches Recipe Types measure. */
+export const adminWorkspaceCategories = "max-w-5xl";
 
 /** Narrow account screens (legacy; prefer adminWorkspaceProfile for /admin/profile). */
 export const adminWorkspaceNarrow = "max-w-xl";

@@ -45,14 +45,7 @@ export default async function AdminCategoriesPage({
       : undefined;
 
   return (
-    <div>
-      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-        Categories
-      </h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted">
-        These power the public menus and recipe filters.
-      </p>
-
+    <div className="min-w-0">
       <CategoriesManager
         categories={categories}
         savedCategoryId={savedCategoryId}

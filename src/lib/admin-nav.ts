@@ -1,5 +1,6 @@
 import { canAccess, type AccessLevel, type AdminArea } from "@/lib/admin-access";
 import {
+  adminWorkspaceCategories,
   adminWorkspaceMembersDetail,
   adminWorkspaceMembersList,
   adminWorkspaceProfile,
@@ -98,6 +99,7 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname === "/admin/members") return adminWorkspaceMembersList;
   if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviews;
   if (pathname.startsWith("/admin/types")) return adminWorkspaceTypes;
+  if (pathname.startsWith("/admin/categories")) return adminWorkspaceCategories;
   if (pathname === "/admin") return adminWorkspaceRecipes;
   if (
     pathname.startsWith("/admin/recipes") ||

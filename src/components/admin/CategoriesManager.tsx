@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { deleteCategoryAction, saveCategoryAction } from "@/app/admin/actions";
 import {
+  adminCompactPrimaryButtonClass,
   adminFocusRing,
   adminInputClass,
   adminLinkClass,
@@ -25,10 +26,10 @@ import {
 } from "@/lib/category-admin";
 import { slugify } from "@/lib/fields";
 
-const helperRowClass = "mt-1.5 min-h-[2rem] text-xs leading-4 text-muted";
+const helperRowClass = "mt-1.5 min-h-[1.75rem] text-xs leading-4 text-muted";
 
 const secondaryBtnClass =
-  "inline-flex h-9 items-center justify-center rounded-sm border border-line bg-paper px-3 text-sm font-semibold text-muted transition-colors duration-150 hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+  "inline-flex min-h-11 items-center justify-center rounded-sm border border-line bg-paper px-3 text-sm font-semibold text-muted transition-colors duration-150 hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta sm:min-h-9";
 
 type CategoryDraft = {
   name: string;
@@ -68,10 +69,7 @@ function EditorFieldColumn({
 
   return (
     <div className="flex min-w-0 flex-col">
-      <LabelTag
-        {...labelProps}
-        className="min-h-[1.25rem] text-sm font-semibold leading-5 text-ink"
-      >
+      <LabelTag {...labelProps} className="min-h-[1.25rem] text-sm font-semibold leading-5 text-ink">
         {label}
       </LabelTag>
       <div className="mt-1.5">{children}</div>
@@ -90,7 +88,8 @@ function CategoryMeta({ category }: { category: AdminCategory }) {
   const group = categoryGroupLabel(category.group);
   return (
     <p className="mt-0.5 text-sm leading-5 text-muted">
-      {group} · <span className="font-semibold text-ink">{formatRecipeCount(category.recipeCount)}</span>
+      {group} ·{" "}
+      <span className="font-semibold text-ink">{formatRecipeCount(category.recipeCount)}</span>
     </p>
   );
 }
@@ -98,16 +97,17 @@ function CategoryMeta({ category }: { category: AdminCategory }) {
 function CategoryEditor({
   category,
   saved,
+  panelId,
   onCancel,
   onDirtyChange,
 }: {
   category: AdminCategory;
   saved: boolean;
+  panelId: string;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const nameId = useId();
-  const slugId = useId();
   const groupId = useId();
   const descriptionId = useId();
   const nameRef = useRef<HTMLInputElement>(null);
@@ -131,15 +131,22 @@ function CategoryEditor({
   }
 
   return (
-    <div className="border-l-2 border-olive/35 bg-cream/25 px-4 py-3.5">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+    <div
+      id={panelId}
+      role="region"
+      aria-label={`Editing ${category.name}`}
+      className="border-l-2 border-olive/30 bg-cream/20 px-1 py-2.5 sm:px-2.5"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-sm font-semibold text-ink">{category.name}</p>
         <AdminSavedStatus show={saved} />
       </div>
 
-      <form action={saveCategoryAction} className="mt-4 grid gap-4">
+      <form action={saveCategoryAction} className="mt-3 grid gap-3">
         <input type="hidden" name="id" value={category.id} />
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Preserved for action contract; update ignores submitted slug and keeps existing.slug */}
+        <input type="hidden" name="slug" value={category.slug} />
+        <div className="grid gap-3 2xl:grid-cols-2">
           <EditorFieldColumn label="Name" htmlFor={nameId}>
             <input
               ref={nameRef}
@@ -151,21 +158,11 @@ function CategoryEditor({
               className={adminInputClass}
             />
           </EditorFieldColumn>
-          <EditorFieldColumn
-            label="Slug"
-            htmlFor={slugId}
-            helper="Category slugs cannot be changed after creation."
-          >
-            <input
-              id={slugId}
-              name="slug"
-              value={category.slug}
-              readOnly
-              tabIndex={-1}
-              aria-readonly="true"
-              className={`${adminInputClass} cursor-default bg-cream/60 text-muted`}
-            />
-          </EditorFieldColumn>
+          <div className="flex min-w-0 flex-col">
+            <p className="min-h-[1.25rem] text-sm font-semibold leading-5 text-ink">Slug</p>
+            <p className="mt-1.5 font-mono text-sm text-muted">{category.slug}</p>
+            <p className={helperRowClass}>Set at creation.</p>
+          </div>
           <EditorFieldColumn label="Menu group" htmlFor={groupId}>
             <select
               id={groupId}
@@ -181,22 +178,21 @@ function CategoryEditor({
               ))}
             </select>
           </EditorFieldColumn>
-          <div className="md:col-span-2">
-            <EditorFieldColumn label="Description" htmlFor={descriptionId}>
-              <input
-                id={descriptionId}
-                name="description"
-                value={draft.description}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, description: event.target.value }))
-                }
-                placeholder="Short description shown where categories are surfaced"
-                className={adminInputClass}
-              />
-            </EditorFieldColumn>
-          </div>
+          <EditorFieldColumn label="Description" htmlFor={descriptionId}>
+            <textarea
+              id={descriptionId}
+              name="description"
+              rows={2}
+              value={draft.description}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, description: event.target.value }))
+              }
+              placeholder="Short description shown where categories are surfaced"
+              className="min-h-[2.75rem] w-full resize-y rounded-sm border border-line bg-paper px-3.5 py-2 text-sm text-ink outline-none transition-[color,box-shadow,border-color] duration-150 motion-reduce:transition-none placeholder:text-muted focus:border-olive focus:ring-2 focus:ring-olive/15 focus-visible:border-olive focus-visible:ring-2 focus-visible:ring-olive/15"
+            />
+          </EditorFieldColumn>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={handleCancel} className={`${secondaryBtnClass} ${adminFocusRing}`}>
             Cancel
           </button>
@@ -210,11 +206,11 @@ function CategoryEditor({
         </div>
       </form>
 
-      <form ref={deleteFormRef} action={deleteCategoryAction} className="mt-4 border-t border-line pt-4">
+      <form ref={deleteFormRef} action={deleteCategoryAction} className="mt-3 border-t border-line/80 pt-3">
         <input type="hidden" name="id" value={category.id} />
         <button
           type="button"
-          className={`text-sm font-semibold text-terracotta/90 transition-colors hover:text-terracotta ${adminFocusRing}`}
+          className={`inline-flex min-h-11 items-center text-sm font-semibold text-terracotta/90 transition-colors hover:text-terracotta sm:min-h-0 ${adminFocusRing}`}
           onClick={() => {
             const recipeNote =
               category.recipeCount > 0
@@ -239,14 +235,16 @@ function CategoryEditor({
 function CollapsedCategoryRow({
   category,
   saved,
+  editorPanelId,
   onEdit,
 }: {
   category: AdminCategory;
   saved: boolean;
+  editorPanelId: string;
   onEdit: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-4 py-2">
+    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-x-4">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold leading-5 text-ink">{category.name}</p>
         <CategoryMeta category={category} />
@@ -260,7 +258,9 @@ function CollapsedCategoryRow({
           type="button"
           onClick={onEdit}
           aria-expanded={false}
-          className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
+          aria-controls={editorPanelId}
+          aria-label={`Edit ${category.name}`}
+          className={`inline-flex min-h-11 items-center text-sm ${adminLinkClass} ${adminFocusRing} sm:min-h-0`}
         >
           Edit
         </button>
@@ -294,14 +294,30 @@ function AddCategoryPanel({
   const [slugTouched, setSlugTouched] = useState(Boolean(initialSlug));
   const [group, setGroup] = useState(initialGroup);
   const [description, setDescription] = useState(initialDescription);
-
-  useEffect(() => {
+  const [synced, setSynced] = useState({
+    name: initialName,
+    slug: initialSlug,
+    description: initialDescription,
+    group: initialGroup,
+  });
+  if (
+    initialName !== synced.name ||
+    initialSlug !== synced.slug ||
+    initialDescription !== synced.description ||
+    initialGroup !== synced.group
+  ) {
+    setSynced({
+      name: initialName,
+      slug: initialSlug,
+      description: initialDescription,
+      group: initialGroup,
+    });
     setName(initialName);
     setSlug(initialSlug);
     setDescription(initialDescription);
     setGroup(initialGroup);
     setSlugTouched(Boolean(initialSlug));
-  }, [initialDescription, initialGroup, initialName, initialSlug]);
+  }
 
   function onNameChange(next: string) {
     setName(next);
@@ -318,11 +334,19 @@ function AddCategoryPanel({
   const groupError = error === "invalid-group" ? "Choose a menu group." : undefined;
 
   return (
-    <div className="border border-line bg-cream/30 px-4 py-3.5">
-      <h2 className="text-sm font-semibold text-ink">New category</h2>
-      <form action={saveCategoryAction} className="mt-4 grid gap-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <EditorFieldColumn label="Name" htmlFor={nameId} helper={nameError} helperError={Boolean(nameError)}>
+    <div className="border-y border-line/80 bg-cream/25 py-5">
+      <h2 className="font-serif text-xl text-ink">New category</h2>
+      <p className="mt-1 text-sm text-muted">
+        Adds a category to menus and recipe discovery filters.
+      </p>
+      <form action={saveCategoryAction} className="mt-4 grid gap-3">
+        <div className="grid gap-3 2xl:grid-cols-2">
+          <EditorFieldColumn
+            label="Name"
+            htmlFor={nameId}
+            helper={nameError}
+            helperError={Boolean(nameError)}
+          >
             <input
               id={nameId}
               name="name"
@@ -375,20 +399,19 @@ function AddCategoryPanel({
               ))}
             </select>
           </EditorFieldColumn>
-          <div className="md:col-span-2">
-            <EditorFieldColumn label="Description" htmlFor={descriptionId}>
-              <input
-                id={descriptionId}
-                name="description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Short description shown where categories are surfaced"
-                className={adminInputClass}
-              />
-            </EditorFieldColumn>
-          </div>
+          <EditorFieldColumn label="Description" htmlFor={descriptionId}>
+            <textarea
+              id={descriptionId}
+              name="description"
+              rows={2}
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Short description shown where categories are surfaced"
+              className="min-h-[2.75rem] w-full resize-y rounded-sm border border-line bg-paper px-3.5 py-2 text-sm text-ink outline-none transition-[color,box-shadow,border-color] duration-150 motion-reduce:transition-none placeholder:text-muted focus:border-olive focus:ring-2 focus:ring-olive/15 focus-visible:border-olive focus-visible:ring-2 focus-visible:ring-olive/15"
+            />
+          </EditorFieldColumn>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={onCancel} className={`${secondaryBtnClass} ${adminFocusRing}`}>
             Cancel
           </button>
@@ -423,11 +446,19 @@ export function CategoriesManager({
   addInitial,
   deleted = false,
 }: CategoriesManagerProps) {
+  const addPanelId = useId();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(initialAddOpen);
+  const [syncedAddOpen, setSyncedAddOpen] = useState(initialAddOpen);
+  if (initialAddOpen !== syncedAddOpen) {
+    setSyncedAddOpen(initialAddOpen);
+    if (initialAddOpen) setAddOpen(true);
+  }
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
-  dirtyRef.current = dirty;
+  useEffect(() => {
+    dirtyRef.current = dirty;
+  }, [dirty]);
   const visibleSavedCategoryId = useTransientSavedId(savedCategoryId, CATEGORY_SAVED_PARAMS);
   const showDeleted = useTransientSavedFlag(deleted, CATEGORY_DELETED_PARAMS);
 
@@ -461,11 +492,23 @@ export function CategoriesManager({
   }, [deleted]);
 
   return (
-    <div id="categories">
-      {!addOpen ? (
+    <div id="categories" className="min-w-0">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0 max-w-2xl">
+          <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+            Categories
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            Organize the categories used for recipe discovery and menus.
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => {
+            if (addOpen) {
+              setAddOpen(false);
+              return;
+            }
             if (dirtyRef.current && !window.confirm("Discard unsaved changes to this category?")) {
               return;
             }
@@ -473,12 +516,16 @@ export function CategoriesManager({
             setExpandedId(null);
             setAddOpen(true);
           }}
-          className={`mt-5 text-sm font-semibold text-muted transition-colors hover:text-terracotta ${adminFocusRing}`}
+          aria-expanded={addOpen}
+          aria-controls={addPanelId}
+          className={`${adminCompactPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
         >
-          + Add category
+          {addOpen ? "Close" : "New category"}
         </button>
-      ) : (
-        <div className="mt-5">
+      </div>
+
+      {addOpen ? (
+        <div id={addPanelId} className="mt-5">
           <AddCategoryPanel
             error={addError}
             initialName={addInitial?.name}
@@ -488,7 +535,7 @@ export function CategoriesManager({
             onCancel={() => setAddOpen(false)}
           />
         </div>
-      )}
+      ) : null}
 
       {showDeleted ? (
         <p className="mt-4 text-sm text-olive" role="status" aria-live="polite">
@@ -496,23 +543,28 @@ export function CategoriesManager({
         </p>
       ) : null}
 
-      <div className="mt-3 space-y-5">
+      <div className="mt-8 space-y-8">
         {sections.map((section) =>
           section.categories.length > 0 ? (
-            <section key={section.group}>
-              <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+            <section key={section.group} aria-labelledby={`category-group-${section.group}`}>
+              <h2
+                id={`category-group-${section.group}`}
+                className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive"
+              >
                 {section.label} · {section.categories.length}
               </h2>
-              <ul className="mt-2 divide-y divide-line border border-line bg-paper">
+              <ul className="mt-2 divide-y divide-line/80 border-y border-line/80">
                 {section.categories.map((category) => {
                   const expanded = expandedId === category.id;
                   const saved = visibleSavedCategoryId === category.id;
+                  const editorPanelId = `category-editor-${category.id}`;
                   return (
-                    <li key={category.id} id={`category-${category.id}`}>
+                    <li key={category.id} id={`category-${category.id}`} className="min-w-0">
                       {expanded ? (
                         <CategoryEditor
                           category={category}
                           saved={saved}
+                          panelId={editorPanelId}
                           onCancel={() => {
                             setDirty(false);
                             setExpandedId(null);
@@ -523,6 +575,7 @@ export function CategoriesManager({
                         <CollapsedCategoryRow
                           category={category}
                           saved={saved}
+                          editorPanelId={editorPanelId}
                           onEdit={() => tryExpand(category.id)}
                         />
                       )}
