@@ -96,21 +96,35 @@ describe("Series Phase 1 presentation contracts", () => {
     assert.equal(adminSecondaryButtonClass.includes("border border-line"), true);
   });
 
-  it("orders editor sections with editorial before Source and AI", () => {
+  it("orders editor sections with AI assistance before Editorial and Source last", () => {
+    const ai = editor.indexOf('id="series-ai-heading"');
     const editorial = editor.indexOf("Editorial presentation");
     const visual = editor.indexOf('id="series-visual-heading"');
     const content = editor.indexOf('id="series-content-heading"');
     const discovery = editor.indexOf('id="series-discovery-heading"');
     const source = editor.indexOf('id="series-source-heading"');
-    const ai = editor.indexOf('id="series-ai-heading"');
     const del = editor.indexOf("Delete series");
-    assert.ok(editorial > 0);
+    assert.ok(ai > 0);
+    assert.ok(editorial > ai);
     assert.ok(visual > editorial);
     assert.ok(content > visual);
     assert.ok(discovery > content);
     assert.ok(source > discovery);
-    assert.ok(ai > source);
-    assert.ok(del > ai);
+    assert.ok(del > source);
+    assert.equal((editor.match(/id="series-ai-heading"/g) || []).length, 1);
+    assert.ok(ai < editor.indexOf("action={saveSeriesAction}"));
+  });
+
+  it("keeps AI assistance above Editorial while Source remains later", () => {
+    const ai = editor.indexOf('id="series-ai-heading"');
+    const editorial = editor.indexOf('id="series-editorial-heading"');
+    const source = editor.indexOf('id="series-source-heading"');
+    assert.ok(ai > 0 && editorial > ai && source > editorial);
+    assert.match(editor, /SeriesEditorialAiControls/);
+    assert.match(aiControls, /\/api\/admin\/series\/ai-generate/);
+    assert.match(aiControls, /Regenerate editorial draft/);
+    assert.match(aiControls, /2xl:flex-row/);
+    assert.doesNotMatch(aiControls, /adminPrimaryButtonClass/);
   });
 
   it("reserves terracotta primary for save/update and demotes Refresh / Regenerate", () => {

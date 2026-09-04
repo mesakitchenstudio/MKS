@@ -73,8 +73,8 @@ export function SeriesEditorialAiControls({
 
   return (
     <div className="space-y-3 border-y border-line/80 py-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 max-w-[72ch]">
+      <div className="flex min-w-0 flex-col gap-3 2xl:flex-row 2xl:items-start 2xl:justify-between">
+        <div className="min-w-0 max-w-[72ch] flex-1">
           <p className="text-sm font-semibold text-ink">{summary}</p>
           <p className="mt-1 text-sm text-muted">
             Gemini drafts Series copy from playlist, video, and recipe data already in Mesa.
@@ -86,12 +86,12 @@ export function SeriesEditorialAiControls({
             </p>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full shrink-0 flex-wrap gap-2 2xl:w-auto 2xl:justify-end">
           {!hasDraft ? (
             <button
               type="button"
               disabled={busy || disabled || !seriesId}
-              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 disabled:opacity-50`}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 w-full sm:w-auto disabled:opacity-50`}
               onClick={() => void run("fill_empty")}
             >
               {busy ? "Generating…" : "Generate Mesa editorial draft"}
@@ -100,7 +100,7 @@ export function SeriesEditorialAiControls({
             <button
               type="button"
               disabled={busy || disabled || !seriesId}
-              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 disabled:opacity-50`}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 w-full sm:w-auto disabled:opacity-50`}
               onClick={() => setShowRegenChoices((open) => !open)}
             >
               {busy ? "Generating…" : "Regenerate editorial draft"}

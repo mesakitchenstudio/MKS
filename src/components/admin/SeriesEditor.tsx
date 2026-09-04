@@ -499,6 +499,19 @@ export function SeriesEditor({
         </div>
       </div>
 
+      {!isNew ? (
+        <section className="min-w-0 space-y-2" aria-labelledby="series-ai-heading">
+          <h2 id="series-ai-heading" className={sectionLabelClass}>
+            AI assistance
+          </h2>
+          <SeriesEditorialAiControls
+            seriesId={series.id}
+            aiMeta={aiMeta}
+            onMarkVerified={markSeriesVerified}
+          />
+        </section>
+      ) : null}
+
       <form ref={formRef} action={saveSeriesAction} className="min-w-0 space-y-10">
         {!isNew ? <input type="hidden" name="id" value={series.id} /> : null}
         <input type="hidden" name="seriesId" value={series.id} />
@@ -1034,19 +1047,6 @@ export function SeriesEditor({
           </section>
         ) : null}
       </form>
-
-      {!isNew ? (
-        <section className="min-w-0 space-y-2" aria-labelledby="series-ai-heading">
-          <h2 id="series-ai-heading" className={sectionLabelClass}>
-            AI assistance
-          </h2>
-          <SeriesEditorialAiControls
-            seriesId={series.id}
-            aiMeta={aiMeta}
-            onMarkVerified={markSeriesVerified}
-          />
-        </section>
-      ) : null}
 
       {!isYoutube && !isNew && linkablePlaylists.length > 0 ? (
         <section className="min-w-0 space-y-3 border-y border-line/80 py-5">
