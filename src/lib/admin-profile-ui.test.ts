@@ -7,6 +7,7 @@ import { isGooglePhotoUrl } from "@/lib/accounts";
 import {
   ADMIN_PROFILE_PHOTO_FILE_HELP,
   ADMIN_PROFILE_SYSTEM_OWNER_PHOTO_COPY,
+  adminProfileAccountRows,
   adminProfileGooglePhotoHelper,
   adminProfilePhotoUsageCopy,
   buildAdminProfileAccountView,
@@ -26,7 +27,7 @@ const photoFormSource = readFileSync(
 );
 
 describe("admin profile account view", () => {
-  it("shows System owner identity once with environment session metadata", () => {
+  it("shows System owner identity once with Environment session value", () => {
     const view = buildAdminProfileAccountView({
       isSystemOwner: true,
       name: "Owner",
@@ -36,11 +37,18 @@ describe("admin profile account view", () => {
     assert.equal(view.displayName, "System owner");
     assert.equal(view.roleLabel, "Owner");
     assert.equal(view.email, "owner@mesakitchenstudio.com");
-    assert.equal(view.sessionNote, "Environment session");
+    assert.equal(view.sessionNote, "Environment");
     assert.notEqual(`${view.displayName} · ${view.roleLabel}`, "Owner · Owner");
+
+    assert.deepEqual(adminProfileAccountRows(view), [
+      { label: "Name", value: "System owner" },
+      { label: "Role", value: "Owner" },
+      { label: "Email", value: "owner@mesakitchenstudio.com" },
+      { label: "Session", value: "Environment" },
+    ]);
   });
 
-  it("shows named Team Access name, role, and email without a fake provider", () => {
+  it("shows named Team Access name, role, and email without a fake Session row", () => {
     const view = buildAdminProfileAccountView({
       isSystemOwner: false,
       name: "Maya Chen",
@@ -51,6 +59,11 @@ describe("admin profile account view", () => {
     assert.equal(view.roleLabel, "Editor");
     assert.equal(view.email, "maya@example.com");
     assert.equal(view.sessionNote, undefined);
+    assert.deepEqual(adminProfileAccountRows(view), [
+      { label: "Name", value: "Maya Chen" },
+      { label: "Role", value: "Editor" },
+      { label: "Email", value: "maya@example.com" },
+    ]);
   });
 });
 
@@ -88,6 +101,12 @@ describe("admin profile page contracts", () => {
     assert.doesNotMatch(profilePageSource, /Profile photo<\/h1>/);
     assert.match(profilePageSource, /profile-account-heading/);
     assert.match(profilePageSource, /buildAdminProfileAccountView/);
+    assert.match(profilePageSource, /adminProfileAccountRows/);
+    assert.match(profilePageSource, /<dl /);
+    assert.match(profilePageSource, /<dt /);
+    assert.match(profilePageSource, /<dd /);
+    assert.doesNotMatch(profilePageSource, /<input/);
+    assert.doesNotMatch(profilePageSource, /<select/);
   });
 
   it("keeps System Owner photo management fully read-only", () => {

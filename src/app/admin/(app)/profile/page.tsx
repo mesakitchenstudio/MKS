@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AdminProfilePhotoForm } from "@/components/admin/AdminPhotoField";
 import {
   ADMIN_PROFILE_SYSTEM_OWNER_PHOTO_COPY,
+  adminProfileAccountRows,
   adminProfilePhotoUsageCopy,
   buildAdminProfileAccountView,
 } from "@/lib/admin-profile-ui";
@@ -97,14 +98,17 @@ export default async function AdminProfilePage({
         >
           Account
         </h2>
-        <div className="mt-3 space-y-1 text-sm leading-6">
-          <p className="font-medium text-ink">{account.displayName}</p>
-          <p className="text-muted">{account.roleLabel}</p>
-          {account.email ? <p className="text-muted">{account.email}</p> : null}
-          {account.sessionNote ? (
-            <p className="text-xs text-muted/80">{account.sessionNote}</p>
-          ) : null}
-        </div>
+        <dl className="mt-3 space-y-2.5">
+          {adminProfileAccountRows(account).map((row) => (
+            <div
+              key={row.label}
+              className="sm:grid sm:grid-cols-[5.5rem_minmax(0,1fr)] sm:items-baseline sm:gap-x-4"
+            >
+              <dt className="text-[0.6875rem] font-semibold text-olive">{row.label}</dt>
+              <dd className="mt-0.5 break-words text-sm text-ink sm:mt-0">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
 
       <div className="mt-8 border-t border-line/80" />
