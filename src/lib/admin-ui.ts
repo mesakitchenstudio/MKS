@@ -34,8 +34,11 @@ export const adminLinkClass =
 export const adminTableHeadClass =
   "bg-sand/45 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive";
 
-/** Data-heavy admin screens (recipes, members, visitors). */
+/** Data-heavy admin screens (members, visitors, youtube, recipe editor). */
 export const adminWorkspaceWide = "max-w-[77.5rem]";
+
+/** Recipes index publishing ledger (~1120px) — tighter than adminWorkspaceWide. */
+export const adminWorkspaceRecipes = "max-w-[70rem]";
 
 /** Forms and editorial lists (types, categories, reviews, team). */
 export const adminWorkspaceStandard = "max-w-4xl";

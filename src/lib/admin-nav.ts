@@ -3,6 +3,7 @@ import {
   adminWorkspaceMembersDetail,
   adminWorkspaceMembersList,
   adminWorkspaceProfile,
+  adminWorkspaceRecipes,
   adminWorkspaceReviews,
   adminWorkspaceStandard,
   adminWorkspaceWide,
@@ -95,8 +96,8 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/members/")) return adminWorkspaceMembersDetail;
   if (pathname === "/admin/members") return adminWorkspaceMembersList;
   if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviews;
+  if (pathname === "/admin") return adminWorkspaceRecipes;
   if (
-    pathname === "/admin" ||
     pathname.startsWith("/admin/recipes") ||
     pathname.startsWith("/admin/series") ||
     pathname.startsWith("/admin/visitors") ||

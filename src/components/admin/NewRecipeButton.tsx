@@ -10,7 +10,7 @@ type RecipeTypeOption = {
 };
 
 const compactPrimaryClass =
-  `inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-sm bg-terracotta px-3.5 py-2 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 motion-reduce:transition-none hover:bg-terracotta-dark active:scale-[0.995] active:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60 ${adminFocusRing}`;
+  `inline-flex min-h-10 shrink-0 items-center justify-center rounded-sm bg-terracotta px-3 py-1.5 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 motion-reduce:transition-none hover:bg-terracotta-dark active:scale-[0.995] active:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60 ${adminFocusRing}`;
 
 const menuItemClass =
   "flex h-10 items-center px-3.5 text-sm font-semibold text-ink no-underline transition-[color,background-color] duration-150 motion-reduce:transition-none hover:bg-cream hover:text-terracotta focus-visible:bg-cream focus-visible:text-terracotta";

@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { canAccess, homeForRole } from "./admin-access";
-import { adminWorkspaceWide } from "./admin-ui";
+import { adminWorkspaceRecipes, adminWorkspaceWide } from "./admin-ui";
 import { adminWorkspaceWidthForPath } from "./admin-nav";
 import { formatAdminDateTime, formatAdminDateTimeUtc } from "./datetime";
 
@@ -14,11 +14,14 @@ const index = readFileSync(path.join(root, "../components/admin/RecipesIndex.tsx
 const newRecipe = readFileSync(path.join(root, "../components/admin/NewRecipeButton.tsx"), "utf8");
 
 describe("Recipes admin index UI contracts", () => {
-  it("keeps /admin route, content access, and wide workspace", () => {
+  it("keeps /admin route, content access, and Recipes-specific workspace width", () => {
     assert.match(page, /requireAccess\("content"\)/);
     assert.match(page, /orderBy:\s*\{\s*updatedAt:\s*"desc"\s*\}/);
     assert.doesNotMatch(page, /take:\s*\d+/);
-    assert.equal(adminWorkspaceWidthForPath("/admin"), adminWorkspaceWide);
+    assert.equal(adminWorkspaceRecipes, "max-w-[70rem]");
+    assert.equal(adminWorkspaceWidthForPath("/admin"), adminWorkspaceRecipes);
+    assert.notEqual(adminWorkspaceWidthForPath("/admin"), adminWorkspaceWide);
+    assert.equal(adminWorkspaceWidthForPath("/admin/recipes/abc"), adminWorkspaceWide);
     assert.equal(adminWorkspaceWide, "max-w-[77.5rem]");
   });
 

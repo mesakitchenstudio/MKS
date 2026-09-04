@@ -29,7 +29,7 @@ type RecipeTypeOption = {
 type StatusFilter = "all" | "published" | "draft";
 
 const editActionClass = `inline-flex min-h-[44px] items-center text-sm font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`;
-const viewActionClass = `inline-flex min-h-[44px] items-center text-sm font-normal text-muted no-underline transition-colors duration-150 hover:text-olive ${adminFocusRing}`;
+const viewActionClass = `inline-flex min-h-[44px] items-center text-sm font-normal text-muted/70 no-underline transition-colors duration-150 hover:text-muted ${adminFocusRing}`;
 const titleLinkClass = `block font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta hover:underline decoration-terracotta/40 underline-offset-2 ${adminFocusRing}`;
 
 function normalizeStatus(status: string) {
@@ -172,7 +172,7 @@ export function RecipesIndex({
       {recipes.length > 0 ? (
         <div className="mb-5 space-y-2">
           <div
-            className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+            className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2.5 sm:gap-y-2"
             role="search"
           >
             <label className="sr-only" htmlFor="recipe-search">
@@ -184,7 +184,7 @@ export function RecipesIndex({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search recipes…"
-              className={`${adminInputClass} w-full sm:w-[22.5rem] sm:max-w-[26.25rem]`}
+              className={`${adminInputClass} w-full sm:w-[20rem] sm:max-w-[22.5rem]`}
             />
 
             <label className="sr-only" htmlFor="recipe-type-filter">
@@ -194,7 +194,7 @@ export function RecipesIndex({
               id="recipe-type-filter"
               value={typeId}
               onChange={(event) => setTypeId(event.target.value)}
-              className={`${adminSelectClass} w-full sm:w-[8.5rem]`}
+              className={`${adminSelectClass} w-full sm:w-[8rem]`}
             >
               <option value="">All types</option>
               {types.map((type) => (
@@ -205,7 +205,7 @@ export function RecipesIndex({
             </select>
 
             <div
-              className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs"
+              className="flex flex-wrap items-center gap-x-0.5 gap-y-1 text-xs"
               role="group"
               aria-label="Filter by status"
             >
