@@ -2,14 +2,28 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import {
-  adminFocusRing,
-  adminPrimaryButtonClass,
-} from "@/lib/admin-ui";
+import { adminFocusRing, adminSecondaryButtonClass } from "@/lib/admin-ui";
 import type { SeriesAiMergeMode, SeriesAiMeta } from "@/lib/series-ai/types";
 
-const secondaryBtn =
-  "inline-flex h-9 items-center justify-center rounded-sm border border-line bg-paper px-3 text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+export function seriesAiAssistanceSummary(aiMeta: SeriesAiMeta): string {
+  const verified = aiMeta.verificationStatus === "verified";
+  if (verified) {
+    return "AI editorial · Verified by staff";
+  }
+  if (aiMeta.draftStatus === "complete") {
+    return "AI draft · Review needed";
+  }
+  if (aiMeta.generatedByAI) {
+    return "AI draft · Review needed";
+  }
+  if (aiMeta.draftStatus === "failed") {
+    return "AI draft · Last generation failed";
+  }
+  if (aiMeta.draftStatus === "needs_review" || aiMeta.draftStatus === "partial") {
+    return "AI draft · Review needed";
+  }
+  return "No AI editorial draft yet";
+}
 
 export function SeriesEditorialAiControls({
   seriesId,
@@ -28,6 +42,7 @@ export function SeriesEditorialAiControls({
   const [showRegenChoices, setShowRegenChoices] = useState(false);
   const hasDraft = Boolean(aiMeta.generatedByAI);
   const unverified = hasDraft && aiMeta.verificationStatus !== "verified";
+  const summary = seriesAiAssistanceSummary(aiMeta);
 
   async function run(mode: SeriesAiMergeMode) {
     setBusy(true);
@@ -57,28 +72,17 @@ export function SeriesEditorialAiControls({
   }
 
   return (
-    <div className="space-y-3 rounded-sm border border-olive/30 bg-olive/5 p-4">
+    <div className="space-y-3 border-y border-line/80 py-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-            {aiMeta.generatedByAI
-              ? "AI editorial draft — review before publishing"
-              : "Mesa editorial AI"}
-          </p>
+        <div className="min-w-0 max-w-[72ch]">
+          <p className="text-sm font-semibold text-ink">{summary}</p>
           <p className="mt-1 text-sm text-muted">
             Gemini drafts Series copy from playlist, video, and recipe data already in Mesa.
-            Published stays manual.
+            Publication stays manual. Regenerating resets verification until staff review again.
           </p>
-          {aiMeta.draftStatus ? (
-            <p className="mt-1 text-xs font-semibold text-ink">
-              Status:{" "}
-              {aiMeta.draftStatus === "complete"
-                ? "AI draft complete — still needs human review"
-                : aiMeta.draftStatus === "needs_review"
-                  ? "Needs review / some fields incomplete"
-                  : aiMeta.draftStatus === "failed"
-                    ? "Last generation failed"
-                    : "Partial draft"}
+          {aiMeta.draftStatus === "complete" && aiMeta.verificationStatus === "verified" ? (
+            <p className="mt-1 text-xs text-muted">
+              Draft status remains complete after verification — these are separate records.
             </p>
           ) : null}
         </div>
@@ -87,7 +91,7 @@ export function SeriesEditorialAiControls({
             <button
               type="button"
               disabled={busy || disabled || !seriesId}
-              className={`${adminPrimaryButtonClass} ${adminFocusRing} disabled:opacity-50`}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 disabled:opacity-50`}
               onClick={() => void run("fill_empty")}
             >
               {busy ? "Generating…" : "Generate Mesa editorial draft"}
@@ -96,7 +100,7 @@ export function SeriesEditorialAiControls({
             <button
               type="button"
               disabled={busy || disabled || !seriesId}
-              className={`${adminPrimaryButtonClass} ${adminFocusRing} disabled:opacity-50`}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 disabled:opacity-50`}
               onClick={() => setShowRegenChoices((open) => !open)}
             >
               {busy ? "Generating…" : "Regenerate editorial draft"}
@@ -106,10 +110,10 @@ export function SeriesEditorialAiControls({
       </div>
 
       {showRegenChoices ? (
-        <div className="flex flex-wrap gap-2 border-t border-olive/20 pt-3">
+        <div className="flex flex-wrap gap-2 border-t border-line/60 pt-3">
           <button
             type="button"
-            className={`${secondaryBtn} ${adminFocusRing}`}
+            className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
             disabled={busy}
             onClick={() => setShowRegenChoices(false)}
           >
@@ -117,7 +121,7 @@ export function SeriesEditorialAiControls({
           </button>
           <button
             type="button"
-            className={`${secondaryBtn} ${adminFocusRing}`}
+            className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
             disabled={busy}
             onClick={() => void run("fill_empty")}
           >
@@ -125,7 +129,7 @@ export function SeriesEditorialAiControls({
           </button>
           <button
             type="button"
-            className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+            className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
             disabled={busy}
             onClick={() => void run("replace_ai")}
           >
@@ -145,30 +149,23 @@ export function SeriesEditorialAiControls({
         </p>
       ) : null}
 
-      {hasDraft ? (
-        <div className="rounded-sm border border-olive/25 bg-paper/80 px-4 py-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-ink">
-                {unverified ? "AI draft generated — not verified" : "AI editorial — verified"}
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                {unverified
-                  ? "Review Mesa editorial fields below, then mark verified when ready to publish without a warning."
-                  : "Human review recorded. You can still publish or update this series normally."}
-              </p>
-            </div>
-            {unverified && onMarkVerified ? (
-              <button
-                type="button"
-                className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-                onClick={onMarkVerified}
-              >
-                Mark Series verified
-              </button>
-            ) : null}
-          </div>
+      {hasDraft && unverified && onMarkVerified ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted">
+            Review Mesa editorial fields, then mark verified when ready to publish without a
+            warning.
+          </p>
+          <button
+            type="button"
+            className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
+            onClick={onMarkVerified}
+          >
+            Mark Series verified
+          </button>
         </div>
+      ) : null}
+      {hasDraft && !unverified ? (
+        <p className="text-sm text-muted">Human review recorded. You can publish or update normally.</p>
       ) : null}
     </div>
   );

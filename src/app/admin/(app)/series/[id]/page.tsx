@@ -145,6 +145,17 @@ export default async function AdminSeriesEditPage({
         {query.error ? decodeURIComponent(query.error) : "Error"}
       </AdminFlashStatus>
       <SeriesEditor
+        key={[
+          series.id,
+          series.youtubePlaylistLastSyncedAt ?? "",
+          series.aiMeta.generatedAt ?? "",
+          series.aiMeta.verifiedAt ?? "",
+          series.items.map((item) => item.id ?? "").join(","),
+          query.saved ?? "",
+          query.refreshed ?? "",
+          query.editorial ?? "",
+          query.playlistLinked ?? "",
+        ].join(":")}
         series={series}
         candidates={candidates}
         recipeTypes={recipeTypes}

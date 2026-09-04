@@ -53,6 +53,9 @@ export const adminWorkspaceTypes = "max-w-5xl";
 /** Categories taxonomy ledger (~1024px) — matches Recipe Types measure. */
 export const adminWorkspaceCategories = "max-w-5xl";
 
+/** Series editorial ledger (~1024px) — matches Categories / Recipe Types measure. */
+export const adminWorkspaceSeries = "max-w-5xl";
+
 /** Narrow account screens (legacy; prefer adminWorkspaceProfile for /admin/profile). */
 export const adminWorkspaceNarrow = "max-w-xl";
 

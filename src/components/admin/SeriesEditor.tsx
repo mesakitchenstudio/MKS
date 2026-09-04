@@ -16,16 +16,22 @@ import { EditorStatusBadge } from "@/components/admin/EditorStatusBadge";
 import {
   SeriesAiFieldBadge,
   SeriesEditorialAiControls,
+  seriesAiAssistanceSummary,
 } from "@/components/admin/SeriesEditorialAiControls";
 import {
   adminFocusRing,
   adminInputClass,
-  adminLinkClass,
   adminPrimaryButtonClass,
+  adminRecipeEditorStickyBleedClass,
   adminSecondaryButtonClass,
   adminSelectClass,
 } from "@/lib/admin-ui";
-import type { AdminSeriesDetail, AdminSeriesItemDraft, SeriesPickerCandidate } from "@/lib/series-admin";
+import type {
+  AdminSeriesDetail,
+  AdminSeriesItemDraft,
+  AdminSeriesItemStatus,
+  SeriesPickerCandidate,
+} from "@/lib/series-admin";
 import { noteSeriesHumanEdit, markSeriesAiVerified } from "@/lib/series-ai/provenance";
 import {
   itemCustomDescriptionPath,
@@ -34,11 +40,16 @@ import {
   type SeriesAiMeta,
 } from "@/lib/series-ai/types";
 import { slugify } from "@/lib/fields";
-import { ADMIN_IMAGE_ACCEPT, RECIPE_HERO_IMAGE_HELP, resolveAdminImageUploadPolicy, validateAdminImageFile } from "@/lib/admin-upload";
+import {
+  ADMIN_IMAGE_ACCEPT,
+  RECIPE_HERO_IMAGE_HELP,
+  resolveAdminImageUploadPolicy,
+  validateAdminImageFile,
+} from "@/lib/admin-upload";
 import { youtubePlaylistUrl } from "@/lib/youtube";
 
-const secondaryBtn =
-  "inline-flex h-9 items-center justify-center rounded-sm border border-line bg-paper px-3 text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+const sectionLabelClass =
+  "text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive";
 
 function seriesFormSnapshot(data: {
   title: string;
@@ -77,6 +88,55 @@ function formatSyncedAt(iso: string | null) {
   } catch {
     return iso;
   }
+}
+
+function itemStatusLabel(status: AdminSeriesItemStatus) {
+  switch (status) {
+    case "ready":
+      return "Ready";
+    case "video_only":
+      return "Create recipe";
+    case "recipe_unpublished":
+      return "Recipe unpublished";
+    case "removed_from_playlist":
+      return "No longer in YouTube playlist";
+    default:
+      return "Video unavailable";
+  }
+}
+
+function itemCompactMeta(item: AdminSeriesItemDraft) {
+  const bits: string[] = [];
+  if (item.recipeSlug) bits.push(`Recipe · ${item.recipeSlug}`);
+  else if (item.recipeId) bits.push("Recipe");
+  if (item.youtubeVideoId) bits.push(`Video · ${item.youtubeVideoId}`);
+  bits.push(itemStatusLabel(item.status));
+  return bits.join(" · ");
+}
+
+function removeItemConfirmMessage(item: AdminSeriesItemDraft) {
+  if (item.youtubeVideoId) {
+    return "Remove this item from the Series? If it remains in the linked YouTube playlist, it may return after a future refresh.";
+  }
+  return "Remove this item from the Series?";
+}
+
+function pickerFormatLabel(format: string) {
+  if (!format || format === "UNKNOWN") return null;
+  if (format === "LONG") return "Long-form";
+  if (format === "SHORT") return "Shorts";
+  return format;
+}
+
+function pickerCandidateMeta(c: SeriesPickerCandidate) {
+  return [
+    c.youtubeTitle && c.recipeTitle ? c.youtubeTitle : null,
+    c.typeName,
+    pickerFormatLabel(c.format),
+    c.status,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export function SeriesEditor({
@@ -188,30 +248,16 @@ export function SeriesEditor({
   const draftActionLabel = isPublished ? "Move to draft" : "Save draft";
   const publishButtonLabel = isPublished ? "Update published series" : "Publish";
   const pageTitle = title.trim() || (isNew ? "New custom series" : "Edit series");
+  const aiSummary = seriesAiAssistanceSummary(aiMeta);
+  const showAiHeaderNote =
+    aiMeta.generatedByAI ||
+    aiMeta.verificationStatus === "verified" ||
+    Boolean(aiMeta.draftStatus);
 
   useEffect(() => {
     if (!moveToDraftOpen) return;
     moveToDraftCancelRef.current?.focus();
   }, [moveToDraftOpen]);
-
-  useEffect(() => {
-    setTitle(series.title);
-    setSlug(series.slug);
-    setShortTitle(series.shortTitle);
-    setDescription(series.description);
-    setIntro(series.intro);
-    setHeroImage(series.heroImage);
-    setHeroImageSource(series.heroImageSource || "");
-    setHeroSourceLabel(series.heroSourceLabel || "");
-    setSeoTitle(series.seoTitle);
-    setSeoDescription(series.seoDescription);
-    setFollowYoutubeOrder(series.followYoutubeOrder);
-    setIsPublished(series.isPublished);
-    setSortOrder(String(series.sortOrder));
-    setItems(series.items);
-    setAiMeta(series.aiMeta);
-    setFeaturedChosenByHuman(Boolean(series.aiMeta.featuredChosenByHuman));
-  }, [series]);
 
   function markScalarEdit(path: string, nextValue: string) {
     setAiMeta((current) => noteSeriesHumanEdit(current, path, nextValue));
@@ -251,6 +297,7 @@ export function SeriesEditor({
         (c.youtubeVideoId && item.youtubeVideoId === c.youtubeVideoId && !c.recipeId),
     );
     if (exists) return;
+    const formatBit = pickerFormatLabel(c.format);
     setItems((current) => [
       ...current,
       {
@@ -263,7 +310,7 @@ export function SeriesEditor({
         removedFromPlaylist: false,
         label: c.recipeTitle || c.youtubeTitle || "Item",
         thumbnail: c.thumbnail,
-        meta: [c.typeName, c.format, c.status].filter(Boolean).join(" · "),
+        meta: [c.typeName, formatBit, c.status].filter(Boolean).join(" · "),
         status: c.recipeId ? (c.published ? "ready" : "recipe_unpublished") : "video_only",
         recipeSlug: c.recipeSlug,
         recipePublished: c.published,
@@ -290,6 +337,13 @@ export function SeriesEditor({
     setFeaturedChosenByHuman(true);
     setAiMeta((current) => ({ ...current, featuredChosenByHuman: true }));
     setItems((current) => current.map((item, i) => ({ ...item, featured: i === index })));
+  }
+
+  function removeLocalItem(index: number) {
+    const item = items[index];
+    if (!item) return;
+    if (!window.confirm(removeItemConfirmMessage(item))) return;
+    setItems((current) => current.filter((_, i) => i !== index));
   }
 
   function submitWithPublished(nextPublished: boolean) {
@@ -375,49 +429,54 @@ export function SeriesEditor({
     }
   }
 
+  const seriesContentHelper = isYoutube
+    ? "Playlist membership can refresh from YouTube. Mesa titles and descriptions remain editable here."
+    : "Add recipes and videos to curate this Mesa-only collection.";
+
   return (
-    <div className="space-y-8">
-      <div className="sticky top-0 z-50 -mx-5 mb-2 border-b border-line bg-[var(--cream)] px-5 py-3 md:-mx-6 md:px-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <Link
-              href="/admin/series"
-              className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
-            >
-              ← Series
-            </Link>
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="font-serif text-2xl leading-tight text-ink md:text-[1.75rem]">
-                {isNew ? "New custom series" : pageTitle}
-              </h1>
-            </div>
-            <p className="mt-1 text-sm text-muted">
-              {isYoutube
-                ? "YouTube playlist supplies membership/order; Mesa owns editorial SEO and CTAs."
-                : "Mesa-only collection — recipes and videos you curate by hand."}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {saved ? <span className="text-sm text-olive">Saved.</span> : null}
-            {isDirty && !saved ? (
-              <span className="text-xs font-semibold text-muted">Unsaved changes</span>
-            ) : null}
+    <div className="relative isolate min-w-0 max-w-full space-y-6 overflow-x-clip">
+      <header className="min-w-0 space-y-1">
+        <Link
+          href="/admin/series"
+          className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
+        >
+          ← Series
+        </Link>
+        <h1 className="font-serif text-2xl leading-tight text-ink md:text-[1.75rem]">
+          {isNew ? "New custom series" : pageTitle}
+        </h1>
+        <p className="text-sm text-muted">
+          {isYoutube
+            ? "YouTube playlist supplies membership and order; Mesa owns editorial presentation."
+            : "Mesa-only collection — recipes and videos you curate by hand."}
+        </p>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+          <EditorStatusBadge published={isPublished} />
+          {showAiHeaderNote ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>{aiSummary}</span>
+            </>
+          ) : null}
+        </p>
+      </header>
+
+      <div
+        className={`sticky top-0 z-50 isolate border-b border-line bg-[var(--cream)] py-2.5 ${adminRecipeEditorStickyBleedClass}`}
+      >
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            {saved ? <span className="text-olive">Saved.</span> : null}
+            {isDirty && !saved ? <span className="text-xs font-semibold text-muted">Unsaved changes</span> : null}
             <EditorStatusBadge published={isPublished} />
-            {aiMeta.generatedByAI && aiMeta.verificationStatus !== "verified" ? (
-              <span className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-terracotta">
-                AI draft — not verified
-              </span>
-            ) : null}
-            {aiMeta.generatedByAI && aiMeta.verificationStatus === "verified" ? (
-              <span className="rounded-sm border border-olive/30 bg-olive/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-olive">
-                AI editorial — verified
-              </span>
-            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             {!isNew && isPublished ? (
               <Link
                 href={`/series/${series.slug}`}
-                className={`${secondaryBtn} ${adminFocusRing}`}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
                 target="_blank"
+                rel="noopener noreferrer"
               >
                 Preview
               </Link>
@@ -425,7 +484,7 @@ export function SeriesEditor({
             <button
               type="button"
               onClick={attemptSaveDraft}
-              className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
             >
               {draftActionLabel}
             </button>
@@ -440,7 +499,7 @@ export function SeriesEditor({
         </div>
       </div>
 
-      <form ref={formRef} action={saveSeriesAction} className="space-y-8">
+      <form ref={formRef} action={saveSeriesAction} className="min-w-0 space-y-10">
         {!isNew ? <input type="hidden" name="id" value={series.id} /> : null}
         <input type="hidden" name="seriesId" value={series.id} />
         <input type="hidden" name="itemsJson" value={JSON.stringify(items)} />
@@ -449,6 +508,7 @@ export function SeriesEditor({
         <input type="hidden" name="aiMetaJson" value={serializeSeriesAiMeta(aiMeta)} />
         <input type="hidden" name="featuredChosenByHuman" value={featuredChosenByHuman ? "1" : "0"} />
         <input ref={isPublishedRef} type="hidden" name="isPublished" value={isPublished ? "1" : "0"} />
+        {!isNew ? <input type="hidden" name="slug" value={slug} /> : null}
 
         {publishAlert ? (
           <div
@@ -459,87 +519,15 @@ export function SeriesEditor({
           </div>
         ) : null}
 
-        {isYoutube && !isNew ? (
-          <section className="space-y-3 rounded-sm border border-olive/30 bg-olive/5 p-4">
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-              YouTube playlist data
-            </p>
-            <div className="flex flex-wrap items-start gap-4">
-              {series.youtubePlaylistThumbnail ? (
-                <div className="relative h-20 w-36 shrink-0 overflow-hidden border border-line bg-sand">
-                  <Image
-                    src={series.youtubePlaylistThumbnail}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="9rem"
-                  />
-                </div>
-              ) : null}
-              <div className="min-w-0 flex-1 space-y-1 text-sm">
-                <p>
-                  <span className="font-semibold text-ink">Playlist:</span>{" "}
-                  {series.youtubePlaylistTitle || "Untitled"}
-                </p>
-                <p className="text-muted">
-                  ID: <span className="font-mono text-xs">{series.youtubePlaylistId}</span>
-                </p>
-                <p className="text-muted">
-                  Videos (active): {items.filter((i) => !i.removedFromPlaylist).length}
-                </p>
-                <p className="text-muted">Last refreshed: {formatSyncedAt(series.youtubePlaylistLastSyncedAt)}</p>
-                <p className="text-muted">
-                  Order: {followYoutubeOrder ? "Follow YouTube playlist order" : "Custom Mesa order"}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button
-                type="submit"
-                formAction={refreshSeriesFromYoutubeAction}
-                className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-              >
-                Refresh from YouTube
-              </button>
-              {playlistUrl ? (
-                <a
-                  href={playlistUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`${secondaryBtn} ${adminFocusRing}`}
-                >
-                  View playlist on YouTube
-                </a>
-              ) : null}
-            </div>
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={followYoutubeOrder}
-                onChange={(e) => setFollowYoutubeOrder(e.target.checked)}
-              />
-              Follow YouTube playlist order on refresh
-            </label>
-            <p className="text-xs text-muted">
-              Refresh updates playlist membership and snapshots only. Mesa title, intro, SEO, hero,
-              published state, and recipe content are never overwritten.
-            </p>
-          </section>
-        ) : null}
-
-        <section className="space-y-3">
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-            Mesa editorial data
-          </p>
-          {!isNew ? (
-            <SeriesEditorialAiControls
-              seriesId={series.id}
-              aiMeta={aiMeta}
-              onMarkVerified={markSeriesVerified}
-            />
-          ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-1 text-sm">
+        <section className="min-w-0 space-y-4" aria-labelledby="series-editorial-heading">
+          <div>
+            <h2 id="series-editorial-heading" className={sectionLabelClass}>
+              Editorial presentation
+            </h2>
+            <p className="mt-1 text-sm text-muted">Mesa copy shown on the Series page.</p>
+          </div>
+          <div className="grid max-w-[72ch] gap-4">
+            <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-semibold">
                 Mesa title
                 <SeriesAiFieldBadge path="title" aiMeta={aiMeta} />
@@ -566,31 +554,7 @@ export function SeriesEditor({
                 <p className="text-xs font-semibold text-terracotta">{fieldErrors.title}</p>
               ) : null}
             </label>
-            <label className="grid gap-1 text-sm">
-              <span className="font-semibold">Slug</span>
-              <input
-                className={adminInputClass}
-                name="slug"
-                value={slug}
-                onChange={(e) => {
-                  setSlug(slugify(e.target.value));
-                  if (fieldErrors.slug) {
-                    setFieldErrors((current) => {
-                      const next = { ...current };
-                      delete next.slug;
-                      return next;
-                    });
-                  }
-                }}
-                disabled={!isNew}
-                required={isNew}
-              />
-              {fieldErrors.slug ? (
-                <p className="text-xs font-semibold text-terracotta">{fieldErrors.slug}</p>
-              ) : null}
-              {!isNew ? <span className="text-xs text-muted">Slug is locked after create.</span> : null}
-            </label>
-            <label className="grid gap-1 text-sm">
+            <label className="grid max-w-md min-w-0 gap-1 text-sm">
               <span className="font-semibold">
                 Short title
                 <SeriesAiFieldBadge path="shortTitle" aiMeta={aiMeta} />
@@ -605,16 +569,7 @@ export function SeriesEditor({
                 }}
               />
             </label>
-            <label className="grid gap-1 text-sm">
-              <span className="font-semibold">Sort order</span>
-              <input
-                className={adminInputClass}
-                name="sortOrder"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-              />
-            </label>
-            <label className="grid gap-1 text-sm md:col-span-2">
+            <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-semibold">
                 Description
                 <SeriesAiFieldBadge path="description" aiMeta={aiMeta} />
@@ -629,7 +584,7 @@ export function SeriesEditor({
                 }}
               />
             </label>
-            <label className="grid gap-1 text-sm md:col-span-2">
+            <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-semibold">
                 Intro
                 <SeriesAiFieldBadge path="intro" aiMeta={aiMeta} />
@@ -644,91 +599,66 @@ export function SeriesEditor({
                 }}
               />
             </label>
-            <label className="grid gap-1 text-sm">
-              <span className="font-semibold">
-                SEO title
-                <SeriesAiFieldBadge path="seoTitle" aiMeta={aiMeta} />
-              </span>
-              <input
-                className={adminInputClass}
-                name="seoTitle"
-                value={seoTitle}
-                onChange={(e) => {
-                  setSeoTitle(e.target.value);
-                  markScalarEdit("seoTitle", e.target.value);
-                }}
-              />
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="font-semibold">
-                SEO description
-                <SeriesAiFieldBadge path="seoDescription" aiMeta={aiMeta} />
-              </span>
-              <input
-                className={adminInputClass}
-                name="seoDescription"
-                value={seoDescription}
-                onChange={(e) => {
-                  setSeoDescription(e.target.value);
-                  markScalarEdit("seoDescription", e.target.value);
-                }}
-              />
-            </label>
-            <div className="grid gap-2 md:col-span-2">
-              <span className="text-sm font-semibold">
-                Hero image
-                {heroImageSource.startsWith("auto_") ? (
-                  <span className="ml-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
-                    Auto hero
-                  </span>
-                ) : heroImageSource === "manual" ? (
-                  <span className="ml-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Manual
-                  </span>
-                ) : null}
-              </span>
-              <input type="hidden" name="heroImage" value={heroImage} />
-              {heroImage ? (
-                <div className="relative aspect-video max-w-md overflow-hidden border border-line bg-sand">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={heroImage} alt="" className="h-full w-full object-cover" />
-                </div>
-              ) : null}
-              {heroImage && heroSourceLabel ? (
-                <p className="text-xs text-muted">Source: {heroSourceLabel}</p>
-              ) : null}
-              <input
-                type="file"
-                accept={ADMIN_IMAGE_ACCEPT}
-                disabled={uploading}
-                onChange={(e) => void onHeroUpload(e.target.files?.[0] || null)}
-              />
-              <p className="text-xs text-muted">{RECIPE_HERO_IMAGE_HELP}</p>
-            </div>
           </div>
         </section>
 
-        <section className="space-y-4">
+        <section className="min-w-0 space-y-3" aria-labelledby="series-visual-heading">
           <div>
-            <h2 className="font-serif text-xl text-ink">Series items</h2>
-            <p className="mt-1 text-sm text-muted">
-              {isYoutube && followYoutubeOrder
-                ? "Order follows the YouTube playlist on refresh. You can still edit Mesa copy per item."
-                : "Order controls the public page sequence."}
-            </p>
+            <h2 id="series-visual-heading" className={sectionLabelClass}>
+              Visual
+            </h2>
+          </div>
+          <div className="grid max-w-md gap-2">
+            <span className="text-sm font-semibold">
+              Hero image
+              {heroImageSource.startsWith("auto_") ? (
+                <span className="ml-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-olive">
+                  Auto hero
+                </span>
+              ) : heroImageSource === "manual" ? (
+                <span className="ml-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted">
+                  Manual
+                </span>
+              ) : null}
+            </span>
+            <input type="hidden" name="heroImage" value={heroImage} />
+            {heroImage ? (
+              <div className="relative aspect-video max-w-md overflow-hidden border border-line bg-sand">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={heroImage} alt="" className="h-full w-full object-cover" />
+              </div>
+            ) : null}
+            {heroImage && heroSourceLabel ? (
+              <p className="text-xs text-muted">Source: {heroSourceLabel}</p>
+            ) : null}
+            <input
+              type="file"
+              accept={ADMIN_IMAGE_ACCEPT}
+              disabled={uploading}
+              aria-label="Upload series hero image"
+              onChange={(e) => void onHeroUpload(e.target.files?.[0] || null)}
+            />
+            <p className="text-xs text-muted">{RECIPE_HERO_IMAGE_HELP}</p>
+          </div>
+        </section>
+
+        <section className="min-w-0 space-y-4" aria-labelledby="series-content-heading">
+          <div>
+            <h2 id="series-content-heading" className={sectionLabelClass}>
+              Series content
+            </h2>
+            <p className="mt-1 text-sm text-muted">{seriesContentHelper}</p>
           </div>
 
-          <div className="space-y-3">
+          <div className="divide-y divide-line/80 border-y border-line/80">
             {items.length === 0 ? (
-              <p className="text-sm text-muted">No items yet. Add content from the picker below.</p>
+              <p className="py-6 text-sm text-muted">No items yet. Add content from the picker below.</p>
             ) : (
               items.map((item, index) => (
                 <div
                   key={item.id || `${item.recipeId}-${item.youtubeVideoId}-${index}`}
-                  className={`flex flex-wrap items-start gap-3 border p-3 ${
-                    item.removedFromPlaylist
-                      ? "border-terracotta/40 bg-terracotta/5"
-                      : "border-line bg-paper"
+                  className={`flex min-w-0 flex-col gap-3 py-4 sm:flex-row sm:items-start ${
+                    item.removedFromPlaylist ? "bg-terracotta/[0.03]" : ""
                   }`}
                 >
                   <div className="relative h-16 w-28 shrink-0 overflow-hidden border border-line bg-sand">
@@ -738,7 +668,7 @@ export function SeriesEditor({
                   </div>
                   <div className="min-w-0 flex-1 space-y-2">
                     <p className="font-semibold text-ink">{item.label}</p>
-                    <p className="text-xs text-muted">{item.meta}</p>
+                    <p className="text-xs text-muted">{itemCompactMeta(item)}</p>
                     {item.removedFromPlaylist && item.id ? (
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -746,7 +676,7 @@ export function SeriesEditor({
                           formAction={keepRemovedSeriesItemAction}
                           name="itemId"
                           value={item.id}
-                          className={secondaryBtn}
+                          className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
                         >
                           Keep in Mesa Series
                         </button>
@@ -755,9 +685,10 @@ export function SeriesEditor({
                           formAction={removeSeriesItemAction}
                           name="itemId"
                           value={item.id}
-                          className={secondaryBtn}
+                          className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
+                          aria-label={`Remove ${item.label} from series`}
                           onClick={(event) => {
-                            if (!window.confirm("Remove this item from the Series permanently?")) {
+                            if (!window.confirm(removeItemConfirmMessage(item))) {
                               event.preventDefault();
                             }
                           }}
@@ -772,12 +703,7 @@ export function SeriesEditor({
                         recipeTypes={recipeTypes}
                       />
                     ) : null}
-                    {item.recipeSlug ? (
-                      <Link href={`/admin/recipes`} className={`${adminLinkClass} text-xs`}>
-                        Recipe: {item.recipeSlug}
-                      </Link>
-                    ) : null}
-                    <label className="grid gap-1 text-sm">
+                    <label className="grid min-w-0 gap-1 text-sm">
                       <span className="text-xs font-semibold text-muted">
                         Custom title
                         {item.id ? (
@@ -801,7 +727,7 @@ export function SeriesEditor({
                         }}
                       />
                     </label>
-                    <label className="grid gap-1 text-sm">
+                    <label className="grid min-w-0 gap-1 text-sm">
                       <span className="text-xs font-semibold text-muted">
                         Short description
                         {item.id ? (
@@ -835,25 +761,50 @@ export function SeriesEditor({
                       />
                     </label>
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex shrink-0 flex-row flex-wrap gap-2 sm:flex-col">
                     {!(isYoutube && followYoutubeOrder) ? (
                       <>
-                        <button type="button" className={secondaryBtn} onClick={() => moveItem(index, -1)}>
+                        <button
+                          type="button"
+                          className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
+                          aria-label={`Move ${item.label} up`}
+                          onClick={() => moveItem(index, -1)}
+                        >
                           Up
                         </button>
-                        <button type="button" className={secondaryBtn} onClick={() => moveItem(index, 1)}>
+                        <button
+                          type="button"
+                          className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
+                          aria-label={`Move ${item.label} down`}
+                          onClick={() => moveItem(index, 1)}
+                        >
                           Down
                         </button>
                       </>
                     ) : null}
-                    <button type="button" className={secondaryBtn} onClick={() => setFeatured(index)}>
-                      {item.featured ? "Featured" : "Feature"}
-                    </button>
+                    {item.featured ? (
+                      <span
+                        className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-olive"
+                        aria-label={`Featured item: ${item.label}`}
+                      >
+                        Featured
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
+                        aria-label={`Set ${item.label} as featured`}
+                        onClick={() => setFeatured(index)}
+                      >
+                        Set as featured
+                      </button>
+                    )}
                     {!item.removedFromPlaylist ? (
                       <button
                         type="button"
-                        className={secondaryBtn}
-                        onClick={() => setItems((current) => current.filter((_, i) => i !== index))}
+                        className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
+                        aria-label={`Remove ${item.label} from series`}
+                        onClick={() => removeLocalItem(index)}
                       >
                         Remove
                       </button>
@@ -864,21 +815,24 @@ export function SeriesEditor({
             )}
           </div>
 
-          <div className="rounded-sm border border-line bg-cream/30 p-4">
-            <h3 className="text-sm font-semibold text-ink">
-              {isYoutube ? "Add extra Mesa items (optional)" : "Add content"}
-            </h3>
-            <div className="mt-3 flex flex-wrap gap-2">
+          <div className="min-w-0 space-y-3 border-t border-line/60 pt-5">
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Add Mesa items</h3>
+              <p className="text-xs text-muted">Optional</p>
+            </div>
+            <div className="flex min-w-0 flex-wrap gap-2">
               <input
-                className={`${adminInputClass} min-w-[12rem] flex-1`}
+                className={`${adminInputClass} min-w-0 flex-1 basis-[12rem]`}
                 placeholder="Search recipes, videos, types…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                aria-label="Search recipes and videos to add"
               />
               <select
                 className={adminSelectClass}
                 value={formatFilter}
                 onChange={(e) => setFormatFilter(e.target.value)}
+                aria-label="Filter by format"
               >
                 <option value="all">All formats</option>
                 <option value="LONG">Long-form</option>
@@ -888,6 +842,7 @@ export function SeriesEditor({
                 className={adminSelectClass}
                 value={linkFilter}
                 onChange={(e) => setLinkFilter(e.target.value)}
+                aria-label="Filter by content"
               >
                 <option value="all">All content</option>
                 <option value="linked">Linked YouTube</option>
@@ -895,33 +850,270 @@ export function SeriesEditor({
                 <option value="published">Published recipes</option>
               </select>
             </div>
-            <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto">
-              {filteredCandidates.slice(0, 40).map((c) => (
-                <li key={c.key} className="flex items-center gap-3 border border-line/70 bg-paper px-2 py-2">
-                  <div className="relative h-12 w-20 shrink-0 overflow-hidden bg-sand">
-                    {c.thumbnail ? (
-                      <Image src={c.thumbnail} alt="" fill className="object-cover" sizes="5rem" />
-                    ) : null}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-ink">
-                      {c.recipeTitle || c.youtubeTitle}
-                    </p>
-                    <p className="truncate text-xs text-muted">
-                      {[c.youtubeTitle && c.recipeTitle ? c.youtubeTitle : null, c.typeName, c.format, c.status]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  </div>
-                  <button type="button" className={`${adminLinkClass} text-sm`} onClick={() => addCandidate(c)}>
-                    Add
-                  </button>
-                </li>
-              ))}
+            <ul className="max-h-72 divide-y divide-line/70 overflow-y-auto border-y border-line/70">
+              {filteredCandidates.slice(0, 40).map((c) => {
+                const addLabel = c.recipeTitle || c.youtubeTitle || "item";
+                return (
+                  <li key={c.key} className="flex min-w-0 items-center gap-3 py-2.5">
+                    <div className="relative h-12 w-20 shrink-0 overflow-hidden bg-sand">
+                      {c.thumbnail ? (
+                        <Image src={c.thumbnail} alt="" fill className="object-cover" sizes="5rem" />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {c.recipeTitle || c.youtubeTitle}
+                      </p>
+                      <p className="truncate text-xs text-muted">{pickerCandidateMeta(c)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 shrink-0`}
+                      aria-label={`Add ${addLabel}`}
+                      onClick={() => addCandidate(c)}
+                    >
+                      Add
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </section>
+
+        <section className="min-w-0 space-y-4" aria-labelledby="series-discovery-heading">
+          <div>
+            <h2 id="series-discovery-heading" className={sectionLabelClass}>
+              Discovery
+            </h2>
+          </div>
+          <div className="grid max-w-[72ch] gap-4">
+            <label className="grid min-w-0 gap-1 text-sm">
+              <span className="font-semibold">
+                SEO title
+                <SeriesAiFieldBadge path="seoTitle" aiMeta={aiMeta} />
+              </span>
+              <input
+                className={adminInputClass}
+                name="seoTitle"
+                value={seoTitle}
+                onChange={(e) => {
+                  setSeoTitle(e.target.value);
+                  markScalarEdit("seoTitle", e.target.value);
+                }}
+              />
+            </label>
+            <label className="grid min-w-0 gap-1 text-sm">
+              <span className="font-semibold">
+                SEO description
+                <SeriesAiFieldBadge path="seoDescription" aiMeta={aiMeta} />
+              </span>
+              <input
+                className={adminInputClass}
+                name="seoDescription"
+                value={seoDescription}
+                onChange={(e) => {
+                  setSeoDescription(e.target.value);
+                  markScalarEdit("seoDescription", e.target.value);
+                }}
+              />
+            </label>
+            {isNew ? (
+              <label className="grid min-w-0 gap-1 text-sm">
+                <span className="font-semibold">Slug</span>
+                <input
+                  className={adminInputClass}
+                  name="slug"
+                  value={slug}
+                  onChange={(e) => {
+                    setSlug(slugify(e.target.value));
+                    if (fieldErrors.slug) {
+                      setFieldErrors((current) => {
+                        const next = { ...current };
+                        delete next.slug;
+                        return next;
+                      });
+                    }
+                  }}
+                  required
+                />
+                {fieldErrors.slug ? (
+                  <p className="text-xs font-semibold text-terracotta">{fieldErrors.slug}</p>
+                ) : null}
+              </label>
+            ) : (
+              <div className="min-w-0">
+                <p className={sectionLabelClass}>Slug</p>
+                <p className="mt-1 font-mono text-sm text-muted">{slug}</p>
+                <p className="mt-0.5 text-xs text-muted">Locked after creation.</p>
+              </div>
+            )}
+            <label className="grid max-w-xs min-w-0 gap-1 text-sm">
+              <span className="font-semibold text-muted">Catalog sort order</span>
+              <input
+                className={adminInputClass}
+                name="sortOrder"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+              />
+              <span className="text-xs text-muted">Controls Series order in the admin catalog.</span>
+            </label>
+          </div>
+        </section>
+
+        {isYoutube && !isNew ? (
+          <section className="min-w-0 space-y-4" aria-labelledby="series-source-heading">
+            <div>
+              <h2 id="series-source-heading" className={sectionLabelClass}>
+                Source
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-ink">YouTube playlist</p>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-start gap-4">
+              {series.youtubePlaylistThumbnail ? (
+                <div className="relative h-20 w-36 shrink-0 overflow-hidden border border-line bg-sand">
+                  <Image
+                    src={series.youtubePlaylistThumbnail}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="9rem"
+                  />
+                </div>
+              ) : null}
+              <div className="min-w-0 flex-1 space-y-1 text-sm 2xl:grid 2xl:grid-cols-2 2xl:gap-x-6 2xl:gap-y-1 2xl:space-y-0">
+                <p>
+                  <span className="font-semibold text-ink">Playlist:</span>{" "}
+                  {series.youtubePlaylistTitle || "Untitled"}
+                </p>
+                <p className="text-muted">
+                  ID: <span className="font-mono text-xs">{series.youtubePlaylistId}</span>
+                </p>
+                <p className="text-muted">
+                  Videos (active): {items.filter((i) => !i.removedFromPlaylist).length}
+                </p>
+                <p className="text-muted">
+                  Last refreshed: {formatSyncedAt(series.youtubePlaylistLastSyncedAt)}
+                </p>
+                <p className="text-muted 2xl:col-span-2">
+                  Order: {followYoutubeOrder ? "Follow YouTube playlist order" : "Custom Mesa order"}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                formAction={refreshSeriesFromYoutubeAction}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
+              >
+                Refresh from YouTube
+              </button>
+              {playlistUrl ? (
+                <a
+                  href={playlistUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
+                >
+                  View playlist on YouTube
+                </a>
+              ) : null}
+            </div>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={followYoutubeOrder}
+                onChange={(e) => setFollowYoutubeOrder(e.target.checked)}
+              />
+              Follow YouTube playlist order on refresh
+            </label>
+            <p className="max-w-[72ch] text-xs text-muted">
+              Refresh updates playlist membership and snapshots only. Mesa title, intro, SEO, hero,
+              published state, and recipe content are never overwritten.
+            </p>
+          </section>
+        ) : null}
       </form>
+
+      {!isNew ? (
+        <section className="min-w-0 space-y-2" aria-labelledby="series-ai-heading">
+          <h2 id="series-ai-heading" className={sectionLabelClass}>
+            AI assistance
+          </h2>
+          <SeriesEditorialAiControls
+            seriesId={series.id}
+            aiMeta={aiMeta}
+            onMarkVerified={markSeriesVerified}
+          />
+        </section>
+      ) : null}
+
+      {!isYoutube && !isNew && linkablePlaylists.length > 0 ? (
+        <section className="min-w-0 space-y-3 border-y border-line/80 py-5">
+          <p className={sectionLabelClass}>Optional YouTube link</p>
+          <p className="text-sm text-muted">
+            Link this custom Series to a channel playlist to enable safe refresh later.
+          </p>
+          <form
+            action={linkSeriesToYoutubePlaylistAction}
+            className="flex flex-wrap items-end gap-2"
+            onSubmit={(event) => {
+              if (
+                !window.confirm(
+                  "Link this Series to the selected YouTube playlist? Membership will import from YouTube; Mesa editorial fields stay unchanged.",
+                )
+              ) {
+                event.preventDefault();
+              }
+            }}
+          >
+            <input type="hidden" name="id" value={series.id} />
+            <label className="grid min-w-[14rem] flex-1 gap-1 text-sm">
+              <span className="font-semibold">Playlist</span>
+              <select
+                className={adminSelectClass}
+                name="playlistId"
+                value={linkPlaylistId}
+                onChange={(e) => setLinkPlaylistId(e.target.value)}
+                required
+              >
+                <option value="">Select playlist…</option>
+                {linkablePlaylists.map((p) => (
+                  <option key={p.playlistId} value={p.playlistId}>
+                    {p.title} ({p.videoCount})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              disabled={!linkPlaylistId}
+              className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11 disabled:opacity-50`}
+            >
+              Link / import from YouTube playlist
+            </button>
+          </form>
+        </section>
+      ) : null}
+
+      {!isNew ? (
+        <div className="border-t border-line pt-6">
+          <form
+            action={deleteSeriesAction}
+            onSubmit={(event) => {
+              if (!window.confirm("Delete this series permanently?")) event.preventDefault();
+            }}
+          >
+            <input type="hidden" name="id" value={series.id} />
+            <button
+              type="submit"
+              className={`text-sm font-semibold text-terracotta hover:underline ${adminFocusRing}`}
+            >
+              Delete series
+            </button>
+          </form>
+        </div>
+      ) : null}
 
       {moveToDraftOpen ? (
         <div
@@ -1001,72 +1193,6 @@ export function SeriesEditor({
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
-
-      {!isYoutube && !isNew && linkablePlaylists.length > 0 ? (
-        <section className="space-y-3 rounded-sm border border-line bg-cream/40 p-4">
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">
-            Optional YouTube link
-          </p>
-          <p className="text-sm text-muted">
-            Link this custom Series to a channel playlist to enable safe refresh later.
-          </p>
-          <form
-            action={linkSeriesToYoutubePlaylistAction}
-            className="flex flex-wrap items-end gap-2"
-            onSubmit={(event) => {
-              if (
-                !window.confirm(
-                  "Link this Series to the selected YouTube playlist? Membership will import from YouTube; Mesa editorial fields stay unchanged.",
-                )
-              ) {
-                event.preventDefault();
-              }
-            }}
-          >
-            <input type="hidden" name="id" value={series.id} />
-            <label className="grid min-w-[14rem] flex-1 gap-1 text-sm">
-              <span className="font-semibold">Playlist</span>
-              <select
-                className={adminSelectClass}
-                name="playlistId"
-                value={linkPlaylistId}
-                onChange={(e) => setLinkPlaylistId(e.target.value)}
-                required
-              >
-                <option value="">Select playlist…</option>
-                {linkablePlaylists.map((p) => (
-                  <option key={p.playlistId} value={p.playlistId}>
-                    {p.title} ({p.videoCount})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="submit"
-              disabled={!linkPlaylistId}
-              className={`${secondaryBtn} ${adminFocusRing} disabled:opacity-50`}
-            >
-              Link / import from YouTube playlist
-            </button>
-          </form>
-        </section>
-      ) : null}
-
-      {!isNew ? (
-        <div className="border-t border-line pt-6">
-          <form
-            action={deleteSeriesAction}
-            onSubmit={(event) => {
-              if (!window.confirm("Delete this series permanently?")) event.preventDefault();
-            }}
-          >
-            <input type="hidden" name="id" value={series.id} />
-            <button type="submit" className="text-sm font-semibold text-terracotta hover:underline">
-              Delete series
-            </button>
-          </form>
         </div>
       ) : null}
     </div>
