@@ -62,7 +62,7 @@ export default async function SeriesDetailPage({ params }: Props) {
   const effectiveFeaturedId = series.featured?.id ?? null;
 
   return (
-    <article>
+    <article data-mesa-series-layout="phase2-collection">
       <JsonLd data={seriesItemListJsonLd(series)} />
       <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
@@ -97,8 +97,11 @@ export default async function SeriesDetailPage({ params }: Props) {
           </div>
         ) : null}
 
-        <section className="mt-12">
-          <h2 className="font-serif text-3xl text-ink">In this series</h2>
+        {/* Phase 2: no standalone Featured showcase between intro and the item grid. */}
+        <section className="mt-12" aria-labelledby="series-items-heading">
+          <h2 id="series-items-heading" className="font-serif text-3xl text-ink">
+            In this series
+          </h2>
           <ol className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {series.items.map((item) => {
               const isEffectiveFeatured = effectiveFeaturedId === item.id;

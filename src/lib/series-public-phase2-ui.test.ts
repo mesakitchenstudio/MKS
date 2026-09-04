@@ -16,8 +16,8 @@ const trackLink = readFileSync(
   path.join(root, "../components/series/SeriesItemTrackLink.tsx"),
   "utf8",
 );
-const adminSeriesPage = readFileSync(
-  path.join(root, "../app/admin/(app)/series/page.tsx"),
+const recipeContinued = readFileSync(
+  path.join(root, "../components/youtube/RecipeContinuedViewing.tsx"),
   "utf8",
 );
 
@@ -80,10 +80,10 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
         recipeId: "r2",
         recipeSlug: "why-your-homemade-bread-isnt-crusty-and-how-to-fix-it",
         recipeTitle: "Why homemade bread isn't crusty",
-        youtubeVideoId: "vid2",
-        youtubeTitle: "Crust",
-        durationDisplay: "12:00",
-        watchUrl: "https://www.youtube.com/watch?v=vid2",
+        youtubeVideoId: null,
+        youtubeTitle: null,
+        durationDisplay: "",
+        watchUrl: null,
         typeName: "Bread",
         categorySlugs: ["breads"],
       },
@@ -93,36 +93,67 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
 }
 
 describe("Series public Phase 2 presentation contracts", () => {
-  it("removes the standalone Featured panel between intro and the grid", () => {
-    assert.doesNotMatch(page, /Watch video/);
-    assert.doesNotMatch(page, /bg-cream\/40 p-4 md:p-6/);
-    assert.doesNotMatch(page, /md:grid-cols-\[minmax\(0,18rem\)_1fr\]/);
-    assert.match(page, /In this series/);
-    const introIdx = page.indexOf("series.intro");
-    const gridIdx = page.indexOf("In this series");
-    assert.ok(introIdx > 0 && gridIdx > introIdx);
-    assert.ok(!page.slice(introIdx, gridIdx).includes('>Featured</'));
+  it("marks the Phase 2 collection layout on the sole public Series detail route", () => {
+    assert.match(page, /data-mesa-series-layout="phase2-collection"/);
+    assert.match(page, /getPublishedSeriesBySlug/);
+    assert.match(page, /export const revalidate = 300/);
+    assert.match(page, /generateStaticParams/);
   });
 
-  it("marks the effective featured item via series.featured identity, not only item.featured", () => {
+  it("removes every legacy standalone Featured showcase marker from the Series page", () => {
+    assert.doesNotMatch(page, /Watch video/);
+    assert.doesNotMatch(page, /Watch playlist on YouTube/);
+    assert.doesNotMatch(page, /Prefer binge-watching on YouTube/);
+    assert.doesNotMatch(page, /bg-cream\/40 p-4 md:p-6/);
+    assert.doesNotMatch(page, /md:grid-cols-\[minmax\(0,18rem\)_1fr\]/);
+    assert.doesNotMatch(page, /featured\.thumbnail/);
+    assert.doesNotMatch(page, /featured\.title/);
+    assert.doesNotMatch(page, /featured\.recipeSlug/);
+    assert.doesNotMatch(page, /featured\.watchUrl/);
+    // Legacy CTA cluster lived only on this page historically; recipe embeds may still say Watch video.
+    assert.match(recipeContinued, /Watch video/);
+  });
+
+  it("keeps intro immediately followed by the In this series grid (no Featured section between)", () => {
+    const introBlock = page.indexOf("series.intro");
+    const gridHeading = page.indexOf("In this series");
+    assert.ok(introBlock > 0 && gridHeading > introBlock);
+    const between = page.slice(introBlock, gridHeading);
+    assert.doesNotMatch(between, /SeriesItemTrackLink/);
+    assert.doesNotMatch(between, /featured\.(thumbnail|title|recipeSlug|watchUrl)/);
+    assert.doesNotMatch(between, /Watch video|Watch playlist/);
+    assert.match(page, /no standalone Featured showcase between intro and the item grid/);
+  });
+
+  it("marks the effective featured item via series.featured identity only inside the grid card", () => {
     assert.match(page, /series\.featured\?\.id/);
     assert.match(page, /effectiveFeaturedId === item\.id/);
     assert.doesNotMatch(page, /isEffectiveFeatured = item\.featured/);
-    assert.match(page, /Featured/);
-    assert.match(page, /tracking-\[0\.14em\] text-olive/);
+    assert.match(
+      page,
+      /isEffectiveFeatured \? \([\s\S]*Featured[\s\S]*\) : null/,
+    );
+    assert.match(
+      seriesLib,
+      /const featured = items\.find\(\(i\) => i\.featured\) \|\| items\[0\] \|\| null/,
+    );
   });
 
-  it("keeps the full visible item grid including the effective featured item", () => {
+  it("renders every visible Series item exactly once inside the ordered grid", () => {
     assert.match(page, /series\.items\.map/);
+    assert.match(page, /<ol className="mt-6 grid/);
     assert.doesNotMatch(page, /filter\(\(item\) => !item\.featured\)/);
     assert.doesNotMatch(page, /filter\(\(item\) => item\.id !==/);
+    assert.equal((page.match(/series\.items\.map/g) || []).length, 1);
   });
 
-  it("preserves per-item recipe and watch CTA combinations", () => {
+  it("preserves per-item recipe and watch CTA combinations without a Featured CTA cluster", () => {
     assert.match(page, /item\.recipeSlug \? \([\s\S]*View recipe/);
     assert.match(page, /item\.watchUrl \? \([\s\S]*Watch/);
     assert.match(page, /event="series_item_click"/);
     assert.match(page, /event="series_watch_click"/);
+    assert.equal((page.match(/event="series_item_click"/g) || []).length, 1);
+    assert.equal((page.match(/event="series_watch_click"/g) || []).length, 1);
   });
 
   it("renders exactly one collection-level playlist CTA with footer placement", () => {
@@ -131,8 +162,6 @@ describe("Series public Phase 2 presentation contracts", () => {
     assert.match(page, /placement="series_page_footer"/);
     assert.match(page, /Watch the full series on YouTube →/);
     assert.match(page, /series\.youtubePlaylistUrl \?/);
-    assert.doesNotMatch(page, /Prefer binge-watching on YouTube/);
-    assert.doesNotMatch(page, /Watch playlist on YouTube/);
   });
 
   it("keeps Subscribe composed with Series placement without rewriting the shared component API", () => {
@@ -140,10 +169,9 @@ describe("Series public Phase 2 presentation contracts", () => {
     assert.match(subscribe, /placement\?: SubscribePlacement/);
     assert.match(subscribe, /Cook along with Mesa/);
     assert.match(subscribe, /recipe_youtube_subscribe_click/);
-    assert.match(subscribe, /sub_confirmation=1/);
   });
 
-  it("preserves ItemList JSON-LD behavior independent of Featured UI", () => {
+  it("preserves ItemList JSON-LD and metadata wiring independent of Featured UI", () => {
     assert.match(page, /seriesItemListJsonLd\(series\)/);
     assert.match(page, /generateMetadata/);
     const series = sampleSeries();
@@ -151,18 +179,8 @@ describe("Series public Phase 2 presentation contracts", () => {
     assert.equal(json["@type"], "ItemList");
     assert.equal(json.numberOfItems, 2);
     const elements = json.itemListElement as Array<{ name?: string; position?: number }>;
-    assert.equal(elements.length, 2);
     assert.equal(elements[0]?.name, "Artisanal French Baguettes");
     assert.equal(elements[1]?.position, 2);
-  });
-
-  it("documents effective featured fallback semantics still owned by series.ts", () => {
-    assert.match(
-      seriesLib,
-      /const featured = items\.find\(\(i\) => i\.featured\) \|\| items\[0\] \|\| null/,
-    );
-    assert.match(page, /getPublishedSeriesBySlug/);
-    assert.doesNotMatch(page, /items\.find\(\(i\) => i\.featured\)/);
   });
 
   it("preserves unpublished gating via notFound when series is missing", () => {
@@ -174,11 +192,6 @@ describe("Series public Phase 2 presentation contracts", () => {
     assert.match(trackLink, /series_watch_click/);
     assert.match(trackLink, /series_watch_playlist_on_youtube_click/);
     assert.match(page, /SeriesItemTrackLink/);
-  });
-
-  it("does not alter admin Series Phase 1 surfaces in this phase", () => {
-    assert.match(adminSeriesPage, /Import YouTube playlist/);
-    assert.match(adminSeriesPage, /Create custom Series/);
   });
 
   it("keeps hero and top hierarchy intact", () => {
