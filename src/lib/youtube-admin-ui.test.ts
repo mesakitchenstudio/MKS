@@ -48,9 +48,13 @@ describe("YouTube admin UI redesign contracts", () => {
   it("Channel hierarchy uses list attention, metric strips, coverage before public", () => {
     assert.match(dashboard, /Performance, coverage, and what to publish next/);
     assert.match(dashboard, /Data status/);
+    assert.match(dashboard, /max-w-\[30rem\]/);
     assert.match(dashboard, /Needs attention/);
     assert.match(dashboard, /reviewAllOpen/);
+    assert.doesNotMatch(dashboard, /max-h-\[min\(28rem/);
+    assert.doesNotMatch(dashboard, /overflow-y-auto overscroll-contain/);
     assert.match(dashboard, /Period performance/);
+    assert.match(dashboard, /sm:grid-cols-3/);
     assert.match(dashboard, /subscribersGained\} gained · \{analytics\.channel\.subscribersLost\} lost/);
     assert.match(dashboard, /Estimated/);
     assert.match(dashboard, /Videos with a Mesa recipe/);
@@ -58,8 +62,10 @@ describe("YouTube admin UI redesign contracts", () => {
     assert.match(dashboard, /Public channel/);
     assert.match(dashboard, /Subs gained · \{periodSuffix\}/);
     assert.match(dashboard, /Search titles/);
+    assert.match(dashboard, /sm:w-\[20rem\]/);
     assert.match(dashboard, />Sort</);
     assert.match(dashboard, /<select/);
+    assert.match(dashboard, /sm:flex-row sm:items-start sm:justify-between/);
     const coverage = dashboard.indexOf("CatalogCoverageSection");
     const publicSnap = dashboard.indexOf("<ChannelSnapshot");
     assert.ok(coverage >= 0 && publicSnap > coverage);
@@ -68,8 +74,10 @@ describe("YouTube admin UI redesign contracts", () => {
   it("preserves Opportunities vs Needs recipe as separate filters", () => {
     assert.match(dashboard, /Opportunities/);
     assert.match(dashboard, /Needs recipe/);
-    assert.match(dashboard, /FORMAT_FILTERS|Format/);
+    assert.match(dashboard, /aria-label="Format"/);
     assert.match(dashboard, /aria-label="Work"/);
+    assert.match(dashboard, />Format</);
+    assert.match(dashboard, />Work</);
   });
 
   it("Website video panel uses independent outcomes and quiet zeros", () => {

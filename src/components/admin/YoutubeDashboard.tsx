@@ -632,8 +632,8 @@ export function YoutubeDashboard({
 
   return (
     <div className="space-y-10">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-sm text-muted">Performance, coverage, and what to publish next.</p>
+      <div className="max-w-3xl space-y-1.5">
+        <p className="text-sm text-muted">Performance, coverage, and what to publish next.</p>
         <FreshnessStrip
           analytics={analytics}
           channel={channel}
@@ -685,15 +685,13 @@ export function YoutubeDashboard({
         onCreate={(videoId) => void startCreate(videoId)}
       />
 
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-serif text-xl text-ink">Period performance</h2>
-            <p className="mt-1 text-sm text-muted">Last {analytics.rangeDays} days</p>
-          </div>
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-serif text-xl text-ink">Period performance</h2>
+          <p className="mt-1 text-sm text-muted">Last {analytics.rangeDays} days</p>
           {analyticsConnected ? (
             <div
-              className="flex flex-wrap gap-1 rounded-sm border border-line/70 p-1 text-xs"
+              className="mt-2 flex flex-wrap gap-1 text-xs"
               role="group"
               aria-label="Analytics date range"
             >
@@ -717,7 +715,7 @@ export function YoutubeDashboard({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-x-10 gap-y-4 border-y border-line/70 py-4">
+        <div className="grid grid-cols-1 gap-4 border-y border-line/70 py-4 sm:grid-cols-3 sm:gap-6">
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Views</p>
             <p className="mt-1 font-serif text-2xl text-ink">
@@ -744,7 +742,7 @@ export function YoutubeDashboard({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-x-10 gap-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-6">
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted">Average % viewed</p>
             <p className="mt-1 text-sm text-ink">
@@ -763,7 +761,7 @@ export function YoutubeDashboard({
           </div>
         </div>
         {analyticsConnected ? (
-          <p className="text-xs leading-snug text-muted">{YOUTUBE_ANALYTICS_RETENTION_FOOTNOTE}</p>
+          <p className="mt-1 text-xs leading-snug text-muted">{YOUTUBE_ANALYTICS_RETENTION_FOOTNOTE}</p>
         ) : null}
       </section>
 
@@ -799,58 +797,19 @@ export function YoutubeDashboard({
           </p>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3">
-          <label className="grid w-full max-w-xs gap-1 text-xs">
-            <span className="font-semibold text-ink">Search titles</span>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search by title…"
-              className={`min-h-[44px] rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
-            />
-          </label>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <div
-              className="flex flex-wrap gap-1 rounded-sm border border-line/70 p-1 text-xs"
-              role="group"
-              aria-label="Format"
-            >
-              {FORMAT_FILTERS.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
-                    filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
-                  } ${adminFocusRing}`}
-                  onClick={() => updateFilter(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div
-              className="flex flex-wrap gap-1 rounded-sm border border-line/70 p-1 text-xs"
-              role="group"
-              aria-label="Work"
-            >
-              {WORK_FILTERS.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
-                    filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
-                  } ${adminFocusRing}`}
-                  onClick={() => updateFilter(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <label className="grid gap-1 text-xs sm:ml-auto">
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <label className="grid w-full gap-1 text-xs sm:w-[20rem] sm:max-w-[22.5rem]">
+              <span className="font-semibold text-ink">Search titles</span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by title…"
+                className={`min-h-[44px] w-full rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink ${adminFocusRing}`}
+              />
+            </label>
+            <label className="grid w-full gap-1 text-xs sm:w-auto">
               <span className="font-semibold text-ink">Sort</span>
               <select
                 value={sortKey}
@@ -864,6 +823,40 @@ export function YoutubeDashboard({
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-6 sm:gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" role="group" aria-label="Format">
+              <span className="shrink-0 font-semibold text-olive">Format</span>
+              {FORMAT_FILTERS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`min-h-[44px] rounded-sm px-2 py-1.5 font-semibold transition-colors ${
+                    filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                  } ${adminFocusRing}`}
+                  onClick={() => updateFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" role="group" aria-label="Work">
+              <span className="shrink-0 font-semibold text-olive">Work</span>
+              {WORK_FILTERS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`min-h-[44px] rounded-sm px-2 py-1.5 font-semibold transition-colors ${
+                    filter === value ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                  } ${adminFocusRing}`}
+                  onClick={() => updateFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1097,16 +1090,17 @@ function FreshnessStrip({
   const stripText = `Analytics updated ${analyticsLabel} · Public YouTube ${youtubeLabel} · Catalog live`;
 
   return (
-    <details className="group relative w-full max-w-xl text-sm">
+    <details className="group relative w-full max-w-[30rem] text-sm">
       <summary
-        className={`cursor-pointer list-none px-1 py-1.5 text-xs text-muted marker:content-none ${adminFocusRing}`}
+        className={`cursor-pointer list-none py-0.5 text-xs text-muted marker:content-none ${adminFocusRing}`}
       >
-        <span className="block truncate group-open:hidden">{stripText}</span>
-        <span className="hidden group-open:block font-semibold text-ink">Data status</span>
-        <span className="ml-2 font-semibold text-ink group-open:hidden">Data status ▾</span>
-        <span className="ml-2 hidden font-semibold text-ink group-open:inline">▴</span>
+        <span className="group-open:hidden">
+          <span className="text-muted">{stripText}</span>
+          <span className="ml-1.5 font-semibold text-ink">Data status ▾</span>
+        </span>
+        <span className="hidden font-semibold text-ink group-open:inline">Data status ▴</span>
       </summary>
-      <div className="absolute right-0 z-20 mt-1 w-full min-w-[16rem] rounded-sm border border-line bg-paper px-3 py-3 shadow-sm">
+      <div className="absolute left-0 z-20 mt-1 w-[min(100%,30rem)] max-w-[30rem] rounded-sm border border-line bg-paper px-3 py-3 shadow-sm">
         <dl className="space-y-2 text-xs">
           <div>
             <dt className="font-semibold text-ink">Analytics</dt>
@@ -1134,6 +1128,11 @@ function FreshnessStrip({
                     <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={analyticsPending} onClick={onRefreshAnalytics}>
                       {analyticsPending ? "Refreshing…" : "Refresh Analytics"}
                     </button>
+                    {canSync ? (
+                      <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={dataPending} onClick={onSync}>
+                        {dataPending ? "Refreshing…" : "Refresh Public YouTube"}
+                      </button>
+                    ) : null}
                     <div className="border-t border-line/50 pt-2">
                       <button
                         type="button"
@@ -1148,7 +1147,7 @@ function FreshnessStrip({
                 )}
               </div>
             ) : null}
-            {canSync ? (
+            {canSync && !(canManageAnalytics && analytics.connection.connected) ? (
               <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={dataPending} onClick={onSync}>
                 {dataPending ? "Refreshing…" : "Refresh Public YouTube"}
               </button>
@@ -1207,66 +1206,76 @@ function NeedsAttentionSection({
         ) : null}
       </div>
       <div className="divide-y divide-line/70 border-t border-line/70">
-        {items.map((item) => (
-          <div key={item.id} className="py-4">
-            {item.actionKind === "link-recipe" && item.possibleMatchRecipeId ? (
+        {items.map((item) => {
+          const actions =
+            item.actionKind === "link-recipe" && item.videoId && item.possibleMatchRecipeId && canCreateRecipes ? (
               <>
-                <p className="text-xs font-semibold text-terracotta">{item.title}</p>
-                <p className="mt-1 font-medium text-ink">{item.possibleMatchRecipeTitle}</p>
-                {item.videoTitle ? <p className="mt-1 text-sm text-muted">{item.videoTitle}</p> : null}
-                {item.detail ? <p className="mt-1 text-sm text-muted">{item.detail}</p> : null}
-              </>
-            ) : (
-              <>
-                <p className="text-xs font-semibold text-terracotta">{item.title}</p>
-                <p className="mt-1 text-sm text-ink">{item.detail}</p>
-                {item.metricsContext ? (
-                  <p className="mt-1 text-xs text-muted">{item.metricsContext}</p>
-                ) : null}
-              </>
-            )}
-            <div className="mt-2 flex flex-wrap gap-3">
-              {item.actionKind === "link-recipe" && item.videoId && item.possibleMatchRecipeId && canCreateRecipes ? (
-                <>
-                  <button
-                    type="button"
-                    className={compactLinkBtn}
-                    onClick={() =>
-                      onLink(
-                        item.videoId!,
-                        item.possibleMatchRecipeId!,
-                        item.possibleMatchRecipeTitle || "Recipe",
-                        item.possibleMatchRecipeSlug || "",
-                      )
-                    }
-                  >
-                    Link recipe
-                  </button>
-                  <button type="button" className={compactLinkBtn} onClick={() => onCreate(item.videoId!)}>
-                    Create new
-                  </button>
-                </>
-              ) : item.actionKind === "create-recipe" && item.videoId && canCreateRecipes ? (
                 <button
                   type="button"
                   className={compactLinkBtn}
-                  aria-label={item.videoTitle ? `Create recipe for ${item.videoTitle}` : "Create recipe"}
-                  onClick={() => onCreate(item.videoId!)}
+                  onClick={() =>
+                    onLink(
+                      item.videoId!,
+                      item.possibleMatchRecipeId!,
+                      item.possibleMatchRecipeTitle || "Recipe",
+                      item.possibleMatchRecipeSlug || "",
+                    )
+                  }
                 >
-                  Create recipe
+                  Link recipe
                 </button>
-              ) : item.actionKind === "review-queue" && item.filterTarget ? (
-                <button type="button" className={compactLinkBtn} onClick={() => onFilter(item.filterTarget!)}>
-                  {item.actionLabel}
+                <button type="button" className={compactLinkBtn} onClick={() => onCreate(item.videoId!)}>
+                  Create new
                 </button>
-              ) : item.href ? (
-                <Link href={item.href} className={compactLinkBtn}>
-                  {item.actionLabel}
-                </Link>
+              </>
+            ) : item.actionKind === "create-recipe" && item.videoId && canCreateRecipes ? (
+              <button
+                type="button"
+                className={compactLinkBtn}
+                aria-label={item.videoTitle ? `Create recipe for ${item.videoTitle}` : "Create recipe"}
+                onClick={() => onCreate(item.videoId!)}
+              >
+                Create recipe
+              </button>
+            ) : item.actionKind === "review-queue" && item.filterTarget ? (
+              <button type="button" className={compactLinkBtn} onClick={() => onFilter(item.filterTarget!)}>
+                {item.actionLabel}
+              </button>
+            ) : item.href ? (
+              <Link href={item.href} className={compactLinkBtn}>
+                {item.actionLabel}
+              </Link>
+            ) : null;
+
+          return (
+            <div
+              key={item.id}
+              className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+            >
+              <div className="min-w-0 space-y-0.5">
+                {item.actionKind === "link-recipe" && item.possibleMatchRecipeId ? (
+                  <>
+                    <p className="text-xs font-semibold text-terracotta">{item.title}</p>
+                    <p className="font-medium text-ink">{item.possibleMatchRecipeTitle}</p>
+                    {item.videoTitle ? <p className="text-sm text-muted">{item.videoTitle}</p> : null}
+                    {item.detail ? <p className="text-sm text-muted">{item.detail}</p> : null}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-semibold text-terracotta">{item.title}</p>
+                    <p className="text-sm text-ink">{item.detail}</p>
+                    {item.metricsContext ? (
+                      <p className="text-xs text-muted">{item.metricsContext}</p>
+                    ) : null}
+                  </>
+                )}
+              </div>
+              {actions ? (
+                <div className="flex shrink-0 flex-wrap gap-3 sm:justify-end">{actions}</div>
               ) : null}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {reviewAllOpen ? (
         <AttentionReviewPanel
@@ -1300,115 +1309,113 @@ function AttentionReviewPanel({
   if (!groups.length) return null;
 
   return (
-    <div
-      id={id}
-      className="max-h-[min(28rem,70vh)] overflow-y-auto overscroll-contain rounded-sm border border-line bg-paper px-4 py-4 md:max-h-[26rem]"
-      aria-label="Full attention queue"
-    >
-      <div className="space-y-5">
-        {groups.map((group) => (
-          <section key={group.id} aria-labelledby={`${id}-${group.id}-heading`}>
-            <h3
-              id={`${id}-${group.id}-heading`}
-              className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive"
-            >
-              {group.label}
-            </h3>
-            {group.collapsed ? (
-              <div className="mt-2 space-y-2 text-sm">
-                <p className="text-ink">{group.collapsed.summaryLine}</p>
-                {group.collapsed.examples.map((example) => (
-                  <p key={example} className="text-muted">
-                    {example}
-                  </p>
-                ))}
-                {group.collapsed.moreCount > 0 ? (
-                  <p className="text-xs text-muted">+{group.collapsed.moreCount} more</p>
+    <div id={id} className="space-y-6 border-t border-line/70 pt-4" aria-label="Full attention queue">
+      {groups.map((group) => (
+        <section key={group.id} aria-labelledby={`${id}-${group.id}-heading`}>
+          <h3
+            id={`${id}-${group.id}-heading`}
+            className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive"
+          >
+            {group.label}
+          </h3>
+          {group.collapsed ? (
+            <div className="mt-2 space-y-1.5 text-sm">
+              <p className="text-ink">{group.collapsed.summaryLine}</p>
+              {group.collapsed.examples.map((example) => (
+                <p key={example} className="text-muted">
+                  {example}
+                </p>
+              ))}
+              {group.collapsed.moreCount > 0 ? (
+                <p className="text-xs text-muted">+{group.collapsed.moreCount} more</p>
+              ) : null}
+              {group.collapsed.topByViews ? (
+                <p className="text-xs text-muted">
+                  Top by views: {group.collapsed.topByViews.title} · {group.collapsed.topByViews.viewsLabel} views
+                </p>
+              ) : null}
+              <div className="pt-1">
+                {group.collapsed.actionKind === "review-queue" && group.collapsed.filterTarget ? (
+                  <button
+                    type="button"
+                    className={compactLinkBtn}
+                    onClick={() => onFilter(group.collapsed!.filterTarget!)}
+                  >
+                    {group.collapsed.actionLabel}
+                  </button>
+                ) : group.collapsed.href ? (
+                  <Link href={group.collapsed.href} className={compactLinkBtn}>
+                    {group.collapsed.actionLabel}
+                  </Link>
                 ) : null}
-                {group.collapsed.topByViews ? (
-                  <p className="text-xs text-muted">
-                    Top by views: {group.collapsed.topByViews.title} · {group.collapsed.topByViews.viewsLabel} views
-                  </p>
-                ) : null}
-                <div className="pt-1">
-                  {group.collapsed.actionKind === "review-queue" && group.collapsed.filterTarget ? (
-                    <button
-                      type="button"
-                      className={compactLinkBtn}
-                      onClick={() => onFilter(group.collapsed!.filterTarget!)}
-                    >
-                      {group.collapsed.actionLabel}
-                    </button>
-                  ) : group.collapsed.href ? (
-                    <Link href={group.collapsed.href} className={compactLinkBtn}>
-                      {group.collapsed.actionLabel}
-                    </Link>
-                  ) : null}
-                </div>
               </div>
-            ) : (
-              <ul className="mt-2 space-y-3">
-                {group.entities.map((entity) => (
-                  <li key={entity.id} className="border-t border-line/70 pt-3 first:border-t-0 first:pt-0">
-                    {entity.actionKind === "link-recipe" && entity.possibleMatchRecipeId ? (
+            </div>
+          ) : (
+            <ul className="mt-2 divide-y divide-line/60">
+              {group.entities.map((entity) => (
+                <li key={entity.id} className="py-2.5 first:pt-0">
+                  {entity.actionKind === "link-recipe" && entity.possibleMatchRecipeId ? (
+                    <>
+                      <p className="text-xs font-semibold text-terracotta">Possible match</p>
+                      <p className="mt-0.5 font-medium text-ink">{entity.possibleMatchRecipeTitle}</p>
+                      {entity.videoTitle ? <p className="mt-0.5 text-xs text-muted">{entity.videoTitle}</p> : null}
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-ink">{entity.entityLabel}</p>
+                      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
+                        {entity.issues.map((issue) => (
+                          <li key={issue}>{issue}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  <div className="mt-1.5 flex flex-wrap gap-3">
+                    {entity.actionKind === "link-recipe" && entity.videoId && entity.possibleMatchRecipeId && canCreateRecipes ? (
                       <>
-                        <p className="text-xs font-semibold text-terracotta">Possible match</p>
-                        <p className="mt-1 font-medium text-ink">{entity.possibleMatchRecipeTitle}</p>
-                        {entity.videoTitle ? <p className="mt-1 text-xs text-muted">{entity.videoTitle}</p> : null}
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-medium text-ink">{entity.entityLabel}</p>
-                        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
-                          {entity.issues.map((issue) => (
-                            <li key={issue}>{issue}</li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                    <div className="mt-2 flex flex-wrap gap-3">
-                      {entity.actionKind === "link-recipe" && entity.videoId && entity.possibleMatchRecipeId && canCreateRecipes ? (
-                        <>
-                          <button
-                            type="button"
-                            className={compactLinkBtn}
-                            onClick={() =>
-                              onLink(
-                                entity.videoId!,
-                                entity.possibleMatchRecipeId!,
-                                entity.possibleMatchRecipeTitle || "Recipe",
-                                entity.possibleMatchRecipeSlug || "",
-                              )
-                            }
-                          >
-                            Link recipe
-                          </button>
-                          <button type="button" className={compactLinkBtn} onClick={() => onCreate(entity.videoId!)}>
-                            Create new
-                          </button>
-                        </>
-                      ) : entity.actionKind === "create-recipe" && entity.videoId && canCreateRecipes ? (
                         <button
                           type="button"
                           className={compactLinkBtn}
-                          aria-label={entity.videoTitle ? `Create recipe for ${entity.videoTitle}` : "Create recipe"}
-                          onClick={() => onCreate(entity.videoId!)}
+                          onClick={() =>
+                            onLink(
+                              entity.videoId!,
+                              entity.possibleMatchRecipeId!,
+                              entity.possibleMatchRecipeTitle || "Recipe",
+                              entity.possibleMatchRecipeSlug || "",
+                            )
+                          }
                         >
-                          Create recipe
+                          Link recipe
                         </button>
-                      ) : entity.href ? (
-                        <Link href={entity.href} className={compactLinkBtn}>
-                          {entity.actionLabel}
-                        </Link>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ))}
-      </div>
+                        <button type="button" className={compactLinkBtn} onClick={() => onCreate(entity.videoId!)}>
+                          Create new
+                        </button>
+                      </>
+                    ) : entity.actionKind === "create-recipe" && entity.videoId && canCreateRecipes ? (
+                      <button
+                        type="button"
+                        className={compactLinkBtn}
+                        aria-label={
+                          entity.videoTitle || entity.entityLabel
+                            ? `Create recipe for ${entity.videoTitle || entity.entityLabel}`
+                            : "Create recipe"
+                        }
+                        onClick={() => onCreate(entity.videoId!)}
+                      >
+                        Create recipe
+                      </button>
+                    ) : entity.href ? (
+                      <Link href={entity.href} className={compactLinkBtn}>
+                        {entity.actionLabel}
+                      </Link>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
     </div>
   );
 }
