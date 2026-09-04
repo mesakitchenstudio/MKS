@@ -1,0 +1,193 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
+import { seriesItemListJsonLd, type PublicSeriesDetail } from "./series-types";
+
+const root = path.dirname(fileURLToPath(import.meta.url));
+const page = readFileSync(path.join(root, "../app/series/[slug]/page.tsx"), "utf8");
+const seriesLib = readFileSync(path.join(root, "series.ts"), "utf8");
+const subscribe = readFileSync(
+  path.join(root, "../components/youtube/YouTubeSubscribeCTA.tsx"),
+  "utf8",
+);
+const trackLink = readFileSync(
+  path.join(root, "../components/series/SeriesItemTrackLink.tsx"),
+  "utf8",
+);
+const adminSeriesPage = readFileSync(
+  path.join(root, "../app/admin/(app)/series/page.tsx"),
+  "utf8",
+);
+
+function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeriesDetail {
+  return {
+    id: "s1",
+    slug: "breads",
+    title: "Breads",
+    shortTitle: "Breads",
+    description: "A short series on bread baking.",
+    intro: "Long intro.",
+    heroImage: "/hero.jpg",
+    seoTitle: "",
+    seoDescription: "",
+    youtubePlaylistId: "PLtest",
+    youtubePlaylistUrl: "https://www.youtube.com/playlist?list=PLtest",
+    itemCount: 2,
+    featured: {
+      id: "i1",
+      position: 1,
+      title: "Artisanal French Baguettes",
+      description: "Crisp crust.",
+      featured: true,
+      thumbnail: "/baguette.jpg",
+      recipeId: "r1",
+      recipeSlug: "artisanal-french-baguettes",
+      recipeTitle: "Artisanal French Baguettes",
+      youtubeVideoId: "vid1",
+      youtubeTitle: "Baguettes",
+      durationDisplay: "7:39",
+      watchUrl: "https://www.youtube.com/watch?v=vid1",
+      typeName: "Bread",
+      categorySlugs: ["breads"],
+    },
+    items: [
+      {
+        id: "i1",
+        position: 1,
+        title: "Artisanal French Baguettes",
+        description: "Crisp crust.",
+        featured: true,
+        thumbnail: "/baguette.jpg",
+        recipeId: "r1",
+        recipeSlug: "artisanal-french-baguettes",
+        recipeTitle: "Artisanal French Baguettes",
+        youtubeVideoId: "vid1",
+        youtubeTitle: "Baguettes",
+        durationDisplay: "7:39",
+        watchUrl: "https://www.youtube.com/watch?v=vid1",
+        typeName: "Bread",
+        categorySlugs: ["breads"],
+      },
+      {
+        id: "i2",
+        position: 2,
+        title: "Why homemade bread isn't crusty",
+        description: "",
+        featured: false,
+        thumbnail: "/why.jpg",
+        recipeId: "r2",
+        recipeSlug: "why-your-homemade-bread-isnt-crusty-and-how-to-fix-it",
+        recipeTitle: "Why homemade bread isn't crusty",
+        youtubeVideoId: "vid2",
+        youtubeTitle: "Crust",
+        durationDisplay: "12:00",
+        watchUrl: "https://www.youtube.com/watch?v=vid2",
+        typeName: "Bread",
+        categorySlugs: ["breads"],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe("Series public Phase 2 presentation contracts", () => {
+  it("removes the standalone Featured panel between intro and the grid", () => {
+    assert.doesNotMatch(page, /Watch video/);
+    assert.doesNotMatch(page, /bg-cream\/40 p-4 md:p-6/);
+    assert.doesNotMatch(page, /md:grid-cols-\[minmax\(0,18rem\)_1fr\]/);
+    assert.match(page, /In this series/);
+    const introIdx = page.indexOf("series.intro");
+    const gridIdx = page.indexOf("In this series");
+    assert.ok(introIdx > 0 && gridIdx > introIdx);
+    assert.ok(!page.slice(introIdx, gridIdx).includes('>Featured</'));
+  });
+
+  it("marks the effective featured item via series.featured identity, not only item.featured", () => {
+    assert.match(page, /series\.featured\?\.id/);
+    assert.match(page, /effectiveFeaturedId === item\.id/);
+    assert.doesNotMatch(page, /isEffectiveFeatured = item\.featured/);
+    assert.match(page, /Featured/);
+    assert.match(page, /tracking-\[0\.14em\] text-olive/);
+  });
+
+  it("keeps the full visible item grid including the effective featured item", () => {
+    assert.match(page, /series\.items\.map/);
+    assert.doesNotMatch(page, /filter\(\(item\) => !item\.featured\)/);
+    assert.doesNotMatch(page, /filter\(\(item\) => item\.id !==/);
+  });
+
+  it("preserves per-item recipe and watch CTA combinations", () => {
+    assert.match(page, /item\.recipeSlug \? \([\s\S]*View recipe/);
+    assert.match(page, /item\.watchUrl \? \([\s\S]*Watch/);
+    assert.match(page, /event="series_item_click"/);
+    assert.match(page, /event="series_watch_click"/);
+  });
+
+  it("renders exactly one collection-level playlist CTA with footer placement", () => {
+    const playlistEvents = page.match(/series_watch_playlist_on_youtube_click/g) || [];
+    assert.equal(playlistEvents.length, 1);
+    assert.match(page, /placement="series_page_footer"/);
+    assert.match(page, /Watch the full series on YouTube →/);
+    assert.match(page, /series\.youtubePlaylistUrl \?/);
+    assert.doesNotMatch(page, /Prefer binge-watching on YouTube/);
+    assert.doesNotMatch(page, /Watch playlist on YouTube/);
+  });
+
+  it("keeps Subscribe composed with Series placement without rewriting the shared component API", () => {
+    assert.match(page, /YouTubeSubscribeCTA placement="series_page"/);
+    assert.match(subscribe, /placement\?: SubscribePlacement/);
+    assert.match(subscribe, /Cook along with Mesa/);
+    assert.match(subscribe, /recipe_youtube_subscribe_click/);
+    assert.match(subscribe, /sub_confirmation=1/);
+  });
+
+  it("preserves ItemList JSON-LD behavior independent of Featured UI", () => {
+    assert.match(page, /seriesItemListJsonLd\(series\)/);
+    assert.match(page, /generateMetadata/);
+    const series = sampleSeries();
+    const json = seriesItemListJsonLd(series);
+    assert.equal(json["@type"], "ItemList");
+    assert.equal(json.numberOfItems, 2);
+    const elements = json.itemListElement as Array<{ name?: string; position?: number }>;
+    assert.equal(elements.length, 2);
+    assert.equal(elements[0]?.name, "Artisanal French Baguettes");
+    assert.equal(elements[1]?.position, 2);
+  });
+
+  it("documents effective featured fallback semantics still owned by series.ts", () => {
+    assert.match(
+      seriesLib,
+      /const featured = items\.find\(\(i\) => i\.featured\) \|\| items\[0\] \|\| null/,
+    );
+    assert.match(page, /getPublishedSeriesBySlug/);
+    assert.doesNotMatch(page, /items\.find\(\(i\) => i\.featured\)/);
+  });
+
+  it("preserves unpublished gating via notFound when series is missing", () => {
+    assert.match(page, /if \(!series\) notFound\(\)/);
+  });
+
+  it("keeps SeriesItemTrackLink analytics wrappers for item and playlist actions", () => {
+    assert.match(trackLink, /series_item_click/);
+    assert.match(trackLink, /series_watch_click/);
+    assert.match(trackLink, /series_watch_playlist_on_youtube_click/);
+    assert.match(page, /SeriesItemTrackLink/);
+  });
+
+  it("does not alter admin Series Phase 1 surfaces in this phase", () => {
+    assert.match(adminSeriesPage, /Import YouTube playlist/);
+    assert.match(adminSeriesPage, /Create custom Series/);
+  });
+
+  it("keeps hero and top hierarchy intact", () => {
+    assert.match(page, /Cooking Series/);
+    assert.match(page, /series\.heroImage/);
+    assert.match(page, /aspect-video/);
+    assert.match(page, /series\.intro/);
+    assert.match(page, /series\.itemCount/);
+    assert.match(page, /max-w-6xl/);
+    assert.match(page, /sm:grid-cols-2 lg:grid-cols-3/);
+  });
+});
