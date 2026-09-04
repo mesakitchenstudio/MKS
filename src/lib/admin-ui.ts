@@ -46,6 +46,12 @@ export const adminWorkspaceNarrow = "max-w-xl";
 /** Admin Profile page measure (~672px). */
 export const adminWorkspaceProfile = "max-w-2xl";
 
+/** Members directory (~1024px) — four-column roster. */
+export const adminWorkspaceMembersList = "max-w-5xl";
+
+/** Member detail editorial measure (~832px). */
+export const adminWorkspaceMembersDetail = "max-w-[52rem]";
+
 /** @deprecated Use adminWorkspaceWide */
 export const adminWorkspaceMaxWidth = adminWorkspaceWide;
 

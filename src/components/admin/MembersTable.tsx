@@ -2,17 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { MemberAvatar, PresenceDot } from "@/components/admin/MemberPresence";
-import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
+import { MemberAvatar } from "@/components/admin/MemberPresence";
+import { adminFocusRing, adminTableHeadClass } from "@/lib/admin-ui";
 import { formatAdminDate, formatAdminRelativeDateTime } from "@/lib/datetime";
 import {
   formatSignInMethod,
   isMemberOnlineFromPresence,
   MEMBER_ADMIN_PRESENCE_POLL_MS,
 } from "@/lib/member-presence";
-import {
-  formatLatestCountryCityLocation,
-} from "@/lib/request-meta";
 
 type MemberRow = {
   id: string;
@@ -39,35 +36,28 @@ type PresencePatch = {
   lastSeenAt: string;
 };
 
+function presenceFromUsers(users: MemberRow[]): Record<string, PresencePatch> {
+  const next: Record<string, PresencePatch> = {};
+  for (const user of users) {
+    next[user.id] = {
+      online: Boolean(user.online),
+      lastSeenAt:
+        typeof user.lastSeenAt === "string"
+          ? user.lastSeenAt
+          : new Date(user.lastSeenAt).toISOString(),
+    };
+  }
+  return next;
+}
+
 export function MembersTable({ users }: { users: MemberRow[] }) {
   const [now, setNow] = useState(() => Date.now());
-  const [presenceById, setPresenceById] = useState<Record<string, PresencePatch>>(() => {
-    const initial: Record<string, PresencePatch> = {};
-    for (const user of users) {
-      initial[user.id] = {
-        online: Boolean(user.online),
-        lastSeenAt:
-          typeof user.lastSeenAt === "string"
-            ? user.lastSeenAt
-            : new Date(user.lastSeenAt).toISOString(),
-      };
-    }
-    return initial;
-  });
-
-  useEffect(() => {
-    const next: Record<string, PresencePatch> = {};
-    for (const user of users) {
-      next[user.id] = {
-        online: Boolean(user.online),
-        lastSeenAt:
-          typeof user.lastSeenAt === "string"
-            ? user.lastSeenAt
-            : new Date(user.lastSeenAt).toISOString(),
-      };
-    }
-    setPresenceById(next);
-  }, [users]);
+  const [presenceById, setPresenceById] = useState(() => presenceFromUsers(users));
+  const [trackedUsers, setTrackedUsers] = useState(users);
+  if (users !== trackedUsers) {
+    setTrackedUsers(users);
+    setPresenceById(presenceFromUsers(users));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -129,37 +119,31 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
 
   return (
     <div className="mt-6">
-      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 border border-line bg-paper px-4 py-3">
-        <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
-          <PresenceDot online={onlineCount > 0} pulse={onlineCount > 0} />
-          {onlineCount} online now
-        </span>
-        <span className="text-xs text-muted">
-          Sorted by last seen · Times in GMT · Updates automatically
-        </span>
-      </div>
+      <p className="text-sm text-muted">
+        {onlineCount} online · Sorted by last seen · Times in GMT
+      </p>
 
-      <div className="hidden border border-line bg-paper md:block">
+      <div className="mt-4 hidden md:block">
         <table className="w-full table-fixed text-left text-sm">
           <colgroup>
-            <col className="w-[28%]" />
-            <col className="w-[10%]" />
-            <col className="w-[12%]" />
-            <col className="w-[14%]" />
+            <col className="w-[42%]" />
+            <col className="w-[22%]" />
+            <col className="w-[20%]" />
             <col className="w-[16%]" />
-            <col className="w-[10%]" />
-            <col className="w-[10%]" />
           </colgroup>
           <thead className={adminTableHeadClass}>
-            <tr>
-              <th className="px-3 py-3 font-medium sm:px-4">Member</th>
-              <th className="px-3 py-3 font-medium sm:px-4">Status</th>
-              <th className="px-3 py-3 font-medium sm:px-4">Joined</th>
-              <th className="px-3 py-3 font-medium sm:px-4">Last seen</th>
-              <th className="px-3 py-3 font-medium sm:px-4">Location</th>
-              <th className="px-3 py-3 font-medium sm:px-4">Sign-in</th>
-              <th className="px-3 py-3 font-medium sm:px-4">
-                <span className="sr-only">Actions</span>
+            <tr className="border-b border-line/80">
+              <th scope="col" className="px-0 py-3 font-medium">
+                Member
+              </th>
+              <th scope="col" className="px-3 py-3 font-medium">
+                Last seen
+              </th>
+              <th scope="col" className="px-3 py-3 font-medium">
+                Joined
+              </th>
+              <th scope="col" className="px-3 py-3 font-medium">
+                Sign-in
               </th>
             </tr>
           </thead>
@@ -177,22 +161,13 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                 },
                 now,
               );
-              const status = online ? "Online" : "Offline";
               const signIn = formatSignInMethod(latest?.method);
-              const location = formatLatestCountryCityLocation(user.connections);
 
               return (
-                <tr key={user.id} className="border-t border-line align-middle hover:bg-cream/40">
-                  <td className="px-3 py-3 sm:px-4">
+                <tr key={user.id} className="border-b border-line/80 align-middle">
+                  <td className="px-0 py-3.5">
                     <div className="inline-flex max-w-full items-center gap-3">
-                      <Link
-                        href={`/admin/members/${user.id}`}
-                        className={`shrink-0 rounded-full ${adminFocusRing}`}
-                        tabIndex={-1}
-                        aria-hidden
-                      >
-                        <MemberAvatar name={user.name} photoUrl={user.photoUrl} />
-                      </Link>
+                      <MemberAvatar name={user.name} photoUrl={user.photoUrl} />
                       <span className="min-w-0">
                         <Link
                           href={`/admin/members/${user.id}`}
@@ -201,42 +176,27 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
                           {user.name}
                         </Link>
                         <span className="block truncate text-xs text-muted">{user.email}</span>
+                        {online ? (
+                          <span className="mt-0.5 block text-xs font-medium text-olive">Online</span>
+                        ) : null}
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-3 sm:px-4">
-                    <span className="inline-flex items-center gap-2 text-sm text-ink">
-                      <PresenceDot online={online} />
-                      <span className="leading-snug">{status}</span>
-                    </span>
+                  <td className="px-3 py-3.5 text-xs leading-snug text-muted sm:text-sm">
+                    {online ? (
+                      <span className="font-medium text-olive">Online now</span>
+                    ) : (
+                      formatAdminRelativeDateTime(lastSeen, nowDate)
+                    )}
                   </td>
-                  <td className="px-3 py-3 text-muted sm:px-4">{formatAdminDate(user.createdAt)}</td>
-                  <td className="px-3 py-3 text-xs leading-snug text-muted sm:px-4 sm:text-sm">
-                    {formatAdminRelativeDateTime(lastSeen, nowDate)}
-                  </td>
-                  <td className="px-3 py-3 sm:px-4">
-                    <span
-                      className="block truncate text-xs leading-snug text-muted sm:text-sm"
-                      title={location === "—" ? undefined : location}
-                    >
-                      {location}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-muted sm:px-4">{signIn}</td>
-                  <td className="px-3 py-3 text-right sm:px-4">
-                    <Link
-                      href={`/admin/members/${user.id}`}
-                      className={`text-sm ${adminLinkClass} ${adminFocusRing}`}
-                    >
-                      View
-                    </Link>
-                  </td>
+                  <td className="px-3 py-3.5 text-muted">{formatAdminDate(user.createdAt)}</td>
+                  <td className="px-3 py-3.5 text-muted">{signIn}</td>
                 </tr>
               );
             })}
             {sortedUsers.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-muted">
+                <td colSpan={4} className="px-0 py-8 text-muted">
                   No member accounts yet.{" "}
                   <Link href="/" className={`font-semibold text-terracotta ${adminFocusRing}`}>
                     View the site
@@ -249,7 +209,7 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
         </table>
       </div>
 
-      <ul className="space-y-3 md:hidden">
+      <ul className="mt-4 space-y-0 divide-y divide-line/80 border-t border-line/80 md:hidden">
         {sortedUsers.map((user) => {
           const latest =
             user.connections.find((item) => item.ip && item.ip !== "unknown") ||
@@ -263,60 +223,41 @@ export function MembersTable({ users }: { users: MemberRow[] }) {
             },
             now,
           );
-          const status = online ? "Online" : "Offline";
           const signIn = formatSignInMethod(latest?.method);
-          const location = formatLatestCountryCityLocation(user.connections);
 
           return (
-            <li key={user.id} className="border border-line bg-paper px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="inline-flex min-w-0 items-center gap-3">
+            <li key={user.id} className="py-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <MemberAvatar name={user.name} photoUrl={user.photoUrl} />
+                <div className="min-w-0 flex-1">
                   <Link
                     href={`/admin/members/${user.id}`}
-                    className={`shrink-0 rounded-full ${adminFocusRing}`}
-                    tabIndex={-1}
-                    aria-hidden
+                    className={`inline-flex min-h-11 items-center font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
                   >
-                    <MemberAvatar name={user.name} photoUrl={user.photoUrl} />
+                    {user.name}
                   </Link>
-                  <div className="min-w-0">
-                    <Link
-                      href={`/admin/members/${user.id}`}
-                      className={`block truncate font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-                    >
-                      {user.name}
-                    </Link>
-                    <p className="truncate text-xs text-muted">{user.email}</p>
-                    <p className="mt-1 inline-flex items-center gap-2 text-sm text-ink">
-                      <PresenceDot online={online} />
-                      {status}
-                    </p>
-                  </div>
+                  <p className="truncate text-xs text-muted">{user.email}</p>
+                  {online ? (
+                    <p className="mt-1 text-xs font-medium text-olive">Online</p>
+                  ) : null}
+                  <p className="mt-2 text-xs text-muted">
+                    Last seen{" "}
+                    {online ? "Online now" : formatAdminRelativeDateTime(lastSeen, nowDate)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    Joined {formatAdminDate(user.createdAt)}
+                    <span className="mx-1.5 text-line" aria-hidden>
+                      ·
+                    </span>
+                    {signIn}
+                  </p>
                 </div>
-                <Link
-                  href={`/admin/members/${user.id}`}
-                  className={`shrink-0 text-sm ${adminLinkClass} ${adminFocusRing}`}
-                >
-                  View
-                </Link>
               </div>
-              <p
-                className="mt-2 truncate text-xs text-muted"
-                title={location === "—" ? undefined : location}
-              >
-                {location}
-              </p>
-              <p className="mt-1 text-xs text-muted">{signIn}</p>
-              <p className="mt-1 text-xs text-muted">
-                Joined {formatAdminDate(user.createdAt)}
-                <span className="mx-1.5 text-line">·</span>
-                Last {formatAdminRelativeDateTime(lastSeen, nowDate)}
-              </p>
             </li>
           );
         })}
         {sortedUsers.length === 0 ? (
-          <li className="border border-dashed border-line bg-paper px-4 py-8 text-sm text-muted">
+          <li className="border-dashed py-8 text-sm text-muted">
             No member accounts yet.{" "}
             <Link href="/" className={`font-semibold text-terracotta ${adminFocusRing}`}>
               View the site

@@ -1,5 +1,7 @@
 import { canAccess, type AccessLevel, type AdminArea } from "@/lib/admin-access";
 import {
+  adminWorkspaceMembersDetail,
+  adminWorkspaceMembersList,
   adminWorkspaceProfile,
   adminWorkspaceStandard,
   adminWorkspaceWide,
@@ -89,11 +91,12 @@ export function flattenAdminNavItemLabels(sections: AdminNavSection[]): string[]
 
 export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/profile")) return adminWorkspaceProfile;
+  if (pathname.startsWith("/admin/members/")) return adminWorkspaceMembersDetail;
+  if (pathname === "/admin/members") return adminWorkspaceMembersList;
   if (
     pathname === "/admin" ||
     pathname.startsWith("/admin/recipes") ||
     pathname.startsWith("/admin/series") ||
-    pathname.startsWith("/admin/members") ||
     pathname.startsWith("/admin/visitors") ||
     pathname.startsWith("/admin/youtube")
   ) {

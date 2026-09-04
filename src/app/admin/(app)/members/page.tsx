@@ -22,11 +22,9 @@ export default async function AdminMembersPage({
       <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
         Members
       </h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted">
-        Registered members and their recent activity.
-      </p>
+      <p className="mt-2 max-w-2xl text-sm text-muted">People with Mesa accounts.</p>
       <AdminFlashStatus active={Boolean(removed)} clearParams={MEMBER_REMOVED_PARAMS}>
-        Member removed. You can add them again from Team access.
+        Member removed.
       </AdminFlashStatus>
 
       <MembersTable users={users} />

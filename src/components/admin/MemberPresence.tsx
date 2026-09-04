@@ -11,9 +11,14 @@ export function MemberAvatar({
 }: {
   name: string;
   photoUrl?: string | null;
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "detail";
 }) {
-  const dimension = size === "lg" ? "h-14 w-14 text-sm" : "h-10 w-10 text-xs";
+  const dimension =
+    size === "detail"
+      ? "h-12 w-12 text-sm"
+      : size === "lg"
+        ? "h-14 w-14 text-sm"
+        : "h-10 w-10 text-xs";
   return (
     <div
       className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-sand font-semibold text-ink ${dimension}`}

@@ -24,7 +24,7 @@ export function RemoveMemberButton({
         onClick={() => {
           if (
             window.confirm(
-              `Remove member “${name}” (${email})?\n\nThis permanently deletes their account, saved recipes, and connection history. This cannot be undone.`,
+              `Remove member “${name}” (${email})?\n\nThis permanently deletes their account, saved recipes, and account activity. This cannot be undone.`,
             )
           ) {
             formRef.current?.requestSubmit();
