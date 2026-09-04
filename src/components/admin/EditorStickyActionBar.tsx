@@ -31,7 +31,7 @@ export function EditorStickyActionBar({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-line/80 bg-[var(--cream)]/95 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:px-6"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-line/80 bg-[var(--cream)] px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:px-6"
       role="region"
       aria-label="Recipe editor actions"
     >

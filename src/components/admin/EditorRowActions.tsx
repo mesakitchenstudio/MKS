@@ -65,7 +65,7 @@ export function EditorRowActions({
         <div
           id={menuId}
           role="menu"
-          className="absolute right-0 z-50 mt-1 min-w-[10rem] border border-line bg-paper py-1 shadow-sm"
+          className="absolute right-0 z-30 mt-1 min-w-[10rem] border border-line bg-paper py-1 shadow-sm"
         >
           {canReorder ? (
             <>

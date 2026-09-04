@@ -45,7 +45,7 @@ export const RecipeEditorSectionNav = forwardRef<
     <nav
       ref={ref}
       aria-label="On this recipe"
-      className={`sticky z-40 -mx-5 border-b border-line/60 bg-[var(--cream)]/95 px-5 backdrop-blur-sm md:-mx-6 md:px-6 ${
+      className={`sticky z-50 -mx-5 w-auto border-b border-line/60 bg-[var(--cream)] px-5 md:-mx-6 md:px-6 ${
         compact ? "mb-3 py-1" : "mb-5 py-1.5"
       }`}
       style={{ top: stickyTop, scrollMarginTop }}

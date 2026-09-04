@@ -59,6 +59,15 @@ describe("Recipe editor Details field baseline alignment", () => {
     assert.match(missingFrame, /absolute bottom-2/);
   });
 
+  it("separates DetailSubgroup hairlines from the last control row", () => {
+    const subgroup = editor.slice(
+      editor.indexOf("function DetailSubgroup"),
+      editor.indexOf("function FieldLabel"),
+    );
+    assert.match(subgroup, /border-t border-line\/70 pb-3 pt-5 first:border-t-0 first:pt-0 sm:pb-4/);
+    assert.doesNotMatch(subgroup, /border-t border-line\/70 pt-5 first:border-t-0 first:pt-0"/);
+  });
+
   it("does not alter coerce / yield-timing keys / save contracts", () => {
     assert.ok(!coerceStringList([{ name: "tip" }, { x: 1 }]).includes("[object Object]"));
     assert.match(editor, /YIELD_KEYS = \["servings", "servingsUnit"\]/);

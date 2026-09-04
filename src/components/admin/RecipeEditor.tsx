@@ -338,7 +338,7 @@ function DetailSubgroup({
         : "";
 
   return (
-    <div className="border-t border-line/70 pt-5 first:border-t-0 first:pt-0">
+    <div className="border-t border-line/70 pb-3 pt-5 first:border-t-0 first:pt-0 sm:pb-4">
       <h3 className="mb-1 text-sm font-semibold text-ink">{label}</h3>
       {description ? <p className="mb-3 text-xs text-muted">{description}</p> : null}
       <div
@@ -2247,7 +2247,7 @@ export function RecipeEditor({
       <div ref={actionBarSentinelRef} className="h-px w-full" aria-hidden />
       <div
         ref={stickyHeaderRef}
-        className="sticky top-0 z-50 -mx-5 mb-6 border-b border-line/70 bg-[var(--cream)]/95 px-5 backdrop-blur-sm transition-[padding] duration-150 motion-reduce:transition-none md:-mx-6 md:px-6"
+        className="sticky top-0 z-50 -mx-5 w-auto border-b border-line/70 bg-[var(--cream)] px-5 transition-[padding] duration-150 motion-reduce:transition-none md:-mx-6 md:px-6"
       >
         <div className={mobileHeaderCompact ? "hidden md:block" : "block"}>
           <div className="flex flex-col gap-2.5 py-2.5 lg:flex-row lg:items-center lg:justify-between md:py-2">
@@ -2307,7 +2307,7 @@ export function RecipeEditor({
                 {moreMenuOpen ? (
                   <div
                     role="menu"
-                    className="absolute right-0 z-50 mt-1 min-w-[12rem] border border-line bg-paper py-1 shadow-sm"
+                    className="absolute right-0 z-[60] mt-1 min-w-[12rem] border border-line bg-paper py-1 shadow-sm"
                   >
                     {isPublished ? (
                       <button

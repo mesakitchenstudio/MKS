@@ -85,7 +85,7 @@ export function FieldOverflowMenu({
             <div
               id={menuId}
               role="menu"
-              className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] border border-line bg-paper py-1 shadow-sm"
+              className="absolute right-0 top-full z-30 mt-1 min-w-[11rem] border border-line bg-paper py-1 shadow-sm"
             >
               {canRunAi && onRunAi && !locked ? (
                 <button
