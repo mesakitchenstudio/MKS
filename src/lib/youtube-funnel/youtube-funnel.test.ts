@@ -251,6 +251,8 @@ describe("youtube-funnel display", () => {
     const outcome = formatContinuedViewingOutcome(2, 4);
     assert.equal(outcome.headline, "2 continued-viewing visitors");
     assert.equal(outcome.fractionLabel, "2 of 4 video-interacting visitors");
+    assert.equal(outcome.shortFraction, "2 of 4");
+    assert.equal(outcome.denominatorNote, "video-interacting visitors");
     assert.equal(outcome.rateLabel, "50%");
     assert.equal(outcome.limitedSample, true);
   });

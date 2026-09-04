@@ -87,11 +87,19 @@ describe("YouTube admin UI redesign contracts", () => {
       "First-party actions on recipe pages with a video. Not YouTube views or subscriptions.",
     );
     assert.match(funnel, /Independent outcomes/);
+    assert.match(funnel, /lg:grid-cols-4/);
+    assert.match(funnel, /continued\.denominatorNote/);
+    assert.match(funnel, /RECIPE_PERFORMANCE_INTRO/);
     assert.match(funnel, /Methodology/);
+    assert.match(funnel, /<dl className="mt-4 space-y-4/);
     assert.match(funnel, /quietZeroVisitorOutcomeLabel/);
+    assert.match(funnel, /uniquePageviewVisitors === 0/);
     assert.match(funnel, /compactLowSampleNotice/);
     assert.match(funnel, /formatContinuedViewingOutcome/);
-    assert.match(funnel, /continued\.fractionLabel|continuedPrimary/);
+    assert.match(funnel, /continuedPrimary/);
+    assert.match(funnel, /flex flex-wrap items-center gap-x-1 gap-y-1 text-xs/);
+    assert.match(funnel, /aria-label="Recipe filter"/);
+    assert.match(funnel, /RECIPE_PERFORMANCE_MULTI_VIDEO_NOTE/);
     const recipes = funnel.indexOf("Recipe performance");
     const cta = funnel.indexOf("CTA placement");
     assert.ok(recipes >= 0 && cta > recipes);

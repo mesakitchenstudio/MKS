@@ -9,7 +9,7 @@ import {
   adminSelectClass,
   adminTableHeadClass,
 } from "@/lib/admin-ui";
-import { formatAdminDateTime } from "@/lib/datetime";
+import { formatAdminDateTimeUtc } from "@/lib/datetime";
 import { NewRecipeButton } from "./NewRecipeButton";
 
 export type AdminRecipeRow = {
@@ -28,8 +28,9 @@ type RecipeTypeOption = {
 
 type StatusFilter = "all" | "published" | "draft";
 
-const editActionClass = `text-sm font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`;
-const viewActionClass = `text-sm font-semibold text-muted no-underline transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`;
+const editActionClass = `inline-flex min-h-[44px] items-center text-sm font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`;
+const viewActionClass = `inline-flex min-h-[44px] items-center text-sm font-normal text-muted no-underline transition-colors duration-150 hover:text-olive ${adminFocusRing}`;
+const titleLinkClass = `block font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta hover:underline decoration-terracotta/40 underline-offset-2 ${adminFocusRing}`;
 
 function normalizeStatus(status: string) {
   return status.toLowerCase();
@@ -46,12 +47,8 @@ function RecipeStatus({ status }: { status: string }) {
   const label = published ? "Published" : "Draft";
 
   return (
-    <span className="inline-flex items-center gap-2 text-sm text-muted">
-      <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${published ? "bg-olive" : "bg-terracotta/75"}`}
-        aria-hidden
-      />
-      <span>{label}</span>
+    <span className={`text-sm ${published ? "text-olive" : "font-medium text-terracotta"}`}>
+      {label}
     </span>
   );
 }
@@ -67,12 +64,22 @@ function RecipeActions({
 }) {
   return (
     <div className={`flex items-center gap-4 ${className}`}>
-      <Link href={`/admin/recipes/${recipe.id}`} className={editActionClass}>
+      <Link
+        href={`/admin/recipes/${recipe.id}`}
+        className={editActionClass}
+        aria-label={`Edit ${recipe.title}`}
+      >
         Edit
       </Link>
       {published ? (
-        <Link href={`/recipes/${recipe.slug}`} className={viewActionClass}>
-          View
+        <Link
+          href={`/recipes/${recipe.slug}`}
+          className={viewActionClass}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`View ${recipe.title} on public site (opens in new tab)`}
+        >
+          View ↗
         </Link>
       ) : null}
     </div>
@@ -81,11 +88,8 @@ function RecipeActions({
 
 function NoRecipesEmptyState({ types }: { types: RecipeTypeOption[] }) {
   return (
-    <div className="border border-line bg-paper px-5 py-14 text-center">
+    <div className="border-y border-line py-14 text-center">
       <p className="font-serif text-xl text-ink">No recipes yet.</p>
-      <p className="mt-2 text-sm text-muted">
-        Create your first recipe to start building the Mesa library.
-      </p>
       <div className="mt-6 flex justify-center">
         {types.length > 0 ? (
           <NewRecipeButton types={types} />
@@ -101,9 +105,8 @@ function NoRecipesEmptyState({ types }: { types: RecipeTypeOption[] }) {
 
 function NoResultsEmptyState({ onClearFilters }: { onClearFilters: () => void }) {
   return (
-    <div className="border border-line bg-paper px-5 py-14 text-center">
-      <p className="font-serif text-xl text-ink">No matching recipes</p>
-      <p className="mt-2 text-sm text-muted">No recipes match the current search or filters.</p>
+    <div className="border-y border-line py-14 text-center">
+      <p className="font-serif text-xl text-ink">No recipes match these filters.</p>
       <button
         type="button"
         onClick={onClearFilters}
@@ -150,89 +153,102 @@ export function RecipesIndex({
   return (
     <div>
       <header className="mb-8 md:mb-9">
-        <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">Recipes</h1>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
-          Drafts stay off the public site until you publish.
-        </p>
-        {counts.total > 0 ? (
-          <p className="mt-2 text-sm text-muted">
-            {counts.total} {counts.total === 1 ? "recipe" : "recipes"} · {counts.published}{" "}
-            published · {counts.drafts} {counts.drafts === 1 ? "draft" : "drafts"}
-          </p>
-        ) : null}
-      </header>
-
-      {recipes.length > 0 ? (
-        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
-          <div className="min-w-0 flex-1">
-            <div
-              className="flex flex-col gap-2 rounded-sm border border-line bg-paper p-3 sm:flex-row sm:flex-wrap sm:items-center"
-              role="search"
-            >
-              <label className="sr-only" htmlFor="recipe-search">
-                Search recipes
-              </label>
-              <input
-                id="recipe-search"
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search recipes…"
-                className={`${adminInputClass} w-full sm:min-w-[14rem] sm:flex-1 sm:basis-[15.625rem]`}
-              />
-
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
-                <label className="sr-only" htmlFor="recipe-type-filter">
-                  Filter by type
-                </label>
-                <select
-                  id="recipe-type-filter"
-                  value={typeId}
-                  onChange={(event) => setTypeId(event.target.value)}
-                  className={`${adminSelectClass} w-full sm:w-[7.75rem]`}
-                >
-                  <option value="">All types</option>
-                  {types.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-
-                <label className="sr-only" htmlFor="recipe-status-filter">
-                  Filter by status
-                </label>
-                <select
-                  id="recipe-status-filter"
-                  value={status}
-                  onChange={(event) => setStatus(event.target.value as StatusFilter)}
-                  className={`${adminSelectClass} w-full sm:w-[8.125rem]`}
-                >
-                  <option value="all">All statuses</option>
-                  <option value="published">Published</option>
-                  <option value="draft">Draft</option>
-                </select>
-              </div>
-            </div>
-
-            {hasActiveFilters ? (
-              <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-                <span>
-                  Showing {filtered.length} of {recipes.length}{" "}
-                  {recipes.length === 1 ? "recipe" : "recipes"}
-                </span>
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className={`font-semibold text-terracotta transition-colors duration-150 hover:text-terracotta-dark ${adminFocusRing}`}
-                >
-                  Clear filters
-                </button>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+              Recipes
+            </h1>
+            {counts.total > 0 ? (
+              <p className="mt-2 text-sm text-muted">
+                {counts.total} {counts.total === 1 ? "recipe" : "recipes"} · {counts.published}{" "}
+                published · {counts.drafts} {counts.drafts === 1 ? "draft" : "drafts"}
               </p>
             ) : null}
           </div>
+          <NewRecipeButton types={types} className="shrink-0" />
+        </div>
+      </header>
 
-          <NewRecipeButton types={types} className="w-full shrink-0 lg:w-auto" />
+      {recipes.length > 0 ? (
+        <div className="mb-5 space-y-2">
+          <div
+            className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+            role="search"
+          >
+            <label className="sr-only" htmlFor="recipe-search">
+              Search recipes
+            </label>
+            <input
+              id="recipe-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search recipes…"
+              className={`${adminInputClass} w-full sm:w-[22.5rem] sm:max-w-[26.25rem]`}
+            />
+
+            <label className="sr-only" htmlFor="recipe-type-filter">
+              Filter by type
+            </label>
+            <select
+              id="recipe-type-filter"
+              value={typeId}
+              onChange={(event) => setTypeId(event.target.value)}
+              className={`${adminSelectClass} w-full sm:w-[8.5rem]`}
+            >
+              <option value="">All types</option>
+              {types.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
+
+            <div
+              className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs"
+              role="group"
+              aria-label="Filter by status"
+            >
+              {(
+                [
+                  ["all", "All"],
+                  ["published", "Published"],
+                  ["draft", "Draft"],
+                ] as const
+              ).map(([value, label]) => {
+                const selected = status === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={selected}
+                    className={`min-h-[44px] rounded-sm px-2.5 py-1.5 font-semibold transition-colors ${
+                      selected ? "bg-sand text-ink" : "text-muted hover:text-ink"
+                    } ${adminFocusRing}`}
+                    onClick={() => setStatus(value)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {hasActiveFilters ? (
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+              <span>
+                Showing {filtered.length} of {recipes.length}{" "}
+                {recipes.length === 1 ? "recipe" : "recipes"}
+              </span>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className={`font-semibold text-terracotta transition-colors duration-150 hover:text-terracotta-dark ${adminFocusRing}`}
+              >
+                Clear filters
+              </button>
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -242,14 +258,14 @@ export function RecipesIndex({
         <NoResultsEmptyState onClearFilters={clearFilters} />
       ) : showResults ? (
         <>
-          <div className="hidden border border-line bg-paper md:block">
+          <div className="hidden md:block">
             <table className="w-full table-fixed text-left text-sm">
               <colgroup>
                 <col className="w-[38%]" />
                 <col className="w-[18%]" />
                 <col className="w-[16%]" />
-                <col className="w-[20%]" />
-                <col className="w-[8%]" />
+                <col className="w-[18%]" />
+                <col className="w-[10%]" />
               </colgroup>
               <thead className={adminTableHeadClass}>
                 <tr>
@@ -276,12 +292,12 @@ export function RecipesIndex({
                   return (
                     <tr
                       key={recipe.id}
-                      className="border-t border-line transition-colors duration-150 motion-reduce:transition-none hover:bg-cream/70"
+                      className="border-t border-line/70 transition-colors duration-150 motion-reduce:transition-none hover:bg-cream/50"
                     >
                       <td className="px-4 py-3.5 align-middle">
                         <Link
                           href={`/admin/recipes/${recipe.id}`}
-                          className={`block truncate font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
+                          className={`${titleLinkClass} line-clamp-2`}
                         >
                           {recipe.title}
                         </Link>
@@ -291,7 +307,9 @@ export function RecipesIndex({
                         <RecipeStatus status={recipe.status} />
                       </td>
                       <td className="px-4 py-3.5 align-middle whitespace-nowrap text-sm text-muted">
-                        <time dateTime={recipe.updatedAt}>{formatAdminDateTime(recipe.updatedAt)}</time>
+                        <time dateTime={recipe.updatedAt}>
+                          {formatAdminDateTimeUtc(recipe.updatedAt)}
+                        </time>
                       </td>
                       <td className="px-4 py-3.5 pr-5 align-middle whitespace-nowrap text-right">
                         <RecipeActions recipe={recipe} published={published} className="justify-end" />
@@ -301,38 +319,35 @@ export function RecipesIndex({
                 })}
               </tbody>
             </table>
+            <p className="mt-3 text-xs text-muted">Times in GMT</p>
           </div>
 
-          <ul className="space-y-3 md:hidden">
+          <ul className="divide-y divide-line/70 border-y border-line/70 md:hidden">
             {filtered.map((recipe) => {
               const published = normalizeStatus(recipe.status) === "published";
               return (
-                <li key={recipe.id} className="border border-line bg-paper px-4 py-3.5">
+                <li key={recipe.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <Link
-                        href={`/admin/recipes/${recipe.id}`}
-                        className={`block break-words font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
-                      >
-                        {recipe.title}
-                      </Link>
-                      <p className="mt-1 text-sm text-ink">{recipe.type.name}</p>
-                    </div>
-                    <RecipeActions recipe={recipe} published={published} className="shrink-0" />
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-3">
+                    <Link
+                      href={`/admin/recipes/${recipe.id}`}
+                      className={`${titleLinkClass} min-w-0 flex-1 line-clamp-2`}
+                    >
+                      {recipe.title}
+                    </Link>
                     <RecipeStatus status={recipe.status} />
-                    <span className="text-line" aria-hidden>
-                      ·
-                    </span>
-                    <time className="text-sm text-muted" dateTime={recipe.updatedAt}>
-                      Updated {formatAdminDateTime(recipe.updatedAt)}
-                    </time>
                   </div>
+                  <p className="mt-1 text-sm text-muted">
+                    {recipe.type.name} ·{" "}
+                    <time dateTime={recipe.updatedAt}>
+                      {formatAdminDateTimeUtc(recipe.updatedAt)}
+                    </time>
+                  </p>
+                  <RecipeActions recipe={recipe} published={published} className="mt-1" />
                 </li>
               );
             })}
           </ul>
+          <p className="mt-3 text-xs text-muted md:hidden">Times in GMT</p>
         </>
       ) : null}
     </div>

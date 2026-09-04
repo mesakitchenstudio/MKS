@@ -30,19 +30,37 @@ export function formatRecipeVisitorOutcome(
 export function formatContinuedViewingOutcome(
   continuedVisitors: number,
   videoInteractionVisitors: number,
-): VisitorOutcomeDisplay & { headline: string } {
+): VisitorOutcomeDisplay & {
+  headline: string;
+  /** Compact numerator/denominator for stacked display (denominator note shown separately). */
+  shortFraction: string | null;
+  denominatorNote: string | null;
+} {
   const limitedSample = isFunnelLowSample(videoInteractionVisitors);
   const headline = `${continuedVisitors} continued-viewing visitor${continuedVisitors === 1 ? "" : "s"}`;
   const fractionLabel =
     videoInteractionVisitors > 0
       ? `${continuedVisitors} of ${videoInteractionVisitors} video-interacting visitors`
       : `${continuedVisitors} continued-viewing visitors`;
+  const shortFraction =
+    videoInteractionVisitors > 0
+      ? `${continuedVisitors} of ${videoInteractionVisitors}`
+      : null;
+  const denominatorNote =
+    videoInteractionVisitors > 0 ? "video-interacting visitors" : null;
   let rateLabel: string | null = null;
   if (videoInteractionVisitors > 0) {
     const pct = Math.round((continuedVisitors / videoInteractionVisitors) * 100);
     rateLabel = `${pct}%`;
   }
-  return { headline, fractionLabel, rateLabel, limitedSample };
+  return {
+    headline,
+    fractionLabel,
+    shortFraction,
+    denominatorNote,
+    rateLabel,
+    limitedSample,
+  };
 }
 
 export function formatFunnelRateInteger(value: number | null, denominator: number): string {
@@ -82,6 +100,13 @@ export const RECIPE_MULTI_VIDEO_VISITORS_LABEL = "Multi-video visitors";
 
 export const RECIPE_MULTI_VIDEO_VISITORS_HELP =
   "Visitors to this recipe who also interacted with at least two distinct Mesa videos during the selected period. This does not necessarily mean the additional interaction occurred directly after this recipe.";
+
+/** Short recipe-table intro line (timing caveat lives in Methodology). */
+export const RECIPE_PERFORMANCE_INTRO =
+  "Unique visitors are the denominator. Sorted by visitors.";
+
+export const RECIPE_PERFORMANCE_MULTI_VIDEO_NOTE =
+  "Multi-video visitors interacted with at least two Mesa videos during the selected period.";
 
 /** Recipe-level multi-video count: X of Y visitors (no rate — not sequential attribution). */
 export function formatRecipeMultiVideoVisitorsLabel(

@@ -33,6 +33,28 @@ export function formatAdminDateTime(value: Date | string | null | undefined) {
   return `${month} ${day}, ${year} · ${time} GMT`;
 }
 
+/**
+ * Admin list timestamps without a per-row GMT suffix (still UTC).
+ * Pair with a page-level “Times in GMT” note.
+ * Example: Aug 24, 2026 · 10:09 PM
+ */
+export function formatAdminDateTimeUtc(value: Date | string | null | undefined) {
+  const date = asDate(value);
+  if (!date) return "—";
+
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const day = date.getUTCDate();
+  const year = date.getUTCFullYear();
+  const time = date.toLocaleString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  });
+
+  return `${month} ${day}, ${year} · ${time}`;
+}
+
 /** Compact visitors timestamps: Aug 25 · 11:47 AM GMT (year when useful or requested). */
 export function formatAdminShortDateTime(
   value: Date | string | null | undefined,

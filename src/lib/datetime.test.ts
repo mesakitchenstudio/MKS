@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { formatAdminShortDateTime, formatChannelSnapshotTrendShort } from "./datetime.ts";
+import { formatAdminDateTime, formatAdminDateTimeUtc, formatAdminShortDateTime, formatChannelSnapshotTrendShort } from "./datetime.ts";
+
+describe("formatAdminDateTime", () => {
+  it("formats UTC timestamps with an explicit GMT suffix", () => {
+    assert.equal(formatAdminDateTime("2026-09-02T18:20:00.000Z"), "Sep 2, 2026 · 6:20 PM GMT");
+  });
+});
+
+describe("formatAdminDateTimeUtc", () => {
+  it("formats the same UTC instant without a per-row GMT suffix", () => {
+    assert.equal(formatAdminDateTimeUtc("2026-09-02T18:20:00.000Z"), "Sep 2, 2026 · 6:20 PM");
+  });
+});
 
 describe("formatAdminShortDateTime", () => {
   const now = new Date("2026-08-28T10:00:00.000Z");
