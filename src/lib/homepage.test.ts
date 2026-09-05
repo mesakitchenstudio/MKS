@@ -340,14 +340,15 @@ describe("homepage Phase 3 visual enrichment", () => {
     assert.doesNotMatch(kitchen, /lg:grid-cols-3/);
   });
 
-  it("passes in-memory Browse category counts from homepage recipes", () => {
+  it("keeps Browse as a text-only editorial index without recipe counts", () => {
     const page = read("src/app/page.tsx");
-    assert.match(page, /countRecipesByPrimaryCategory/);
-    assert.match(page, /recipeMatchesPrimaryCategory/);
-    assert.match(page, /categoryCounts=\{categoryCounts\}/);
+    assert.doesNotMatch(page, /countRecipesByPrimaryCategory|categoryCounts/);
+    assert.doesNotMatch(page, /recipeMatchesPrimaryCategory/);
     const browse = read("src/components/HomepageBrowseCategories.tsx");
-    assert.match(browse, /categoryCounts/);
     assert.match(browse, /border-t border-line/);
+    assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
+    assert.match(browse, /PRIMARY_CATEGORY_LABELS\[slug\]/);
+    assert.doesNotMatch(browse, /categoryCounts|tabular-nums|recipeMatchesPrimaryCategory/);
     assert.doesNotMatch(browse, /aspect-|Image|img /);
   });
 

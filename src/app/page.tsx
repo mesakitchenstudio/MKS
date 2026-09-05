@@ -13,11 +13,6 @@ import {
   getHomepageFeaturedRecipeSlug,
   getHomepageFromKitchenRecipeSlugs,
 } from "@/lib/site-settings";
-import {
-  PRIMARY_CATEGORY_SLUGS,
-  recipeMatchesPrimaryCategory,
-  type PrimaryCategorySlug,
-} from "@/lib/recipe-primary-taxonomy";
 import { getAllRecipes } from "@/lib/recipes";
 import { listPublishedSeries } from "@/lib/series";
 
@@ -40,20 +35,6 @@ const heroLinkFocus =
 const studioLinkFocus =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
-function countRecipesByPrimaryCategory(
-  recipes: Awaited<ReturnType<typeof getAllRecipes>>,
-): Partial<Record<PrimaryCategorySlug, number>> {
-  const counts: Partial<Record<PrimaryCategorySlug, number>> = {};
-  for (const slug of PRIMARY_CATEGORY_SLUGS) {
-    let n = 0;
-    for (const recipe of recipes) {
-      if (recipeMatchesPrimaryCategory(recipe, slug)) n += 1;
-    }
-    if (n > 0) counts[slug] = n;
-  }
-  return counts;
-}
-
 export default async function Home() {
   const recipes = await getAllRecipes();
   const [featuredRecipeSlug, fromKitchenSlugs, publishedSeries] = await Promise.all([
@@ -66,7 +47,6 @@ export default async function Home() {
     fromKitchenSlugs,
   });
   const featuredSeries = publishedSeries[0] ?? null;
-  const categoryCounts = countRecipesByPrimaryCategory(recipes);
 
   return (
     <>
@@ -111,7 +91,7 @@ export default async function Home() {
 
       {featuredSeries ? <HomepageFeaturedSeries series={featuredSeries} /> : null}
 
-      <HomepageBrowseCategories categoryCounts={categoryCounts} />
+      <HomepageBrowseCategories />
 
       {homepageConfig.fromKitchen.enabled && homepage.fromKitchen.length === 3 ? (
         <HomepageFromKitchenSection
