@@ -154,6 +154,14 @@ describe("admin review helpers", () => {
       }),
       null,
     );
+    assert.equal(
+      adminReviewPublicAnchorHref({
+        recipeSlug: "iced-horchata-coffee",
+        recipeStatus: null,
+        reviewId: "rev_omid",
+      }),
+      "/recipes/iced-horchata-coffee?review=rev_omid#review-rev_omid",
+    );
     assert.equal(formatAdminReviewerType("user_1"), "Member");
     assert.equal(formatAdminReviewerType(null), "Visitor");
     assert.equal(formatAdminReviewerType(undefined), "Visitor");
@@ -280,10 +288,12 @@ describe("admin Reviews index contracts", () => {
     assert.match(reviewsIndex, /RemoveReviewButton/);
     assert.match(
       reviewsIndex,
-      /View \$\{review\.authorName\}'s review on \$\{review\.recipeTitle\}/,
+      /View \$\{review\.authorName\}'s review on \$\{review\.recipeTitle\} \(opens in a new tab\)/,
     );
     assert.match(reviewsIndex, /<a[\s\S]*href=\{publicHref\}/);
-    assert.doesNotMatch(reviewsIndex, /target="_blank"/);
+    assert.match(reviewsIndex, /target="_blank"/);
+    assert.match(reviewsIndex, /noopener noreferrer/);
+    assert.match(reviewsIndex, /underline/);
     assert.match(reviewsIndex, /ReviewExcerptControl/);
     assert.match(reviewsIndex, /onToggle/);
     assert.match(reviewsIndex, /line-clamp-2/);

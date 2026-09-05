@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isSitePrivate } from "@/lib/flags";
 import {
+  hasValidAdminSessionFromRequest,
   isBlockedApiWhilePrivate,
   shouldGatePublicRequest,
 } from "@/lib/site-gate";
@@ -23,21 +24,23 @@ const PUBLIC_WHILE_PRIVATE = [
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const cookieHeader = request.headers.get("cookie");
+  // Cookie jar is the source of truth; raw header alone can miss the admin session.
+  const staffPreview = hasValidAdminSessionFromRequest(request);
 
   // Recipe/content APIs stay blocked while private (unless staff preview).
-  if (isBlockedApiWhilePrivate(pathname, cookieHeader)) {
+  if (isBlockedApiWhilePrivate(pathname, cookieHeader) && !staffPreview) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   if (!isSitePrivate()) {
-    if (shouldGateStudioRequest(pathname, cookieHeader)) {
+    if (shouldGateStudioRequest(pathname, cookieHeader) && !staffPreview) {
       return NextResponse.rewrite(new URL("/coming-soon", request.url));
     }
     return NextResponse.next();
   }
 
   // Staff with a valid admin session may browse the full public site.
-  if (!shouldGatePublicRequest(cookieHeader)) {
+  if (staffPreview || !shouldGatePublicRequest(cookieHeader)) {
     return NextResponse.next();
   }
 

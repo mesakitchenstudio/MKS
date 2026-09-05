@@ -1,7 +1,34 @@
 import { isSitePrivate } from "@/lib/flags";
-import { hasValidAdminSessionCookie } from "@/lib/admin-session-token";
+import {
+  ADMIN_COOKIE,
+  adminSessionTokenFromCookieHeader,
+  hasValidAdminSessionCookie,
+  verifySessionToken,
+} from "@/lib/admin-session-token";
 
 export { isSitePrivate };
+
+/** Prefer NextRequest cookie jar; fall back to raw Cookie header parsing. */
+export function adminSessionTokenFromRequestCookies(
+  request: {
+    cookies: { get: (name: string) => { value: string } | undefined };
+    headers: { get: (name: string) => string | null };
+  },
+): string | undefined {
+  return (
+    request.cookies.get(ADMIN_COOKIE)?.value ||
+    adminSessionTokenFromCookieHeader(request.headers.get("cookie"))
+  );
+}
+
+export function hasValidAdminSessionFromRequest(
+  request: {
+    cookies: { get: (name: string) => { value: string } | undefined };
+    headers: { get: (name: string) => string | null };
+  },
+): boolean {
+  return Boolean(verifySessionToken(adminSessionTokenFromRequestCookies(request)));
+}
 
 export function isPublicApiWhilePrivate(pathname: string) {
   return (

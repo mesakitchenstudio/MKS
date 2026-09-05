@@ -67,4 +67,25 @@ describe("proxy while SITE_PRIVATE", () => {
     assert.equal(apiRes.status, 200);
     assert.equal(apiRes.headers.get("x-middleware-next"), "1");
   });
+
+  it("lets staff browse recipe deep links used from Admin Reviews", () => {
+    process.env.SITE_PRIVATE = "true";
+    process.env.ADMIN_SECRET = "test-admin-secret-for-proxy";
+    const token = createSessionToken({
+      id: "env",
+      email: "owner@example.com",
+      name: "Owner",
+      role: "owner",
+      sv: 0,
+    });
+    const page = new NextRequest(
+      new URL(
+        "http://localhost:3000/recipes/iced-horchata-coffee?review=rev_1#review-rev_1",
+      ),
+      { headers: { cookie: `${ADMIN_COOKIE}=${token}` } },
+    );
+    const pageRes = proxy(page);
+    assert.equal(pageRes.headers.get("x-middleware-rewrite"), null);
+    assert.equal(pageRes.headers.get("x-middleware-next"), "1");
+  });
 });
