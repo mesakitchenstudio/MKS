@@ -75,6 +75,9 @@ const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   series_page_header: "series_page",
   series_page_footer: "series_page",
   series_page_conclusion: "series_page",
+  /** Homepage Featured Series bridge — maps to other (no separate funnel placement). */
+  homepage: "other",
+  homepage_series: "other",
 };
 
 const BLOCKED_META_KEYS = new Set([

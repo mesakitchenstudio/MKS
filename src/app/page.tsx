@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HomepageBrowseCategories } from "@/components/HomepageBrowseCategories";
+import { HomepageFeaturedSeries } from "@/components/HomepageFeaturedSeries";
 import { HomepageFromKitchenSection } from "@/components/HomepageFromKitchenSection";
 import { HomepageHero } from "@/components/HomepageHero";
 import { HomepageLatestSection } from "@/components/HomepageLatestSection";
@@ -13,6 +14,7 @@ import {
   getHomepageFromKitchenRecipeSlugs,
 } from "@/lib/site-settings";
 import { getAllRecipes } from "@/lib/recipes";
+import { listPublishedSeries } from "@/lib/series";
 
 export const revalidate = 300;
 
@@ -32,14 +34,16 @@ const heroLinkFocus =
 
 export default async function Home() {
   const recipes = await getAllRecipes();
-  const [featuredRecipeSlug, fromKitchenSlugs] = await Promise.all([
+  const [featuredRecipeSlug, fromKitchenSlugs, publishedSeries] = await Promise.all([
     getHomepageFeaturedRecipeSlug(),
     getHomepageFromKitchenRecipeSlugs(),
+    listPublishedSeries(),
   ]);
   const homepage = resolveHomepage(recipes, {
     featuredRecipeSlug,
     fromKitchenSlugs,
   });
+  const featuredSeries = publishedSeries[0] ?? null;
 
   return (
     <>
@@ -81,6 +85,8 @@ export default async function Home() {
           recipes={homepage.latest}
         />
       ) : null}
+
+      {featuredSeries ? <HomepageFeaturedSeries series={featuredSeries} /> : null}
 
       <HomepageBrowseCategories />
 

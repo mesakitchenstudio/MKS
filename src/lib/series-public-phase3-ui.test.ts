@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { seriesItemListJsonLd, type PublicSeriesItem } from "./series-types";
 import {
   formatSeriesCollectionMeta,
+  formatSeriesPartCountLabel,
   parseDurationDisplay,
   seriesVisibleVideoDurationTotalSeconds,
 } from "./series-public-meta";
@@ -117,6 +118,8 @@ describe("Series public Phase 3 conversion + metadata", () => {
     ];
     assert.equal(formatSeriesCollectionMeta(recipeOnlyPlusVideo), "2-PART SERIES · 10 MIN TOTAL");
     assert.equal(formatSeriesCollectionMeta([item({ id: "x", title: "Solo" })]), "1-PART SERIES");
+    assert.equal(formatSeriesPartCountLabel(1), "1-part series");
+    assert.equal(formatSeriesPartCountLabel(2), "2-part series");
 
     assert.match(page, /formatSeriesCollectionMeta\(series\.items\)/);
   });
@@ -131,6 +134,7 @@ describe("Series public Phase 3 conversion + metadata", () => {
     assert.doesNotMatch(page, /placement="series_page_footer"/);
     assert.equal(mapSourceToPlacement("series_page_header"), "series_page");
     assert.equal(mapSourceToPlacement("series_page_conclusion"), "series_page");
+    assert.equal(mapSourceToPlacement("homepage_series"), "other");
   });
 
   it("uses Read recipe / Watch video labels with accessible names", () => {

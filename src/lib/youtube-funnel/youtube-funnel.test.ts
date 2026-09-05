@@ -77,6 +77,8 @@ describe("funnel-analytics", () => {
     assert.equal(mapSourceToPlacement("series_page_header"), "series_page");
     assert.equal(mapSourceToPlacement("series_page_footer"), "series_page");
     assert.equal(mapSourceToPlacement("series_page_conclusion"), "series_page");
+    assert.equal(mapSourceToPlacement("homepage"), "other");
+    assert.equal(mapSourceToPlacement("homepage_series"), "other");
     assert.equal(mapSourceToPlacement("unknown"), "other");
   });
 

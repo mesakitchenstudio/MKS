@@ -31,6 +31,13 @@ export function seriesVisibleVideoDurationTotalSeconds(
   return total;
 }
 
+/** Sentence-case part count for homepage and restrained public surfaces. */
+export function formatSeriesPartCountLabel(itemCount: number): string {
+  const count = Math.max(0, Math.floor(itemCount));
+  if (count === 1) return "1-part series";
+  return `${count}-part series`;
+}
+
 /** Quiet editorial metadata, e.g. `2-PART SERIES · 12 MIN TOTAL`. */
 export function formatSeriesCollectionMeta(
   items: Pick<PublicSeriesItem, "youtubeVideoId" | "watchUrl" | "durationDisplay">[],

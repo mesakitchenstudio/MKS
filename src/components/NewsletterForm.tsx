@@ -72,7 +72,7 @@ export function NewsletterForm({ tone = "light" }: { tone?: "light" | "dark" }) 
       <button
         type="submit"
         disabled={loading}
-        className="rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Subscribing…" : "Subscribe"}
       </button>

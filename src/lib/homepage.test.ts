@@ -189,4 +189,74 @@ describe("homepage curation", () => {
     assert.ok(summary.latestCandidates.length >= 3);
     assert.ok(summary.heroCandidates.length >= 3);
   });
+
+  it("keeps Latest chronological and not wired to kitchen/featured curation slots", () => {
+    const homepageSrc = readFileSync(join(process.cwd(), "src/lib/homepage.ts"), "utf8");
+    assert.match(homepageSrc, /pool\.slice\(0, LATEST_MAX\)/);
+    assert.doesNotMatch(homepageSrc, /fromKitchenSlugs.*latest|latest.*fromKitchenSlugs/);
+    assert.match(homepageSrc, /pickFromKitchen/);
+  });
+});
+
+describe("homepage Phase 1 discovery UI", () => {
+  const root = process.cwd();
+  const read = (rel: string) => readFileSync(join(root, rel), "utf8");
+
+  it("strengthens hero affordance inside a single recipe link", () => {
+    const hero = read("src/components/HomepageHero.tsx");
+    assert.match(hero, /href=\{`\/recipes\/\$\{recipe\.slug\}`\}/);
+    assert.match(hero, /View recipe →/);
+    assert.match(hero, /aria-hidden="true"/);
+    assert.equal((hero.match(/<Link\b/g) || []).length, 1);
+    assert.doesNotMatch(hero, /<a\b/);
+    assert.doesNotMatch(hero, /href=.*\n.*href=/s);
+  });
+
+  it("wires Featured Series after Latest and before Browse from listPublishedSeries", () => {
+    const page = read("src/app/page.tsx");
+    assert.match(page, /listPublishedSeries/);
+    assert.match(page, /HomepageFeaturedSeries/);
+    assert.match(page, /publishedSeries\[0\]/);
+    assert.match(page, /featuredSeries \? <HomepageFeaturedSeries/);
+
+    const body = page.slice(page.indexOf("return ("));
+    const latestIdx = body.indexOf("<HomepageLatestSection");
+    const seriesIdx = body.indexOf("<HomepageFeaturedSeries");
+    const browseIdx = body.indexOf("<HomepageBrowseCategories");
+    const kitchenIdx = body.indexOf("<HomepageFromKitchenSection");
+    assert.ok(latestIdx >= 0 && seriesIdx > latestIdx);
+    assert.ok(browseIdx > seriesIdx);
+    assert.ok(kitchenIdx > browseIdx);
+  });
+
+  it("renders a restrained Featured Series bridge to /series/{slug}", () => {
+    const block = read("src/components/HomepageFeaturedSeries.tsx");
+    assert.match(block, /PublicSeriesCard/);
+    assert.match(block, /href = `\/series\/\$\{series\.slug\}`/);
+    assert.match(block, /Featured series/);
+    assert.match(block, /formatSeriesPartCountLabel/);
+    assert.match(block, /Explore the series →/);
+    assert.match(block, /ariaLabel=\{exploreLabel\}/);
+    assert.match(block, /event="series_item_click"/);
+    assert.match(block, /placement="homepage_series"/);
+    assert.match(block, /SeriesItemTrackLink/);
+    assert.doesNotMatch(block, /<iframe|youtube\.com\/embed|Watch the full series on YouTube/i);
+    assert.doesNotMatch(block, /youtubePlaylistUrl|playlistId/);
+    assert.doesNotMatch(block, /getDb\(|prisma/i);
+  });
+
+  it("keeps Browse taxonomy text-first with larger touch targets", () => {
+    const browse = read("src/components/HomepageBrowseCategories.tsx");
+    assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
+    assert.match(browse, /buildRecipesUrl\(\{ category: slug \}\)/);
+    assert.match(browse, /min-h-11/);
+    assert.match(browse, /inline-flex/);
+    assert.doesNotMatch(browse, /aspect-|Image|img /);
+  });
+
+  it("aligns newsletter Subscribe focus-visible with public CTA pattern", () => {
+    const form = read("src/components/NewsletterForm.tsx");
+    assert.match(form, /focus-visible:outline-terracotta/);
+    assert.match(form, /type="submit"/);
+  });
 });
