@@ -13,7 +13,16 @@ import {
 const menuItemClass = `flex w-full px-3 py-2.5 text-left text-sm font-semibold text-terracotta hover:bg-cream sm:py-2 ${adminFocusRing}`;
 
 /** Remove reply — quiet reply-local overflow + confirm modal. */
-export function RemoveReplyButton({ id, authorName }: { id: string; authorName: string }) {
+export function RemoveReplyButton({
+  id,
+  authorName,
+  reviewId,
+}: {
+  id: string;
+  authorName: string;
+  /** Parent review — used so the server action can return to the detail page. */
+  reviewId: string;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const titleId = useId();
@@ -105,6 +114,7 @@ export function RemoveReplyButton({ id, authorName }: { id: string; authorName: 
               className="mt-6 flex flex-wrap items-center gap-3"
             >
               <input type="hidden" name="id" value={id} />
+              <input type="hidden" name="reviewId" value={reviewId} />
               <button
                 ref={cancelRef}
                 type="button"

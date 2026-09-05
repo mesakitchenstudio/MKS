@@ -405,12 +405,70 @@ export type AdminReviewListResult = {
 
 const ADMIN_REVIEWS_PAGE_SIZE = 40;
 
+const adminReviewReplySelect = {
+  id: true,
+  authorName: true,
+  authorTitle: true,
+  authorPhotoUrl: true,
+  body: true,
+  isStaff: true,
+  createdAt: true,
+} as const;
+
+const adminReviewRowSelect = {
+  id: true,
+  recipeSlug: true,
+  userId: true,
+  authorName: true,
+  authorEmail: true,
+  rating: true,
+  body: true,
+  createdAt: true,
+  _count: { select: { replies: true } },
+  replies: {
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
+    select: adminReviewReplySelect,
+  },
+};
+
 function humanizeRecipeSlug(slug: string) {
   return slug
     .split("-")
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function mapAdminReviewRow(
+  row: {
+    id: string;
+    recipeSlug: string;
+    userId: string | null;
+    authorName: string;
+    authorEmail: string;
+    rating: number;
+    body: string;
+    createdAt: Date;
+    _count: { replies: number };
+    replies: AdminReviewListItem["replies"];
+  },
+  recipe: { id: string; title: string; status: string } | undefined,
+): AdminReviewListItem {
+  return {
+    id: row.id,
+    recipeSlug: row.recipeSlug,
+    recipeTitle: recipe?.title?.trim() || humanizeRecipeSlug(row.recipeSlug),
+    recipeId: recipe?.id ?? null,
+    recipeStatus: recipe?.status ?? null,
+    userId: row.userId,
+    authorName: row.authorName,
+    authorEmail: row.authorEmail,
+    rating: row.rating,
+    body: row.body,
+    createdAt: row.createdAt,
+    replyCount: row._count.replies,
+    replies: row.replies,
+  };
 }
 
 export function formatReviewRating(rating: number) {
@@ -486,29 +544,7 @@ export async function listReviewsForAdmin(options?: {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       skip,
       take: pageSize,
-      select: {
-        id: true,
-        recipeSlug: true,
-        userId: true,
-        authorName: true,
-        authorEmail: true,
-        rating: true,
-        body: true,
-        createdAt: true,
-        _count: { select: { replies: true } },
-        replies: {
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          select: {
-            id: true,
-            authorName: true,
-            authorTitle: true,
-            authorPhotoUrl: true,
-            body: true,
-            isStaff: true,
-            createdAt: true,
-          },
-        },
-      },
+      select: adminReviewRowSelect,
     });
 
     const slugs = [...new Set(rows.map((row) => row.recipeSlug))];
@@ -525,28 +561,36 @@ export async function listReviewsForAdmin(options?: {
       page,
       pageSize,
       totalPages,
-      reviews: rows.map((row) => {
-        const recipe = recipeBySlug.get(row.recipeSlug);
-        return {
-          id: row.id,
-          recipeSlug: row.recipeSlug,
-          recipeTitle: recipe?.title?.trim() || humanizeRecipeSlug(row.recipeSlug),
-          recipeId: recipe?.id ?? null,
-          recipeStatus: recipe?.status ?? null,
-          userId: row.userId,
-          authorName: row.authorName,
-          authorEmail: row.authorEmail,
-          rating: row.rating,
-          body: row.body,
-          createdAt: row.createdAt,
-          replyCount: row._count.replies,
-          replies: row.replies,
-        };
-      }),
+      reviews: rows.map((row) => mapAdminReviewRow(row, recipeBySlug.get(row.recipeSlug))),
     };
   } catch (error) {
     console.error("Could not list reviews for admin", error);
     return { reviews: [], total: 0, page: 1, pageSize, totalPages: 1 };
+  }
+}
+
+/** Single review for Admin → Reviews detail. Returns null when missing. */
+export async function getReviewForAdmin(id: string): Promise<AdminReviewListItem | null> {
+  const trimmed = id.trim();
+  if (!trimmed) return null;
+
+  try {
+    const db = getDb();
+    const row = await db.recipeReview.findUnique({
+      where: { id: trimmed },
+      select: adminReviewRowSelect,
+    });
+    if (!row) return null;
+
+    const recipe = await db.recipe.findFirst({
+      where: { slug: row.recipeSlug },
+      select: { id: true, slug: true, title: true, status: true },
+    });
+
+    return mapAdminReviewRow(row, recipe ?? undefined);
+  } catch (error) {
+    console.error("Could not load review for admin", error);
+    return null;
   }
 }
 
@@ -562,9 +606,12 @@ export async function deleteReviewReplyById(id: string) {
   const db = getDb();
   const reply = await db.recipeReviewReply.findUnique({
     where: { id },
-    select: { review: { select: { recipeSlug: true } } },
+    select: {
+      reviewId: true,
+      review: { select: { recipeSlug: true } },
+    },
   });
   if (!reply) return null;
   await db.recipeReviewReply.delete({ where: { id } });
-  return reply.review.recipeSlug;
+  return { recipeSlug: reply.review.recipeSlug, reviewId: reply.reviewId };
 }

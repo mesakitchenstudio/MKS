@@ -12,15 +12,18 @@ import {
 
 const menuItemClass = `flex w-full px-3 py-2.5 text-left text-sm font-semibold text-terracotta hover:bg-cream sm:py-2 ${adminFocusRing}`;
 
-/** Remove review — resting UI is an overflow menu; confirm in a modal. */
+/** Remove review — overflow menu or quiet text trigger; confirm in a modal. */
 export function RemoveReviewButton({
   id,
   authorName,
   recipeTitle,
+  variant = "overflow",
 }: {
   id: string;
   authorName: string;
   recipeTitle: string;
+  /** `overflow` = ⋯ menu; `text` = quiet danger link for detail management. */
+  variant?: "overflow" | "text";
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -58,38 +61,52 @@ export function RemoveReviewButton({
 
   return (
     <div ref={rootRef} className="relative inline-flex">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        aria-controls={menuId}
-        aria-label={`Review actions for ${recipeTitle} by ${authorName}`}
-        className={`${adminFocusRing} ${adminIconButtonClass}`}
-        onClick={() => setMenuOpen((value) => !value)}
-      >
-        ⋯
-      </button>
-
-      {menuOpen ? (
-        <div
-          id={menuId}
-          role="menu"
-          className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] border border-line bg-paper py-1 shadow-sm"
+      {variant === "text" ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-label={`Remove review by ${authorName} on ${recipeTitle}`}
+          className={`${adminDangerButtonClass} ${adminFocusRing}`}
+          onClick={() => setConfirmOpen(true)}
         >
+          Remove review
+        </button>
+      ) : (
+        <>
           <button
+            ref={triggerRef}
             type="button"
-            role="menuitem"
-            className={menuItemClass}
-            onClick={() => {
-              setMenuOpen(false);
-              setConfirmOpen(true);
-            }}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-controls={menuId}
+            aria-label={`Review actions for ${recipeTitle} by ${authorName}`}
+            className={`${adminFocusRing} ${adminIconButtonClass}`}
+            onClick={() => setMenuOpen((value) => !value)}
           >
-            Remove review
+            ⋯
           </button>
-        </div>
-      ) : null}
+
+          {menuOpen ? (
+            <div
+              id={menuId}
+              role="menu"
+              className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] border border-line bg-paper py-1 shadow-sm"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                className={menuItemClass}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setConfirmOpen(true);
+                }}
+              >
+                Remove review
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
 
       {confirmOpen ? (
         <div

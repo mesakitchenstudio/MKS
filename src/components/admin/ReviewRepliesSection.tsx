@@ -53,8 +53,16 @@ function ReplyAvatar({
   );
 }
 
-/** Always shows existing replies under a review for Admin → Reviews. */
-export function ReviewRepliesSection({ replies, count }: { replies: Reply[]; count: number }) {
+/** Always shows existing replies under a review for Admin → Reviews detail. */
+export function ReviewRepliesSection({
+  replies,
+  count,
+  reviewId,
+}: {
+  replies: Reply[];
+  count: number;
+  reviewId: string;
+}) {
   const total = count || replies.length;
   if (total <= 0) return null;
 
@@ -97,6 +105,7 @@ export function ReviewRepliesSection({ replies, count }: { replies: Reply[]; cou
                 <RemoveReplyButton
                   id={reply.id}
                   authorName={display.primary || reply.authorName}
+                  reviewId={reviewId}
                 />
               </div>
             </li>

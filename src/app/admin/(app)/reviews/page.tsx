@@ -1,11 +1,8 @@
 import {
   AdminFlashStatus,
   REVIEW_REMOVED_PARAMS,
-  REVIEW_REPLIED_PARAMS,
-  REVIEW_REPLY_REMOVED_PARAMS,
 } from "@/lib/admin-transient-feedback";
-import { AdminReviewsLiveFeed } from "@/components/admin/AdminReviewsLiveFeed";
-import { canAccess } from "@/lib/admin-access";
+import { AdminReviewsIndex } from "@/components/admin/AdminReviewsIndex";
 import { requireAccess } from "@/lib/auth";
 import { listReviewsForAdmin } from "@/lib/recipe-reviews";
 
@@ -16,15 +13,12 @@ export default async function AdminReviewsPage({
 }: {
   searchParams: Promise<{
     removed?: string;
-    replyRemoved?: string;
-    replied?: string;
     error?: string;
     page?: string;
   }>;
 }) {
-  const admin = await requireAccess("content");
-  const canOpenMembers = canAccess(admin.role, "members");
-  const { removed, replyRemoved, replied, error, page: pageParam } = await searchParams;
+  await requireAccess("content");
+  const { removed, error, page: pageParam } = await searchParams;
   const requestedPage = Number.parseInt(pageParam || "1", 10);
   const { reviews, page, totalPages, total } = await listReviewsForAdmin({
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
@@ -39,31 +33,20 @@ export default async function AdminReviewsPage({
         Read and respond to member reviews on Mesa recipes.
       </p>
 
-      <AdminFlashStatus active={Boolean(replied)} clearParams={REVIEW_REPLIED_PARAMS}>
-        Reply posted.
-      </AdminFlashStatus>
       <AdminFlashStatus active={Boolean(removed)} clearParams={REVIEW_REMOVED_PARAMS}>
         Review removed.
       </AdminFlashStatus>
-      <AdminFlashStatus active={Boolean(replyRemoved)} clearParams={REVIEW_REPLY_REMOVED_PARAMS}>
-        Reply removed.
-      </AdminFlashStatus>
-      {error === "reply" ? (
-        <p className="mt-4 text-sm text-terracotta" role="alert">
-          Could not post that reply. Check the text and try again.
-        </p>
-      ) : error ? (
+      {error ? (
         <p className="mt-4 text-sm text-terracotta" role="alert">
           Could not remove that item. It may already be gone.
         </p>
       ) : null}
 
-      <AdminReviewsLiveFeed
+      <AdminReviewsIndex
         initialReviews={reviews}
         page={page}
         totalPages={totalPages}
         total={total}
-        canOpenMembers={canOpenMembers}
       />
     </div>
   );

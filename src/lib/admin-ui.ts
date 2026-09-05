@@ -84,8 +84,14 @@ export const adminWorkspaceMembersList = "max-w-5xl";
 /** Member detail editorial measure (~832px). */
 export const adminWorkspaceMembersDetail = "max-w-[52rem]";
 
-/** Reviews conversation feed (~928px). */
-export const adminWorkspaceReviews = "max-w-[58rem]";
+/** Reviews index ledger (~1024px) — five-column triage table. */
+export const adminWorkspaceReviewsList = "max-w-5xl";
+
+/** Review detail conversation (~928px). */
+export const adminWorkspaceReviewsDetail = "max-w-[58rem]";
+
+/** @deprecated Prefer adminWorkspaceReviewsList / adminWorkspaceReviewsDetail. */
+export const adminWorkspaceReviews = adminWorkspaceReviewsList;
 
 /** @deprecated Use adminWorkspaceWide */
 export const adminWorkspaceMaxWidth = adminWorkspaceWide;

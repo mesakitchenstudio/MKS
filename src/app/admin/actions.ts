@@ -895,19 +895,18 @@ export async function deleteReviewReplyAction(formData: FormData) {
   const id = String(formData.get("id") || "");
   if (!id) redirect("/admin/reviews");
   const { deleteReviewReplyById } = await import("@/lib/recipe-reviews");
-  const slug = await deleteReviewReplyById(id);
-  if (!slug) redirect("/admin/reviews?error=missing");
-  revalidatePath(`/recipes/${slug}`);
+  const result = await deleteReviewReplyById(id);
+  if (!result) redirect("/admin/reviews?error=missing");
+  revalidatePath(`/recipes/${result.recipeSlug}`);
   revalidatePath("/admin/reviews");
-  redirect("/admin/reviews?replyRemoved=1");
+  revalidatePath(`/admin/reviews/${result.reviewId}`);
+  redirect(`/admin/reviews/${result.reviewId}?replyRemoved=1`);
 }
 
 export async function replyToReviewAction(formData: FormData) {
   const admin = await requireAccess("content");
   const reviewId = String(formData.get("reviewId") || "").trim();
   const body = String(formData.get("body") || "");
-  const pageRaw = String(formData.get("page") || "1").trim();
-  const page = Number.parseInt(pageRaw, 10);
 
   if (!reviewId) redirect("/admin/reviews?error=missing");
 
@@ -922,12 +921,11 @@ export async function replyToReviewAction(formData: FormData) {
         role: admin.role,
       },
     });
-    if (!slug) redirect("/admin/reviews?error=missing");
+    if (!slug) redirect(`/admin/reviews/${reviewId}?error=missing`);
     revalidatePath(`/recipes/${slug}`);
     revalidatePath("/admin/reviews");
-    const params = new URLSearchParams({ replied: "1" });
-    if (Number.isFinite(page) && page > 1) params.set("page", String(page));
-    redirect(`/admin/reviews?${params.toString()}`);
+    revalidatePath(`/admin/reviews/${reviewId}`);
+    redirect(`/admin/reviews/${reviewId}?replied=1`);
   } catch (error) {
     if (
       error &&
@@ -939,9 +937,7 @@ export async function replyToReviewAction(formData: FormData) {
       throw error;
     }
     console.error("Could not post admin review reply", error);
-    const params = new URLSearchParams({ error: "reply" });
-    if (Number.isFinite(page) && page > 1) params.set("page", String(page));
-    redirect(`/admin/reviews?${params.toString()}`);
+    redirect(`/admin/reviews/${reviewId}?error=reply`);
   }
 }
 

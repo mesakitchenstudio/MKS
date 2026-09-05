@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
-import { AdminReviewReplyControls } from "@/components/admin/AdminReviewReplyControls";
-import { RemoveReviewButton } from "@/components/admin/RemoveReviewButton";
-import { ReviewRepliesSection } from "@/components/admin/ReviewRepliesSection";
-import { adminFocusRing, adminTertiaryButtonClass } from "@/lib/admin-ui";
+import { useEffect, useRef, useState } from "react";
+import {
+  adminFocusRing,
+  adminTableHeadClass,
+  adminTertiaryButtonClass,
+} from "@/lib/admin-ui";
 import { formatAdminDate } from "@/lib/datetime";
 import {
   adminReviewsListSignature,
   RECIPE_REVIEW_POLL_MS,
 } from "@/lib/recipe-reviews-client";
 import {
-  adminReviewRecipeHref,
   countStaffReviewReplies,
   formatReviewRating,
   formatReviewRatingAccessible,
@@ -41,139 +41,104 @@ function NeedsResponseIndicator() {
   );
 }
 
-function ReviewArticle({
-  review,
-  page,
-  canOpenMembers,
-}: {
-  review: LiveReview;
-  page: number;
-  canOpenMembers: boolean;
-}) {
-  const titleId = useId();
-  const ratingLabel = formatReviewRating(review.rating);
-  const ratingAccessible = formatReviewRatingAccessible(review.rating);
-  const recipeLink = adminReviewRecipeHref({
-    recipeId: review.recipeId,
-    recipeSlug: review.recipeSlug,
-    recipeStatus: review.recipeStatus,
-  });
-  const memberHref =
-    canOpenMembers && review.userId ? `/admin/members/${review.userId}` : null;
-  const staffReplyCount = countStaffReviewReplies(review.replies);
-  const needsResponse = staffReplyCount === 0;
+function ResponseStatus({ replies }: { replies: { isStaff: boolean }[] }) {
+  if (countStaffReviewReplies(replies) === 0) {
+    return <NeedsResponseIndicator />;
+  }
+  return <p className="text-xs text-muted">Replied</p>;
+}
 
+function RatingCell({ rating }: { rating: number }) {
   return (
-    <article aria-labelledby={titleId} className="py-7 first:pt-0 last:pb-0">
-      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0 flex-1">
-          {recipeLink ? (
-            <Link
-              id={titleId}
-              href={recipeLink.href}
-              target={recipeLink.external ? "_blank" : undefined}
-              rel={recipeLink.external ? "noreferrer" : undefined}
-              className={`min-w-0 break-words font-serif text-xl leading-snug text-ink hover:text-terracotta ${adminFocusRing}`}
-            >
-              {review.recipeTitle}
-              {recipeLink.external ? (
-                <span className="ml-1 text-sm font-sans font-normal text-muted" aria-hidden>
-                  ↗
-                </span>
-              ) : null}
-              {recipeLink.external ? (
-                <span className="sr-only"> (opens in a new tab)</span>
-              ) : null}
-            </Link>
-          ) : (
-            <p
-              id={titleId}
-              className="min-w-0 break-words font-serif text-xl leading-snug text-ink"
-            >
-              {review.recipeTitle}
-            </p>
-          )}
-        </div>
-
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5">
-          <p className="text-sm tabular-nums text-muted">
-            <span aria-hidden>★ {ratingLabel}</span>
-            <span className="sr-only">{ratingAccessible}</span>
-          </p>
-          {needsResponse ? <NeedsResponseIndicator /> : null}
-          <RemoveReviewButton
-            id={review.id}
-            authorName={review.authorName}
-            recipeTitle={review.recipeTitle}
-          />
-        </div>
-      </div>
-
-      <p className="mt-2.5 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm leading-5">
-        {memberHref ? (
-          <Link
-            href={memberHref}
-            className={`font-semibold text-ink hover:text-terracotta ${adminFocusRing}`}
-          >
-            {review.authorName}
-          </Link>
-        ) : (
-          <span className="font-semibold text-ink">{review.authorName}</span>
-        )}
-        <span className="text-muted" aria-hidden>
-          ·
-        </span>
-        <span className="text-muted">{formatAdminDate(review.createdAt)}</span>
-        {review.authorEmail ? (
-          <>
-            <span className="text-muted/50" aria-hidden>
-              ·
-            </span>
-            <span className="break-all text-xs text-muted/75">{review.authorEmail}</span>
-          </>
-        ) : null}
-      </p>
-
-      <p className="mt-4 whitespace-pre-wrap break-words text-base leading-7 text-ink">
-        {review.body}
-      </p>
-
-      <ReviewRepliesSection
-        count={review.replyCount}
-        replies={review.replies.map((reply) => ({
-          id: reply.id,
-          authorName: reply.authorName,
-          authorTitle: reply.authorTitle,
-          authorPhotoUrl: reply.authorPhotoUrl,
-          body: reply.body,
-          isStaff: reply.isStaff,
-          createdAt: reply.createdAt,
-        }))}
-      />
-
-      <AdminReviewReplyControls
-        reviewId={review.id}
-        page={page}
-        authorName={review.authorName}
-        recipeTitle={review.recipeTitle}
-        staffReplyCount={staffReplyCount}
-      />
-    </article>
+    <p className="text-sm tabular-nums text-muted">
+      <span aria-hidden>★ {formatReviewRating(rating)}</span>
+      <span className="sr-only">{formatReviewRatingAccessible(rating)}</span>
+    </p>
   );
 }
 
-export function AdminReviewsLiveFeed({
+function ReviewIndexRow({ review }: { review: LiveReview }) {
+  const href = `/admin/reviews/${encodeURIComponent(review.id)}`;
+  const linkLabel = `Open review of ${review.recipeTitle} by ${review.authorName}`;
+
+  return (
+    <>
+      {/* Desktop ledger — xl keeps five columns usable beside the admin sidebar. */}
+      <tr className="border-b border-line/80 last:border-b-0">
+        <td className="min-w-0 py-3.5 pr-4 align-top">
+          <Link
+            href={href}
+            className={`block min-w-0 ${adminFocusRing}`}
+            aria-label={linkLabel}
+          >
+            <span className="block break-words font-serif text-base leading-snug text-ink hover:text-terracotta">
+              {review.recipeTitle}
+            </span>
+            <span className="mt-1 line-clamp-2 block text-sm leading-5 text-muted">
+              {review.body}
+            </span>
+          </Link>
+        </td>
+        <td className="max-w-[11rem] py-3.5 pr-4 align-top">
+          <p className="truncate text-sm font-semibold text-ink">{review.authorName}</p>
+        </td>
+        <td className="whitespace-nowrap py-3.5 pr-4 align-top">
+          <RatingCell rating={review.rating} />
+        </td>
+        <td className="py-3.5 pr-4 align-top">
+          <ResponseStatus replies={review.replies} />
+        </td>
+        <td className="whitespace-nowrap py-3.5 align-top text-sm text-muted">
+          {formatAdminDate(review.createdAt)}
+        </td>
+      </tr>
+    </>
+  );
+}
+
+function ReviewIndexMobileCard({ review }: { review: LiveReview }) {
+  const href = `/admin/reviews/${encodeURIComponent(review.id)}`;
+  const linkLabel = `Open review of ${review.recipeTitle} by ${review.authorName}`;
+
+  return (
+    <li className="border-b border-line/80 py-4 last:border-b-0">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <Link
+          href={href}
+          className={`min-w-0 flex-1 ${adminFocusRing}`}
+          aria-label={linkLabel}
+        >
+          <span className="block break-words font-serif text-lg leading-snug text-ink hover:text-terracotta">
+            {review.recipeTitle}
+          </span>
+        </Link>
+        <RatingCell rating={review.rating} />
+      </div>
+      <Link href={href} tabIndex={-1} aria-hidden className="mt-1 block">
+        <p className="line-clamp-2 text-sm leading-5 text-muted">{review.body}</p>
+      </Link>
+      <p className="mt-2 text-sm text-ink">
+        <span className="font-semibold">{review.authorName}</span>
+        <span className="text-muted"> · {formatAdminDate(review.createdAt)}</span>
+      </p>
+      <div className="mt-2">
+        <ResponseStatus replies={review.replies} />
+      </div>
+    </li>
+  );
+}
+
+/** Compact Reviews triage index with live list polling. */
+export function AdminReviewsIndex({
   initialReviews,
   page,
   totalPages,
   total,
-  canOpenMembers,
 }: {
   initialReviews: LiveReview[];
   page: number;
   totalPages: number;
   total: number;
-  canOpenMembers: boolean;
 }) {
   const [reviews, setReviews] = useState(initialReviews);
   const [listMeta, setListMeta] = useState({ page, totalPages, total });
@@ -260,15 +225,38 @@ export function AdminReviewsLiveFeed({
 
   return (
     <>
-      <ul className="mt-10 divide-y divide-line/80 border-y border-line/80">
+      <div className="mt-10 hidden min-w-0 xl:block">
+        <table className="w-full table-fixed border-y border-line/80 text-left">
+          <thead>
+            <tr className={adminTableHeadClass}>
+              <th scope="col" className="w-[42%] py-2.5 pr-4 font-medium">
+                Review
+              </th>
+              <th scope="col" className="w-[18%] py-2.5 pr-4 font-medium">
+                Reviewer
+              </th>
+              <th scope="col" className="w-[12%] py-2.5 pr-4 font-medium">
+                Rating
+              </th>
+              <th scope="col" className="w-[16%] py-2.5 pr-4 font-medium">
+                Response
+              </th>
+              <th scope="col" className="w-[12%] py-2.5 font-medium">
+                Date
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {reviews.map((review) => (
+              <ReviewIndexRow key={review.id} review={review} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="mt-10 divide-y divide-line/80 border-y border-line/80 xl:hidden">
         {reviews.map((review) => (
-          <li key={review.id} className="min-w-0">
-            <ReviewArticle
-              review={review}
-              page={listMeta.page}
-              canOpenMembers={canOpenMembers}
-            />
-          </li>
+          <ReviewIndexMobileCard key={review.id} review={review} />
         ))}
       </ul>
 

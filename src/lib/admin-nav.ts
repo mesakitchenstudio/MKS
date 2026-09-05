@@ -5,7 +5,8 @@ import {
   adminWorkspaceMembersList,
   adminWorkspaceProfile,
   adminWorkspaceRecipes,
-  adminWorkspaceReviews,
+  adminWorkspaceReviewsDetail,
+  adminWorkspaceReviewsList,
   adminWorkspaceSeries,
   adminWorkspaceStandard,
   adminWorkspaceTypes,
@@ -98,7 +99,8 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/profile")) return adminWorkspaceProfile;
   if (pathname.startsWith("/admin/members/")) return adminWorkspaceMembersDetail;
   if (pathname === "/admin/members") return adminWorkspaceMembersList;
-  if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviews;
+  if (pathname.startsWith("/admin/reviews/")) return adminWorkspaceReviewsDetail;
+  if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviewsList;
   if (pathname.startsWith("/admin/types")) return adminWorkspaceTypes;
   if (pathname.startsWith("/admin/categories")) return adminWorkspaceCategories;
   if (pathname.startsWith("/admin/series")) return adminWorkspaceSeries;

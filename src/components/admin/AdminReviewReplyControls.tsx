@@ -10,16 +10,14 @@ import {
   adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
 
-/** Reply composer trigger for Admin → Reviews (footer of each review entry). */
+/** Reply composer trigger for Admin → Reviews detail. */
 export function AdminReviewReplyControls({
   reviewId,
-  page,
   authorName,
   recipeTitle,
   staffReplyCount = 0,
 }: {
   reviewId: string;
-  page: number;
   authorName: string;
   recipeTitle: string;
   /** Staff Mesa replies only — drives Reply vs Add another reply. */
@@ -65,7 +63,6 @@ export function AdminReviewReplyControls({
           className="w-full min-w-0 space-y-3 border-y border-line/80 bg-cream/30 py-4"
         >
           <input type="hidden" name="reviewId" value={reviewId} />
-          <input type="hidden" name="page" value={String(page)} />
           <label htmlFor={labelId} className="grid gap-1.5 text-sm font-semibold text-ink">
             Your reply
             <textarea
