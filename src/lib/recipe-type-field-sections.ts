@@ -14,7 +14,7 @@ import { CORE_FIELDS } from "@/lib/fields";
 
 export type { EditorSectionId };
 
-/** Mirrors RecipeEditor DETAILS_KEYS + cookMinutes/dishName (completeness/details timing). */
+/** Mirrors RecipeEditor DETAILS_KEYS + cookMinutes (completeness/details timing). */
 const DETAILS_KEYS = new Set([
   "servings",
   "servingsUnit",
@@ -29,7 +29,6 @@ const DETAILS_KEYS = new Set([
   "holiday",
   "cuisine",
   "tags",
-  "dishName",
 ]);
 
 /** Mirrors RecipeEditor CONTENT_KEYS. */
@@ -84,7 +83,9 @@ export const TYPE_FIELD_SECTION_DESCRIPTIONS: Record<EditorSectionId, string> = 
  * Unknown / type-specific keys → Advanced (same as specialistFields in RecipeEditor).
  */
 export function editorSectionForTypeFieldKey(key: string): EditorSectionId {
-  if (key === "title" || key === "excerpt" || key === "categoryIds") return "basics";
+  if (key === "title" || key === "excerpt" || key === "categoryIds" || key === "dishName") {
+    return "basics";
+  }
   if (DETAILS_KEYS.has(key)) return "details";
   if (CONTENT_KEYS.has(key)) return "content";
   if (MEDIA_KEYS.has(key)) return "media";

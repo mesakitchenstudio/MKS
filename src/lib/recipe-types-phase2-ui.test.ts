@@ -39,6 +39,7 @@ describe("Recipe Types Phase 2 visual section grouping", () => {
     assert.equal(editorSectionForTypeFieldKey("cookMinutes"), "details");
     assert.equal(editorSectionForTypeFieldKey("title"), "basics");
     assert.equal(editorSectionForTypeFieldKey("excerpt"), "basics");
+    assert.equal(editorSectionForTypeFieldKey("dishName"), "basics");
   });
 
   it("falls back type-specific / unknown keys to Advanced like Recipe Editor specialists", () => {

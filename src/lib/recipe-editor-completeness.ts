@@ -46,7 +46,6 @@ const DETAILS_KEYS = new Set([
   "method",
   "holiday",
   "cuisine",
-  "dishName",
   "tags",
 ]);
 const CONTENT_KEYS = new Set([
@@ -63,7 +62,9 @@ const MEDIA_KEYS = new Set(["imageAlt", "image", "youtubeUrl", "floatingYoutubeU
 const ADVANCED_KEYS = new Set(["nutrition"]);
 
 export function sectionForFieldKey(key: string): EditorSectionId {
-  if (key === "title" || key === "excerpt" || key === "categoryIds") return "basics";
+  if (key === "title" || key === "excerpt" || key === "categoryIds" || key === "dishName") {
+    return "basics";
+  }
   if (DETAILS_KEYS.has(key)) return "details";
   if (CONTENT_KEYS.has(key)) return "content";
   if (MEDIA_KEYS.has(key)) return "media";

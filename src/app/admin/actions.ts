@@ -12,6 +12,7 @@ import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess,
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import { coerceStringList, isPlainStringListKind } from "@/lib/coerce-string-list";
+import { mergeDishNameIntoValues } from "@/lib/recipe-editor-dish-name";
 import {
   countRecipesMissingFieldContent,
   countRecipesWithFieldContent,
@@ -430,6 +431,8 @@ export async function saveRecipeAction(formData: FormData) {
   if (typeof values.bakeMinutes === "number" && values.cookMinutes == null) {
     values.cookMinutes = values.bakeMinutes;
   }
+  // Editorial Identity field — always persist, even when the type has no dishName field.
+  mergeDishNameIntoValues(values, formData.get("field:dishName"));
 
   const instructionGroups = normalizeInstructionGroups(values.instructions);
   const youtubeBlob = parseRecipeYoutubeBlob(values.youtube);

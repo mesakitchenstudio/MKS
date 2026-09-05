@@ -109,6 +109,7 @@ import {
 import { partitionCategoriesByGroup } from "@/lib/category-admin";
 import { emptyValue, RECIPE_MEDIA_KEYS, RECIPE_OVERVIEW_KEYS, slugify } from "@/lib/fields";
 import { fieldValueHasContent } from "@/lib/field-content";
+import { readEditorialDishName } from "@/lib/recipe-editor-dish-name";
 import type { RecipeStageAlignment, RecipeYoutubeTimestamp } from "@/data/youtube-types";
 import {
   hasCanonicalInstructionChapters,
@@ -201,6 +202,8 @@ const ALL_GROUPED = new Set<string>([
   ...RECIPE_OVERVIEW_KEYS,
   ...RECIPE_MEDIA_KEYS,
   "cookMinutes",
+  /** Identity field — rendered in Basics, not Details/specialist. */
+  "dishName",
 ]);
 
 const compactInputClass =
@@ -255,9 +258,15 @@ function hydrateEditorValues(
       next[field.key] = youtubeMetadataToEditorState(rawValues.youtube);
     } else if (isPlainStringListKind(field.kind)) {
       next[field.key] = coerceStringList(rawValues[field.key] ?? emptyValue(field.kind));
+    } else if (field.key === "dishName") {
+      next.dishName = readEditorialDishName(rawValues);
     } else {
       next[field.key] = rawValues[field.key] ?? emptyValue(field.kind);
     }
+  }
+  // Always keep editorial dish name even when the type has no dishName field.
+  if (!Object.prototype.hasOwnProperty.call(next, "dishName")) {
+    next.dishName = readEditorialDishName(rawValues);
   }
   return next;
 }
@@ -793,9 +802,14 @@ export function RecipeEditor({
         out[field.key] = JSON.stringify(blob ?? {});
       } else if (isPlainStringListKind(field.kind)) {
         out[field.key] = JSON.stringify(coerceStringList(values[field.key]));
+      } else if (field.key === "dishName") {
+        out.dishName = JSON.stringify(String(values.dishName ?? ""));
       } else {
         out[field.key] = JSON.stringify(values[field.key] ?? emptyValue(field.kind));
       }
+    }
+    if (!Object.prototype.hasOwnProperty.call(out, "dishName")) {
+      out.dishName = JSON.stringify(String(values.dishName ?? ""));
     }
     return out;
   }, [fields, values]);
@@ -1557,6 +1571,7 @@ export function RecipeEditor({
     if (path === "title") return "Title";
     if (path === "excerpt") return "Excerpt";
     if (path === "categoryIds") return "Categories";
+    if (path === "values.dishName" || key === "dishName") return "Dish name";
     return getRecipeFieldAiDef(path, fields)?.label ?? fields.find((field) => field.key === key)?.label ?? key;
   }
 
@@ -2414,6 +2429,9 @@ export function RecipeEditor({
         {fields.map((field) => (
           <input key={field.key} type="hidden" name={`field:${field.key}`} value={encoded[field.key]} />
         ))}
+        {!fields.some((field) => field.key === "dishName") ? (
+          <input type="hidden" name="field:dishName" value={encoded.dishName ?? '""'} />
+        ) : null}
         {categoryIds.map((id) => (
           <input key={id} type="hidden" name="categoryIds" value={id} />
         ))}
@@ -2606,6 +2624,74 @@ export function RecipeEditor({
                     ) : null}
                   </label>
                 </MissingRequiredFieldFrame>
+
+                <label
+                  id="recipe-field-dishName"
+                  className="group/field grid max-w-3xl gap-1.5"
+                  style={scrollTargetStyle}
+                >
+                  <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+                    <span className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-ink">Dish name</span>
+                      <FieldAiFieldActions
+                        path="values.dishName"
+                        kind="text"
+                        strategy="gemini_semantic"
+                        value={String(values.dishName ?? "")}
+                        busy={fieldAiBusy === "values.dishName"}
+                        emphasized={evaluatorReviewPaths.has("values.dishName")}
+                        onAction={(intent) => void runFieldAi("values.dishName", "dishName", intent)}
+                      />
+                    </span>
+                    <AiConfidenceBadge
+                      confidence={
+                        activeAiAnnotation("values.dishName", "text", values.dishName).confidence
+                      }
+                      sourceNote={
+                        activeAiAnnotation("values.dishName", "text", values.dishName).sourceNote
+                      }
+                    />
+                  </span>
+                  <input
+                    value={String(values.dishName ?? "")}
+                    onChange={(event) => setField("dishName", event.target.value)}
+                    className={adminInputClass}
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted">
+                    Short editorial name used on recipe cards and discovery surfaces. Leave blank to
+                    use the recipe title.
+                  </p>
+                  {fieldSuggestions["values.dishName"] ? (
+                    <FieldAiSuggestionPanel
+                      currentValue={fieldSuggestions["values.dishName"].currentValue}
+                      suggestion={fieldSuggestions["values.dishName"].suggestion}
+                      busy={fieldAiBusy === "values.dishName"}
+                      onUseSuggestion={() => applyFieldSuggestion("values.dishName")}
+                      onTryAnother={() =>
+                        void runFieldAi("values.dishName", "dishName", "alternative")
+                      }
+                      onKeepCurrent={() => clearFieldSuggestion("values.dishName")}
+                    />
+                  ) : null}
+                  {fieldAiBusy === "values.dishName" && !fieldSuggestions["values.dishName"] ? (
+                    <p className="text-xs text-muted" role="status">
+                      Generating suggestion…
+                    </p>
+                  ) : null}
+                  {fieldAiNotice["values.dishName"] ? (
+                    <p
+                      className={`text-xs font-semibold ${
+                        fieldAiNotice["values.dishName"] === "AI SUGGESTION — REVIEW"
+                          ? "text-olive"
+                          : "text-terracotta"
+                      }`}
+                      role="status"
+                    >
+                      {fieldAiNotice["values.dishName"]}
+                    </p>
+                  ) : null}
+                </label>
 
                 <label
                   id="recipe-field-excerpt"
