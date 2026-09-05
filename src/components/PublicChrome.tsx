@@ -32,6 +32,12 @@ export function PublicChrome({
     return children;
   }
 
+  // Standalone newsletter unsubscribe — brand lives in the page; keep chrome off
+  // so Coming Soon / private mode and a distraction-free utility surface stay consistent.
+  const onNewsletterUnsubscribe = pathname.startsWith("/newsletter/unsubscribe");
+  const showPublicChrome = showChrome && !onNewsletterUnsubscribe;
+  const showFloatTools = !hideTools && !onNewsletterUnsubscribe;
+
   const onStudioRoute = pathname === "/studio" || pathname.startsWith("/studio/");
 
   return (
@@ -40,10 +46,10 @@ export function PublicChrome({
       {!showStaffPreviewBanner && showStudioStaffPreviewBanner && onStudioRoute ? (
         <StaffPreviewBanner studioUnpublished />
       ) : null}
-      {showChrome ? <SiteHeader /> : null}
+      {showPublicChrome ? <SiteHeader /> : null}
       {children}
-      {showChrome ? <SiteFooter hideNewsletter={pathname === "/"} /> : null}
-      {hideTools ? null : <RecipeFloatTools recipes={recipes} />}
+      {showPublicChrome ? <SiteFooter hideNewsletter={pathname === "/"} /> : null}
+      {showFloatTools ? <RecipeFloatTools recipes={recipes} /> : null}
     </>
   );
 }

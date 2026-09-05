@@ -250,4 +250,30 @@ describe("newsletter wiring contracts", () => {
     assert.match(schema, /unsubscribedAt/);
     assert.match(schema, /status/);
   });
+
+  it("keeps the unsubscribe page calm, branded, and non-retention", () => {
+    const page = read("app/newsletter/unsubscribe/page.tsx");
+    const chrome = read("components/PublicChrome.tsx");
+
+    assert.match(page, /title:\s*"Unsubscribe"/);
+    assert.match(page, /robots:\s*\{\s*index:\s*false,\s*follow:\s*false\s*\}/);
+    assert.match(page, /You’ve been unsubscribed\./);
+    assert.match(page, /We won’t send further newsletter emails to this address\./);
+    assert.match(page, /You’re already unsubscribed\./);
+    assert.match(page, /This address is no longer subscribed to Mesa newsletter emails\./);
+    assert.match(page, /We couldn’t process that unsubscribe link\./);
+    assert.match(page, /The link may be invalid or no longer available\./);
+    assert.match(page, /Return to Mesa →/);
+    assert.match(page, /Browse recipes →/);
+    assert.match(page, /href="\/"/);
+    assert.match(page, /href="\/recipes"/);
+    assert.match(page, /Kitchen Studio/);
+    assert.match(page, /bg-terracotta/);
+    assert.match(page, /site\.tagline/);
+    assert.doesNotMatch(page, /Resubscribe|sorry to see you go|Give us another chance|Stay with us/i);
+    assert.doesNotMatch(page, /bg-red|text-red|alert-red/i);
+
+    assert.match(chrome, /newsletter\/unsubscribe/);
+    assert.match(chrome, /showPublicChrome/);
+  });
 });
