@@ -291,6 +291,10 @@ function expandIngredientNodes(input: {
     const groupLabel = hasName ? String(group.name) : `Group ${groupIndex + 1}`;
 
     if (hasItems && !hasName && input.groups.length > 1) {
+      const anyNamedGroup = input.groups.some((entry) => Boolean(String(entry.name ?? "").trim()));
+      // Only recommend titles when the recipe already uses named sections.
+      // All-unnamed multi-group stacks are a structure smell, not N missing titles.
+      if (anyNamedGroup) {
       nodes.push({
         path: namePath,
         key: "ingredients",
@@ -307,6 +311,7 @@ function expandIngredientNodes(input: {
         aiFillEligible: !isFieldProtectedFromBulkAi(namePath, input.aiMeta),
         aiStrategy: "gemini_semantic",
       });
+      }
     }
 
     (group.items ?? []).forEach((row, rowIndex) => {

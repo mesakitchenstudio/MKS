@@ -1,4 +1,5 @@
 import { fieldValueHasContent } from "@/lib/field-content";
+import { hasPublishableIngredients } from "@/lib/ingredient-groups";
 import { evaluateRecipeFields } from "@/lib/recipe-editor-field-state";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
@@ -102,12 +103,7 @@ export function isRequiredFieldSatisfied(field: EditorFieldShape, value: unknown
       );
     }
     case "ingredients": {
-      const groups = Array.isArray(value)
-        ? (value as { items: { item: string }[] }[])
-        : [];
-      return groups.some((group) =>
-        (group.items ?? []).some((item) => String(item.item ?? "").trim().length > 0),
-      );
+      return hasPublishableIngredients(value);
     }
     case "instructions": {
       const groups = Array.isArray(value) ? (value as { steps: string[] }[]) : [];
@@ -267,6 +263,8 @@ export function validateRecipeForPublish(input: {
   for (const row of listMissingRequiredFields(input)) {
     if (row.key === "title") {
       errors.title = "Title is required before publishing.";
+    } else if (row.key === "ingredients") {
+      errors.ingredients = "Add at least one ingredient before publishing.";
     } else {
       errors[row.key] = `${row.label} is required before publishing.`;
     }

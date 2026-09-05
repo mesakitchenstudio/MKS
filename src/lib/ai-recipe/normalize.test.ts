@@ -614,6 +614,42 @@ test("blank placeholder ingredient groups are removed", () => {
   assert.equal(groups[0].name, "Dough");
 });
 
+test("unnamed one-item AI groups coalesce into a single ungrouped list", () => {
+  const draft = normalizeAiRecipeResponse({
+    raw: baseAiRaw({
+      fields: {
+        intro: { value: "x", confidence: "VERIFIED", sourceNote: "" },
+        prepMinutes: { value: 1, confidence: "VERIFIED", sourceNote: "" },
+        ingredients: {
+          value: [
+            { name: "", items: [{ amount: "2", item: "bananas", notes: "" }] },
+            { name: "", items: [{ amount: "115 g", item: "butter", notes: "" }] },
+            { name: "", items: [{ amount: "80 g", item: "white sugar", notes: "" }] },
+          ],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+        instructions: {
+          value: [{ name: "", steps: [{ text: "Mix.", confidence: "VERIFIED", sourceNote: "" }] }],
+          confidence: "VERIFIED",
+          sourceNote: "",
+        },
+      },
+    }),
+    typeId: "type-1",
+    youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    fields,
+    allowedCategoryIds: new Set(),
+    allowedTypeIds: new Set(["type-1"]),
+  });
+
+  const groups = draft.values.ingredients as { name: string; items: { item: string }[] }[];
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].name, "");
+  assert.equal(groups[0].items.length, 3);
+  assert.equal(groups[0].items[0].item, "bananas");
+});
+
 test("VERIFIED ingredients with zero rows are downgraded to UNKNOWN", () => {
   const draft = normalizeAiRecipeResponse({
     raw: baseAiRaw({

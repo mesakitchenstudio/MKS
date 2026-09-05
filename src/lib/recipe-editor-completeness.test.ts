@@ -147,3 +147,50 @@ test("validateRecipeForPublish returns errors aligned with missing required fiel
   assert.equal(errors.notes, undefined);
   assert.equal(errors.whyItWorks, undefined);
 });
+
+test("ingredients publish requires a real ingredient row, not group names", () => {
+  const errors = validateRecipeForPublish({
+    fields,
+    title: "Banana oatmeal cookies",
+    values: {
+      ...populatedContentValues,
+      ingredients: [
+        { name: "Cookies", items: [{ item: "", amount: "", notes: "" }] },
+        { name: "", items: [{ item: "", amount: "", notes: "" }] },
+        { name: "", items: [{ item: "", amount: "", notes: "" }] },
+      ],
+    },
+  });
+  assert.equal(errors.ingredients, "Add at least one ingredient before publishing.");
+});
+
+test("blank group name does not block publishing when ingredients exist", () => {
+  const errors = validateRecipeForPublish({
+    fields,
+    title: "Banana oatmeal cookies",
+    values: {
+      ...populatedContentValues,
+      ingredients: [{ name: "", items: [{ item: "rolled oats", amount: "350 g", notes: "" }] }],
+    },
+  });
+  assert.equal(errors.ingredients, undefined);
+});
+
+test("multiple empty ingredient groups count as one missing required field", () => {
+  const missing = listMissingRequiredFields({
+    fields,
+    title: "Banana oatmeal cookies",
+    values: {
+      ...populatedContentValues,
+      ingredients: [
+        { name: "", items: [{ item: "", amount: "", notes: "" }] },
+        { name: "", items: [{ item: "", amount: "", notes: "" }] },
+        { name: "Cookies", items: [{ item: "", amount: "", notes: "" }] },
+      ],
+    },
+  });
+  assert.deepEqual(
+    missing.filter((row) => row.key === "ingredients").map((row) => row.path),
+    ["values.ingredients"],
+  );
+});

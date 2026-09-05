@@ -32,6 +32,9 @@ describe("Recipe editor Phase 3 Content contracts", () => {
     assert.match(editor, /function IngredientsEditor/);
     assert.match(editor, /\+ Add ingredient/);
     assert.match(editor, /\+ Add group/);
+    assert.match(editor, /Group name \(optional\)/);
+    assert.match(editor, /normalizeIngredientGroups/);
+    assert.match(editor, /emptyIngredientGroupsPlaceholder/);
     assert.match(editor, /\.items\.\$\{itemIndex\}\.amount/);
     assert.match(editor, /\.items\.\$\{itemIndex\}\.item/);
     assert.match(editor, /\.items\.\$\{itemIndex\}\.notes/);
@@ -41,6 +44,12 @@ describe("Recipe editor Phase 3 Content contracts", () => {
     assert.match(editor, /aiSlot\(itemPath/);
     assert.match(editor, /aiSlot\(notesPath/);
     assert.match(editor, /reviewPaths\.has\(path\)/);
+    const ingredients = editor.slice(
+      editor.indexOf("function IngredientsEditor"),
+      editor.indexOf("function ImageField"),
+    );
+    assert.match(ingredients, /onRemove=\{\(\) => \{\s*const next = groups\.filter/);
+    assert.doesNotMatch(ingredients, /showRemove=\{false\}/);
   });
 
   it("keeps tablet ingredient rows contained without AI columns or horizontal scroll", () => {

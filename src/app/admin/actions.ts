@@ -12,6 +12,7 @@ import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess,
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import { coerceStringList, isPlainStringListKind } from "@/lib/coerce-string-list";
+import { normalizeIngredientGroups } from "@/lib/ingredient-groups";
 import { mergeDishNameIntoValues } from "@/lib/recipe-editor-dish-name";
 import {
   countRecipesMissingFieldContent,
@@ -395,7 +396,13 @@ function readDynamicValues(formData: FormData, fields: { key: string; kind: stri
     if (typeof raw === "string") {
       try {
         const parsed: unknown = JSON.parse(raw);
-        values[field.key] = isPlainStringListKind(field.kind) ? coerceStringList(parsed) : parsed;
+        if (isPlainStringListKind(field.kind)) {
+          values[field.key] = coerceStringList(parsed);
+        } else if (field.kind === "ingredients") {
+          values[field.key] = normalizeIngredientGroups(parsed);
+        } else {
+          values[field.key] = parsed;
+        }
       } catch {
         values[field.key] = isPlainStringListKind(field.kind) ? coerceStringList(raw) : raw;
       }

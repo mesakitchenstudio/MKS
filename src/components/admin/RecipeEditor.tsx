@@ -72,6 +72,10 @@ import { mergeTargetedFillIntoEditor, extractTargetedFieldValue } from "@/lib/ai
 import { readCurrentEditorFieldValue } from "@/lib/apply-editor-path";
 import { coerceStringList, isPlainStringListKind } from "@/lib/coerce-string-list";
 import {
+  emptyIngredientGroupsPlaceholder,
+  normalizeIngredientGroups,
+} from "@/lib/ingredient-groups";
+import {
   fieldPathHasContent,
   getRecipeFieldAiDef,
   isRecipeFieldAiSupported,
@@ -261,6 +265,11 @@ function hydrateEditorValues(
       next[field.key] = coerceStringList(rawValues[field.key] ?? emptyValue(field.kind));
     } else if (field.key === "dishName") {
       next.dishName = readEditorialDishName(rawValues);
+    } else if (field.kind === "ingredients") {
+      next[field.key] = normalizeIngredientGroups(
+        rawValues[field.key] ?? emptyValue(field.kind),
+        { forEditor: true },
+      );
     } else {
       next[field.key] = rawValues[field.key] ?? emptyValue(field.kind);
     }
@@ -811,6 +820,8 @@ export function RecipeEditor({
         out[field.key] = JSON.stringify(coerceStringList(values[field.key]));
       } else if (field.key === "dishName") {
         out.dishName = JSON.stringify(String(values.dishName ?? ""));
+      } else if (field.kind === "ingredients") {
+        out[field.key] = JSON.stringify(normalizeIngredientGroups(values[field.key]));
       } else {
         out[field.key] = JSON.stringify(values[field.key] ?? emptyValue(field.kind));
       }
@@ -3867,9 +3878,13 @@ function IngredientsEditor({
                   itemLabel={`ingredient group ${groupIndex + 1}`}
                   upDisabled={groupIndex === 0}
                   downDisabled={groupIndex === groups.length - 1}
-                  showRemove={false}
+                  showRemove
                   onMoveUp={() => update(moveArrayItem(groups, groupIndex, groupIndex - 1))}
                   onMoveDown={() => update(moveArrayItem(groups, groupIndex, groupIndex + 1))}
+                  onRemove={() => {
+                    const next = groups.filter((_, i) => i !== groupIndex);
+                    update(next.length ? next : emptyIngredientGroupsPlaceholder());
+                  }}
                 />
               </div>
             ) : null}

@@ -303,7 +303,28 @@ export function normalizeIngredients(
     groups.push({ name: groupName, items });
   }
 
-  return groups;
+  // Coalesce stacks of unnamed one-item groups (common AI mistake) into one list.
+  return coalesceUnnamedIngredientGroups(groups);
+}
+
+function coalesceUnnamedIngredientGroups(
+  groups: NormalizedIngredientGroup[],
+): NormalizedIngredientGroup[] {
+  if (groups.length <= 1) return groups;
+  const allUnnamed = groups.every((group) => !group.name.trim());
+  if (allUnnamed) {
+    return [{ name: "", items: groups.flatMap((group) => group.items) }];
+  }
+  const merged: NormalizedIngredientGroup[] = [];
+  for (const group of groups) {
+    const last = merged[merged.length - 1];
+    if (!group.name.trim() && last && !last.name.trim()) {
+      last.items = [...last.items, ...group.items];
+      continue;
+    }
+    merged.push({ name: group.name, items: [...group.items] });
+  }
+  return merged;
 }
 
 function normalizeNamedNotes(value: unknown, path: string, confidenceByPath: Record<string, AiFieldAnnotation>, summary: RecipeAiMeta["summary"]) {
