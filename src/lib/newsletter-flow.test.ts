@@ -62,19 +62,41 @@ describe("newsletter unsubscribe tokens", () => {
 });
 
 describe("newsletter welcome email", () => {
-  it("addresses the subscriber with recipes CTA and unsubscribe footer", () => {
+  it("addresses the subscriber with recipes CTA, YouTube link, and unsubscribe footer", () => {
     const email = buildNewsletterWelcomeEmail({
       unsubscribeUrl: "https://www.mesakitchenstudio.com/newsletter/unsubscribe?token=abc",
       recipesUrl: "https://www.mesakitchenstudio.com/recipes",
+      youtubeUrl: "https://youtube.com/@mesakitchenstudio",
     });
     assert.equal(email.subject, NEWSLETTER_WELCOME_SUBJECT);
     assert.match(email.html, /Welcome to the Mesa table/);
+    assert.match(email.html, /You're on the Mesa list/);
+    assert.match(email.html, /display:none[\s\S]*You're on the Mesa list/);
+    assert.match(email.html, /Kitchen Studio/);
     assert.match(email.html, /Explore Mesa recipes/);
+    assert.match(email.html, /background-color:#ad4b31/);
+    assert.match(email.html, /https:\/\/www\.mesakitchenstudio\.com\/recipes/);
+    assert.match(email.html, /Prefer to cook along\?/);
+    assert.match(email.html, /Watch Mesa on YouTube/);
+    assert.match(email.html, /https:\/\/youtube\.com\/@mesakitchenstudio/);
     assert.match(email.html, /Unsubscribe/);
     assert.match(email.html, /newsletter\/unsubscribe\?token=abc/);
     assert.match(email.text, /Explore Mesa recipes:/);
+    assert.match(email.text, /Watch Mesa on YouTube:/);
+    assert.match(email.text, /https:\/\/youtube\.com\/@mesakitchenstudio/);
     assert.match(email.text, /Unsubscribe:/);
-    assert.doesNotMatch(email.html, /discount|urgency|subscribers|YouTube/i);
+    assert.match(email.text, /newsletter\/unsubscribe\?token=abc/);
+    assert.doesNotMatch(email.html, /discount|urgency|exclusive|join thousands|special offers/i);
+    assert.doesNotMatch(email.html, /instagram|pinterest|facebook/i);
+  });
+
+  it("defaults recipes and YouTube URLs from site helpers", () => {
+    const email = buildNewsletterWelcomeEmail({
+      unsubscribeUrl: "https://www.mesakitchenstudio.com/newsletter/unsubscribe?token=xyz",
+    });
+    assert.match(email.html, /\/recipes/);
+    assert.match(email.html, /youtube\.com\/@mesakitchenstudio/);
+    assert.match(email.text, /youtube\.com\/@mesakitchenstudio/);
   });
 });
 
