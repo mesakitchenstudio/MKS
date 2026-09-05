@@ -207,6 +207,7 @@ describe("homepage Phase 1 discovery UI", () => {
     assert.match(hero, /href=\{`\/recipes\/\$\{recipe\.slug\}`\}/);
     assert.match(hero, /View recipe →/);
     assert.match(hero, /aria-hidden="true"/);
+    assert.match(hero, /from-ink\/95/);
     assert.equal((hero.match(/<Link\b/g) || []).length, 1);
     assert.doesNotMatch(hero, /<a\b/);
     assert.doesNotMatch(hero, /href=.*\n.*href=/s);
@@ -234,7 +235,7 @@ describe("homepage Phase 1 discovery UI", () => {
     assert.match(block, /PublicSeriesCard/);
     assert.match(block, /href = `\/series\/\$\{series\.slug\}`/);
     assert.match(block, /Featured series/);
-    assert.match(block, /formatSeriesPartCountLabel/);
+    assert.match(block, /formatHomepageSeriesMetaLabel/);
     assert.match(block, /Explore the series →/);
     assert.match(block, /ariaLabel=\{exploreLabel\}/);
     assert.match(block, /event="series_item_click"/);
@@ -285,9 +286,18 @@ describe("homepage Phase 1 discovery UI", () => {
   it("keeps Featured Series analytics and omits YouTube chrome after polish", () => {
     const block = read("src/components/HomepageFeaturedSeries.tsx");
     assert.match(block, /listPublishedSeries|PublicSeriesCard|publishedSeries\[0\]|series\.slug/);
+    assert.match(block, /formatHomepageSeriesMetaLabel\(series\.itemCount, series\.videoCount\)/);
     assert.match(block, /event="series_item_click"/);
     assert.match(block, /placement="homepage_series"/);
-    assert.doesNotMatch(block, /<iframe|youtube\.com\/embed|Watch the full series on YouTube/i);
+    assert.doesNotMatch(block, /<iframe|youtube\.com\/embed|Watch the full series on YouTube|YouTube logo|play icon/i);
+  });
+
+  it("clamps Latest recipe excerpts to two lines", () => {
+    const latest = read("src/components/HomepageLatestSection.tsx");
+    assert.match(latest, /excerptLines=\{2\}/);
+    const card = read("src/components/RecipeGridCard.tsx");
+    assert.match(card, /excerptLines\?: 2 \| 3/);
+    assert.match(card, /line-clamp-2/);
   });
 
   it("aligns newsletter Subscribe focus-visible with public CTA pattern", () => {

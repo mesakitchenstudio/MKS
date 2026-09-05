@@ -38,6 +38,16 @@ export function formatSeriesPartCountLabel(itemCount: number): string {
   return `${count}-part series`;
 }
 
+/**
+ * Homepage Featured Series metadata.
+ * Appends a quiet video cue only when the published Series has visible video items.
+ */
+export function formatHomepageSeriesMetaLabel(itemCount: number, videoCount: number): string {
+  const base = formatSeriesPartCountLabel(itemCount);
+  if (videoCount > 0) return `${base} · video guides`;
+  return base;
+}
+
 /** Quiet editorial metadata, e.g. `2-PART SERIES · 12 MIN TOTAL`. */
 export function formatSeriesCollectionMeta(
   items: Pick<PublicSeriesItem, "youtubeVideoId" | "watchUrl" | "durationDisplay">[],

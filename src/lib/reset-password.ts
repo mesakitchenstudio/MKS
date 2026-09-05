@@ -28,7 +28,7 @@ export function buildPasswordResetUrl(kind: ResetKind, token: string, baseUrl = 
 }
 
 /** Mesa brand terracotta from globals.css — inlined for email clients. */
-export const PASSWORD_RESET_EMAIL_TERRACOTTA = "#c45c3e";
+export const PASSWORD_RESET_EMAIL_TERRACOTTA = "#ad4b31";
 export const PASSWORD_RESET_EMAIL_INK = "#2a2218";
 export const PASSWORD_RESET_EMAIL_MUTED = "#6b5e4e";
 

@@ -15,6 +15,7 @@ export function RecipeGridCard({
   mediaOverlay,
   imageAspect = "5/4",
   variant = "default",
+  excerptLines,
 }: {
   recipe: Recipe;
   large?: boolean;
@@ -25,11 +26,15 @@ export function RecipeGridCard({
   imageAspect?: "5/4" | "4/3";
   /** Discovery cards use a fixed short image for end-of-page recommendations. */
   variant?: "default" | "discovery";
+  /** Override excerpt line clamp (homepage Latest uses 2). */
+  excerptLines?: 2 | 3;
 }) {
   const aspectClass =
     large ? "aspect-[4/3]" : imageAspect === "4/3" ? "aspect-[4/3]" : "aspect-[5/4]";
 
   const discovery = variant === "discovery";
+  const excerptClamp = excerptLines ?? (discovery ? 2 : 3);
+  const excerptClampClass = excerptClamp === 2 ? "line-clamp-2" : "line-clamp-3";
 
   const imageBlock = discovery ? (
     <div className="relative h-40 w-full overflow-hidden bg-sand md:h-44">
@@ -71,7 +76,11 @@ export function RecipeGridCard({
       {compact ? null : (
         <>
           <p
-            className={`text-muted ${discovery ? "mt-1 line-clamp-2 text-sm leading-5" : "mt-2 line-clamp-3 text-sm leading-6"}`}
+            className={`text-muted ${
+              discovery
+                ? `mt-1 ${excerptClampClass} text-sm leading-5`
+                : `mt-2 ${excerptClampClass} text-sm leading-6`
+            }`}
           >
             {recipe.excerpt}
           </p>

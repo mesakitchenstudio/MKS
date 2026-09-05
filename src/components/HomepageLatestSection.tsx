@@ -35,7 +35,7 @@ export function HomepageLatestSection({
       </div>
       <div className={`${latestGridClass(recipes.length)} items-start`}>
         {recipes.map((recipe) => (
-          <RecipeGridCard key={recipe.slug} recipe={recipe} />
+          <RecipeGridCard key={recipe.slug} recipe={recipe} excerptLines={2} />
         ))}
       </div>
     </section>

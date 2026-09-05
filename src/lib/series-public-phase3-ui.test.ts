@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { seriesItemListJsonLd, type PublicSeriesItem } from "./series-types";
 import {
+  formatHomepageSeriesMetaLabel,
   formatSeriesCollectionMeta,
   formatSeriesPartCountLabel,
   parseDurationDisplay,
@@ -120,6 +121,9 @@ describe("Series public Phase 3 conversion + metadata", () => {
     assert.equal(formatSeriesCollectionMeta([item({ id: "x", title: "Solo" })]), "1-PART SERIES");
     assert.equal(formatSeriesPartCountLabel(1), "1-part series");
     assert.equal(formatSeriesPartCountLabel(2), "2-part series");
+    assert.equal(formatHomepageSeriesMetaLabel(2, 2), "2-part series · video guides");
+    assert.equal(formatHomepageSeriesMetaLabel(2, 0), "2-part series");
+    assert.equal(formatHomepageSeriesMetaLabel(1, 1), "1-part series · video guides");
 
     assert.match(page, /formatSeriesCollectionMeta\(series\.items\)/);
   });

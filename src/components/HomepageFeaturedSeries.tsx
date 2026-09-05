@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { SeriesItemTrackLink } from "@/components/series/SeriesItemTrackLink";
 import type { PublicSeriesCard } from "@/lib/series-types";
-import { formatSeriesPartCountLabel } from "@/lib/series-public-meta";
+import { formatHomepageSeriesMetaLabel } from "@/lib/series-public-meta";
 
 const linkFocus =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
@@ -14,6 +14,7 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
   const href = `/series/${series.slug}`;
   const description = series.description.trim();
   const exploreLabel = `Explore the ${series.title} series`;
+  const metaLabel = formatHomepageSeriesMetaLabel(series.itemCount, series.videoCount);
 
   return (
     <section
@@ -47,7 +48,7 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
               </p>
             ) : null}
             <p className="mt-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
-              {formatSeriesPartCountLabel(series.itemCount)}
+              {metaLabel}
             </p>
             <div className="mt-6">
               <SeriesItemTrackLink

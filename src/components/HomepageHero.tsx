@@ -26,12 +26,12 @@ export function HomepageHero({
           className="object-cover transition duration-700 motion-safe:group-hover:scale-[1.03]"
         />
       </div>
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/85 via-ink/45 to-transparent p-5 pt-16">
-        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-sand">{eyebrow}</p>
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/95 via-ink/70 via-35% to-transparent p-5 pt-20">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-cream/90">{eyebrow}</p>
         <p className="mt-1 font-serif text-2xl text-cream">{recipe.title}</p>
         <p
           aria-hidden="true"
-          className="mt-2 text-sm font-semibold text-sand transition group-hover:text-cream group-focus-visible:text-cream"
+          className="mt-2 text-sm font-semibold text-cream/90 transition group-hover:text-cream group-focus-visible:text-cream"
         >
           View recipe →
         </p>
