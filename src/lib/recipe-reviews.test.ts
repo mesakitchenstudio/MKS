@@ -137,7 +137,7 @@ describe("admin review helpers", () => {
     );
   });
 
-  it("builds public review anchors and Member/Visitor type labels", () => {
+  it("builds public review anchors and Member/Visitor/Staff type labels", () => {
     assert.equal(
       adminReviewPublicAnchorHref({
         recipeSlug: "soft-stovetop-flatbread",
@@ -162,9 +162,11 @@ describe("admin review helpers", () => {
       }),
       null,
     );
-    assert.equal(formatAdminReviewerType("user_1"), "Member");
-    assert.equal(formatAdminReviewerType(null), "Visitor");
-    assert.equal(formatAdminReviewerType(undefined), "Visitor");
+    assert.equal(formatAdminReviewerType({ userId: "user_1" }), "Member");
+    assert.equal(formatAdminReviewerType({ userId: null }), "Visitor");
+    assert.equal(formatAdminReviewerType({}), "Visitor");
+    assert.equal(formatAdminReviewerType({ userId: null, isStaff: true }), "Staff");
+    assert.equal(formatAdminReviewerType({ userId: "user_1", isStaff: true }), "Staff");
   });
 
   it("uses stored recipe slug and distinct review ids for same-recipe deep links", () => {
@@ -280,7 +282,11 @@ describe("admin Reviews index contracts", () => {
 
   it("renders a compact ledger with public title links and inline reply expansion", () => {
     assert.match(reviewsIndex, /adminReviewPublicAnchorHref/);
-    assert.match(reviewsIndex, /formatAdminReviewerType/);
+    assert.match(reviewsIndex, /formatAdminReviewerType\(\{/);
+    assert.match(reviewsIndex, /isStaff: review\.isStaffReviewer/);
+    assert.match(recipeReviewsLib, /resolveStaffReviewerEmails/);
+    assert.match(recipeReviewsLib, /isStaffReviewer/);
+    assert.match(recipeReviewsLib, /"Staff"/);
     assert.match(reviewsIndex, /variant="inline"/);
     assert.match(reviewsIndex, /expandedReviewId/);
     assert.match(reviewsIndex, /ReviewExcerptControl/);

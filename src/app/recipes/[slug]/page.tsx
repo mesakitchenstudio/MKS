@@ -212,8 +212,8 @@ export default async function RecipePage({ params, searchParams }: Props) {
           slug={recipe.slug}
           title={recipe.title}
           initial={reviewData}
-          defaultName={session?.user?.name ?? ""}
-          defaultEmail={session?.user?.email ?? ""}
+          defaultName={session?.user?.name ?? admin?.name ?? ""}
+          defaultEmail={session?.user?.email ?? admin?.email ?? ""}
           targetReviewId={verifiedTargetReviewId}
         />
 

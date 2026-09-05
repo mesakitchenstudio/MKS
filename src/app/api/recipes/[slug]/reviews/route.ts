@@ -37,7 +37,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const { slug } = await context.params;
-  const session = await auth();
+  const [session, admin] = await Promise.all([auth(), getAdminSession()]);
   const body = (await request.json()) as {
     authorName?: string;
     authorEmail?: string;
@@ -45,11 +45,23 @@ export async function POST(request: Request, context: RouteContext) {
     comment?: string;
   };
 
+  // Prefer verified session identity: member NextAuth, then Team Access admin.
+  const authorName =
+    session?.user?.name?.trim() ||
+    admin?.name?.trim() ||
+    body.authorName?.trim() ||
+    "";
+  const authorEmail =
+    session?.user?.email?.trim() ||
+    admin?.email?.trim() ||
+    body.authorEmail?.trim() ||
+    "";
+
   try {
     const data = await submitRecipeReview({
       recipeSlug: slug,
-      authorName: body.authorName?.trim() || session?.user?.name || "",
-      authorEmail: body.authorEmail?.trim() || session?.user?.email || "",
+      authorName,
+      authorEmail,
       rating: Number(body.rating),
       body: body.comment?.trim() || "",
       userId: session?.user?.id ?? null,

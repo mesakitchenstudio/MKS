@@ -378,6 +378,8 @@ export type AdminReviewListItem = {
   /** Recipe.status when the recipe row exists; null if missing. */
   recipeStatus: string | null;
   userId: string | null;
+  /** True when authorEmail matches Team Access or system owner. */
+  isStaffReviewer: boolean;
   authorName: string;
   authorEmail: string;
   rating: number;
@@ -453,7 +455,12 @@ function mapAdminReviewRow(
     replies: AdminReviewListItem["replies"];
   },
   recipe: { id: string; title: string; status: string } | undefined,
+  staffEmails?: Set<string>,
 ): AdminReviewListItem {
+  const authorEmail = row.authorEmail;
+  const isStaffReviewer = Boolean(
+    staffEmails?.has(normalizeReviewerEmail(authorEmail)),
+  );
   return {
     id: row.id,
     recipeSlug: row.recipeSlug,
@@ -461,8 +468,9 @@ function mapAdminReviewRow(
     recipeId: recipe?.id ?? null,
     recipeStatus: recipe?.status ?? null,
     userId: row.userId,
+    isStaffReviewer,
     authorName: row.authorName,
-    authorEmail: row.authorEmail,
+    authorEmail,
     rating: row.rating,
     body: row.body,
     createdAt: row.createdAt,
@@ -596,9 +604,53 @@ export function visibleRecipeReviewsForTarget<T extends { id: string }>(
   return [...head, target];
 }
 
-/** Member when linked to a User row; otherwise Visitor (guest review). */
-export function formatAdminReviewerType(userId: string | null | undefined) {
-  return userId ? "Member" : "Visitor";
+/** Member when linked to a User row; Staff when author email is Team Access / system owner; else Visitor. */
+export type AdminReviewerType = "Staff" | "Member" | "Visitor";
+
+export function formatAdminReviewerType(input: {
+  userId?: string | null;
+  isStaff?: boolean;
+}): AdminReviewerType {
+  if (input.isStaff) return "Staff";
+  if (input.userId) return "Member";
+  return "Visitor";
+}
+
+/** Normalize emails for staff matching (Team Access + system owner). */
+export function normalizeReviewerEmail(email: string | null | undefined) {
+  return (email || "").trim().toLowerCase();
+}
+
+/**
+ * Build a set of staff emails present in `candidateEmails`.
+ * Includes Team Access Admin rows and the system owner ADMIN_EMAIL.
+ */
+export async function resolveStaffReviewerEmails(candidateEmails: string[]) {
+  const staff = new Set<string>();
+  const owner = normalizeReviewerEmail(process.env.ADMIN_EMAIL);
+  if (owner) staff.add(owner);
+
+  const keys = [
+    ...new Set(
+      candidateEmails.map(normalizeReviewerEmail).filter((email) => email && email !== owner),
+    ),
+  ];
+  if (!keys.length) return staff;
+
+  try {
+    const rows = await getDb().admin.findMany({
+      where: { email: { in: keys } },
+      select: { email: true },
+    });
+    for (const row of rows) {
+      const email = normalizeReviewerEmail(row.email);
+      if (email) staff.add(email);
+    }
+  } catch (error) {
+    console.error("Could not resolve staff reviewer emails", error);
+  }
+
+  return staff;
 }
 
 export async function listReviewsForAdmin(options?: {
@@ -630,13 +682,16 @@ export async function listReviewsForAdmin(options?: {
         })
       : [];
     const recipeBySlug = new Map(recipes.map((recipe) => [recipe.slug, recipe]));
+    const staffEmails = await resolveStaffReviewerEmails(rows.map((row) => row.authorEmail));
 
     return {
       total,
       page,
       pageSize,
       totalPages,
-      reviews: rows.map((row) => mapAdminReviewRow(row, recipeBySlug.get(row.recipeSlug))),
+      reviews: rows.map((row) =>
+        mapAdminReviewRow(row, recipeBySlug.get(row.recipeSlug), staffEmails),
+      ),
     };
   } catch (error) {
     console.error("Could not list reviews for admin", error);
@@ -661,8 +716,9 @@ export async function getReviewForAdmin(id: string): Promise<AdminReviewListItem
       where: { slug: row.recipeSlug },
       select: { id: true, slug: true, title: true, status: true },
     });
+    const staffEmails = await resolveStaffReviewerEmails([row.authorEmail]);
 
-    return mapAdminReviewRow(row, recipe ?? undefined);
+    return mapAdminReviewRow(row, recipe ?? undefined, staffEmails);
   } catch (error) {
     console.error("Could not load review for admin", error);
     return null;

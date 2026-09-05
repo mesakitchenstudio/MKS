@@ -144,7 +144,10 @@ function ReviewIndexRow({
   onToggleSelected: (checked: boolean) => void;
 }) {
   const staffReplyCount = countStaffReviewReplies(review.replies);
-  const reviewerType = formatAdminReviewerType(review.userId);
+  const reviewerType = formatAdminReviewerType({
+    userId: review.userId,
+    isStaff: review.isStaffReviewer,
+  });
   const colSpan = 7;
 
   return (
@@ -236,7 +239,10 @@ function ReviewIndexMobileCard({
   onToggleSelected: (checked: boolean) => void;
 }) {
   const staffReplyCount = countStaffReviewReplies(review.replies);
-  const reviewerType = formatAdminReviewerType(review.userId);
+  const reviewerType = formatAdminReviewerType({
+    userId: review.userId,
+    isStaff: review.isStaffReviewer,
+  });
 
   return (
     <li className="border-b border-line/80 py-4 last:border-b-0">
