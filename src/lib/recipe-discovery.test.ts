@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { recipes } from "../data/recipes.ts";
 import { homepageCollectionSlugMap } from "../data/homepage.ts";
@@ -209,5 +211,74 @@ describe("primary public taxonomy", () => {
     assert.ok(desserts.some((recipe) => recipe.categories.includes("cookies")));
     assert.ok(desserts.some((recipe) => recipe.categories.includes("cakes")));
     assert.ok(desserts.some((recipe) => recipe.categories.includes("brownies-bars")));
+  });
+});
+
+describe("public recipes Phase 1 editorial discovery UI", () => {
+  const root = process.cwd();
+  const read = (rel: string) => readFileSync(join(root, rel), "utf8");
+
+  it("keeps one Recipes H1 and removes the redundant All recipes H2", () => {
+    const page = read("src/app/recipes/page.tsx");
+    assert.equal((page.match(/<h1\b/g) || []).length, 1);
+    assert.match(page, />Recipes</);
+    assert.doesNotMatch(page, /All recipes/);
+    assert.match(page, /Recipes tested in the Mesa kitchen/);
+    assert.match(page, /aria-label="Recipe discovery"/);
+  });
+
+  it("preserves SEO canonical and filtered noindex", () => {
+    const page = read("src/app/recipes/page.tsx");
+    assert.match(page, /canonical: "\/recipes"/);
+    assert.match(page, /robots: params\.q \|\| params\.category \|\| params\.collection \? \{ index: false \}/);
+  });
+
+  it("uses editorial search, category index, and 1/2/3 card grid", () => {
+    const discovery = read("src/components/RecipeDiscovery.tsx");
+    assert.match(discovery, /Search recipes, ingredients, or techniques/);
+    assert.match(discovery, /min-h-11/);
+    assert.match(discovery, /Browse by category/);
+    assert.match(discovery, /All recipes/);
+    assert.match(discovery, /grid-cols-2/);
+    assert.match(discovery, /sm:grid-cols-3/);
+    assert.match(discovery, /md:grid-cols-4/);
+    assert.doesNotMatch(discovery, /rounded-full px-3 py-1/);
+    assert.doesNotMatch(discovery, /overflow-x-auto/);
+    assert.match(discovery, /aria-pressed=\{isSelected\}/);
+    assert.match(discovery, /grid gap-8 sm:grid-cols-2 lg:grid-cols-3/);
+    assert.doesNotMatch(discovery, /xl:grid-cols-4/);
+    assert.match(discovery, /imageAspect="4\/3"/);
+    assert.match(discovery, /excerptLines=\{2\}/);
+    assert.match(discovery, /Clear filters/);
+    assert.doesNotMatch(discovery, /aria-label="Clear search"/);
+    assert.match(discovery, /No recipes found/);
+  });
+
+  it("wires lightweight discovery analytics without blocking navigation", () => {
+    const discovery = read("src/components/RecipeDiscovery.tsx");
+    assert.match(discovery, /recipe_discovery_search/);
+    assert.match(discovery, /recipe_discovery_category_select/);
+    assert.match(discovery, /recipe_discovery_sort_change/);
+    assert.match(discovery, /recipe_discovery_recipe_click/);
+    assert.match(discovery, /placement: DISCOVERY_PLACEMENT/);
+    assert.match(discovery, /never block navigation/);
+    const analytics = read("src/lib/analytics.ts");
+    assert.match(analytics, /recipe_discovery_search/);
+    assert.match(analytics, /search_query\?:/);
+  });
+
+  it("keeps collection compatibility and category URL helpers", () => {
+    assert.equal(
+      buildRecipesUrl({ category: "toppings" }),
+      "/recipes?category=toppings",
+    );
+    assert.equal(parseDiscoveryParams({ category: "all" }).category, undefined);
+    assert.equal(
+      buildRecipesUrl({ q: "chicken", category: "main-dishes", sort: "alpha" }),
+      "/recipes?q=chicken&category=main-dishes&sort=alpha",
+    );
+    const discovery = read("src/components/RecipeDiscovery.tsx");
+    assert.match(discovery, /collectionTitle/);
+    assert.match(discovery, /collection: undefined/);
   });
 });

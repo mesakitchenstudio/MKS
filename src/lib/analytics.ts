@@ -27,6 +27,10 @@ export type AnalyticsEvent =
   | "recipe_favorite"
   | "recipe_servings_change"
   | "recipe_comment_submit"
+  | "recipe_discovery_search"
+  | "recipe_discovery_category_select"
+  | "recipe_discovery_sort_change"
+  | "recipe_discovery_recipe_click"
   | "series_item_click"
   | "series_watch_click"
   | "series_watch_playlist_on_youtube_click";
@@ -46,6 +50,7 @@ export type AnalyticsProperties = {
   playlist_id?: string;
   item_position?: number;
   source?: string;
+  placement?: string;
   timestamp?: number;
   chapter_label?: string;
   chapter_index?: number;
@@ -53,6 +58,12 @@ export type AnalyticsProperties = {
   platform?: string;
   direction?: "increase" | "decrease";
   servings?: number;
+  /** Catalog search text — property key `query` is blocked. */
+  search_query?: string;
+  category?: string;
+  sort?: string;
+  result_count?: number;
+  recipe_position?: number;
 };
 
 const BLOCKED_KEYS = new Set([

@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Recipe } from "@/data/types";
 import { RecipeGridCard } from "@/components/RecipeGridCard";
+import { trackEvent } from "@/lib/analytics";
 import {
   DISCOVERY_CATEGORIES,
   DISCOVERY_SORTS,
@@ -15,8 +16,11 @@ import {
 const controlFocus =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
-const activeChipClass =
-  "inline-flex items-center gap-1.5 rounded-sm border border-line bg-paper px-2.5 py-1 text-sm text-ink";
+const DISCOVERY_PLACEMENT = "recipes_catalog";
+
+function categoryControlLabel(id: string, label: string) {
+  return id === "all" ? "All recipes" : label;
+}
 
 export function RecipeDiscovery({
   recipes,
@@ -35,14 +39,13 @@ export function RecipeDiscovery({
   const categoryLabel = params.category ? primaryCategoryLabel(params.category) : undefined;
   const hasFilters = Boolean(params.q || params.category || params.collection || params.sort);
 
-  const contentConstraints = useMemo(() => {
-    let count = 0;
-    if (params.category || params.collection) count += 1;
-    if (params.q) count += 1;
-    return count;
-  }, [params.category, params.collection, params.q]);
-
-  const showContext = Boolean(categoryLabel || collectionTitle || params.q);
+  const contextParts = useMemo(() => {
+    const parts: string[] = [];
+    if (collectionTitle) parts.push(collectionTitle);
+    else if (categoryLabel) parts.push(categoryLabel);
+    if (params.q) parts.push(`Search: “${params.q}”`);
+    return parts;
+  }, [categoryLabel, collectionTitle, params.q]);
 
   function navigate(next: RecipeDiscoveryParams) {
     router.push(buildRecipesUrl(next), { scroll: false });
@@ -50,13 +53,35 @@ export function RecipeDiscovery({
 
   function onSearchSubmit(event: FormEvent) {
     event.preventDefault();
-    navigate({
+    const nextQuery = query.trim() || undefined;
+    const nextParams = {
       ...params,
-      q: query.trim() || undefined,
-    });
+      q: nextQuery,
+    };
+    try {
+      trackEvent("recipe_discovery_search", {
+        ...(nextQuery ? { search_query: nextQuery } : {}),
+        placement: DISCOVERY_PLACEMENT,
+        source: DISCOVERY_PLACEMENT,
+        category: params.category,
+        sort: params.sort ?? "latest",
+      });
+    } catch {
+      /* never block navigation */
+    }
+    navigate(nextParams);
   }
 
   function onCategorySelect(categoryId: string) {
+    try {
+      trackEvent("recipe_discovery_category_select", {
+        category: categoryId,
+        placement: DISCOVERY_PLACEMENT,
+        source: DISCOVERY_PLACEMENT,
+      });
+    } catch {
+      /* never block navigation */
+    }
     navigate({
       ...params,
       category: categoryId === "all" ? undefined : categoryId,
@@ -65,32 +90,18 @@ export function RecipeDiscovery({
   }
 
   function onSortChange(value: string) {
+    try {
+      trackEvent("recipe_discovery_sort_change", {
+        sort: value,
+        placement: DISCOVERY_PLACEMENT,
+        source: DISCOVERY_PLACEMENT,
+      });
+    } catch {
+      /* never block navigation */
+    }
     navigate({
       ...params,
       sort: value === "latest" ? undefined : (value as RecipeDiscoveryParams["sort"]),
-    });
-  }
-
-  function clearCategory() {
-    navigate({
-      ...params,
-      category: undefined,
-      collection: undefined,
-    });
-  }
-
-  function clearSearch() {
-    setQuery("");
-    navigate({
-      ...params,
-      q: undefined,
-    });
-  }
-
-  function clearAllContentFilters() {
-    setQuery("");
-    navigate({
-      sort: params.sort,
     });
   }
 
@@ -99,9 +110,11 @@ export function RecipeDiscovery({
     navigate({});
   }
 
+  const countLabel = `${recipes.length} ${recipes.length === 1 ? "recipe" : "recipes"}`;
+
   return (
     <div>
-      <form onSubmit={onSearchSubmit} className="mt-5 max-w-xl" key={params.q ?? "no-query"}>
+      <form onSubmit={onSearchSubmit} className="max-w-2xl" key={params.q ?? "no-query"}>
         <label htmlFor="recipes-search" className="sr-only">
           Search recipes
         </label>
@@ -111,49 +124,77 @@ export function RecipeDiscovery({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by title, ingredient, category, or tag"
-            className={`h-10 min-w-0 flex-1 rounded-full border border-line bg-paper px-4 text-base text-ink outline-none placeholder:text-muted focus:border-olive focus:ring-2 focus:ring-olive/15 sm:text-sm ${controlFocus}`}
+            placeholder="Search recipes, ingredients, or techniques..."
+            className={`min-h-11 min-w-0 flex-1 rounded-full border border-line bg-paper px-4 text-base text-ink outline-none placeholder:text-muted focus:border-terracotta focus:ring-2 focus:ring-terracotta/15 sm:text-sm ${controlFocus}`}
           />
           <button
             type="submit"
             aria-label="Search recipes"
-            className={`inline-flex h-10 shrink-0 items-center rounded-full bg-ink px-4 text-sm font-semibold text-cream transition-colors hover:bg-ink/90 ${controlFocus}`}
+            className={`inline-flex min-h-11 shrink-0 items-center rounded-full bg-terracotta px-5 text-sm font-semibold text-paper transition-colors hover:bg-terracotta-dark ${controlFocus}`}
           >
             Search
           </button>
         </div>
       </form>
 
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div
-          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1"
-          role="group"
-          aria-label="Recipe category"
-        >
-          {DISCOVERY_CATEGORIES.map((category) => {
-            const isChipSelected =
-              category.id === "all"
-                ? !params.category && !params.collection
-                : activeCategory === category.id;
-            return (
-              <button
-                key={category.id}
-                type="button"
-                aria-pressed={isChipSelected}
-                onClick={() => onCategorySelect(category.id)}
-                className={`shrink-0 rounded-full px-3 py-1 text-sm transition-colors ${controlFocus} ${
-                  isChipSelected
-                    ? "border border-olive/50 bg-sand text-ink"
-                    : "border border-transparent text-muted hover:border-line hover:bg-paper hover:text-ink"
-                }`}
-              >
-                {category.label}
-              </button>
-            );
-          })}
+      <div className="mt-8">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
+          Browse by category
+        </p>
+        <nav className="mt-3 max-w-3xl min-w-0" aria-label="Recipe category">
+          <ul className="grid grid-cols-2 gap-x-6 text-sm font-semibold text-ink sm:grid-cols-3 md:grid-cols-4 md:gap-x-8">
+            {DISCOVERY_CATEGORIES.map((category) => {
+              const isSelected =
+                category.id === "all"
+                  ? !params.category && !params.collection
+                  : activeCategory === category.id;
+              const label = categoryControlLabel(category.id, category.label);
+              return (
+                <li key={category.id} className="min-w-0 border-t border-line">
+                  <button
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => onCategorySelect(category.id)}
+                    className={`inline-flex min-h-11 max-w-full items-center py-2 transition-colors ${controlFocus} ${
+                      isSelected
+                        ? "border-b-2 border-terracotta text-terracotta"
+                        : "text-terracotta/80 hover:text-terracotta"
+                    }`}
+                  >
+                    <span className="min-w-0 text-left">{label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      </div>
+
+      <div className="mt-8 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+        <div className="min-w-0">
+          <p className="text-sm text-muted" aria-live="polite" role="status">
+            {contextParts.length > 0 ? (
+              <>
+                <span className="text-ink">{contextParts.join(" · ")}</span>
+                <span aria-hidden> · </span>
+                <span>{countLabel}</span>
+              </>
+            ) : (
+              <span>{countLabel}</span>
+            )}
+          </p>
+          {hasFilters ? (
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className={`mt-2 text-sm font-semibold text-terracotta hover:text-terracotta-dark ${controlFocus}`}
+            >
+              Clear filters
+            </button>
+          ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
+        <div className="flex shrink-0 items-center gap-2">
           <label htmlFor="recipes-sort" className="text-sm text-muted">
             Sort
           </label>
@@ -161,7 +202,7 @@ export function RecipeDiscovery({
             id="recipes-sort"
             value={activeSort}
             onChange={(event) => onSortChange(event.target.value)}
-            className={`h-8 rounded-full border border-line bg-paper px-3 text-sm text-ink outline-none focus:border-olive focus:ring-2 focus:ring-olive/15 ${controlFocus}`}
+            className={`min-h-11 rounded-full border border-line bg-paper px-3 text-sm text-ink outline-none focus:border-terracotta focus:ring-2 focus:ring-terracotta/15 ${controlFocus}`}
           >
             {DISCOVERY_SORTS.map((option) => (
               <option key={option.id} value={option.id}>
@@ -172,110 +213,38 @@ export function RecipeDiscovery({
         </div>
       </div>
 
-      {showContext ? (
-        <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-2 text-sm text-muted">
-          {categoryLabel || collectionTitle ? (
-            <>
-              <span>{collectionTitle ? "Showing" : "Browsing"}</span>
-              <span className={activeChipClass}>
-                <span className="font-medium text-ink">
-                  {collectionTitle || categoryLabel}
-                </span>
-                <button
-                  type="button"
-                  onClick={clearCategory}
-                  aria-label={
-                    collectionTitle
-                      ? `Remove ${collectionTitle} collection filter`
-                      : `Remove ${categoryLabel} category filter`
-                  }
-                  className={`-mr-0.5 inline-flex h-5 w-5 items-center justify-center rounded-sm text-base leading-none text-terracotta transition-colors hover:text-terracotta-dark ${controlFocus}`}
-                >
-                  ×
-                </button>
-              </span>
-            </>
-          ) : null}
-
-          {params.q ? (
-            <>
-              {categoryLabel || collectionTitle ? <span aria-hidden>·</span> : null}
-              <span>
-                Search: <span className="text-ink">“{params.q}”</span>
-              </span>
-              <button
-                type="button"
-                onClick={clearSearch}
-                aria-label="Clear search"
-                className={`inline-flex h-5 w-5 items-center justify-center rounded-sm text-base leading-none text-terracotta transition-colors hover:text-terracotta-dark ${controlFocus}`}
-              >
-                ×
-              </button>
-            </>
-          ) : null}
-
-          {contentConstraints > 1 ? (
-            <>
-              <span aria-hidden>·</span>
-              <button
-                type="button"
-                onClick={clearAllContentFilters}
-                className={`font-semibold text-terracotta hover:text-terracotta-dark ${controlFocus}`}
-              >
-                Clear all
-              </button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-
-      {hasFilters ? (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={clearAllFilters}
-            className={`text-sm font-semibold text-terracotta hover:text-terracotta-dark ${controlFocus}`}
-          >
-            Clear filters
-          </button>
-        </div>
-      ) : null}
-
-      <p className="mt-4 text-sm text-muted" aria-live="polite" role="status">
-        {recipes.length} {recipes.length === 1 ? "recipe" : "recipes"}
-        {params.q && !showContext ? ` matching “${params.q}”` : ""}
-      </p>
-
       {recipes.length ? (
-        <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {recipes.map((recipe) => (
-            <RecipeGridCard key={recipe.slug} recipe={recipe} />
+        <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          {recipes.map((recipe, index) => (
+            <RecipeGridCard
+              key={recipe.slug}
+              recipe={recipe}
+              excerptLines={2}
+              imageAspect="4/3"
+              onNavigate={() => {
+                try {
+                  trackEvent("recipe_discovery_recipe_click", {
+                    recipe_slug: recipe.slug,
+                    recipe_position: index + 1,
+                    placement: DISCOVERY_PLACEMENT,
+                    source: DISCOVERY_PLACEMENT,
+                    category: params.category || params.collection || "all",
+                    search_query: params.q,
+                    sort: params.sort ?? "latest",
+                  });
+                } catch {
+                  /* never block navigation */
+                }
+              }}
+            />
           ))}
         </div>
       ) : (
         <div className="mt-10 max-w-md" role="status" aria-live="polite">
-          {params.q ? (
-            <>
-              <p className="font-serif text-2xl text-ink">No recipes matched “{params.q}”.</p>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Try another ingredient or clear the filters.
-              </p>
-            </>
-          ) : categoryLabel ? (
-            <>
-              <p className="font-serif text-2xl text-ink">No {categoryLabel} recipes yet.</p>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Try another category or clear the filters.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="font-serif text-2xl text-ink">No recipes found.</p>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Try another search or clear the filters.
-              </p>
-            </>
-          )}
+          <p className="font-serif text-2xl text-ink">No recipes found.</p>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Try another search or clear the current filters.
+          </p>
           <button
             type="button"
             onClick={clearAllFilters}

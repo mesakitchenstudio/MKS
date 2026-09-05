@@ -16,6 +16,7 @@ export function RecipeGridCard({
   imageAspect = "5/4",
   variant = "default",
   excerptLines,
+  onNavigate,
 }: {
   recipe: Recipe;
   large?: boolean;
@@ -28,6 +29,8 @@ export function RecipeGridCard({
   variant?: "default" | "discovery";
   /** Override excerpt line clamp (homepage Latest uses 2). */
   excerptLines?: 2 | 3;
+  /** Fires on card navigation without blocking the link. */
+  onNavigate?: () => void;
 }) {
   const aspectClass =
     large ? "aspect-[4/3]" : imageAspect === "4/3" ? "aspect-[4/3]" : "aspect-[5/4]";
@@ -94,7 +97,11 @@ export function RecipeGridCard({
 
   if (!mediaOverlay) {
     return (
-      <Link href={`/recipes/${recipe.slug}`} className={`group block ${linkFocus}`}>
+      <Link
+        href={`/recipes/${recipe.slug}`}
+        className={`group block ${linkFocus}`}
+        onClick={onNavigate}
+      >
         {body}
       </Link>
     );
@@ -102,7 +109,11 @@ export function RecipeGridCard({
 
   return (
     <div className="group relative">
-      <Link href={`/recipes/${recipe.slug}`} className={`block ${linkFocus}`}>
+      <Link
+        href={`/recipes/${recipe.slug}`}
+        className={`block ${linkFocus}`}
+        onClick={onNavigate}
+      >
         {body}
       </Link>
       <div className="absolute right-3 top-3 z-10">{mediaOverlay}</div>

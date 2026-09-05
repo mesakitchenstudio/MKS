@@ -42,18 +42,14 @@ export default async function RecipesPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
-      <h1 className="font-serif text-5xl">Recipes</h1>
-      <p className="mt-3 max-w-2xl text-muted">
-        Tested recipes for everyday cooking, baking, drinks, sides, and the table.
-      </p>
+      <header>
+        <h1 className="font-serif text-5xl text-ink">Recipes</h1>
+        <p className="mt-3 max-w-2xl text-base leading-7 text-muted">
+          Recipes tested in the Mesa kitchen, from everyday meals to weekend baking.
+        </p>
+      </header>
 
-      <section
-        className="mt-8 border-t border-line pt-8 md:mt-10 md:pt-9"
-        aria-labelledby="all-recipes-heading"
-      >
-        <h2 id="all-recipes-heading" className="font-serif text-[1.75rem] text-ink md:text-[1.85rem]">
-          All recipes
-        </h2>
+      <section className="mt-8 border-t border-line pt-8 md:mt-10 md:pt-9" aria-label="Recipe discovery">
         <RecipeDiscovery
           recipes={filtered}
           params={params}
