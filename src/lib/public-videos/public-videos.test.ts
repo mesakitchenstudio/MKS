@@ -1,16 +1,30 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   buildPublicVideoCatalogue,
   excludeFeaturedFromGrid,
   selectFeaturedPublicVideo,
 } from "./catalogue.ts";
 import {
+  isFullPublicVideo,
   isPublicCatalogueEligible,
   isPublicFeaturedEligible,
+  isShortPublicVideo,
   toPublicVideoCard,
 } from "./eligibility.ts";
+import { classifyYouTubeVideoFormat } from "@/lib/youtube-data/video-format";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
 import type { PublicVideoSourceRow } from "./types.ts";
+
+const root = path.dirname(fileURLToPath(import.meta.url));
+const srcRoot = path.join(root, "..", "..");
+
+function read(relFromSrc: string) {
+  return readFileSync(path.join(srcRoot, relFromSrc), "utf8");
+}
 
 function row(partial: Partial<PublicVideoSourceRow> & Pick<PublicVideoSourceRow, "videoId">): PublicVideoSourceRow {
   return {
@@ -128,6 +142,14 @@ describe("public video eligibility", () => {
       false,
     );
   });
+
+  it("treats Full as LONG only and Shorts as SHORT only", () => {
+    assert.equal(isFullPublicVideo("LONG"), true);
+    assert.equal(isFullPublicVideo("UNKNOWN"), false);
+    assert.equal(isFullPublicVideo("SHORT"), false);
+    assert.equal(isShortPublicVideo("SHORT"), true);
+    assert.equal(isShortPublicVideo("UNKNOWN"), false);
+  });
 });
 
 describe("public video catalogue", () => {
@@ -159,6 +181,13 @@ describe("public video catalogue", () => {
     publishedAt: new Date("2026-05-01T00:00:00.000Z"),
     durationSeconds: 45,
     durationDisplay: "0:45",
+  });
+  const unmarkedShort = row({
+    videoId: "BodG55anvjs",
+    title: "Chocolate donut short 2026 19 08",
+    publishedAt: new Date("2026-09-01T00:00:00.000Z"),
+    durationSeconds: 68,
+    durationDisplay: "1:08",
   });
   const noThumb = row({
     videoId: "",
@@ -216,6 +245,7 @@ describe("public video catalogue", () => {
     const fewShorts = buildPublicVideoCatalogue([longA, shortVideo]);
     assert.equal(fewShorts.showFormatFilter, false);
     assert.equal(fewShorts.shorts.length, 1);
+    assert.ok(fewShorts.videos.every((video) => video.format === "LONG"));
 
     const manyShorts = buildPublicVideoCatalogue(
       [
@@ -236,9 +266,82 @@ describe("public video catalogue", () => {
     assert.equal(manyShorts.shortCount, 4);
   });
 
+  it("moves unmarked ≤90s clips into Shorts and out of Full", () => {
+    const catalogue = buildPublicVideoCatalogue([longA, unmarkedShort]);
+    assert.equal(classifyYouTubeVideoFormat(unmarkedShort), "SHORT");
+    assert.ok(catalogue.videos.every((video) => video.videoId !== "BodG55anvjs"));
+    assert.ok(catalogue.shorts.some((video) => video.videoId === "BodG55anvjs"));
+  });
+
+  it("never features a Short and keeps Full / Shorts arrays separated", () => {
+    const catalogue = buildPublicVideoCatalogue([unmarkedShort, shortVideo, longB]);
+    assert.equal(catalogue.featured?.format, "LONG");
+    assert.ok(catalogue.videos.every((video) => video.format === "LONG"));
+    assert.ok(catalogue.shorts.every((video) => video.format === "SHORT"));
+  });
+
   it("selectFeaturedPublicVideo prefers newest Long", () => {
     const cards = [longA, longB].map((r) => toPublicVideoCard(r)!);
     assert.equal(selectFeaturedPublicVideo(cards)?.videoId, "longAAAAAAA");
+  });
+});
+
+describe("recipe link editorial identity", () => {
+  it("prefers trustworthy dishName then falls back to title", () => {
+    assert.equal(
+      resolveRecipeCardTitle({
+        title: "I Make This Creamy Mushroom Pasta 3 Times a Week! 😋",
+        dishName: "Creamy Mushroom Pasta",
+      }),
+      "Creamy Mushroom Pasta",
+    );
+    assert.equal(
+      resolveRecipeCardTitle({
+        title: "Classic French Baguettes",
+        dishName: "",
+      }),
+      "Classic French Baguettes",
+    );
+  });
+
+  it("wires dishName preference into the recipe video index join", () => {
+    const matching = read("lib/youtube-data/matching.ts");
+    assert.match(matching, /resolveRecipeCardTitle/);
+    assert.match(matching, /readEditorialDishName/);
+    assert.match(matching, /recipeTitle: recipe\.displayTitle/);
+  });
+});
+
+describe("public videos UI wiring", () => {
+  it("uses Featured video eyebrow and Full videos heading copy", () => {
+    const featured = read("components/youtube/PublicFeaturedVideo.tsx");
+    const catalogue = read("components/youtube/PublicVideosCatalogue.tsx");
+    assert.match(featured, /Featured video/);
+    assert.doesNotMatch(featured, /From the kitchen/);
+    assert.match(catalogue, /sectionHeading = format === "shorts" \? "Shorts" : "Full videos"/);
+    assert.doesNotMatch(catalogue, /All videos/);
+  });
+
+  it("clamps card titles and fires live catalogue analytics", () => {
+    const card = read("components/youtube/PublicVideoCard.tsx");
+    const featured = read("components/youtube/PublicFeaturedVideo.tsx");
+    const catalogue = read("components/youtube/PublicVideosCatalogue.tsx");
+    const outbound = read("components/youtube/VideosYoutubeOutboundLink.tsx");
+    assert.match(card, /line-clamp-3/);
+    assert.match(card, /videos_card_click/);
+    assert.match(card, /videos_recipe_click/);
+    assert.match(featured, /videos_featured_click/);
+    assert.match(catalogue, /videos_format_change/);
+    assert.match(catalogue, /VideosYoutubeOutboundLink/);
+    assert.match(outbound, /videos_youtube_outbound_click/);
+  });
+
+  it("labels watch-page format without treating UNKNOWN as Full video", () => {
+    const watch = read("app/videos/[videoId]/page.tsx");
+    assert.match(
+      watch,
+      /video\.format === "SHORT" \? "Short" : video\.format === "LONG" \? "Full video" : "Video"/,
+    );
   });
 });
 

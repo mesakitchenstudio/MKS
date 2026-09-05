@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { PublicWatchPlayer } from "@/components/youtube/PublicWatchPlayer";
+import { VideosYoutubeOutboundLink } from "@/components/youtube/VideosYoutubeOutboundLink";
 import { site } from "@/data/site";
 import { youtubeEmbedUrl } from "@/lib/youtube";
 import { loadPublicVideoWatch } from "@/lib/public-videos/load";
@@ -61,7 +62,8 @@ export default async function PublicVideoWatchPage({ params }: Props) {
   const video = await loadPublicVideoWatch(videoId);
   if (!video) notFound();
 
-  const formatLabel = video.format === "SHORT" ? "Short" : "Full video";
+  const formatLabel =
+    video.format === "SHORT" ? "Short" : video.format === "LONG" ? "Full video" : "Video";
   const focusRing =
     "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
@@ -133,15 +135,16 @@ export default async function PublicVideoWatchPage({ params }: Props) {
       ) : null}
 
       <p className="mt-8 text-sm text-muted">
-        <a
+        <VideosYoutubeOutboundLink
           href={video.youtubeWatchUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
+          placement="watch_page"
+          videoId={video.videoId}
+          format={video.format}
+          className="underline-offset-2 transition hover:text-terracotta hover:underline"
         >
           Watch on YouTube ↗
           <span className="sr-only"> (opens in a new tab)</span>
-        </a>
+        </VideosYoutubeOutboundLink>
       </p>
     </div>
   );

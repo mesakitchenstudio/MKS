@@ -18,6 +18,11 @@ export type AnalyticsEvent =
   | "recipe_youtube_subscribe_click"
   | "recipe_youtube_playlist_click"
   | "videos_page_video_click"
+  | "videos_featured_click"
+  | "videos_card_click"
+  | "videos_recipe_click"
+  | "videos_format_change"
+  | "videos_youtube_outbound_click"
   | "recipe_jump_to_recipe"
   | "recipe_start_cooking_click"
   | "recipe_cook_mode_start"
@@ -89,7 +94,13 @@ export function trackEvent(event: AnalyticsEvent, properties: AnalyticsPropertie
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("mesa:analytics", { detail: payload }));
     // Legacy listener for video work already wired to mesa:video-analytics
-    if (event.startsWith("recipe_video") || event.startsWith("recipe_floating") || event.startsWith("recipe_related") || event.startsWith("recipe_youtube") || event.startsWith("videos_page")) {
+    if (
+      event.startsWith("recipe_video") ||
+      event.startsWith("recipe_floating") ||
+      event.startsWith("recipe_related") ||
+      event.startsWith("recipe_youtube") ||
+      event.startsWith("videos_")
+    ) {
       window.dispatchEvent(new CustomEvent("mesa:video-analytics", { detail: payload }));
     }
   }

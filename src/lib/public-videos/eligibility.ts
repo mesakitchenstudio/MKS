@@ -96,9 +96,12 @@ export function toPublicVideoCard(row: PublicVideoSourceRow): PublicVideoCard | 
   };
 }
 
-/** Treat UNKNOWN as full-length catalogue entries (not YouTube Shorts). */
+/**
+ * Full-videos grid: LONG only.
+ * UNKNOWN is deliberately excluded (not treated as full-length).
+ */
 export function isFullPublicVideo(format: YouTubeVideoFormat): boolean {
-  return format === "LONG" || format === "UNKNOWN";
+  return format === "LONG";
 }
 
 export function isShortPublicVideo(format: YouTubeVideoFormat): boolean {

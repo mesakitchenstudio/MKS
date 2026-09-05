@@ -57,7 +57,12 @@ type VideoAnalyticsEvent =
   | "recipe_related_video_click"
   | "recipe_youtube_playlist_click"
   | "recipe_youtube_subscribe_click"
-  | "videos_page_video_click";
+  | "videos_page_video_click"
+  | "videos_featured_click"
+  | "videos_card_click"
+  | "videos_recipe_click"
+  | "videos_format_change"
+  | "videos_youtube_outbound_click";
 
 const firedMilestones = new Set<string>();
 

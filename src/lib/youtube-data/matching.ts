@@ -1,6 +1,8 @@
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { youtubeVideoId } from "@/lib/youtube";
 import { getDb } from "@/lib/db";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
+import { readEditorialDishName } from "@/lib/recipe-editor-dish-name";
 import { parseValues } from "@/lib/recipe-map";
 
 export type RecipeVideoLink = {
@@ -15,6 +17,8 @@ export type RecipeVideoRow = {
   id: string;
   slug: string;
   title: string;
+  /** Public/recipe-link label: dishName when trustworthy, else title. */
+  displayTitle: string;
   status: string;
   youtubeUrl?: string;
   youtube?: ReturnType<typeof parseRecipeYoutubeBlob>;
@@ -30,10 +34,13 @@ async function loadRecipeVideoRows(options?: { includeDrafts?: boolean }): Promi
 
   return rows.map((row) => {
     const values = parseValues(row.values);
+    const dishName = readEditorialDishName(values);
     return {
       id: row.id,
       slug: row.slug,
       title: row.title,
+      /** Editorial link label: trustworthy dishName → canonical title. */
+      displayTitle: resolveRecipeCardTitle({ title: row.title, dishName }),
       status: row.status,
       youtubeUrl: typeof values.youtubeUrl === "string" ? values.youtubeUrl : undefined,
       youtube: parseRecipeYoutubeBlob(values.youtube),
@@ -70,7 +77,7 @@ export async function buildRecipeVideoIndex(options?: { includeDrafts?: boolean 
     const link: RecipeVideoLink = {
       recipeId: recipe.id,
       recipeSlug: recipe.slug,
-      recipeTitle: recipe.title,
+      recipeTitle: recipe.displayTitle,
       videoId,
       youtubeBlob: recipe.youtube ?? null,
     };

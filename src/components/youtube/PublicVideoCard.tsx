@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import type { PublicVideoCard } from "@/lib/public-videos/types";
+import { trackEvent } from "@/lib/analytics";
 import { VideoThumbnail } from "@/components/youtube/VideoThumbnail";
 
 const focusRing =
@@ -19,9 +22,36 @@ export function PublicVideoCard({
     ? `Watch ${video.title}, ${video.durationDisplay}`
     : `Watch ${video.title}`;
 
+  function trackCardClick() {
+    trackEvent("videos_card_click", {
+      video_id: video.videoId,
+      video_title: video.title,
+      placement: portrait ? "shorts_grid" : "full_grid",
+      source: video.format,
+      recipe_slug: video.recipeSlug,
+      recipe_title: video.recipeTitle,
+    });
+  }
+
+  function trackRecipeClick() {
+    trackEvent("videos_recipe_click", {
+      video_id: video.videoId,
+      video_title: video.title,
+      placement: portrait ? "shorts_grid" : "full_grid",
+      source: video.format,
+      recipe_slug: video.recipeSlug,
+      recipe_title: video.recipeTitle,
+    });
+  }
+
   return (
-    <article className="group/card">
-      <Link href={watchHref} aria-label={watchLabel} className={`group/thumb block ${focusRing}`}>
+    <article className="group/card flex h-full flex-col">
+      <Link
+        href={watchHref}
+        aria-label={watchLabel}
+        onClick={trackCardClick}
+        className={`group/thumb block ${focusRing}`}
+      >
         <div className="relative">
           <VideoThumbnail
             src={video.thumbnailUrl}
@@ -42,19 +72,20 @@ export function PublicVideoCard({
             </span>
           ) : null}
         </div>
-        <h3 className="mt-3 font-serif text-xl leading-tight text-ink transition group-hover/card:text-terracotta">
+        <h3 className="mt-3 line-clamp-3 font-serif text-xl leading-tight text-ink transition group-hover/card:text-terracotta">
           {video.title}
         </h3>
       </Link>
 
       {video.recipeSlug && video.recipeTitle ? (
-        <p className="mt-2 text-sm leading-6 text-muted">
+        <p className="mt-auto pt-2 text-sm leading-6 text-muted">
           <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-olive">
             Recipe
           </span>
           <br />
           <Link
             href={`/recipes/${video.recipeSlug}`}
+            onClick={trackRecipeClick}
             className={`text-ink underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
           >
             {video.recipeTitle} →

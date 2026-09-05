@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { site } from "@/data/site";
 import type { PublicVideoCard as PublicVideoCardType } from "@/lib/public-videos/types";
+import { trackEvent } from "@/lib/analytics";
 import { PublicFeaturedVideo } from "@/components/youtube/PublicFeaturedVideo";
 import { PublicVideoCard } from "@/components/youtube/PublicVideoCard";
+import { VideosYoutubeOutboundLink } from "@/components/youtube/VideosYoutubeOutboundLink";
 
 const focusRing =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
@@ -24,19 +28,29 @@ export function PublicVideosCatalogue({
 }) {
   const gridVideos = format === "shorts" ? shorts : videos;
   const isEmpty = !featured && videos.length === 0 && shorts.length === 0;
+  const sectionHeading = format === "shorts" ? "Shorts" : "Full videos";
+
+  function trackFormatChange(next: "long" | "shorts") {
+    if (next === format) return;
+    trackEvent("videos_format_change", {
+      placement: "format_filter",
+      source: next,
+      sort: format,
+    });
+  }
 
   if (loadFailed) {
     return (
       <p className="mt-12 max-w-xl text-base leading-7 text-muted" role="status">
         We couldn’t load the video catalogue right now. Please try again in a moment, or watch on{" "}
-        <a
+        <VideosYoutubeOutboundLink
           href={site.social.youtube}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`font-semibold text-terracotta hover:text-terracotta-dark ${focusRing}`}
+          placement="catalogue_load_failed"
+          format="channel"
+          className="font-semibold text-terracotta hover:text-terracotta-dark"
         >
           YouTube
-        </a>
+        </VideosYoutubeOutboundLink>
         .
       </p>
     );
@@ -46,14 +60,14 @@ export function PublicVideosCatalogue({
     return (
       <p className="mt-12 max-w-xl text-base leading-7 text-muted">
         No public videos are available on the site yet. You can still follow along on{" "}
-        <a
+        <VideosYoutubeOutboundLink
           href={site.social.youtube}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`font-semibold text-terracotta hover:text-terracotta-dark ${focusRing}`}
+          placement="catalogue_empty"
+          format="channel"
+          className="font-semibold text-terracotta hover:text-terracotta-dark"
         >
           YouTube
-        </a>
+        </VideosYoutubeOutboundLink>
         .
       </p>
     );
@@ -69,16 +83,13 @@ export function PublicVideosCatalogue({
       >
         <div className="flex flex-wrap items-end justify-between gap-4">
           <h2 id="all-videos-heading" className="font-serif text-[1.75rem] text-ink md:text-[1.85rem]">
-            {format === "shorts" ? "Shorts" : "All videos"}
+            {sectionHeading}
           </h2>
           {showFormatFilter ? (
-            <div
-              className="flex gap-1 text-sm"
-              role="group"
-              aria-label="Video format"
-            >
+            <div className="flex gap-1 text-sm" role="group" aria-label="Video format">
               <Link
                 href="/videos"
+                onClick={() => trackFormatChange("long")}
                 className={`px-3 py-1.5 ${focusRing} ${
                   format === "long"
                     ? "border-b-2 border-terracotta font-semibold text-ink"
@@ -90,6 +101,7 @@ export function PublicVideosCatalogue({
               </Link>
               <Link
                 href="/videos?format=shorts"
+                onClick={() => trackFormatChange("shorts")}
                 className={`px-3 py-1.5 ${focusRing} ${
                   format === "shorts"
                     ? "border-b-2 border-terracotta font-semibold text-ink"
@@ -114,7 +126,7 @@ export function PublicVideosCatalogue({
             className={
               format === "shorts"
                 ? "mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-4"
-                : "mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
+                : "mt-8 grid items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3"
             }
           >
             {gridVideos.map((video, index) => (
@@ -130,14 +142,14 @@ export function PublicVideosCatalogue({
       </section>
 
       <p className="mt-14 text-sm text-muted">
-        <a
+        <VideosYoutubeOutboundLink
           href={site.social.youtube}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
+          placement="catalogue_footer"
+          format="channel"
+          className="underline-offset-2 transition hover:text-terracotta hover:underline"
         >
           More from Mesa on YouTube →
-        </a>
+        </VideosYoutubeOutboundLink>
       </p>
     </>
   );

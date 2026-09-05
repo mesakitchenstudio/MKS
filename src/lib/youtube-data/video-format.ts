@@ -1,5 +1,5 @@
 /**
- * YouTube video format classification for Mesa admin analytics.
+ * YouTube video format classification for Mesa admin analytics and public /videos.
  * Calculated from synced metadata — not an authoritative YouTube API "isShort" field.
  */
 
@@ -8,6 +8,18 @@ export type YouTubeVideoFormat = (typeof YOUTUBE_VIDEO_FORMATS)[number];
 
 /** YouTube Shorts max length (current platform limit). */
 export const YOUTUBE_SHORTS_MAX_SECONDS = 3 * 60;
+
+/**
+ * Classic Shorts shelf threshold. Duration alone is a high-confidence Short signal
+ * when no stronger LONG evidence exists.
+ */
+export const YOUTUBE_SHORTS_CLASSIC_MAX_SECONDS = 60;
+
+/**
+ * Cautious duration-only fallback for short-form clips that omit #shorts markers.
+ * Kept well below the 180s platform max to avoid mistaking mid-length tips as Shorts.
+ */
+export const YOUTUBE_SHORTS_DURATION_FALLBACK_MAX_SECONDS = 90;
 
 export type YouTubeVideoFormatInput = {
   /** Optional pre-stored format from sync (future-proof). */
@@ -74,9 +86,32 @@ function hasShortsHashtagEvidence(input: YouTubeVideoFormatInput): boolean {
 }
 
 /**
+ * Soft title signal: standalone "short" (not shortbread / shortcake / etc.).
+ * Used only with a Shorts-length duration cap.
+ */
+export function titleHasSoftShortSignal(title: string): boolean {
+  const value = String(title ?? "");
+  if (
+    /\bshortbread\b|\bshortcake\b|\bshortcrust\b|\bshortcut\b|\bshortage\b|\bshortly\b|\bshorten(?:ed|ing|s)?\b/i.test(
+      value,
+    )
+  ) {
+    return false;
+  }
+  return /\bshort\b/i.test(value);
+}
+
+/**
  * Classify a synced YouTube video as SHORT, LONG, or UNKNOWN.
- * Conservative: prefers explicit Shorts signals; does not invent certainty for
- * short-duration videos without supporting evidence.
+ *
+ * Evidence hierarchy:
+ * 1. Stored/manual `videoFormat` override (SHORT | LONG)
+ * 2. YouTube `/shorts/` URL
+ * 3. `#shorts` / `shorts` title, description, or tag evidence (≤180s)
+ * 4. Soft title "short" word (≤180s), excluding food/common false positives
+ * 5. Duration > 180s → LONG
+ * 6. Duration-only fallback: ≤60s (classic) or ≤90s (cautious) → SHORT
+ * 7. Otherwise UNKNOWN (e.g. 91–180s with no Shorts markers)
  */
 export function classifyYouTubeVideoFormat(video: YouTubeVideoFormatInput): YouTubeVideoFormat {
   const stored = parseYouTubeVideoFormat(video.videoFormat);
@@ -90,16 +125,30 @@ export function classifyYouTubeVideoFormat(video: YouTubeVideoFormatInput): YouT
       : 0;
 
   const shortsSignal = hasShortsHashtagEvidence(video);
-
   if (shortsSignal && (duration === 0 || duration <= YOUTUBE_SHORTS_MAX_SECONDS)) {
+    return "SHORT";
+  }
+
+  if (
+    titleHasSoftShortSignal(String(video.title ?? "")) &&
+    (duration === 0 || duration <= YOUTUBE_SHORTS_MAX_SECONDS)
+  ) {
     return "SHORT";
   }
 
   if (duration > YOUTUBE_SHORTS_MAX_SECONDS) return "LONG";
 
+  if (duration > 0 && duration <= YOUTUBE_SHORTS_CLASSIC_MAX_SECONDS) {
+    return "SHORT";
+  }
+
+  if (duration > 0 && duration <= YOUTUBE_SHORTS_DURATION_FALLBACK_MAX_SECONDS) {
+    return "SHORT";
+  }
+
   if (stored === "UNKNOWN") return "UNKNOWN";
 
-  // <= 3 minutes (or unknown duration) without strong Shorts evidence.
+  // 91–180s (or unknown duration) without Shorts evidence.
   return "UNKNOWN";
 }
 

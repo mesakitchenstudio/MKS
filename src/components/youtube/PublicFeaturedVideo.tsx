@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import type { PublicVideoCard as PublicVideoCardType } from "@/lib/public-videos/types";
+import { trackEvent } from "@/lib/analytics";
 import { VideoThumbnail } from "@/components/youtube/VideoThumbnail";
 
 const focusRing =
@@ -11,6 +14,28 @@ export function PublicFeaturedVideo({ video }: { video: PublicVideoCardType }) {
     ? `Watch ${video.title}, ${video.durationDisplay}`
     : `Watch ${video.title}`;
 
+  function trackFeaturedClick() {
+    trackEvent("videos_featured_click", {
+      video_id: video.videoId,
+      video_title: video.title,
+      placement: "featured",
+      source: video.format,
+      recipe_slug: video.recipeSlug,
+      recipe_title: video.recipeTitle,
+    });
+  }
+
+  function trackRecipeClick() {
+    trackEvent("videos_recipe_click", {
+      video_id: video.videoId,
+      video_title: video.title,
+      placement: "featured",
+      source: video.format,
+      recipe_slug: video.recipeSlug,
+      recipe_title: video.recipeTitle,
+    });
+  }
+
   return (
     <section
       className="mt-10 border-t border-line pt-10 md:mt-12 md:pt-12"
@@ -20,6 +45,7 @@ export function PublicFeaturedVideo({ video }: { video: PublicVideoCardType }) {
         <Link
           href={watchHref}
           aria-label={watchLabel}
+          onClick={trackFeaturedClick}
           className={`absolute inset-0 z-0 ${focusRing}`}
         />
 
@@ -44,7 +70,7 @@ export function PublicFeaturedVideo({ video }: { video: PublicVideoCardType }) {
         <div className="relative z-10">
           <div className="pointer-events-none">
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-              From the kitchen
+              Featured video
             </p>
             <h2
               id="featured-video-title"
@@ -52,12 +78,6 @@ export function PublicFeaturedVideo({ video }: { video: PublicVideoCardType }) {
             >
               {video.title}
             </h2>
-            {video.durationDisplay ? (
-              <p className="mt-3 text-sm text-muted">
-                <span className="sr-only">Duration </span>
-                {video.durationDisplay}
-              </p>
-            ) : null}
           </div>
 
           {video.recipeSlug && video.recipeTitle ? (
@@ -68,6 +88,7 @@ export function PublicFeaturedVideo({ video }: { video: PublicVideoCardType }) {
               <br />
               <Link
                 href={`/recipes/${video.recipeSlug}`}
+                onClick={trackRecipeClick}
                 className={`mt-1 inline-block text-base text-ink underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
               >
                 {video.recipeTitle} →
