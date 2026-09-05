@@ -255,4 +255,12 @@ describe("newsletter admin UI contracts", () => {
     assert.doesNotMatch(lib, /unsubscribeTokenHash:\s*true/);
     assert.match(lib, /orderBy:\s*\{\s*createdAt:\s*"desc"/);
   });
+
+  it("keeps a DB default on updatedAt so production db push can backfill existing rows", () => {
+    const schema = readFileSync(path.join(root, "../../prisma/schema.prisma"), "utf8");
+    assert.match(
+      schema,
+      /model NewsletterSubscriber[\s\S]*?updatedAt\s+DateTime\s+@default\(now\(\)\)\s+@updatedAt/,
+    );
+  });
 });

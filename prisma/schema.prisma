@@ -297,7 +297,7 @@ model NewsletterSubscriber {
   /** SHA-256 hex of the raw unsubscribe token (raw token never stored). */
   unsubscribeTokenHash String?   @unique
   createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  updatedAt            DateTime  @default(now()) @updatedAt
   unsubscribedAt       DateTime?
 
   @@index([createdAt])
