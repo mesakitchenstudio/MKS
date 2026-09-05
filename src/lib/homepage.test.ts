@@ -304,6 +304,10 @@ describe("homepage Phase 1 discovery UI", () => {
     const form = read("src/components/NewsletterForm.tsx");
     assert.match(form, /focus-visible:outline-terracotta/);
     assert.match(form, /type="submit"/);
+    assert.match(form, /htmlFor=\{inputId\}/);
+    assert.match(form, /sr-only/);
+    assert.match(form, /Email address/);
+    assert.match(form, /placeholder:text-sand\/60/);
   });
 });
 

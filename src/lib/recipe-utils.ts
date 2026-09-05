@@ -17,6 +17,7 @@ export function recipeSearchHaystack(recipe: {
   cuisine: string;
   method: string;
   holiday?: string;
+  dishName?: string;
   tags: string[];
   categories: string[];
   difficulty?: string;
@@ -26,6 +27,7 @@ export function recipeSearchHaystack(recipe: {
   const categoryTokens = recipe.categories.flatMap((slug) => [slug, slug.replace(/-/g, " ")]);
   return [
     recipe.title,
+    recipe.dishName || "",
     recipe.excerpt,
     recipe.course,
     recipe.cuisine,

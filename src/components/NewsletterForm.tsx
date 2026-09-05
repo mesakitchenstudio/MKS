@@ -59,7 +59,7 @@ export function NewsletterForm({ tone = "light" }: { tone?: "light" | "dark" }) 
           aria-describedby={error ? `${inputId}-error` : undefined}
           className={
             tone === "dark"
-              ? "min-h-11 w-full rounded-full border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none placeholder:text-sand/50 focus:border-terracotta"
+              ? "min-h-11 w-full rounded-full border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none placeholder:text-sand/60 focus:border-terracotta"
               : "min-h-11 w-full rounded-full border border-line bg-paper px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-terracotta"
           }
         />

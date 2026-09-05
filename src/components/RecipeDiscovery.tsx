@@ -155,7 +155,7 @@ export function RecipeDiscovery({
                     type="button"
                     aria-pressed={isSelected}
                     onClick={() => onCategorySelect(category.id)}
-                    className={`inline-flex min-h-11 max-w-full items-center py-2 transition-colors ${controlFocus} ${
+                    className={`flex min-h-11 w-full max-w-full items-center py-2 transition-colors ${controlFocus} ${
                       isSelected
                         ? "border-b-2 border-terracotta font-semibold text-terracotta"
                         : "font-medium text-ink/75 hover:text-terracotta"

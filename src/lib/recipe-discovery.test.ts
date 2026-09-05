@@ -66,6 +66,26 @@ describe("recipe discovery", () => {
     assert.equal(sorted[0]?.title.localeCompare(sorted[1]?.title ?? ""), -1);
   });
 
+  it("sorts Latest by publishedAt so editorial edits do not resurface old recipes", () => {
+    const older = {
+      ...recipes[0]!,
+      slug: "older-published",
+      title: "Older Published",
+      publishedAt: "2024-01-01",
+      updatedAt: "2026-09-01",
+    };
+    const newer = {
+      ...recipes[1]!,
+      slug: "newer-published",
+      title: "Newer Published",
+      publishedAt: "2025-06-01",
+      updatedAt: "2025-06-02",
+    };
+    const sorted = sortRecipeList([older, newer], "latest");
+    assert.equal(sorted[0]?.slug, "newer-published");
+    assert.equal(sorted[1]?.slug, "older-published");
+  });
+
   it("builds clean recipe URLs", () => {
     assert.equal(buildRecipesUrl({}), "/recipes");
     assert.equal(buildRecipesUrl({ sort: "latest" }), "/recipes");
@@ -236,7 +256,7 @@ describe("public recipes Phase 1 editorial discovery UI", () => {
   it("uses editorial search, category index, and 1/2/3 card grid", () => {
     const discovery = read("src/components/RecipeDiscovery.tsx");
     assert.match(discovery, /Search recipes, ingredients, or techniques/);
-    assert.match(discovery, /min-h-11/);
+    assert.match(discovery, /flex min-h-11 w-full/);
     assert.match(discovery, /Browse by category/);
     assert.match(discovery, /All recipes/);
     assert.match(discovery, /grid-cols-2/);
@@ -282,6 +302,8 @@ describe("public recipes Phase 1 editorial discovery UI", () => {
     assert.match(card, /flex h-full flex-col/);
     assert.match(card, /flex min-h-0 flex-1 flex-col/);
     assert.match(card, /mt-auto text-muted/);
+    assert.match(card, /line-clamp-2/);
+    assert.doesNotMatch(card, /excerpt\.slice\(|substring\(|truncateExcerpt/);
     assert.doesNotMatch(card, /absolute.*(min|cookies|servings)|top-\[|bottom-\[/);
     assert.doesNotMatch(card, /min-h-\[\d{3,}px\]/);
     const discovery = read("src/components/RecipeDiscovery.tsx");

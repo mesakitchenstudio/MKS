@@ -73,9 +73,13 @@ export function sortRecipeList(recipes: Recipe[], sort: RecipeSort = "latest") {
   if (sort === "alpha") {
     return list.sort((a, b) => a.title.localeCompare(b.title));
   }
-  return list.sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
+  // Public "Latest" is publication order — editorial edits must not resurface old recipes.
+  return list.sort((a, b) => {
+    const publishedDiff =
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    if (publishedDiff !== 0) return publishedDiff;
+    return a.title.localeCompare(b.title);
+  });
 }
 
 export function applyDiscoveryFilters(
