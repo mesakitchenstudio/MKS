@@ -276,6 +276,19 @@ describe("public recipes Phase 1 editorial discovery UI", () => {
     assert.match(card, /excerpt \? \(/);
   });
 
+  it("aligns time/yield metadata across equal-height grid rows", () => {
+    const card = read("src/components/RecipeGridCard.tsx");
+    assert.match(card, /group flex h-full flex-col/);
+    assert.match(card, /flex h-full flex-col/);
+    assert.match(card, /flex min-h-0 flex-1 flex-col/);
+    assert.match(card, /mt-auto text-muted/);
+    assert.doesNotMatch(card, /absolute.*(min|cookies|servings)|top-\[|bottom-\[/);
+    assert.doesNotMatch(card, /min-h-\[\d{3,}px\]/);
+    const discovery = read("src/components/RecipeDiscovery.tsx");
+    assert.match(discovery, /grid gap-8 sm:grid-cols-2 lg:grid-cols-3/);
+    assert.doesNotMatch(discovery, /items-start/);
+  });
+
   it("keeps collection compatibility and category URL helpers", () => {
     assert.equal(
       buildRecipesUrl({ category: "toppings" }),

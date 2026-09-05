@@ -43,7 +43,7 @@ export function RecipeGridCard({
   const excerpt = recipe.excerpt.trim();
 
   const imageBlock = discovery ? (
-    <div className="relative h-40 w-full overflow-hidden bg-sand md:h-44">
+    <div className="relative h-40 w-full shrink-0 overflow-hidden bg-sand md:h-44">
       <RecipeImage
         src={recipe.image}
         alt={recipe.imageAlt}
@@ -52,7 +52,7 @@ export function RecipeGridCard({
       />
     </div>
   ) : (
-    <div className={`relative overflow-hidden bg-sand ${aspectClass}`}>
+    <div className={`relative shrink-0 overflow-hidden bg-sand ${aspectClass}`}>
       <RecipeImage
         src={recipe.image}
         alt={recipe.imageAlt}
@@ -63,40 +63,42 @@ export function RecipeGridCard({
   );
 
   const body = (
-    <article>
+    <article className="flex h-full flex-col">
       {imageBlock}
-      <p
-        className={`font-semibold uppercase tracking-[0.16em] text-olive ${
-          discovery ? "mt-2 text-[0.65rem]" : "mt-3 text-[0.7rem]"
-        }`}
-      >
-        {recipePrimaryCategoryDisplayLabel(recipe)}
-      </p>
-      <h3
-        className={`mt-0.5 line-clamp-2 font-serif leading-snug text-ink transition-colors duration-300 group-hover:text-terracotta group-focus-visible:text-terracotta ${
-          large ? "text-2xl md:text-3xl" : discovery ? "text-lg" : "text-xl"
-        }`}
-      >
-        {cardTitle}
-      </h3>
-      {compact ? null : (
-        <>
-          {excerpt ? (
-            <p
-              className={`text-muted ${
-                discovery
-                  ? `mt-1 ${excerptClampClass} text-sm leading-5`
-                  : `mt-2 ${excerptClampClass} text-sm leading-6`
-              }`}
-            >
-              {excerpt}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <p
+          className={`font-semibold uppercase tracking-[0.16em] text-olive ${
+            discovery ? "mt-2 text-[0.65rem]" : "mt-3 text-[0.7rem]"
+          }`}
+        >
+          {recipePrimaryCategoryDisplayLabel(recipe)}
+        </p>
+        <h3
+          className={`mt-0.5 line-clamp-2 font-serif leading-snug text-ink transition-colors duration-300 group-hover:text-terracotta group-focus-visible:text-terracotta ${
+            large ? "text-2xl md:text-3xl" : discovery ? "text-lg" : "text-xl"
+          }`}
+        >
+          {cardTitle}
+        </h3>
+        {compact ? null : (
+          <>
+            {excerpt ? (
+              <p
+                className={`text-muted ${
+                  discovery
+                    ? `mt-1 ${excerptClampClass} text-sm leading-5`
+                    : `mt-2 ${excerptClampClass} text-sm leading-6`
+                }`}
+              >
+                {excerpt}
+              </p>
+            ) : null}
+            <p className={`mt-auto text-muted ${discovery ? "pt-1 text-xs" : "pt-2 text-xs"}`}>
+              {formatTime(totalMinutes(recipe))} · {recipe.servings} {recipe.servingsUnit}
             </p>
-          ) : null}
-          <p className={`text-muted ${discovery ? "mt-1 text-xs" : "mt-2 text-xs"}`}>
-            {formatTime(totalMinutes(recipe))} · {recipe.servings} {recipe.servingsUnit}
-          </p>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </article>
   );
 
@@ -104,7 +106,7 @@ export function RecipeGridCard({
     return (
       <Link
         href={`/recipes/${recipe.slug}`}
-        className={`group block ${linkFocus}`}
+        className={`group flex h-full flex-col ${linkFocus}`}
         onClick={onNavigate}
       >
         {body}
@@ -113,10 +115,10 @@ export function RecipeGridCard({
   }
 
   return (
-    <div className="group relative">
+    <div className="group relative h-full">
       <Link
         href={`/recipes/${recipe.slug}`}
-        className={`block ${linkFocus}`}
+        className={`flex h-full flex-col ${linkFocus}`}
         onClick={onNavigate}
       >
         {body}

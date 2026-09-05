@@ -399,7 +399,7 @@ describe("homepage Phase 4 editorial interactions", () => {
     assert.match(latest, /excerptLines=\{2\}/);
     assert.match(latest, /imageAspect="4\/3"/);
     const card = read("src/components/RecipeGridCard.tsx");
-    assert.match(card, /group block/);
+    assert.match(card, /group flex h-full flex-col/);
     assert.match(card, /href=\{`\/recipes\/\$\{recipe\.slug\}`\}/);
     assert.match(card, /motion-safe:group-hover:scale-\[1\.025\]/);
     assert.match(card, /motion-safe:group-focus-visible:scale-\[1\.025\]/);
