@@ -1,5 +1,6 @@
 import {
   AdminFlashStatus,
+  REVIEW_BULK_REMOVED_PARAMS,
   REVIEW_REMOVED_PARAMS,
   REVIEW_REPLIED_PARAMS,
 } from "@/lib/admin-transient-feedback";
@@ -14,17 +15,19 @@ export default async function AdminReviewsPage({
 }: {
   searchParams: Promise<{
     removed?: string;
+    bulkRemoved?: string;
     replied?: string;
     error?: string;
     page?: string;
   }>;
 }) {
   await requireAccess("content");
-  const { removed, replied, error, page: pageParam } = await searchParams;
+  const { removed, bulkRemoved, replied, error, page: pageParam } = await searchParams;
   const requestedPage = Number.parseInt(pageParam || "1", 10);
   const { reviews, page, totalPages, total } = await listReviewsForAdmin({
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
   });
+  const bulkRemovedCount = Number.parseInt(bulkRemoved || "", 10);
 
   return (
     <div>
@@ -40,6 +43,14 @@ export default async function AdminReviewsPage({
       </AdminFlashStatus>
       <AdminFlashStatus active={Boolean(removed)} clearParams={REVIEW_REMOVED_PARAMS}>
         Review removed.
+      </AdminFlashStatus>
+      <AdminFlashStatus
+        active={Number.isFinite(bulkRemovedCount) && bulkRemovedCount > 0}
+        clearParams={REVIEW_BULK_REMOVED_PARAMS}
+      >
+        {bulkRemovedCount === 1
+          ? "1 review removed."
+          : `${bulkRemovedCount} reviews removed.`}
       </AdminFlashStatus>
       {error === "reply" ? (
         <p className="mt-4 text-sm text-terracotta" role="alert">

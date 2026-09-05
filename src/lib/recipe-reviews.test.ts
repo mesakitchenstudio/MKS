@@ -155,6 +155,11 @@ describe("admin review helpers", () => {
     assert.equal(formatAdminReviewerType(null), "Visitor");
     assert.equal(formatAdminReviewerType(undefined), "Visitor");
   });
+
+  it("normalizes review IDs for bulk deletion", async () => {
+    const { normalizeReviewIds } = await import("./recipe-reviews.ts");
+    assert.deepEqual(normalizeReviewIds([" a ", "a", "", "  ", "b"]), ["a", "b"]);
+  });
 });
 
 describe("admin Reviews index contracts", () => {
@@ -173,8 +178,9 @@ describe("admin Reviews index contracts", () => {
     assert.match(reviewsIndex, /formatAdminReviewerType/);
     assert.match(reviewsIndex, /variant="inline"/);
     assert.match(reviewsIndex, /expandedReviewId/);
-    assert.match(reviewsIndex, /ReviewExcerptButton/);
+    assert.match(reviewsIndex, /ReviewExcerptControl/);
     assert.match(reviewsIndex, /AdminReviewReplyControls/);
+    assert.match(reviewsIndex, /RemoveReviewButton/);
     assert.match(reviewsIndex, /View \$\{review\.authorName\}'s review of \$\{review\.recipeTitle\} on the public recipe page/);
     assert.match(reviewsIndex, /line-clamp-2/);
     assert.match(reviewsIndex, /scope="col"/);
@@ -187,9 +193,35 @@ describe("admin Reviews index contracts", () => {
     assert.match(reviewsIndex, /hidden min-w-0 xl:block/);
     assert.match(reviewsIndex, /xl:hidden/);
     assert.doesNotMatch(reviewsIndex, /adminReviewReplyWorkflowHref/);
-    assert.doesNotMatch(reviewsIndex, /ReviewRepliesSection|RemoveReviewButton|RemoveReplyButton/);
+    assert.doesNotMatch(reviewsIndex, /ReviewRepliesSection|RemoveReplyButton/);
     assert.doesNotMatch(reviewsIndex, /ReplyAvatar/);
     assert.doesNotMatch(reviewsIndex, /max-w-\[42rem\]/);
+  });
+
+  it("supports Visitors-style selection mode and current-page bulk delete", () => {
+    assert.match(reviewsIndex, /Select reviews/);
+    assert.match(reviewsIndex, /Cancel selection/);
+    assert.match(reviewsIndex, /Select page/);
+    assert.match(reviewsIndex, /Select reviews on this page/);
+    assert.match(reviewsIndex, /Delete selected/);
+    assert.match(reviewsIndex, /deleteReviewsAction/);
+    assert.match(reviewsIndex, /selectedIds/);
+    assert.match(reviewsIndex, /togglePage/);
+    assert.match(
+      reviewsIndex,
+      /Select review by \$\{review\.authorName\} on \$\{review\.recipeTitle\}/,
+    );
+    assert.match(reviewsIndex, /setExpandedReviewId\(null\)/);
+    assert.match(reviewsIndex, /bulkRemoved=\$\{result\.deletedCount\}/);
+    assert.match(
+      reviewsIndex,
+      /Remove \$\{count\} selected \$\{noun\}\?[\s\S]*will also be removed/,
+    );
+    assert.match(actions, /export async function deleteReviewsAction/);
+    assert.match(actions, /await requireEditor\(\)/);
+    assert.match(actions, /deleteReviewsByIds/);
+    assert.match(recipeReviewsLib, /export function normalizeReviewIds/);
+    assert.match(recipeReviewsLib, /export async function deleteReviewsByIds/);
   });
 
   it("derives Needs response and Replied from staff replies only", () => {
@@ -233,11 +265,14 @@ describe("admin Reviews index contracts", () => {
     assert.doesNotMatch(reviewsPage, /canAccess\(admin\.role, "members"\)/);
   });
 
-  it("shows Review removed and Reply posted flashes on the index", () => {
+  it("shows Review removed, bulk removed, and Reply posted flashes on the index", () => {
     assert.match(reviewsPage, /Review removed\./);
     assert.match(reviewsPage, /Reply posted\./);
     assert.match(reviewsPage, /REVIEW_REMOVED_PARAMS/);
+    assert.match(reviewsPage, /REVIEW_BULK_REMOVED_PARAMS/);
     assert.match(reviewsPage, /REVIEW_REPLIED_PARAMS/);
+    assert.match(reviewsPage, /bulkRemovedCount === 1/);
+    assert.match(reviewsPage, /reviews removed\./);
     assert.doesNotMatch(reviewsPage, /Reply removed\./);
     assert.match(actions, /deleteReviewAction[\s\S]*?redirect\("\/admin\/reviews\?removed=1"\)/);
   });

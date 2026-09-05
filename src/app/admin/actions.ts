@@ -890,6 +890,31 @@ export async function deleteReviewAction(formData: FormData) {
   redirect("/admin/reviews?removed=1");
 }
 
+export type DeleteReviewsBulkResult =
+  | { ok: true; deletedCount: number }
+  | { ok: false; error: "missing" | "not-found" | "failed" };
+
+/** Bulk review delete — same auth as deleteReviewAction (content: Owner + Editor). */
+export async function deleteReviewsAction(reviewIds: string[]): Promise<DeleteReviewsBulkResult> {
+  await requireEditor();
+  const { deleteReviewsByIds, normalizeReviewIds } = await import("@/lib/recipe-reviews");
+  const ids = normalizeReviewIds(reviewIds);
+  if (!ids.length) return { ok: false, error: "missing" };
+
+  try {
+    const { deletedCount, recipeSlugs } = await deleteReviewsByIds(ids);
+    if (deletedCount === 0) return { ok: false, error: "not-found" };
+    revalidatePath("/admin/reviews");
+    for (const slug of recipeSlugs) {
+      revalidatePath(`/recipes/${slug}`);
+    }
+    return { ok: true, deletedCount };
+  } catch (error) {
+    console.error("Could not bulk-delete reviews", error);
+    return { ok: false, error: "failed" };
+  }
+}
+
 export async function deleteReviewReplyAction(formData: FormData) {
   await requireEditor();
   const id = String(formData.get("id") || "");

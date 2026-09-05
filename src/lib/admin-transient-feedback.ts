@@ -11,6 +11,7 @@ export const CATEGORY_SAVED_PARAMS = ["saved", "categoryId"] as const;
 export const CATEGORY_DELETED_PARAMS = ["deleted"] as const;
 export const TYPE_FIELD_DELETED_PARAMS = ["deleted"] as const;
 export const REVIEW_REMOVED_PARAMS = ["removed"] as const;
+export const REVIEW_BULK_REMOVED_PARAMS = ["bulkRemoved"] as const;
 export const REVIEW_REPLY_REMOVED_PARAMS = ["replyRemoved"] as const;
 export const REVIEW_REPLIED_PARAMS = ["replied"] as const;
 export const MEMBER_REMOVED_PARAMS = ["removed"] as const;

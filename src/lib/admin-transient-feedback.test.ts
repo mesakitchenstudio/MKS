@@ -35,6 +35,10 @@ test("stripSearchParams removes review removed flag and keeps pagination", () =>
     stripSearchParams("http://localhost/admin/reviews?replyRemoved=1&page=2", ["replyRemoved"]),
     "/admin/reviews?page=2",
   );
+  assert.equal(
+    stripSearchParams("http://localhost/admin/reviews?bulkRemoved=4&page=2", ["bulkRemoved"]),
+    "/admin/reviews?page=2",
+  );
 });
 
 test("stripSearchParams preserves unrelated query params", () => {

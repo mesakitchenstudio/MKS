@@ -623,6 +623,40 @@ export async function deleteReviewById(id: string) {
   return review.recipeSlug;
 }
 
+/** Deduplicate and drop empty review IDs for bulk admin deletion. */
+export function normalizeReviewIds(ids: string[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of ids) {
+    const id = String(raw || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+/**
+ * Hard-delete reviews by id (cascade replies via schema).
+ * Returns deleted count and distinct recipe slugs for public revalidation.
+ */
+export async function deleteReviewsByIds(ids: string[]) {
+  const unique = normalizeReviewIds(ids);
+  if (!unique.length) return { deletedCount: 0, recipeSlugs: [] as string[] };
+
+  const db = getDb();
+  const rows = await db.recipeReview.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, recipeSlug: true },
+  });
+  if (!rows.length) return { deletedCount: 0, recipeSlugs: [] as string[] };
+
+  const existingIds = rows.map((row) => row.id);
+  await db.recipeReview.deleteMany({ where: { id: { in: existingIds } } });
+  const recipeSlugs = [...new Set(rows.map((row) => row.recipeSlug).filter(Boolean))];
+  return { deletedCount: rows.length, recipeSlugs };
+}
+
 export async function deleteReviewReplyById(id: string) {
   const db = getDb();
   const reply = await db.recipeReviewReply.findUnique({
