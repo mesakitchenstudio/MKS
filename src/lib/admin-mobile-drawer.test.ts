@@ -25,6 +25,7 @@ describe("admin mobile drawer navigation", () => {
       "Recipe types",
       "Reviews",
       "Members",
+      "Newsletter",
       "Visitors",
       "YouTube",
       "Team access",
@@ -54,6 +55,7 @@ describe("admin mobile drawer navigation", () => {
     assert.equal(labels.includes("Members"), false);
     assert.equal(labels.includes("Visitors"), false);
     assert.equal(labels.includes("Team access"), false);
+    assert.equal(labels.includes("Newsletter"), false);
   });
 
   it("hides publishing/library/team from audience-only members role", () => {
@@ -63,7 +65,7 @@ describe("admin mobile drawer navigation", () => {
       sections.map((section) => section.label),
       ["Community", "Analytics"],
     );
-    assert.deepEqual(labels, ["Members", "Visitors"]);
+    assert.deepEqual(labels, ["Members", "Newsletter", "Visitors"]);
     assert.equal(labels.includes("Reviews"), false);
     assert.equal(labels.includes("YouTube"), false);
     assert.equal(labels.includes("Recipes"), false);

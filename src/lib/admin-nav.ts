@@ -3,6 +3,7 @@ import {
   adminWorkspaceCategories,
   adminWorkspaceMembersDetail,
   adminWorkspaceMembersList,
+  adminWorkspaceNewsletter,
   adminWorkspaceProfile,
   adminWorkspaceRecipes,
   adminWorkspaceReviewsDetail,
@@ -65,6 +66,7 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
     items: [
       { href: "/admin/reviews", label: "Reviews", area: "content" },
       { href: "/admin/members", label: "Members", area: "members" },
+      { href: "/admin/newsletter", label: "Newsletter", area: "members" },
     ],
   },
   {
@@ -99,6 +101,7 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/profile")) return adminWorkspaceProfile;
   if (pathname.startsWith("/admin/members/")) return adminWorkspaceMembersDetail;
   if (pathname === "/admin/members") return adminWorkspaceMembersList;
+  if (pathname.startsWith("/admin/newsletter")) return adminWorkspaceNewsletter;
   if (pathname.startsWith("/admin/reviews/")) return adminWorkspaceReviewsDetail;
   if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviewsList;
   if (pathname.startsWith("/admin/types")) return adminWorkspaceTypes;

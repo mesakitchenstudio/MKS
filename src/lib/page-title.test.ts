@@ -70,6 +70,7 @@ describe("page title system", () => {
     assert.match(readApp("admin/layout.tsx"), /title:\s*"Admin"/);
     assert.match(readApp("admin/(app)/reviews/page.tsx"), /title:\s*"Reviews"/);
     assert.match(readApp("admin/(app)/members/page.tsx"), /title:\s*"Members"/);
+    assert.match(readApp("admin/(app)/newsletter/page.tsx"), /title:\s*"Newsletter"/);
     assert.match(readApp("admin/(app)/types/page.tsx"), /title:\s*"Recipe Types"/);
     assert.match(readApp("admin/(app)/visitors/page.tsx"), /title:\s*"Visitors"/);
     assert.match(readApp("admin/(app)/youtube/page.tsx"), /title:\s*"YouTube"/);

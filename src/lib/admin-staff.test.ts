@@ -296,7 +296,7 @@ test("buildAdminNavSections hides unauthorized areas", async () => {
   );
   assert.deepEqual(
     audience.flatMap((section) => section.items.map((item) => item.href)),
-    ["/admin/members", "/admin/visitors"],
+    ["/admin/members", "/admin/newsletter", "/admin/visitors"],
   );
   assert.equal(
     audience.some((section) => section.items.some((item) => item.href === "/admin/reviews")),
@@ -323,6 +323,7 @@ test("buildAdminNavSections hides unauthorized areas", async () => {
       "/admin/types",
       "/admin/reviews",
       "/admin/members",
+      "/admin/newsletter",
       "/admin/visitors",
       "/admin/youtube",
       "/admin/staff",

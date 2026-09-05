@@ -81,6 +81,9 @@ export const adminWorkspaceProfile = "max-w-2xl";
 /** Members directory (~1024px) — four-column roster. */
 export const adminWorkspaceMembersList = "max-w-5xl";
 
+/** Newsletter subscribers ledger (~1024px) — matches Members list measure. */
+export const adminWorkspaceNewsletter = "max-w-5xl";
+
 /** Member detail editorial measure (~832px). */
 export const adminWorkspaceMembersDetail = "max-w-[52rem]";
 
