@@ -29,6 +29,7 @@ import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { fieldValueHasContent, formatPublicExtraFieldValue } from "@/lib/field-content";
 import { publicExtrasForPage, readerExtraLabel } from "@/lib/recipe-timing";
 import { getContinuedViewingRecipeSlug, getRankedRelatedRecipes } from "@/lib/recipe-related";
+import { RELATED_RECIPE_SHELF_LIMIT } from "@/lib/recipe-related-shelf";
 import { recipeJsonLd } from "@/lib/schema";
 import { formatAdminDate } from "@/lib/datetime";
 import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
@@ -132,7 +133,7 @@ export default async function RecipePage({ params, searchParams }: Props) {
   const continuedSlug = getContinuedViewingRecipeSlug(watchNext, seriesLinks);
   const related = await getRankedRelatedRecipes(recipe, {
     seriesPeerSlugs,
-    limit: 3,
+    limit: RELATED_RECIPE_SHELF_LIMIT,
     excludeSlugs: continuedSlug ? [continuedSlug] : [],
   });
   const initialStageVideoHelp = youtube

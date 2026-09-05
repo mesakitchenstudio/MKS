@@ -154,6 +154,22 @@ test("rankRelatedRecipesFromPool fills to three after related matches", () => {
   assert.ok(!ranked.some((item) => item.slug === "baguette"));
 });
 
+test("rankRelatedRecipesFromPool can fill a nine-card shelf", () => {
+  const pool = [
+    baseRecipe,
+    ...Array.from({ length: 12 }, (_, index) => ({
+      ...baseRecipe,
+      slug: `bread-${index}`,
+      title: `Bread ${index}`,
+      course: "Bread",
+      categories: ["breads"],
+    })),
+  ];
+  const ranked = rankRelatedRecipesFromPool(baseRecipe, pool, { limit: 9 });
+  assert.equal(ranked.length, 9);
+  assert.ok(!ranked.some((item) => item.slug === "baguette"));
+});
+
 test("rankRelatedRecipesFromPool does not invent cards when pool is too small", () => {
   const focaccia = {
     ...baseRecipe,

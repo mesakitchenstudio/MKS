@@ -36,6 +36,7 @@ export type AnalyticsEvent =
   | "recipe_discovery_category_select"
   | "recipe_discovery_sort_change"
   | "recipe_discovery_recipe_click"
+  | "recipe_related_scroll"
   | "series_item_click"
   | "series_watch_click"
   | "series_watch_playlist_on_youtube_click";
@@ -61,7 +62,7 @@ export type AnalyticsProperties = {
   chapter_index?: number;
   stage_name?: string;
   platform?: string;
-  direction?: "increase" | "decrease";
+  direction?: "increase" | "decrease" | "previous" | "next";
   servings?: number;
   /** Catalog search text — property key `query` is blocked. */
   search_query?: string;
