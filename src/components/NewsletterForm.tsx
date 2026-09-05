@@ -40,8 +40,16 @@ export function NewsletterForm({ tone = "light" }: { tone?: "light" | "dark" }) 
   const inputId = `newsletter-${tone}`;
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row" noValidate>
-      <div className="min-w-0 flex-1">
+    <form
+      onSubmit={onSubmit}
+      className={
+        tone === "dark"
+          ? "flex flex-col gap-2 sm:flex-row sm:items-start"
+          : "flex flex-col gap-2 sm:flex-row"
+      }
+      noValidate
+    >
+      <div className={tone === "dark" ? "min-w-0 flex-[1.45]" : "min-w-0 flex-1"}>
         <label className="sr-only" htmlFor={inputId}>
           Email address
         </label>
@@ -59,8 +67,8 @@ export function NewsletterForm({ tone = "light" }: { tone?: "light" | "dark" }) 
           aria-describedby={error ? `${inputId}-error` : undefined}
           className={
             tone === "dark"
-              ? "min-h-11 w-full rounded-full border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none placeholder:text-sand/60 focus:border-terracotta"
-              : "min-h-11 w-full rounded-full border border-line bg-paper px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-terracotta"
+              ? "min-h-11 w-full rounded-full border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none placeholder:text-sand/60 focus:border-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+              : "min-h-11 w-full rounded-full border border-line bg-paper px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
           }
         />
         {error ? (
@@ -72,7 +80,7 @@ export function NewsletterForm({ tone = "light" }: { tone?: "light" | "dark" }) 
       <button
         type="submit"
         disabled={loading}
-        className="min-h-11 rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60"
+        className="min-h-11 shrink-0 rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Subscribing…" : "Subscribe"}
       </button>
