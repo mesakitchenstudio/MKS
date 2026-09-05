@@ -4,6 +4,7 @@ import { RecipeEditor } from "@/components/admin/RecipeEditor";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseRecipeAiMeta } from "@/lib/ai-recipe/types";
+import { ensureRecipeTypeCorrections } from "@/lib/ensure-recipe-type-corrections";
 import { parseValues } from "@/lib/recipe-map";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
 
@@ -30,10 +31,11 @@ export default async function EditRecipePage({
 }) {
   await requireAccess("content");
   await ensureRecipeOverviewFields();
+  await ensureRecipeTypeCorrections();
   const { id } = await params;
   const { saved, aiNotice } = await searchParams;
   const db = getDb();
-  const [recipe, categories] = await Promise.all([
+  const [recipe, categories, recipeTypes] = await Promise.all([
     db.recipe.findUnique({
       where: { id },
       include: {
@@ -42,6 +44,7 @@ export default async function EditRecipePage({
       },
     }),
     db.category.findMany({ orderBy: { name: "asc" } }),
+    db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   if (!recipe) notFound();
 
@@ -50,6 +53,7 @@ export default async function EditRecipePage({
       recipeId={recipe.id}
       typeId={recipe.typeId}
       typeName={recipe.type.name}
+      recipeTypes={recipeTypes}
       saved={Boolean(saved)}
       aiNotice={aiNotice ? String(aiNotice) : undefined}
       fields={recipe.type.fields.map((field) => ({

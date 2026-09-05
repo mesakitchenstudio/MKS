@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { RecipesIndex } from "@/components/admin/RecipesIndex";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { ensureRecipeTypeCorrections } from "@/lib/ensure-recipe-type-corrections";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
 
 export default async function AdminHomePage() {
   await requireAccess("content");
+  await ensureRecipeTypeCorrections();
 
   const db = getDb();
   const [recipes, types] = await Promise.all([

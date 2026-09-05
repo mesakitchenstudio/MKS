@@ -41,6 +41,7 @@ import {
   validateInstructionChapters,
 } from "@/lib/instruction-chapters";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
+import { parseValues } from "@/lib/recipe-map";
 import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
@@ -422,6 +423,11 @@ export async function saveRecipeAction(formData: FormData) {
     redirect(id ? `/admin/recipes/${id}?error=missing` : `/admin/recipes/new?type=${typeId}&error=missing`);
   }
 
+  const typeRow = await db.recipeType.findUnique({ where: { id: typeId }, select: { id: true } });
+  if (!typeRow) {
+    redirect(id ? `/admin/recipes/${id}?error=missing` : `/admin/recipes/new?error=missing`);
+  }
+
   const fields = await db.recipeTypeField.findMany({
     where: { typeId },
     orderBy: { sortOrder: "asc" },
@@ -433,6 +439,19 @@ export async function saveRecipeAction(formData: FormData) {
   }
   // Editorial Identity field — always persist, even when the type has no dishName field.
   mergeDishNameIntoValues(values, formData.get("field:dishName"));
+
+  const existing = id ? await db.recipe.findUnique({ where: { id } }) : null;
+  // When Recipe Type changes, keep prior values for fields the new type has but the form
+  // did not submit (type-specific keys). Do not invent Course/Category sync.
+  if (existing && existing.typeId !== typeId) {
+    const previous = parseValues(existing.values);
+    for (const field of fields) {
+      const submitted = formData.get(`field:${field.key}`);
+      if (typeof submitted !== "string" && previous[field.key] !== undefined) {
+        values[field.key] = previous[field.key];
+      }
+    }
+  }
 
   const instructionGroups = normalizeInstructionGroups(values.instructions);
   const youtubeBlob = parseRecipeYoutubeBlob(values.youtube);
@@ -461,7 +480,6 @@ export async function saveRecipeAction(formData: FormData) {
     console.error("Could not enrich YouTube chapters from video description", error);
   }
 
-  const existing = id ? await db.recipe.findUnique({ where: { id } }) : null;
   const aiMetaRaw = String(formData.get("aiMeta") || "{}");
   let aiMeta = "{}";
   try {

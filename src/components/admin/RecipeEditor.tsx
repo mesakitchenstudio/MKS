@@ -99,6 +99,7 @@ import {
   adminPrimaryButtonClass,
   adminRecipeEditorStickyBleedClass,
   adminSecondaryButtonClass,
+  adminSelectClass,
 } from "@/lib/admin-ui";
 import {
   ADMIN_IMAGE_FORMAT_HELP,
@@ -275,6 +276,7 @@ function editorFormSnapshot(payload: {
   title: string;
   slug: string;
   excerpt: string;
+  typeId: string;
   featured: boolean;
   seasonal: boolean;
   categoryIds: string[];
@@ -455,8 +457,9 @@ function normalizeStatus(status: string) {
 
 export function RecipeEditor({
   recipeId,
-  typeId,
-  typeName,
+  typeId: initialTypeId,
+  typeName: initialTypeName,
+  recipeTypes = [],
   initial,
   fields,
   categories,
@@ -466,6 +469,7 @@ export function RecipeEditor({
   recipeId?: string;
   typeId: string;
   typeName: string;
+  recipeTypes?: { id: string; name: string }[];
   initial: {
     title: string;
     slug: string;
@@ -517,6 +521,7 @@ export function RecipeEditor({
   const [slug, setSlug] = useState(initial.slug);
   const [slugTouched, setSlugTouched] = useState(Boolean(initial.slug));
   const [excerpt, setExcerpt] = useState(initial.excerpt);
+  const [typeId, setTypeId] = useState(initialTypeId);
   const [status, setStatus] = useState(initial.status);
   const [featured, setFeatured] = useState(initial.featured);
   const [seasonal, setSeasonal] = useState(initial.seasonal);
@@ -545,13 +550,14 @@ export function RecipeEditor({
         title: initial.title,
         slug: initial.slug,
         excerpt: initial.excerpt,
+        typeId: initialTypeId,
         featured: initial.featured,
         seasonal: initial.seasonal,
         categoryIds: initial.categoryIds,
         values: hydrateEditorValues(fields, initial.values),
         aiMeta: initial.aiMeta ?? null,
       }),
-    [fields, initial],
+    [fields, initial, initialTypeId],
   );
 
   const detailFields = pickFieldsOrdered(fields, DETAILS_KEYS);
@@ -777,13 +783,14 @@ export function RecipeEditor({
         title,
         slug,
         excerpt,
+        typeId,
         featured,
         seasonal,
         categoryIds,
         values,
         aiMeta,
       }) !== baselineSnapshot,
-    [aiMeta, baselineSnapshot, categoryIds, excerpt, featured, seasonal, title, slug, values],
+    [aiMeta, baselineSnapshot, categoryIds, excerpt, featured, seasonal, title, slug, typeId, values],
   );
 
   const draftActionLabel = isPublished ? "Move to draft" : "Save draft";
@@ -813,6 +820,17 @@ export function RecipeEditor({
     }
     return out;
   }, [fields, values]);
+
+  const typeOptions = useMemo(() => {
+    const byId = new Map(recipeTypes.map((type) => [type.id, type]));
+    if (!byId.has(typeId) && typeId) {
+      byId.set(typeId, { id: typeId, name: initialTypeName });
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [initialTypeName, recipeTypes, typeId]);
+
+  const typeName =
+    typeOptions.find((type) => type.id === typeId)?.name || initialTypeName;
 
   const pageTitle = title.trim() || (recipeId ? "Untitled recipe" : `New ${typeName.toLowerCase()}`);
 
@@ -1253,6 +1271,20 @@ export function RecipeEditor({
   function updateExcerpt(next: string) {
     setExcerpt(next);
     setAiMeta((current) => noteHumanEditorChange(current, "excerpt", next));
+  }
+
+  function updateTypeId(next: string) {
+    if (next === typeId) return;
+    setTypeId(next);
+    setAiMeta((current) =>
+      current
+        ? {
+            ...current,
+            recipeTypeSource: "manual",
+            recipeTypeConfirmed: true,
+          }
+        : current,
+    );
   }
 
   function updateCategoryIds(next: string[]) {
@@ -2423,9 +2455,12 @@ export function RecipeEditor({
         }
       >
         <input type="hidden" name="id" value={recipeId || ""} />
-        <input type="hidden" name="typeId" value={typeId} />
         <input ref={statusRef} type="hidden" name="status" value={status} />
         <input type="hidden" name="aiMeta" value={serializeRecipeAiMeta(aiMeta)} />
+        {/* typeId is submitted via the Discovery select */}
+        {!typeOptions.some((type) => type.id === typeId) ? (
+          <input type="hidden" name="typeId" value={typeId} />
+        ) : null}
         {fields.map((field) => (
           <input key={field.key} type="hidden" name={`field:${field.key}`} value={encoded[field.key]} />
         ))}
@@ -2779,6 +2814,50 @@ export function RecipeEditor({
               <p className="mt-1 text-xs text-muted">
                 Editorial flags and taxonomy for menus, filters, and featured placement.
               </p>
+              <label
+                id="recipe-field-typeId"
+                className="mt-4 grid max-w-sm gap-1.5"
+                style={scrollTargetStyle}
+              >
+                <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-sm font-semibold text-ink">Recipe type</span>
+                  {aiMeta?.recipeTypeSource === "ai" && !aiMeta.recipeTypeConfirmed ? (
+                    <AiConfidenceBadge
+                      confidence={
+                        aiMeta.recipeTypeConfidence === "HIGH"
+                          ? "HIGH_CONFIDENCE_INFERENCE"
+                          : aiMeta.recipeTypeConfidence === "MEDIUM"
+                            ? "ESTIMATED"
+                            : "UNKNOWN"
+                      }
+                      sourceNote="Inferred from video / import"
+                    />
+                  ) : aiMeta?.recipeTypeSource === "manual" || aiMeta?.recipeTypeConfirmed ? (
+                    <span
+                      className="max-w-full text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-olive"
+                      title="Staff selected"
+                    >
+                      Staff verified
+                    </span>
+                  ) : null}
+                </span>
+                <select
+                  name="typeId"
+                  value={typeId}
+                  onChange={(event) => updateTypeId(event.target.value)}
+                  className={`${adminSelectClass} w-full`}
+                  required
+                >
+                  {typeOptions.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted">
+                  Structural recipe classification. Separate from Course and Categories.
+                </p>
+              </label>
               <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
                 <label className="flex min-h-9 items-center gap-2 text-sm font-semibold text-ink">
                   <input

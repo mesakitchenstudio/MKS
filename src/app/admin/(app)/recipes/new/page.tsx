@@ -16,12 +16,13 @@ export default async function NewRecipePage({
   if (!typeId) redirect("/admin");
 
   const db = getDb();
-  const [recipeType, categories] = await Promise.all([
+  const [recipeType, categories, recipeTypes] = await Promise.all([
     db.recipeType.findUnique({
       where: { id: typeId },
       include: { fields: { orderBy: { sortOrder: "asc" } } },
     }),
     db.category.findMany({ orderBy: { name: "asc" } }),
+    db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   if (!recipeType) redirect("/admin");
 
@@ -29,6 +30,7 @@ export default async function NewRecipePage({
     <RecipeEditor
       typeId={recipeType.id}
       typeName={recipeType.name}
+      recipeTypes={recipeTypes}
       fields={recipeType.fields.map((field) => ({
         ...field,
         options: JSON.parse(field.options || "[]") as string[],

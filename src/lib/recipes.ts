@@ -2,6 +2,7 @@ import { categories as staticCategories } from "@/data/categories";
 import { recipes as staticRecipes } from "@/data/recipes";
 import type { Category, Recipe } from "@/data/types";
 import { dbAvailable, getDb } from "@/lib/db";
+import { ensureRecipeTypeCorrections } from "@/lib/ensure-recipe-type-corrections";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
 import { toPublicCategory, toPublicRecipe } from "@/lib/recipe-map";
 
@@ -16,6 +17,7 @@ function sortRecipes(list: PublicRecipe[]) {
 async function loadFromDb(): Promise<PublicRecipe[] | null> {
   if (!(await dbAvailable())) return null;
   await ensureRecipeOverviewFields();
+  await ensureRecipeTypeCorrections();
   const db = getDb();
   const count = await db.recipe.count({ where: { status: "published" } });
   if (count === 0) return null;
