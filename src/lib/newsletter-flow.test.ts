@@ -268,7 +268,10 @@ describe("newsletter wiring contracts", () => {
     assert.match(api, /subscribeNewsletterServer/);
 
     const form = read("components/NewsletterForm.tsx");
-    assert.match(form, /You’re on the list/);
+    assert.match(
+      form,
+      /You’re on the list\. We’ll be in touch when there’s something good to cook\. 🎉/,
+    );
     assert.doesNotMatch(form, /Check your inbox/i);
 
     const privacy = read("app/privacy/page.tsx");

@@ -25,7 +25,7 @@ export function NewsletterForm({ tone = "light" }: { tone?: "light" | "dark" }) 
     setMessage(
       result.duplicate
         ? "You’re already on the list. We’ll write when there’s something good to cook."
-        : "You’re on the list. We’ll write when there’s something good to cook.",
+        : "You’re on the list. We’ll be in touch when there’s something good to cook. 🎉",
     );
   }
 
