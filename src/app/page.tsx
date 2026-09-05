@@ -100,7 +100,7 @@ export default async function Home() {
         />
       ) : null}
 
-      <section className="border-y border-line bg-cream/30" aria-labelledby="studio-heading">
+      <section className="border-y border-line bg-cream" aria-labelledby="studio-heading">
         <div className="mx-auto grid max-w-6xl items-start gap-10 px-4 py-14 md:grid-cols-2 md:gap-12 md:px-6 md:py-16">
           <div className="min-w-0 border-t border-line pt-8 md:border-t-0 md:pt-0">
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">

@@ -376,3 +376,68 @@ describe("homepage Phase 3 visual enrichment", () => {
     assert.doesNotMatch(page, /border border-line bg-cream p-8/);
   });
 });
+
+describe("homepage Phase 4 editorial interactions", () => {
+  const root = process.cwd();
+  const read = (rel: string) => readFileSync(join(root, rel), "utf8");
+
+  it("labels Featured Series previews as PART n from preview order", () => {
+    const block = read("src/components/HomepageFeaturedSeries.tsx");
+    assert.match(block, /partNumber=\{index \+ 1\}/);
+    assert.match(block, /Part \{partNumber\}/);
+    assert.match(block, /aria-hidden="true"/);
+    assert.match(block, /previews\.map\(\(item, index\)/);
+    assert.match(block, /previewItems\.slice\(0, 2\)/);
+    assert.match(block, /Explore the series →/);
+    assert.equal((block.match(/Explore the series →/g) || []).length, 1);
+    assert.doesNotMatch(block, /<iframe|youtube\.com\/embed|YouTube logo|play icon|rounded-full bg-/i);
+    assert.doesNotMatch(block, /previews\.length > 0 \? null/);
+  });
+
+  it("keeps Latest single-link cards with restrained hover and focus polish", () => {
+    const latest = read("src/components/HomepageLatestSection.tsx");
+    assert.match(latest, /excerptLines=\{2\}/);
+    assert.match(latest, /imageAspect="4\/3"/);
+    const card = read("src/components/RecipeGridCard.tsx");
+    assert.match(card, /group block/);
+    assert.match(card, /href=\{`\/recipes\/\$\{recipe\.slug\}`\}/);
+    assert.match(card, /motion-safe:group-hover:scale-\[1\.025\]/);
+    assert.match(card, /motion-safe:group-focus-visible:scale-\[1\.025\]/);
+    assert.match(card, /group-hover:text-terracotta/);
+    assert.match(card, /group-focus-visible:text-terracotta/);
+    assert.match(card, /overflow-hidden/);
+  });
+
+  it("gives Studio newsletter a warmer paper chapter against Browse paper", () => {
+    const page = read("src/app/page.tsx");
+    assert.match(page, /border-y border-line bg-cream"/);
+    assert.doesNotMatch(page, /bg-cream\/30/);
+    assert.doesNotMatch(page, /border border-line bg-cream p-8/);
+    const browse = read("src/components/HomepageBrowseCategories.tsx");
+    assert.match(browse, /bg-paper/);
+  });
+
+  it("preserves From the kitchen exact-three asymmetric encore", () => {
+    const page = read("src/app/page.tsx");
+    assert.match(page, /homepage\.fromKitchen\.length === 3/);
+    const kitchen = read("src/components/HomepageFromKitchenSection.tsx");
+    assert.match(kitchen, /recipes\.length !== 3/);
+    assert.match(kitchen, /\[lead, supportA, supportB\]/);
+  });
+
+  it("keeps homepage hierarchy Hero → Latest → Series → Browse → kitchen → Studio", () => {
+    const page = read("src/app/page.tsx");
+    const body = page.slice(page.indexOf("return ("));
+    const heroIdx = body.indexOf("bg-ink text-cream");
+    const latestIdx = body.indexOf("<HomepageLatestSection");
+    const seriesIdx = body.indexOf("<HomepageFeaturedSeries");
+    const browseIdx = body.indexOf("<HomepageBrowseCategories");
+    const kitchenIdx = body.indexOf("<HomepageFromKitchenSection");
+    const studioIdx = body.indexOf('aria-labelledby="studio-heading"');
+    assert.ok(heroIdx >= 0 && latestIdx > heroIdx);
+    assert.ok(seriesIdx > latestIdx);
+    assert.ok(browseIdx > seriesIdx);
+    assert.ok(kitchenIdx > browseIdx);
+    assert.ok(studioIdx > kitchenIdx);
+  });
+});

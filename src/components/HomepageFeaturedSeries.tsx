@@ -8,7 +8,7 @@ const linkFocus =
 
 /**
  * Homepage bridge to one published Series (catalog order).
- * Main visual + quiet item previews — no YouTube embeds or chrome.
+ * Main visual + quiet editorial episode previews — no YouTube embeds or chrome.
  */
 export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard }) {
   const href = `/series/${series.slug}`;
@@ -67,9 +67,14 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
 
             {previews.length > 0 ? (
               <ul className="mt-8 space-y-0 border-t border-line">
-                {previews.map((item) => (
+                {previews.map((item, index) => (
                   <li key={item.id} className="border-b border-line">
-                    <SeriesPreviewRow series={series} item={item} seriesHref={href} />
+                    <SeriesPreviewRow
+                      series={series}
+                      item={item}
+                      seriesHref={href}
+                      partNumber={index + 1}
+                    />
                   </li>
                 ))}
               </ul>
@@ -85,10 +90,12 @@ function SeriesPreviewRow({
   series,
   item,
   seriesHref,
+  partNumber,
 }: {
   series: PublicSeriesCard;
   item: PublicSeriesPreviewItem;
   seriesHref: string;
+  partNumber: number;
 }) {
   return (
     <SeriesItemTrackLink
@@ -100,20 +107,28 @@ function SeriesPreviewRow({
       destinationRecipeSlug={item.recipeSlug ?? undefined}
       destinationVideoId={item.youtubeVideoId ?? undefined}
       placement="homepage_series"
-      className={`group flex min-h-11 items-center gap-3 py-3 ${linkFocus}`}
+      className={`group flex min-h-11 flex-col gap-2 py-4 ${linkFocus}`}
       ariaLabel={`${item.title} in the ${series.title} series`}
     >
-      <span className="relative h-14 w-14 shrink-0 overflow-hidden bg-sand">
-        <Image
-          src={item.thumbnail}
-          alt=""
-          fill
-          className="object-cover transition duration-500 motion-safe:group-hover:scale-[1.03]"
-          sizes="56px"
-        />
+      <span
+        aria-hidden="true"
+        className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive"
+      >
+        Part {partNumber}
       </span>
-      <span className="min-w-0 flex-1 font-serif text-lg leading-snug text-ink group-hover:text-terracotta group-focus-visible:text-terracotta">
-        {item.title}
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="relative h-12 w-12 shrink-0 overflow-hidden bg-sand sm:h-14 sm:w-14">
+          <Image
+            src={item.thumbnail}
+            alt=""
+            fill
+            className="object-cover transition duration-500 ease-out motion-safe:group-hover:scale-[1.03] motion-safe:group-focus-visible:scale-[1.03]"
+            sizes="56px"
+          />
+        </span>
+        <span className="min-w-0 flex-1 font-serif text-lg leading-snug text-ink transition-colors group-hover:text-terracotta group-focus-visible:text-terracotta">
+          {item.title}
+        </span>
       </span>
     </SeriesItemTrackLink>
   );

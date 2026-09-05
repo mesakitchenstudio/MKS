@@ -42,7 +42,7 @@ export function RecipeGridCard({
         src={recipe.image}
         alt={recipe.imageAlt}
         sizes="(min-width: 1024px) 20vw, (min-width: 640px) 40vw, 90vw"
-        className="object-cover transition duration-500 motion-safe:group-hover:scale-[1.03]"
+        className="object-cover transition duration-700 ease-out motion-safe:group-hover:scale-[1.025] motion-safe:group-focus-visible:scale-[1.025]"
       />
     </div>
   ) : (
@@ -51,7 +51,7 @@ export function RecipeGridCard({
         src={recipe.image}
         alt={recipe.imageAlt}
         sizes={large ? "(min-width: 768px) 50vw, 100vw" : "(min-width: 768px) 25vw, 50vw"}
-        className="object-cover transition duration-500 motion-safe:group-hover:scale-[1.03]"
+        className="object-cover transition duration-700 ease-out motion-safe:group-hover:scale-[1.025] motion-safe:group-focus-visible:scale-[1.025]"
       />
     </div>
   );
@@ -67,7 +67,7 @@ export function RecipeGridCard({
         {recipePrimaryCategoryDisplayLabel(recipe)}
       </p>
       <h3
-        className={`mt-0.5 line-clamp-2 font-serif leading-snug text-ink group-hover:text-terracotta group-focus-visible:text-terracotta ${
+        className={`mt-0.5 line-clamp-2 font-serif leading-snug text-ink transition-colors duration-300 group-hover:text-terracotta group-focus-visible:text-terracotta ${
           large ? "text-2xl md:text-3xl" : discovery ? "text-lg" : "text-xl"
         }`}
       >
