@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   buildPasswordResetEmailHtml,
@@ -259,5 +260,12 @@ describe("email configuration helpers", () => {
       if (previous === undefined) delete process.env.RESEND_API_KEY;
       else process.env.RESEND_API_KEY = previous;
     }
+  });
+
+  it("forwards optional custom headers including List-Unsubscribe to Resend", async () => {
+    const source = readFileSync(new URL("./email.ts", import.meta.url), "utf8");
+    assert.match(source, /headers\?: Record<string, string>/);
+    assert.match(source, /customHeaders/);
+    assert.match(source, /headers: customHeaders/);
   });
 });

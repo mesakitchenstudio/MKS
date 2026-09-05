@@ -31,6 +31,7 @@ export async function sendTransactionalEmail(input: {
   html: string;
   text?: string;
   replyTo?: string;
+  headers?: Record<string, string>;
 }): Promise<boolean> {
   const result = await sendTransactionalEmailDetailed(input);
   return result.ok;
@@ -43,6 +44,8 @@ export async function sendTransactionalEmailDetailed(input: {
   html: string;
   text?: string;
   replyTo?: string;
+  /** Extra MIME headers (e.g. List-Unsubscribe). Passed through Resend `headers`. */
+  headers?: Record<string, string>;
 }): Promise<SendTransactionalEmailResult> {
   const key = process.env.RESEND_API_KEY?.trim();
   const from = transactionalEmailFromAddress();
@@ -53,6 +56,14 @@ export async function sendTransactionalEmailDetailed(input: {
     );
     return { ok: false, reason: "not_configured" };
   }
+
+  const customHeaders = input.headers
+    ? Object.fromEntries(
+        Object.entries(input.headers).filter(
+          ([name, value]) => Boolean(name.trim()) && Boolean(String(value ?? "").trim()),
+        ),
+      )
+    : undefined;
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
@@ -68,6 +79,9 @@ export async function sendTransactionalEmailDetailed(input: {
         html: input.html,
         ...(input.text ? { text: input.text } : {}),
         ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+        ...(customHeaders && Object.keys(customHeaders).length > 0
+          ? { headers: customHeaders }
+          : {}),
       }),
     });
 

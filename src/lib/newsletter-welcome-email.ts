@@ -18,6 +18,20 @@ const sans =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const serif = "Georgia,'Times New Roman',Times,serif";
 
+/**
+ * RFC 2369 List-Unsubscribe for the secure GET unsubscribe URL.
+ * Deliberately omits List-Unsubscribe-Post — Mesa has no RFC 8058 one-click POST endpoint.
+ */
+export function newsletterWelcomeListUnsubscribeHeaders(
+  unsubscribeUrl: string,
+): Record<string, string> {
+  const url = unsubscribeUrl.trim();
+  if (!url) return {};
+  return {
+    "List-Unsubscribe": `<${url}>`,
+  };
+}
+
 export function buildNewsletterWelcomeEmail(input: {
   unsubscribeUrl: string;
   recipesUrl?: string;
@@ -27,6 +41,7 @@ export function buildNewsletterWelcomeEmail(input: {
   const recipesUrl = input.recipesUrl || `${base}/recipes`;
   const youtubeUrl = input.youtubeUrl || site.social.youtube;
   const unsubscribeUrl = input.unsubscribeUrl;
+  const headers = newsletterWelcomeListUnsubscribeHeaders(unsubscribeUrl);
 
   const text = [
     "Welcome to the Mesa table",
@@ -48,6 +63,14 @@ export function buildNewsletterWelcomeEmail(input: {
     unsubscribeUrl,
   ].join("\n");
 
+  // Hidden preheader + spacer so clients prefer this snippet over the brand eyebrow.
+  const preheaderBlock = `<!--[if !gte mso 9]><!-->
+  <div style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;" aria-hidden="true">
+    ${NEWSLETTER_WELCOME_PREHEADER}
+    &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+  </div>
+  <!--<![endif]-->`;
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,11 +86,7 @@ export function buildNewsletterWelcomeEmail(input: {
   <![endif]-->
 </head>
 <body style="margin:0;padding:0;background-color:${cream};color:${ink};font-family:${serif};">
-  <!-- Preheader: inbox preview only -->
-  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;color:${cream};">
-    ${NEWSLETTER_WELCOME_PREHEADER}
-    &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
-  </div>
+  ${preheaderBlock}
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:${cream};margin:0;padding:0;">
     <tr>
       <td align="center" style="padding:28px 16px 36px;">
@@ -141,5 +160,5 @@ export function buildNewsletterWelcomeEmail(input: {
 </body>
 </html>`;
 
-  return { subject: NEWSLETTER_WELCOME_SUBJECT, html, text };
+  return { subject: NEWSLETTER_WELCOME_SUBJECT, html, text, headers };
 }

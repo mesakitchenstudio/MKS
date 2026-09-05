@@ -13,7 +13,9 @@ import {
 } from "./newsletter-unsubscribe";
 import {
   NEWSLETTER_WELCOME_SUBJECT,
+  NEWSLETTER_WELCOME_PREHEADER,
   buildNewsletterWelcomeEmail,
+  newsletterWelcomeListUnsubscribeHeaders,
 } from "./newsletter-welcome-email";
 import {
   subscribeNewsletterServer,
@@ -71,7 +73,8 @@ describe("newsletter welcome email", () => {
     assert.equal(email.subject, NEWSLETTER_WELCOME_SUBJECT);
     assert.match(email.html, /Welcome to the Mesa table/);
     assert.match(email.html, /You're on the Mesa list/);
-    assert.match(email.html, /display:none[\s\S]*You're on the Mesa list/);
+    assert.match(email.html, /aria-hidden="true"/);
+    assert.match(email.html, new RegExp(NEWSLETTER_WELCOME_PREHEADER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(email.html, /Kitchen Studio/);
     assert.match(email.html, /Explore Mesa recipes/);
     assert.match(email.html, /background-color:#ad4b31/);
@@ -79,8 +82,15 @@ describe("newsletter welcome email", () => {
     assert.match(email.html, /Prefer to cook along\?/);
     assert.match(email.html, /Watch Mesa on YouTube/);
     assert.match(email.html, /https:\/\/youtube\.com\/@mesakitchenstudio/);
+    assert.match(email.html, /Recipes for the table\. Tested in the studio\./);
+    assert.match(email.html, /border-top:1px solid #d9cbb6/);
     assert.match(email.html, /Unsubscribe/);
     assert.match(email.html, /newsletter\/unsubscribe\?token=abc/);
+    // Footer order: YouTube → tagline → hairline Unsubscribe (Gmail may trim repeats of this region).
+    const youtubeIdx = email.html.indexOf("Watch Mesa on YouTube");
+    const taglineIdx = email.html.indexOf("Recipes for the table");
+    const unsubIdx = email.html.lastIndexOf(">Unsubscribe<");
+    assert.ok(youtubeIdx > 0 && taglineIdx > youtubeIdx && unsubIdx > taglineIdx);
     assert.match(email.text, /Explore Mesa recipes:/);
     assert.match(email.text, /Watch Mesa on YouTube:/);
     assert.match(email.text, /https:\/\/youtube\.com\/@mesakitchenstudio/);
@@ -97,6 +107,20 @@ describe("newsletter welcome email", () => {
     assert.match(email.html, /\/recipes/);
     assert.match(email.html, /youtube\.com\/@mesakitchenstudio/);
     assert.match(email.text, /youtube\.com\/@mesakitchenstudio/);
+  });
+
+  it("attaches RFC 2369 List-Unsubscribe and deliberately omits one-click POST", () => {
+    const unsubscribeUrl =
+      "https://www.mesakitchenstudio.com/newsletter/unsubscribe?token=abc";
+    const email = buildNewsletterWelcomeEmail({ unsubscribeUrl });
+    assert.deepEqual(email.headers, {
+      "List-Unsubscribe": `<${unsubscribeUrl}>`,
+    });
+    assert.equal(
+      newsletterWelcomeListUnsubscribeHeaders(unsubscribeUrl)["List-Unsubscribe-Post"],
+      undefined,
+    );
+    assert.doesNotMatch(JSON.stringify(email.headers), /List-Unsubscribe-Post/);
   });
 });
 
@@ -117,7 +141,13 @@ describe("newsletter subscribe + unsubscribe persistence", () => {
 
   it("persists a new subscriber, sends welcome once, and keeps success if welcome fails", async () => {
     const email = `${prefix}new@example.com`;
-    const sent: Array<{ to: string | string[]; subject: string; html: string; text?: string }> = [];
+    const sent: Array<{
+      to: string | string[];
+      subject: string;
+      html: string;
+      text?: string;
+      headers?: Record<string, string>;
+    }> = [];
 
     const first = await subscribeNewsletterServer(email, "site", {
       sendEmail: async (input) => {
@@ -142,8 +172,11 @@ describe("newsletter subscribe + unsubscribe persistence", () => {
     assert.equal(String(welcome[0]?.to), email);
     assert.match(welcome[0]?.html || "", /Unsubscribe/);
     assert.ok(welcome[0]?.text);
+    assert.match(String(welcome[0]?.headers?.["List-Unsubscribe"] || ""), /<https?:\/\/.+\/newsletter\/unsubscribe\?token=/);
+    assert.equal(welcome[0]?.headers?.["List-Unsubscribe-Post"], undefined);
     assert.equal(notices.length, 1);
     assert.notEqual(String(notices[0]?.to), email);
+    assert.equal(notices[0]?.headers?.["List-Unsubscribe"], undefined);
 
     const duplicate = await subscribeNewsletterServer(email, "site", {
       sendEmail: async (input) => {

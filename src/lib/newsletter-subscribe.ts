@@ -19,6 +19,7 @@ export type NewsletterMailer = (input: {
   html: string;
   text?: string;
   replyTo?: string;
+  headers?: Record<string, string>;
 }) => Promise<SendTransactionalEmailResult>;
 
 export type SubscribeNewsletterDeps = {
@@ -65,6 +66,7 @@ async function sendWelcomeAndNotice(input: {
     subject: welcome.subject,
     html: welcome.html,
     text: welcome.text,
+    headers: welcome.headers,
   });
   logWelcomeFailure(welcomeResult);
 
