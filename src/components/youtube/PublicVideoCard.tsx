@@ -58,7 +58,14 @@ export function PublicVideoCard({
             alt=""
             showPlay
             priority={priority}
-            aspectClassName={portrait ? "aspect-[9/16]" : "aspect-video"}
+            playSize={portrait ? "sm" : "md"}
+            aspectClassName={
+              portrait
+                ? // Milder portrait on small screens; true 9:16 once the 4-up shelf has room.
+                  "aspect-[3/4] lg:aspect-[9/16]"
+                : "aspect-video"
+            }
+            objectPositionClassName="object-center"
             sizes={
               portrait
                 ? "(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
@@ -72,7 +79,13 @@ export function PublicVideoCard({
             </span>
           ) : null}
         </div>
-        <h3 className="mt-3 line-clamp-3 font-serif text-xl leading-tight text-ink transition group-hover/card:text-terracotta md:text-[1.15rem] md:leading-snug">
+        <h3
+          className={
+            portrait
+              ? "mt-3 line-clamp-2 font-serif text-base leading-snug text-ink transition group-hover/card:text-terracotta md:text-[1.05rem]"
+              : "mt-3 line-clamp-3 font-serif text-xl leading-tight text-ink transition group-hover/card:text-terracotta md:text-[1.15rem] md:leading-snug"
+          }
+        >
           {video.title}
         </h3>
       </Link>

@@ -31,6 +31,8 @@ export function VideoThumbnail({
   priority = false,
   sizes = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw",
   aspectClassName = "aspect-video",
+  playSize = "md",
+  objectPositionClassName = "object-center",
 }: {
   src?: string;
   alt: string;
@@ -38,10 +40,17 @@ export function VideoThumbnail({
   priority?: boolean;
   sizes?: string;
   aspectClassName?: string;
+  /** Slightly smaller control for tall Shorts frames. */
+  playSize?: "sm" | "md";
+  objectPositionClassName?: string;
 }) {
   const normalized = normalizeRecipeImageSrc(src);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const degraded = !normalized || failedSrc === normalized;
+  const playFrame =
+    playSize === "sm"
+      ? "flex h-9 w-9 items-center justify-center rounded-full border border-paper/70 bg-paper/95 text-terracotta"
+      : "flex h-10 w-10 items-center justify-center rounded-full border border-paper/70 bg-paper/95 text-terracotta";
 
   return (
     <div className={`relative overflow-hidden bg-sand ${aspectClassName}`}>
@@ -55,7 +64,7 @@ export function VideoThumbnail({
             fill
             priority={priority}
             sizes={sizes}
-            className="object-cover transition duration-500 motion-safe:group-hover/thumb:scale-[1.02] motion-reduce:transition-none motion-reduce:transform-none"
+            className={`object-cover ${objectPositionClassName} transition duration-500 motion-safe:group-hover/thumb:scale-[1.02] motion-reduce:transition-none motion-reduce:transform-none`}
             onError={() => setFailedSrc(normalized)}
           />
           {showPlay ? (
@@ -63,7 +72,9 @@ export function VideoThumbnail({
               className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink/10 transition motion-safe:group-hover/thumb:bg-ink/15 motion-reduce:transition-none"
               aria-hidden
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-paper/70 bg-paper/95 text-terracotta transition motion-safe:group-hover/thumb:scale-105 motion-reduce:transform-none">
+              <span
+                className={`${playFrame} transition motion-safe:group-hover/thumb:scale-105 motion-reduce:transform-none`}
+              >
                 <PlayIcon />
               </span>
             </span>

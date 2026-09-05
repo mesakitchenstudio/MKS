@@ -331,6 +331,21 @@ describe("public videos UI wiring", () => {
     assert.match(card, /md:text-\[1\.15rem\]/);
   });
 
+  it("treats Shorts as a portrait shelf without changing Full videos cards", () => {
+    const card = read("components/youtube/PublicVideoCard.tsx");
+    const catalogue = read("components/youtube/PublicVideosCatalogue.tsx");
+    const thumb = read("components/youtube/VideoThumbnail.tsx");
+    assert.match(card, /aspect-\[3\/4\] lg:aspect-\[9\/16\]/);
+    assert.match(card, /line-clamp-2/);
+    assert.match(card, /playSize=\{portrait \? "sm" : "md"\}/);
+    assert.match(card, /placement: portrait \? "shorts_grid" : "full_grid"/);
+    assert.match(card, /source: video\.format/);
+    assert.match(catalogue, /lg:grid-cols-4/);
+    assert.match(catalogue, /format === "shorts"[\s\S]*mt-10 border-t/);
+    assert.match(thumb, /playSize/);
+    assert.match(thumb, /objectPositionClassName/);
+  });
+
   it("closes the catalogue with an editorial Mesa on YouTube section", () => {
     const catalogue = read("components/youtube/PublicVideosCatalogue.tsx");
     assert.match(catalogue, /Mesa on YouTube/);

@@ -78,7 +78,11 @@ export function PublicVideosCatalogue({
       {featured && format === "long" ? <PublicFeaturedVideo video={featured} /> : null}
 
       <section
-        className="mt-12 border-t border-line pt-10 md:mt-16 md:pt-12"
+        className={
+          format === "shorts"
+            ? "mt-10 border-t border-line pt-8 md:mt-12 md:pt-10"
+            : "mt-12 border-t border-line pt-10 md:mt-16 md:pt-12"
+        }
         aria-labelledby="all-videos-heading"
       >
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -125,7 +129,7 @@ export function PublicVideosCatalogue({
           <div
             className={
               format === "shorts"
-                ? "mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-4"
+                ? "mt-8 grid items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-4"
                 : "mt-8 grid items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3"
             }
           >
