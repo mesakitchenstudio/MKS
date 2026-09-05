@@ -42,7 +42,7 @@ export function RecipeGridCard({
         src={recipe.image}
         alt={recipe.imageAlt}
         sizes="(min-width: 1024px) 20vw, (min-width: 640px) 40vw, 90vw"
-        className="object-cover transition duration-500 motion-safe:group-hover:scale-[1.02]"
+        className="object-cover transition duration-500 motion-safe:group-hover:scale-[1.03]"
       />
     </div>
   ) : (
@@ -51,7 +51,7 @@ export function RecipeGridCard({
         src={recipe.image}
         alt={recipe.imageAlt}
         sizes={large ? "(min-width: 768px) 50vw, 100vw" : "(min-width: 768px) 25vw, 50vw"}
-        className="object-cover transition duration-500 motion-safe:group-hover:scale-[1.02]"
+        className="object-cover transition duration-500 motion-safe:group-hover:scale-[1.03]"
       />
     </div>
   );

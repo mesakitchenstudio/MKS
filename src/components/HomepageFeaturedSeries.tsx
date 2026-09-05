@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { SeriesItemTrackLink } from "@/components/series/SeriesItemTrackLink";
-import type { PublicSeriesCard } from "@/lib/series-types";
+import type { PublicSeriesCard, PublicSeriesPreviewItem } from "@/lib/series-types";
 import { formatHomepageSeriesMetaLabel } from "@/lib/series-public-meta";
 
 const linkFocus =
@@ -8,13 +8,14 @@ const linkFocus =
 
 /**
  * Homepage bridge to one published Series (catalog order).
- * CTA is the sole interactive control — no YouTube embeds.
+ * Main visual + quiet item previews — no YouTube embeds or chrome.
  */
 export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard }) {
   const href = `/series/${series.slug}`;
   const description = series.description.trim();
   const exploreLabel = `Explore the ${series.title} series`;
   const metaLabel = formatHomepageSeriesMetaLabel(series.itemCount, series.videoCount);
+  const previews = series.previewItems.slice(0, 2);
 
   return (
     <section
@@ -29,7 +30,7 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
           Featured series
         </h2>
 
-        <div className="mt-6 grid min-w-0 grid-cols-1 items-center gap-7 lg:grid-cols-2 lg:gap-10">
+        <div className="mt-6 grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-2 lg:gap-10">
           <div className="relative aspect-[5/4] min-w-0 overflow-hidden border border-line bg-sand">
             <Image
               src={series.heroImage}
@@ -63,9 +64,57 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
                 Explore the series →
               </SeriesItemTrackLink>
             </div>
+
+            {previews.length > 0 ? (
+              <ul className="mt-8 space-y-0 border-t border-line">
+                {previews.map((item) => (
+                  <li key={item.id} className="border-b border-line">
+                    <SeriesPreviewRow series={series} item={item} seriesHref={href} />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function SeriesPreviewRow({
+  series,
+  item,
+  seriesHref,
+}: {
+  series: PublicSeriesCard;
+  item: PublicSeriesPreviewItem;
+  seriesHref: string;
+}) {
+  return (
+    <SeriesItemTrackLink
+      href={seriesHref}
+      event="series_item_click"
+      seriesId={series.id}
+      seriesSlug={series.slug}
+      itemPosition={item.position}
+      destinationRecipeSlug={item.recipeSlug ?? undefined}
+      destinationVideoId={item.youtubeVideoId ?? undefined}
+      placement="homepage_series"
+      className={`group flex min-h-11 items-center gap-3 py-3 ${linkFocus}`}
+      ariaLabel={`${item.title} in the ${series.title} series`}
+    >
+      <span className="relative h-14 w-14 shrink-0 overflow-hidden bg-sand">
+        <Image
+          src={item.thumbnail}
+          alt=""
+          fill
+          className="object-cover transition duration-500 motion-safe:group-hover:scale-[1.03]"
+          sizes="56px"
+        />
+      </span>
+      <span className="min-w-0 flex-1 font-serif text-lg leading-snug text-ink group-hover:text-terracotta group-focus-visible:text-terracotta">
+        {item.title}
+      </span>
+    </SeriesItemTrackLink>
   );
 }

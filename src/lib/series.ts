@@ -5,20 +5,23 @@ import { youtubePlaylistUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/
 import { recipeMainVideoId } from "@/lib/youtube-data/matching";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { site } from "@/data/site";
-import type {
-  PublicSeriesCard,
-  PublicSeriesDetail,
-  PublicSeriesItem,
-  RecipeSeriesLink,
+import {
+  pickSeriesPreviewItems,
+  type PublicSeriesCard,
+  type PublicSeriesDetail,
+  type PublicSeriesItem,
+  type RecipeSeriesLink,
 } from "@/lib/series-types";
 
 export type {
   PublicSeriesCard,
   PublicSeriesDetail,
   PublicSeriesItem,
+  PublicSeriesPreviewItem,
   RecipeSeriesLink,
 } from "@/lib/series-types";
 export { seriesItemListJsonLd } from "@/lib/series-types";
+export { pickSeriesPreviewItems } from "@/lib/series-types";
 
 function recipeImageFromValues(valuesJson: string): string {
   const values = parseValues(valuesJson);
@@ -167,6 +170,7 @@ export async function listPublishedSeries(): Promise<PublicSeriesCard[]> {
       itemCount: items.length,
       recipeCount: items.filter((i) => i.recipeSlug).length,
       videoCount: items.filter((i) => i.youtubeVideoId).length,
+      previewItems: pickSeriesPreviewItems(items, 2),
     };
   });
 }

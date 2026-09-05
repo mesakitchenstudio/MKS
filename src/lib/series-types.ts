@@ -10,6 +10,18 @@ export type PublicSeriesCard = {
   itemCount: number;
   recipeCount: number;
   videoCount: number;
+  /** Up to two visible items for homepage collection previews (featured-first). */
+  previewItems: PublicSeriesPreviewItem[];
+};
+
+/** Compact Series item surface for homepage Featured Series previews. */
+export type PublicSeriesPreviewItem = {
+  id: string;
+  position: number;
+  title: string;
+  thumbnail: string;
+  recipeSlug: string | null;
+  youtubeVideoId: string | null;
 };
 
 export type PublicSeriesItem = {
@@ -29,6 +41,28 @@ export type PublicSeriesItem = {
   typeName: string;
   categorySlugs: string[];
 };
+
+/** Featured-first, then catalog order; max 2 for homepage collection previews. */
+export function pickSeriesPreviewItems(
+  items: Array<
+    Pick<
+      PublicSeriesItem,
+      "id" | "position" | "title" | "thumbnail" | "recipeSlug" | "youtubeVideoId" | "featured"
+    >
+  >,
+  max = 2,
+): PublicSeriesPreviewItem[] {
+  const featured = items.filter((item) => item.featured);
+  const rest = items.filter((item) => !item.featured);
+  return [...featured, ...rest].slice(0, max).map((item) => ({
+    id: item.id,
+    position: item.position,
+    title: item.title,
+    thumbnail: item.thumbnail,
+    recipeSlug: item.recipeSlug,
+    youtubeVideoId: item.youtubeVideoId,
+  }));
+}
 
 export type PublicSeriesDetail = {
   id: string;

@@ -258,7 +258,7 @@ describe("homepage Phase 1 discovery UI", () => {
     assert.match(browse, /grid-cols-2/);
     assert.match(browse, /sm:grid-cols-3/);
     assert.match(browse, /md:grid-cols-4/);
-    assert.doesNotMatch(browse, /aspect-|Image|img |rounded-full bg-|border border-line/);
+    assert.doesNotMatch(browse, /aspect-|Image|img |rounded-full bg-/);
   });
 
   it("uses Cooking Series eyebrow on Featured Series without From the studio", () => {
@@ -304,5 +304,74 @@ describe("homepage Phase 1 discovery UI", () => {
     const form = read("src/components/NewsletterForm.tsx");
     assert.match(form, /focus-visible:outline-terracotta/);
     assert.match(form, /type="submit"/);
+  });
+});
+
+describe("homepage Phase 3 visual enrichment", () => {
+  const root = process.cwd();
+  const read = (rel: string) => readFileSync(join(root, rel), "utf8");
+
+  it("loads previewItems on PublicSeriesCard from listPublishedSeries", () => {
+    const types = read("src/lib/series-types.ts");
+    assert.match(types, /previewItems: PublicSeriesPreviewItem\[\]/);
+    assert.match(types, /export type PublicSeriesPreviewItem/);
+    const seriesLib = read("src/lib/series.ts");
+    assert.match(seriesLib, /pickSeriesPreviewItems/);
+    assert.match(seriesLib, /previewItems: pickSeriesPreviewItems\(items, 2\)/);
+  });
+
+  it("renders Featured Series with quiet item previews and no YouTube chrome", () => {
+    const block = read("src/components/HomepageFeaturedSeries.tsx");
+    assert.match(block, /previewItems/);
+    assert.match(block, /SeriesPreviewRow|item\.thumbnail/);
+    assert.match(block, /itemPosition=\{item\.position\}/);
+    assert.match(block, /placement="homepage_series"/);
+    assert.match(block, /href=\{seriesHref\}/);
+    assert.doesNotMatch(block, /<iframe|youtube\.com\/embed|Watch the full series on YouTube/i);
+    assert.doesNotMatch(block, /youtubePlaylistUrl/);
+  });
+
+  it("renders From the kitchen as lead plus two supporting", () => {
+    const kitchen = read("src/components/HomepageFromKitchenSection.tsx");
+    assert.match(kitchen, /recipes\.length !== 3/);
+    assert.match(kitchen, /\[lead, supportA, supportB\]/);
+    assert.match(kitchen, /large/);
+    assert.match(kitchen, /lg:grid-cols-\[minmax\(0,1\.35fr\)_minmax\(0,1fr\)\]/);
+    assert.doesNotMatch(kitchen, /lg:grid-cols-3/);
+  });
+
+  it("passes in-memory Browse category counts from homepage recipes", () => {
+    const page = read("src/app/page.tsx");
+    assert.match(page, /countRecipesByPrimaryCategory/);
+    assert.match(page, /recipeMatchesPrimaryCategory/);
+    assert.match(page, /categoryCounts=\{categoryCounts\}/);
+    const browse = read("src/components/HomepageBrowseCategories.tsx");
+    assert.match(browse, /categoryCounts/);
+    assert.match(browse, /border-t border-line/);
+    assert.doesNotMatch(browse, /aspect-|Image|img /);
+  });
+
+  it("emphasizes Latest food presence without changing card link model", () => {
+    const latest = read("src/components/HomepageLatestSection.tsx");
+    assert.match(latest, /imageAspect="4\/3"/);
+    assert.match(latest, /excerptLines=\{2\}/);
+    assert.match(latest, /border-b border-line/);
+    assert.equal((latest.match(/<RecipeGridCard\b/g) || []).length, 1);
+  });
+
+  it("nudges hero photo prominence on large desktop only", () => {
+    const page = read("src/app/page.tsx");
+    assert.match(page, /xl:grid-cols-\[minmax\(0,1fr\)_minmax\(0,1\.2fr\)\]/);
+    const hero = read("src/components/HomepageHero.tsx");
+    assert.match(hero, /xl:aspect-\[10\/13\]/);
+    assert.equal((hero.match(/<Link\b/g) || []).length, 1);
+  });
+
+  it("composes Studio and newsletter as one ending without a bordered form box", () => {
+    const page = read("src/app/page.tsx");
+    assert.match(page, /aria-labelledby="studio-heading"/);
+    assert.match(page, /Never miss a recipe/);
+    assert.match(page, /NewsletterForm/);
+    assert.doesNotMatch(page, /border border-line bg-cream p-8/);
   });
 });

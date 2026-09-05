@@ -13,6 +13,11 @@ import {
   getHomepageFeaturedRecipeSlug,
   getHomepageFromKitchenRecipeSlugs,
 } from "@/lib/site-settings";
+import {
+  PRIMARY_CATEGORY_SLUGS,
+  recipeMatchesPrimaryCategory,
+  type PrimaryCategorySlug,
+} from "@/lib/recipe-primary-taxonomy";
 import { getAllRecipes } from "@/lib/recipes";
 import { listPublishedSeries } from "@/lib/series";
 
@@ -32,6 +37,23 @@ export const metadata: Metadata = {
 const heroLinkFocus =
   "rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
+const studioLinkFocus =
+  "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
+
+function countRecipesByPrimaryCategory(
+  recipes: Awaited<ReturnType<typeof getAllRecipes>>,
+): Partial<Record<PrimaryCategorySlug, number>> {
+  const counts: Partial<Record<PrimaryCategorySlug, number>> = {};
+  for (const slug of PRIMARY_CATEGORY_SLUGS) {
+    let n = 0;
+    for (const recipe of recipes) {
+      if (recipeMatchesPrimaryCategory(recipe, slug)) n += 1;
+    }
+    if (n > 0) counts[slug] = n;
+  }
+  return counts;
+}
+
 export default async function Home() {
   const recipes = await getAllRecipes();
   const [featuredRecipeSlug, fromKitchenSlugs, publishedSeries] = await Promise.all([
@@ -44,11 +66,12 @@ export default async function Home() {
     fromKitchenSlugs,
   });
   const featuredSeries = publishedSeries[0] ?? null;
+  const categoryCounts = countRecipesByPrimaryCategory(recipes);
 
   return (
     <>
       <section className="relative overflow-hidden bg-ink text-cream">
-        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] md:gap-8 md:px-6 md:py-11 lg:gap-10 lg:py-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)]">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] md:gap-8 md:px-6 md:py-11 lg:gap-10 lg:py-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <div className="order-1 min-w-0">
             <h1 className="max-w-xl font-serif text-5xl leading-[1.1] md:text-6xl">
               Recipes for the table.
@@ -88,7 +111,7 @@ export default async function Home() {
 
       {featuredSeries ? <HomepageFeaturedSeries series={featuredSeries} /> : null}
 
-      <HomepageBrowseCategories />
+      <HomepageBrowseCategories categoryCounts={categoryCounts} />
 
       {homepageConfig.fromKitchen.enabled && homepage.fromKitchen.length === 3 ? (
         <HomepageFromKitchenSection
@@ -97,25 +120,27 @@ export default async function Home() {
         />
       ) : null}
 
-      <section className="border-y border-line bg-paper">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-2 md:px-6 md:py-16">
-          <div>
+      <section className="border-y border-line bg-cream/30" aria-labelledby="studio-heading">
+        <div className="mx-auto grid max-w-6xl items-start gap-10 px-4 py-14 md:grid-cols-2 md:gap-12 md:px-6 md:py-16">
+          <div className="min-w-0 border-t border-line pt-8 md:border-t-0 md:pt-0">
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
               The studio
             </p>
-            <h2 className="mt-3 font-serif text-4xl">A small kitchen, tested recipes</h2>
+            <h2 id="studio-heading" className="mt-3 font-serif text-4xl">
+              A small kitchen, tested recipes
+            </h2>
             <p className="mt-4 max-w-lg text-base leading-7 text-muted">
               Mesa Kitchen Studio is a test kitchen for home cooks. We measure, test, adjust, and
               explain recipes so the method is something you can repeat in your own kitchen.
             </p>
             <Link
               href="/about"
-              className="mt-6 inline-block rounded-sm text-sm font-semibold text-terracotta hover:text-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+              className={`mt-6 inline-block text-sm font-semibold text-terracotta hover:text-terracotta-dark ${studioLinkFocus}`}
             >
               More about us →
             </Link>
           </div>
-          <div className="border border-line bg-cream p-8">
+          <div className="min-w-0 border-t border-line pt-8">
             <h3 className="font-serif text-2xl">Never miss a recipe</h3>
             <p className="mt-2 mb-5 text-sm leading-6 text-muted">
               Seasonal cooking notes and new studio recipes, when we have them.
