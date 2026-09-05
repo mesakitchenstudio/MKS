@@ -4,6 +4,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { CollectionRow } from "@/components/CollectionRow";
 import { JsonLd } from "@/components/JsonLd";
 import { RecipeContentShell } from "@/components/RecipeContentShell";
@@ -19,6 +20,7 @@ import { RecipeVideoExperience } from "@/components/youtube/RecipeVideoExperienc
 import { RecipeWatchMethod } from "@/components/youtube/RecipeWatchMethod";
 import { site } from "@/data/site";
 import { getAdminSession } from "@/lib/auth";
+import { isSitePrivate } from "@/lib/flags";
 import { canManageRecipeReviewReplies, getRecipeReviewData } from "@/lib/recipe-reviews";
 import { resolveRecipeYoutube, resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
 import { recipeInstructionStages } from "@/lib/recipe-instructions";
@@ -161,6 +163,13 @@ export default async function RecipePage({ params, searchParams }: Props) {
         initialStageVideoHelp={initialStageVideoHelp}
       />
 
+      {/* Dormant: after ingredients + method; inactive while ADS_ENABLED=false. */}
+      <AdSlot
+        placement="recipe_detail_mid"
+        pathname={`/recipes/${recipe.slug}`}
+        sitePrivate={isSitePrivate()}
+      />
+
       <RecipeContentShell className="pb-6">
         <RecipeLearnSection
           whyItWorks={recipe.whyItWorks}
@@ -238,6 +247,13 @@ export default async function RecipePage({ params, searchParams }: Props) {
           </p>
         ) : null}
       </RecipeContentShell>
+
+      {/* Dormant: after recipe body / reviews; before related row. */}
+      <AdSlot
+        placement="recipe_detail_after_recipe"
+        pathname={`/recipes/${recipe.slug}`}
+        sitePrivate={isSitePrivate()}
+      />
 
       <div className="no-print">
         <CollectionRow title="More from the studio" recipes={related} compactDiscovery />

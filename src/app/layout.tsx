@@ -3,6 +3,7 @@ import { Fraunces, Source_Sans_3 } from "next/font/google";
 import { AuthSessionProvider } from "@/components/AuthSessionProvider";
 import { AnalyticsBridge } from "@/components/AnalyticsBridge";
 import { AnalyticsScripts } from "@/components/AnalyticsScripts";
+import { AdSensePathLoader } from "@/components/ads/AdSensePathLoader";
 import { FunnelAnalyticsBridge } from "@/components/FunnelAnalyticsBridge";
 import { JsonLd } from "@/components/JsonLd";
 import { PublicChrome } from "@/components/PublicChrome";
@@ -134,6 +135,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         </a>
         {privateMode ? null : <JsonLd data={siteGraphJsonLd()} />}
         <AnalyticsScripts />
+        <AdSensePathLoader sitePrivate={sitePrivate} />
         <AnalyticsBridge />
         <AuthSessionProvider>
           <FunnelAnalyticsBridge />
