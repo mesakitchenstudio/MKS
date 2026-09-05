@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteMembersAction } from "@/app/admin/actions";
 import { MemberAvatar } from "@/components/admin/MemberPresence";
-import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
+import { adminFocusRing, adminTableHeadClass } from "@/lib/admin-ui";
 import { formatAdminDate, formatAdminRelativeDateTime } from "@/lib/datetime";
 import {
   formatSignInMethod,
@@ -222,33 +222,40 @@ export function MembersTable({
 
   return (
     <div className="mt-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <p className="text-sm text-muted">
-          {onlineCount} online · Sorted by last seen · Times in GMT
-        </p>
-        {canDelete && sortedUsers.length > 0 ? (
-          selectMode ? (
+      <p className="text-sm text-muted">
+        {onlineCount} online · Sorted by last seen · Times in GMT
+      </p>
+
+      {/* Same left-aligned bulk-selection entry as Reviews / Visitors (not metadata far-right). */}
+      {canDelete && sortedUsers.length > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {!selectMode ? (
             <button
               type="button"
-              className={`inline-flex min-h-11 items-center text-sm font-semibold text-muted transition-colors hover:text-ink sm:min-h-9 ${adminLinkClass} ${adminFocusRing}`}
-              onClick={exitSelectMode}
+              className={`inline-flex min-h-11 items-center text-sm font-semibold text-ink transition-colors hover:text-terracotta sm:min-h-9 ${adminFocusRing}`}
+              onClick={enterSelectMode}
+              aria-pressed={false}
             >
-              Cancel selection
+              Select members
             </button>
           ) : (
             <button
               type="button"
-              className={`inline-flex min-h-11 items-center text-sm font-semibold text-ink transition-colors hover:text-terracotta sm:min-h-9 ${adminLinkClass} ${adminFocusRing}`}
-              onClick={enterSelectMode}
+              className={`inline-flex min-h-11 items-center text-sm font-semibold text-muted transition-colors hover:text-ink sm:min-h-9 ${adminFocusRing}`}
+              onClick={exitSelectMode}
+              aria-pressed={true}
             >
-              Select members
+              Cancel selection
             </button>
-          )
-        ) : null}
-      </div>
+          )}
+        </div>
+      ) : null}
 
       {showSelectionChrome ? (
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <div
+          className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
+          role="status"
+        >
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-ink sm:min-h-9">
             <input
               ref={selectPageRef}

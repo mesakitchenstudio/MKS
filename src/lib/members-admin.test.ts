@@ -90,6 +90,24 @@ describe("admin Members list contracts", () => {
     assert.doesNotMatch(membersPage, /Team access/);
   });
 
+  it("places Select members in a left-aligned management row like Reviews/Visitors, not metadata far-right", () => {
+    assert.match(membersTable, /Select members/);
+    assert.doesNotMatch(
+      membersTable,
+      /justify-between[\s\S]{0,400}Select members/,
+    );
+    assert.doesNotMatch(membersTable, /items-end justify-between/);
+    assert.match(
+      membersTable,
+      /flex flex-wrap items-center gap-3[\s\S]{0,500}Select members/,
+    );
+    const meta = membersTable.indexOf("online · Sorted by last seen · Times in GMT");
+    const select = membersTable.indexOf("Select members");
+    const table = membersTable.indexOf('scope="col"');
+    assert.ok(meta >= 0 && select > meta);
+    assert.ok(table > select);
+  });
+
   it("keeps four columns without Status, Location, or View", () => {
     assert.match(membersTable, /scope="col"/);
     assert.match(membersTable, />\s*Member\s*</);
@@ -180,6 +198,9 @@ describe("admin Members bulk selection/deletion", () => {
     assert.match(membersTable, /Delete selected/);
     assert.match(membersTable, /Cancel selection/);
     assert.match(membersTable, /Select members on this page/);
+    assert.match(membersTable, /role="status"/);
+    assert.match(membersTable, /aria-pressed=\{false\}/);
+    assert.match(membersTable, /aria-pressed=\{true\}/);
   });
 
   it("Select page toggles only currently visible member ids", () => {
