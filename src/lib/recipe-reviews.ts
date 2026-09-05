@@ -531,12 +531,11 @@ export const PUBLIC_RECIPE_VISIBLE_COMMENTS = 12;
 
 /**
  * Public recipe URL that scrolls to a specific review.
+ * Only for published recipes — drafts/missing rows are not on the public site.
  * Uses the stored recipe slug, never a title-derived slug.
  *
- * Links whenever the recipe is published OR status is unknown (join miss) —
- * only known drafts/unpublished stay unlinkable so titles never look clickable
- * while doing nothing. Query `review=` is the durable target; `#review-{id}`
- * is the DOM anchor.
+ * Query `review=` is the durable target (survives App Router hash/scroll races);
+ * `#review-{id}` is the DOM anchor for native/:target positioning.
  */
 export function adminReviewPublicAnchorHref(input: {
   recipeSlug: string;
@@ -545,12 +544,10 @@ export function adminReviewPublicAnchorHref(input: {
 }): string | null {
   const slug = input.recipeSlug.trim();
   const reviewId = input.reviewId.trim();
-  if (!slug || !reviewId) return null;
   const status = (input.recipeStatus || "").trim().toLowerCase();
-  // Known non-public statuses: do not deep-link to the public site.
-  if (status === "draft" || status === "archived" || status === "unpublished") {
-    return null;
-  }
+  // Require an explicit published Recipe join — unknown/missing status must not
+  // deep-link to a public 404 (humanized titles can still look real).
+  if (status !== "published" || !slug || !reviewId) return null;
   const encodedId = encodeURIComponent(reviewId);
   return `/recipes/${encodeURIComponent(slug)}?review=${encodedId}#review-${encodedId}`;
 }

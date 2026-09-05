@@ -160,7 +160,7 @@ describe("admin review helpers", () => {
         recipeStatus: null,
         reviewId: "rev_omid",
       }),
-      "/recipes/iced-horchata-coffee?review=rev_omid#review-rev_omid",
+      null,
     );
     assert.equal(formatAdminReviewerType("user_1"), "Member");
     assert.equal(formatAdminReviewerType(null), "Visitor");
