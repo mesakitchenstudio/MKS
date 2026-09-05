@@ -13,7 +13,9 @@ import {
   adminWorkspaceStandard,
 } from "./admin-ui.ts";
 import {
+  adminReviewPublicAnchorHref,
   adminReviewRecipeHref,
+  adminReviewReplyWorkflowHref,
   canManageRecipeReviewReplies,
   canReplyToRecipeReview,
   countStaffReviewReplies,
@@ -131,6 +133,26 @@ describe("admin review helpers", () => {
       null,
     );
   });
+
+  it("builds public review anchors and admin reply workflow hrefs", () => {
+    assert.equal(
+      adminReviewPublicAnchorHref({
+        recipeSlug: "soft-stovetop-flatbread",
+        recipeStatus: "published",
+        reviewId: "rev_abc",
+      }),
+      "/recipes/soft-stovetop-flatbread#review-rev_abc",
+    );
+    assert.equal(
+      adminReviewPublicAnchorHref({
+        recipeSlug: "draft-cake",
+        recipeStatus: "draft",
+        reviewId: "rev_abc",
+      }),
+      null,
+    );
+    assert.equal(adminReviewReplyWorkflowHref("rev_abc"), "/admin/reviews/rev_abc?reply=1");
+  });
 });
 
 describe("admin Reviews index contracts", () => {
@@ -144,9 +166,11 @@ describe("admin Reviews index contracts", () => {
     assert.doesNotMatch(reviewsPage, /AdminReviewsLiveFeed|AdminReviewDetail/);
   });
 
-  it("renders a compact ledger linking each review to its detail route", () => {
-    assert.match(reviewsIndex, /\/admin\/reviews\/\$\{encodeURIComponent\(review\.id\)\}/);
-    assert.match(reviewsIndex, /Open review of \$\{review\.recipeTitle\} by \$\{review\.authorName\}/);
+  it("renders a compact ledger with split public and reply workflows", () => {
+    assert.match(reviewsIndex, /adminReviewPublicAnchorHref/);
+    assert.match(reviewsIndex, /adminReviewReplyWorkflowHref/);
+    assert.match(reviewsIndex, /View \$\{review\.authorName\}'s review of \$\{review\.recipeTitle\} on the public recipe page/);
+    assert.match(reviewsIndex, /Reply to \$\{review\.authorName\}'s review of \$\{review\.recipeTitle\}/);
     assert.match(reviewsIndex, /line-clamp-2/);
     assert.match(reviewsIndex, /scope="col"/);
     assert.match(reviewsIndex, />\s*Review\s*</);
@@ -217,6 +241,14 @@ describe("admin Reviews detail contracts", () => {
     assert.match(reviewDetailPage, /← Reviews/);
     assert.match(reviewDetailPage, /requireAccess\("content"\)/);
     assert.match(recipeReviewsLib, /export async function getReviewForAdmin/);
+  });
+
+  it("opens the reply composer from ?reply=1", () => {
+    assert.match(reviewDetailPage, /reply === "1"/);
+    assert.match(reviewDetailPage, /openReplyComposer/);
+    assert.match(reviewDetail, /initialOpen=\{openReplyComposer\}/);
+    assert.match(replyControls, /initialOpen = false/);
+    assert.match(replyControls, /useState\(initialOpen\)/);
   });
 
   it("renders body, replies, reply workflow, and review management", () => {
@@ -317,6 +349,18 @@ describe("recipe review conversation authorization", () => {
       false,
     );
     assert.equal(canReplyToRecipeReview(review, null), false);
+  });
+});
+
+describe("public recipe review anchors", () => {
+  it("exposes stable review DOM ids for deep links", () => {
+    const publicReviews = readFileSync(
+      path.join(root, "../components/RecipeReviews.tsx"),
+      "utf8",
+    );
+    assert.match(publicReviews, /id=\{`review-\$\{review\.id\}`\}/);
+    assert.match(publicReviews, /pendingScrollReviewIdRef/);
+    assert.match(publicReviews, /#review-/);
   });
 });
 

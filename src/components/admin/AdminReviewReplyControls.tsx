@@ -16,14 +16,17 @@ export function AdminReviewReplyControls({
   authorName,
   recipeTitle,
   staffReplyCount = 0,
+  initialOpen = false,
 }: {
   reviewId: string;
   authorName: string;
   recipeTitle: string;
   /** Staff Mesa replies only — drives Reply vs Add another reply. */
   staffReplyCount?: number;
+  /** Open composer on mount (e.g. from index Response link with ?reply=1). */
+  initialOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const labelId = useId();
   const panelId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);

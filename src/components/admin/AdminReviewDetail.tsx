@@ -25,9 +25,12 @@ function NeedsResponseIndicator() {
 export function AdminReviewDetail({
   review,
   canOpenMembers,
+  openReplyComposer = false,
 }: {
   review: AdminReviewListItem;
   canOpenMembers: boolean;
+  /** When true, open the reply composer and focus the textarea. */
+  openReplyComposer?: boolean;
 }) {
   const ratingLabel = formatReviewRating(review.rating);
   const ratingAccessible = formatReviewRatingAccessible(review.rating);
@@ -123,6 +126,7 @@ export function AdminReviewDetail({
           authorName={review.authorName}
           recipeTitle={review.recipeTitle}
           staffReplyCount={staffReplyCount}
+          initialOpen={openReplyComposer}
         />
       </section>
 

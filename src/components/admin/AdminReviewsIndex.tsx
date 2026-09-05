@@ -13,6 +13,8 @@ import {
   RECIPE_REVIEW_POLL_MS,
 } from "@/lib/recipe-reviews-client";
 import {
+  adminReviewPublicAnchorHref,
+  adminReviewReplyWorkflowHref,
   countStaffReviewReplies,
   formatReviewRating,
   formatReviewRatingAccessible,
@@ -34,10 +36,10 @@ type LiveReview = Omit<AdminReviewListItem, "createdAt" | "replies"> & {
 
 function NeedsResponseIndicator() {
   return (
-    <p className="inline-flex items-center gap-1.5 text-xs text-olive">
+    <span className="inline-flex items-center gap-1.5 text-xs text-olive">
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-olive" aria-hidden />
       Needs response
-    </p>
+    </span>
   );
 }
 
@@ -45,7 +47,7 @@ function ResponseStatus({ replies }: { replies: { isStaff: boolean }[] }) {
   if (countStaffReviewReplies(replies) === 0) {
     return <NeedsResponseIndicator />;
   }
-  return <p className="text-xs text-muted">Replied</p>;
+  return <span className="text-xs text-muted">Replied</span>;
 }
 
 function RatingCell({ rating }: { rating: number }) {
@@ -57,72 +59,139 @@ function RatingCell({ rating }: { rating: number }) {
   );
 }
 
-function ReviewIndexRow({ review }: { review: LiveReview }) {
-  const href = `/admin/reviews/${encodeURIComponent(review.id)}`;
-  const linkLabel = `Open review of ${review.recipeTitle} by ${review.authorName}`;
+function ReviewTitleCell({ review }: { review: LiveReview }) {
+  const publicHref = adminReviewPublicAnchorHref({
+    recipeSlug: review.recipeSlug,
+    recipeStatus: review.recipeStatus,
+    reviewId: review.id,
+  });
+  const titleClass =
+    "block break-words font-serif text-base leading-snug text-ink xl:text-base";
+  const preview = (
+    <span className="mt-1 line-clamp-2 block text-sm leading-5 text-muted">{review.body}</span>
+  );
+
+  if (publicHref) {
+    return (
+      <Link
+        href={publicHref}
+        target="_blank"
+        rel="noreferrer"
+        className={`block min-w-0 ${adminFocusRing}`}
+        aria-label={`View ${review.authorName}'s review of ${review.recipeTitle} on the public recipe page`}
+      >
+        <span className={`${titleClass} hover:text-terracotta`}>
+          {review.recipeTitle}
+          <span className="ml-1 font-sans text-sm font-normal text-muted" aria-hidden>
+            ↗
+          </span>
+        </span>
+        <span className="sr-only"> (opens in a new tab)</span>
+        {preview}
+      </Link>
+    );
+  }
 
   return (
-    <>
-      {/* Desktop ledger — xl keeps five columns usable beside the admin sidebar. */}
-      <tr className="border-b border-line/80 last:border-b-0">
-        <td className="min-w-0 py-3.5 pr-4 align-top">
-          <Link
-            href={href}
-            className={`block min-w-0 ${adminFocusRing}`}
-            aria-label={linkLabel}
-          >
-            <span className="block break-words font-serif text-base leading-snug text-ink hover:text-terracotta">
-              {review.recipeTitle}
-            </span>
-            <span className="mt-1 line-clamp-2 block text-sm leading-5 text-muted">
-              {review.body}
-            </span>
-          </Link>
-        </td>
-        <td className="max-w-[11rem] py-3.5 pr-4 align-top">
-          <p className="truncate text-sm font-semibold text-ink">{review.authorName}</p>
-        </td>
-        <td className="whitespace-nowrap py-3.5 pr-4 align-top">
-          <RatingCell rating={review.rating} />
-        </td>
-        <td className="py-3.5 pr-4 align-top">
-          <ResponseStatus replies={review.replies} />
-        </td>
-        <td className="whitespace-nowrap py-3.5 align-top text-sm text-muted">
-          {formatAdminDate(review.createdAt)}
-        </td>
-      </tr>
-    </>
+    <div className="min-w-0">
+      <span className={titleClass}>{review.recipeTitle}</span>
+      {preview}
+    </div>
+  );
+}
+
+function ResponseCell({ review }: { review: LiveReview }) {
+  const href = adminReviewReplyWorkflowHref(review.id);
+  const needs = countStaffReviewReplies(review.replies) === 0;
+  return (
+    <Link
+      href={href}
+      className={`inline-flex min-h-11 items-center ${adminFocusRing} hover:opacity-90 sm:min-h-0`}
+      aria-label={
+        needs
+          ? `Reply to ${review.authorName}'s review of ${review.recipeTitle}`
+          : `Add another reply to ${review.authorName}'s review of ${review.recipeTitle}`
+      }
+    >
+      <ResponseStatus replies={review.replies} />
+    </Link>
+  );
+}
+
+function ReviewIndexRow({ review }: { review: LiveReview }) {
+  return (
+    <tr className="border-b border-line/80 last:border-b-0">
+      <td className="min-w-0 py-3.5 pr-4 align-top">
+        <ReviewTitleCell review={review} />
+      </td>
+      <td className="max-w-[11rem] py-3.5 pr-4 align-top">
+        <p className="truncate text-sm font-semibold text-ink">{review.authorName}</p>
+      </td>
+      <td className="whitespace-nowrap py-3.5 pr-4 align-top">
+        <RatingCell rating={review.rating} />
+      </td>
+      <td className="py-3.5 pr-4 align-top">
+        <ResponseCell review={review} />
+      </td>
+      <td className="whitespace-nowrap py-3.5 align-top text-sm text-muted">
+        {formatAdminDate(review.createdAt)}
+      </td>
+    </tr>
   );
 }
 
 function ReviewIndexMobileCard({ review }: { review: LiveReview }) {
-  const href = `/admin/reviews/${encodeURIComponent(review.id)}`;
-  const linkLabel = `Open review of ${review.recipeTitle} by ${review.authorName}`;
+  const publicHref = adminReviewPublicAnchorHref({
+    recipeSlug: review.recipeSlug,
+    recipeStatus: review.recipeStatus,
+    reviewId: review.id,
+  });
+  const replyHref = adminReviewReplyWorkflowHref(review.id);
+  const needs = countStaffReviewReplies(review.replies) === 0;
 
   return (
     <li className="border-b border-line/80 py-4 last:border-b-0">
       <div className="flex min-w-0 items-start justify-between gap-3">
-        <Link
-          href={href}
-          className={`min-w-0 flex-1 ${adminFocusRing}`}
-          aria-label={linkLabel}
-        >
-          <span className="block break-words font-serif text-lg leading-snug text-ink hover:text-terracotta">
+        {publicHref ? (
+          <Link
+            href={publicHref}
+            target="_blank"
+            rel="noreferrer"
+            className={`min-w-0 flex-1 ${adminFocusRing}`}
+            aria-label={`View ${review.authorName}'s review of ${review.recipeTitle} on the public recipe page`}
+          >
+            <span className="block break-words font-serif text-lg leading-snug text-ink hover:text-terracotta">
+              {review.recipeTitle}
+              <span className="ml-1 font-sans text-sm font-normal text-muted" aria-hidden>
+                ↗
+              </span>
+            </span>
+            <span className="sr-only"> (opens in a new tab)</span>
+          </Link>
+        ) : (
+          <span className="min-w-0 flex-1 break-words font-serif text-lg leading-snug text-ink">
             {review.recipeTitle}
           </span>
-        </Link>
+        )}
         <RatingCell rating={review.rating} />
       </div>
-      <Link href={href} tabIndex={-1} aria-hidden className="mt-1 block">
-        <p className="line-clamp-2 text-sm leading-5 text-muted">{review.body}</p>
-      </Link>
+      <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted">{review.body}</p>
       <p className="mt-2 text-sm text-ink">
         <span className="font-semibold">{review.authorName}</span>
         <span className="text-muted"> · {formatAdminDate(review.createdAt)}</span>
       </p>
       <div className="mt-2">
-        <ResponseStatus replies={review.replies} />
+        <Link
+          href={replyHref}
+          className={`inline-flex min-h-11 items-center ${adminFocusRing} hover:opacity-90`}
+          aria-label={
+            needs
+              ? `Reply to ${review.authorName}'s review of ${review.recipeTitle}`
+              : `Add another reply to ${review.authorName}'s review of ${review.recipeTitle}`
+          }
+        >
+          <ResponseStatus replies={review.replies} />
+        </Link>
       </div>
     </li>
   );

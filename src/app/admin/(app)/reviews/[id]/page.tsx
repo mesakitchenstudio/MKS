@@ -22,14 +22,16 @@ export default async function AdminReviewDetailPage({
     replied?: string;
     replyRemoved?: string;
     error?: string;
+    reply?: string;
   }>;
 }) {
   const admin = await requireAccess("content");
   const canOpenMembers = canAccess(admin.role, "members");
   const { id } = await params;
-  const { replied, replyRemoved, error } = await searchParams;
+  const { replied, replyRemoved, error, reply } = await searchParams;
   const review = await getReviewForAdmin(id);
   if (!review) notFound();
+  const openReplyComposer = reply === "1";
 
   return (
     <div>
@@ -60,7 +62,11 @@ export default async function AdminReviewDetailPage({
       ) : null}
 
       <div className="mt-5">
-        <AdminReviewDetail review={review} canOpenMembers={canOpenMembers} />
+        <AdminReviewDetail
+          review={review}
+          canOpenMembers={canOpenMembers}
+          openReplyComposer={openReplyComposer}
+        />
       </div>
     </div>
   );

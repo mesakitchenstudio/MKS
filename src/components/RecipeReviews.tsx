@@ -250,7 +250,10 @@ function ReviewItem({
   onDataChange: (data: RecipeReviewData) => void;
 }) {
   return (
-    <li className="border-b border-line/70 py-8 last:border-b-0 md:py-10">
+    <li
+      id={`review-${review.id}`}
+      className="scroll-mt-28 border-b border-line/70 py-8 last:border-b-0 md:py-10"
+    >
       {/* Flat editorial metadata — no card chrome */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -336,6 +339,7 @@ export function RecipeReviews({
   const [showAllComments, setShowAllComments] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const pendingScrollReviewIdRef = useRef<string | null>(null);
   const threadSigRef = useRef(recipeReviewThreadSignature(data));
 
   const knownIdentity = Boolean(
@@ -372,9 +376,42 @@ export function RecipeReviews({
     setFormOpen(false);
     setSubmitted(false);
     setError("");
+    pendingScrollReviewIdRef.current = null;
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps -- SSR snapshot for this slug
   }, [slug]);
+
+  useEffect(() => {
+    function tryScrollToPendingReview() {
+      const reviewId = pendingScrollReviewIdRef.current;
+      if (!reviewId) return;
+      const el = document.getElementById(`review-${reviewId}`);
+      if (!el) return;
+      pendingScrollReviewIdRef.current = null;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function resolveReviewHash() {
+      if (typeof window === "undefined") return;
+      const match = /^#review-(.+)$/.exec(window.location.hash);
+      if (!match) return;
+      const reviewId = decodeURIComponent(match[1]);
+      const reviewIndex = data.reviews.findIndex((review) => review.id === reviewId);
+      if (reviewIndex < 0) return;
+      pendingScrollReviewIdRef.current = reviewId;
+      if (reviewIndex >= VISIBLE_COMMENTS && !showAllComments) {
+        setShowAllComments(true);
+        return;
+      }
+      queueMicrotask(() => {
+        requestAnimationFrame(tryScrollToPendingReview);
+      });
+    }
+
+    resolveReviewHash();
+    window.addEventListener("hashchange", resolveReviewHash);
+    return () => window.removeEventListener("hashchange", resolveReviewHash);
+  }, [data.reviews, slug, showAllComments]);
 
   useEffect(() => {
     let cancelled = false;
