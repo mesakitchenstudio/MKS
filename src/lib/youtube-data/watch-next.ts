@@ -1,6 +1,8 @@
 import "server-only";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
+import { readEditorialDishName } from "@/lib/recipe-editor-dish-name";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { youtubeThumbnailUrl, youtubeVideoId, youtubeWatchUrl } from "@/lib/youtube";
 import { classifyYouTubeVideoFormat } from "@/lib/youtube-data/video-format";
@@ -85,7 +87,10 @@ export async function getWatchNextRecommendation(input: {
     if (linkedByVideo.has(videoId)) continue;
     linkedByVideo.set(videoId, {
       recipeSlug: row.slug,
-      recipeTitle: row.title,
+      recipeTitle: resolveRecipeCardTitle({
+        title: row.title,
+        dishName: readEditorialDishName(values),
+      }),
       categories: row.categories.map((c) => c.category.slug),
     });
   }

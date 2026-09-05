@@ -9,7 +9,11 @@ import { ShareButtons } from "@/components/ShareButtons";
 import { RecipeAtAGlanceFacts } from "@/components/RecipeAtAGlanceFacts";
 import { RecipePageHeroActions } from "@/components/RecipePageHeroActions";
 import { recipeContentShellClass } from "@/components/RecipeContentShell";
-import { resolveRecipeDishIdentity } from "@/lib/recipe-dish-identity";
+import {
+  resolvePublicRecipeH1,
+  resolveRecipeSecondaryDishLine,
+} from "@/lib/recipe-dish-identity";
+import { recipePrimaryCategoryDisplayLabel } from "@/lib/recipe-primary-taxonomy";
 import { heroSeriesLinks } from "@/lib/recipe-hero-series";
 import type { Recipe } from "@/data/types";
 import type { ExtraField } from "@/lib/recipe-map";
@@ -27,7 +31,8 @@ export function RecipePageHero({
   reviewData: RecipeReviewData;
   videoDuration?: string;
 }) {
-  const dishIdentity = resolveRecipeDishIdentity({
+  const publicH1 = resolvePublicRecipeH1(recipe);
+  const secondaryDishLine = resolveRecipeSecondaryDishLine({
     title: recipe.title,
     course: recipe.course,
     dishName: recipe.dishName,
@@ -36,6 +41,7 @@ export function RecipePageHero({
       .map((link) => link.itemTitle)
       .filter((value): value is string => Boolean(value?.trim())),
   });
+  const taxonomyLabel = recipePrimaryCategoryDisplayLabel(recipe);
   const visibleSeries = heroSeriesLinks(
     seriesLinks,
     recipe.course,
@@ -57,21 +63,23 @@ export function RecipePageHero({
           ) : null}
 
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-            {recipe.course}
+            {taxonomyLabel}
           </p>
 
-          {dishIdentity ? (
+          {secondaryDishLine ? (
             <p className="mt-1 font-serif text-xl leading-snug text-ink/90 md:text-[1.35rem]">
-              {dishIdentity}
+              {secondaryDishLine}
             </p>
           ) : null}
 
           <h1
             className={`font-serif leading-tight text-ink md:text-[2rem] lg:text-[2.125rem] xl:text-[2.375rem] ${
-              dishIdentity ? "mt-1 text-[1.65rem] md:text-[1.85rem] lg:text-[2rem] xl:text-[2.15rem]" : "mt-1 text-3xl"
+              secondaryDishLine
+                ? "mt-1 text-[1.65rem] md:text-[1.85rem] lg:text-[2rem] xl:text-[2.15rem]"
+                : "mt-1 text-3xl"
             }`}
           >
-            {recipe.title}
+            {publicH1}
           </h1>
 
           {recipe.excerpt ? (

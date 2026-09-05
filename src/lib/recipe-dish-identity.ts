@@ -96,3 +96,25 @@ export function resolveRecipeCardTitle(
   if (dishName && isTrustworthyDishLabel(dishName)) return dishName;
   return title;
 }
+
+/** Public recipe-detail H1 — same trust rules as catalog cards. */
+export function resolvePublicRecipeH1(
+  recipe: Pick<Recipe, "title" | "dishName">,
+): string {
+  return resolveRecipeCardTitle(recipe);
+}
+
+/**
+ * Optional secondary dish line under the course eyebrow.
+ * Omitted when it would duplicate the public H1 (e.g. H1 already is dishName).
+ */
+export function resolveRecipeSecondaryDishLine(
+  recipe: Pick<Recipe, "title" | "course" | "dishName" | "typeName"> & {
+    seriesItemTitles?: string[];
+  },
+): string | null {
+  const h1 = resolvePublicRecipeH1(recipe);
+  const identity = resolveRecipeDishIdentity(recipe);
+  if (!identity || sameLabel(identity, h1)) return null;
+  return identity;
+}

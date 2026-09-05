@@ -5,6 +5,7 @@ import type {
   RecipeYoutubeTimestamp,
   ResolvedRecipeYoutube,
 } from "@/data/youtube-types";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
 import {
   youtubeThumbnailUrl,
   youtubeVideoId,
@@ -132,7 +133,9 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
 }
 
 /** Merge legacy flat URLs with optional rich `youtube` metadata. */
-export function resolveRecipeYoutube(recipe: Pick<Recipe, "slug" | "title" | "youtubeUrl" | "youtube">): ResolvedRecipeYoutube | null {
+export function resolveRecipeYoutube(
+  recipe: Pick<Recipe, "slug" | "title" | "youtubeUrl" | "youtube" | "dishName">,
+): ResolvedRecipeYoutube | null {
   const blob = recipe.youtube;
   const legacyUrl = recipe.youtubeUrl?.trim() || "";
   const url =
@@ -145,10 +148,14 @@ export function resolveRecipeYoutube(recipe: Pick<Recipe, "slug" | "title" | "yo
 
   const watchUrl = youtubeWatchUrl(videoId) || url;
   const title = blob?.title?.trim() || `How to Make ${recipe.title}`;
+  const dishLabel = resolveRecipeCardTitle({
+    title: recipe.title,
+    dishName: recipe.dishName,
+  });
   const hook =
     blob?.hook?.trim() ||
     blob?.sectionDescription?.trim() ||
-    `See exactly how we make ${recipe.title.toLowerCase()} in the studio — the same step-by-step flow we use when testing this recipe.`;
+    `See exactly how we make ${dishLabel} in the studio — the same step-by-step flow we use when testing this recipe.`;
   const videoCtaDescription =
     blob?.videoCtaDescription?.trim() ||
     blob?.ctaDescription?.trim() ||

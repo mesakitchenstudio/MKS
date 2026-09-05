@@ -6,7 +6,7 @@ import type { RecipeYoutubeTimestamp, ResolvedRecipeYoutube } from "@/data/youtu
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
 import { recipeContentShellClass } from "@/components/RecipeContentShell";
 import { scaleAmount } from "@/lib/culinary-format";
-import { nutritionHasPublicContent } from "@/lib/field-content";
+import { formatPublicNutritionSummary } from "@/lib/field-content";
 import { planCookingContext } from "@/lib/recipe-cooking-context";
 import {
   recipeInstructionStages,
@@ -273,7 +273,7 @@ function RecipeCookingWorkspaceInner({
   }, [hasVideoCtx, propChapters.length, youtube?.videoId]);
 
   const total = totalMinutes(recipe);
-  const showNutrition = nutritionHasPublicContent(recipe.nutrition);
+  const nutritionSummary = formatPublicNutritionSummary(recipe.nutrition);
   const utensils = recipe.utensils?.filter(Boolean) ?? [];
   const multiStage = stages.length > 1;
   const allExpanded = multiStage && stages.every((stage) => openStages[stage.id] === true);
@@ -421,13 +421,10 @@ function RecipeCookingWorkspaceInner({
           </div>
         </div>
 
-        {showNutrition ? (
+        {nutritionSummary ? (
           <div className="mt-6 border-t border-line/80 pt-4 text-sm text-muted">
             <p className="font-semibold text-ink">Nutrition (estimate)</p>
-            <p className="mt-1">
-              {recipe.nutrition.calories} kcal · {recipe.nutrition.carbs}g carbs ·{" "}
-              {recipe.nutrition.protein}g protein · {recipe.nutrition.fat}g fat
-            </p>
+            <p className="mt-1">{nutritionSummary}</p>
           </div>
         ) : null}
       </div>

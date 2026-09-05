@@ -113,10 +113,16 @@ describe("Recipe editor dish name", () => {
     );
   });
 
-  it("keeps recipe detail H1 and metadata on canonical title", () => {
+  it("keeps recipe detail metadata on canonical title while H1 uses dish identity", () => {
     const page = read("app/recipes/[slug]/page.tsx");
     assert.match(page, /title: recipe\.title/);
-    assert.match(page, /title=\{recipe\.title\}/);
-    assert.doesNotMatch(page, /resolveRecipeCardTitle/);
+    assert.match(page, /openGraph:[\s\S]*title: `\$\{recipe\.title\}/);
+    assert.doesNotMatch(page, /resolveRecipeCardTitle|resolvePublicRecipeH1/);
+
+    const hero = read("components/RecipePageHero.tsx");
+    assert.match(hero, /resolvePublicRecipeH1/);
+    assert.match(hero, /resolveRecipeSecondaryDishLine/);
+    assert.match(hero, /recipePrimaryCategoryDisplayLabel/);
+    assert.doesNotMatch(hero, /\{recipe\.course\}/);
   });
 });

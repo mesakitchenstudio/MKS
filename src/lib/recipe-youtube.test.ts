@@ -78,6 +78,41 @@ describe("recipe-youtube", () => {
     assert.deepEqual(resolved?.relatedVideos, []);
   });
 
+  it("fallback watch hook uses dishName while preserving raw video title", () => {
+    const resolved = resolveRecipeYoutube({
+      slug: "crispy-rice",
+      title: "Golden Crispy Rice with Eggs: You Won't Believe How Easy This Is!",
+      dishName: "Golden Crispy Rice with Eggs",
+      youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      youtube: {
+        title: "Golden Crispy Rice with Eggs: You Won't Believe How Easy This Is!",
+      },
+    });
+    assert.equal(
+      resolved?.title,
+      "Golden Crispy Rice with Eggs: You Won't Believe How Easy This Is!",
+    );
+    assert.equal(
+      resolved?.hook,
+      "See exactly how we make Golden Crispy Rice with Eggs in the studio — the same step-by-step flow we use when testing this recipe.",
+    );
+    assert.doesNotMatch(resolved?.hook || "", /won't believe/i);
+  });
+
+  it("preserves an explicitly stored watch hook", () => {
+    const resolved = resolveRecipeYoutube({
+      slug: "crispy-rice",
+      title: "Golden Crispy Rice with Eggs: You Won't Believe How Easy This Is!",
+      dishName: "Golden Crispy Rice with Eggs",
+      youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      youtube: {
+        title: "Golden Crispy Rice with Eggs: You Won't Believe How Easy This Is!",
+        hook: "Manual studio hook stays intact.",
+      },
+    });
+    assert.equal(resolved?.hook, "Manual studio hook stays intact.");
+  });
+
   it("applyDescriptionChaptersToResolvedYoutube fills missing timestamps", () => {
     const base = resolveRecipeYoutube({
       slug: "soft-stovetop-flatbread",

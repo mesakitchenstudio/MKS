@@ -112,3 +112,64 @@ export function nutritionHasPublicContent(value: unknown): boolean {
     isMeaningfulNutritionNumber(row[key]),
   );
 }
+
+/**
+ * Public-facing nutrition fields. Zeros are treated as unknown/unset (the data
+ * model cannot distinguish measured zero from defaults), so they are omitted.
+ */
+export type KnownPublicNutrition = {
+  calories?: number;
+  carbs?: number;
+  protein?: number;
+  fat?: number;
+};
+
+const PUBLIC_NUTRITION_KEYS = ["calories", "carbs", "protein", "fat"] as const;
+
+/** Known calorie/macro values only — never fabricates or treats 0 as measured. */
+export function knownPublicNutrition(value: unknown): KnownPublicNutrition {
+  const row = (value || {}) as Partial<Nutrition> & Record<string, unknown>;
+  const known: KnownPublicNutrition = {};
+  for (const key of PUBLIC_NUTRITION_KEYS) {
+    if (isMeaningfulNutritionNumber(row[key])) {
+      known[key] = row[key] as number;
+    }
+  }
+  return known;
+}
+
+/** True when the public Nutrition section / Recipe schema should render. */
+export function hasKnownPublicNutrition(value: unknown): boolean {
+  return Object.keys(knownPublicNutrition(value)).length > 0;
+}
+
+/**
+ * Human-readable public line, e.g. `330 kcal · 12g protein`.
+ * Returns null when nothing meaningful is known.
+ */
+export function formatPublicNutritionSummary(value: unknown): string | null {
+  const known = knownPublicNutrition(value);
+  const parts: string[] = [];
+  if (known.calories != null) parts.push(`${known.calories} kcal`);
+  if (known.carbs != null) parts.push(`${known.carbs}g carbs`);
+  if (known.protein != null) parts.push(`${known.protein}g protein`);
+  if (known.fat != null) parts.push(`${known.fat}g fat`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/**
+ * Recipe JSON-LD NutritionInformation fields for known values only.
+ * Keys use schema.org property names. Returns null when nothing known.
+ */
+export function publicNutritionJsonLdFields(
+  value: unknown,
+): Record<string, string> | null {
+  const known = knownPublicNutrition(value);
+  if (!Object.keys(known).length) return null;
+  const fields: Record<string, string> = {};
+  if (known.calories != null) fields.calories = `${known.calories} calories`;
+  if (known.carbs != null) fields.carbohydrateContent = `${known.carbs} grams`;
+  if (known.protein != null) fields.proteinContent = `${known.protein} grams`;
+  if (known.fat != null) fields.fatContent = `${known.fat} grams`;
+  return fields;
+}

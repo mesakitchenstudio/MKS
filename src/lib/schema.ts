@@ -1,6 +1,6 @@
 import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
-import { nutritionHasPublicContent } from "@/lib/field-content";
+import { publicNutritionJsonLdFields } from "@/lib/field-content";
 import { countedHeatMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
 import type { RecipeReviewStats } from "@/lib/recipe-reviews";
 import { isSchemaVideoId } from "@/lib/recipe-youtube";
@@ -61,6 +61,8 @@ export function siteGraphJsonLd() {
 }
 
 export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
+  // DEFERRED SEO/schema identity: Recipe `name` stays on canonical `recipe.title`
+  // even when the public H1 uses editorial dishName. Revisit with meta/OG policy.
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Recipe",
@@ -109,13 +111,11 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
     ),
   };
 
-  if (nutritionHasPublicContent(recipe.nutrition)) {
+  const nutritionFields = publicNutritionJsonLdFields(recipe.nutrition);
+  if (nutritionFields) {
     data.nutrition = {
       "@type": "NutritionInformation",
-      calories: `${recipe.nutrition.calories} calories`,
-      carbohydrateContent: `${recipe.nutrition.carbs} grams`,
-      proteinContent: `${recipe.nutrition.protein} grams`,
-      fatContent: `${recipe.nutrition.fat} grams`,
+      ...nutritionFields,
     };
   }
 

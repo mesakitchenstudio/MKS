@@ -1,6 +1,8 @@
 import "server-only";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
+import { readEditorialDishName } from "@/lib/recipe-editor-dish-name";
 import { youtubePlaylistUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube";
 import { recipeMainVideoId } from "@/lib/youtube-data/matching";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
@@ -382,6 +384,21 @@ export async function getSeriesWatchNextForRecipe(input: {
         video.embeddable !== false &&
         (!video.privacyStatus || video.privacyStatus.toLowerCase() === "public")
       ) {
+        let recipeTitle: string | undefined;
+        if (next.recipeSlug) {
+          const linked = await db.recipe.findFirst({
+            where: { slug: next.recipeSlug, status: "published" },
+            select: { title: true, values: true },
+          });
+          if (linked) {
+            recipeTitle = resolveRecipeCardTitle({
+              title: linked.title,
+              dishName: readEditorialDishName(parseValues(linked.values)),
+            });
+          } else {
+            recipeTitle = next.title;
+          }
+        }
         return {
           videoId: video.videoId,
           title: next.title || video.title,
@@ -389,7 +406,7 @@ export async function getSeriesWatchNextForRecipe(input: {
           durationDisplay: video.durationDisplay,
           watchUrl: youtubeWatchUrl(video.videoId) || `https://www.youtube.com/watch?v=${video.videoId}`,
           recipeSlug: next.recipeSlug || undefined,
-          recipeTitle: next.recipeSlug ? next.title : undefined,
+          recipeTitle,
           seriesSlug: link.slug,
           seriesTitle: link.title,
         };
@@ -432,7 +449,10 @@ export async function getSeriesWatchNextForRecipe(input: {
           durationDisplay: video.durationDisplay,
           watchUrl: youtubeWatchUrl(video.videoId) || `https://www.youtube.com/watch?v=${video.videoId}`,
           recipeSlug: next.recipeSlug,
-          recipeTitle: recipe.title,
+          recipeTitle: resolveRecipeCardTitle({
+            title: recipe.title,
+            dishName: readEditorialDishName(values),
+          }),
           seriesSlug: link.slug,
           seriesTitle: link.title,
         };

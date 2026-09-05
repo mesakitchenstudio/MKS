@@ -3,8 +3,12 @@ import { test } from "node:test";
 import {
   fieldValueHasContent,
   formatPublicExtraFieldValue,
+  formatPublicNutritionSummary,
+  hasKnownPublicNutrition,
   isHoursDurationField,
+  knownPublicNutrition,
   nutritionHasPublicContent,
+  publicNutritionJsonLdFields,
 } from "./field-content";
 
 test("number/minutes treat 0 as not provided, non-zero as content", () => {
@@ -82,4 +86,46 @@ test("nutrition hides all-default zeros and shows any meaningful value", () => {
   assert.equal(nutritionHasPublicContent({ calories: 186, carbs: 0, protein: 0, fat: 0 }), true);
   assert.equal(nutritionHasPublicContent({ calories: 22, carbs: 4, protein: 1, fat: 0 }), true);
   assert.equal(nutritionHasPublicContent({ calories: 0, carbs: 0, protein: 0, fat: 0, fiber: 3 }), true);
+});
+
+test("public nutrition omits unknown zeros and never fabricates macros", () => {
+  assert.deepEqual(knownPublicNutrition({ calories: 0, carbs: 0, protein: 0, fat: 0 }), {});
+  assert.equal(hasKnownPublicNutrition({ calories: 0, carbs: 0, protein: 0, fat: 0 }), false);
+  assert.equal(formatPublicNutritionSummary({ calories: 0, carbs: 0, protein: 0, fat: 0 }), null);
+  assert.equal(publicNutritionJsonLdFields({ calories: 0, carbs: 0, protein: 0, fat: 0 }), null);
+
+  assert.equal(
+    formatPublicNutritionSummary({ calories: 330, carbs: 0, protein: 0, fat: 0 }),
+    "330 kcal",
+  );
+  assert.doesNotMatch(
+    formatPublicNutritionSummary({ calories: 330, carbs: 0, protein: 0, fat: 0 }) || "",
+    /0g/,
+  );
+
+  assert.equal(
+    formatPublicNutritionSummary({ calories: 330, carbs: 0, protein: 12, fat: 0 }),
+    "330 kcal · 12g protein",
+  );
+
+  assert.deepEqual(knownPublicNutrition({ calories: 330, carbs: 0, protein: 12, fat: 0 }), {
+    calories: 330,
+    protein: 12,
+  });
+
+  assert.deepEqual(publicNutritionJsonLdFields({ calories: 330, carbs: 0, protein: 0, fat: 0 }), {
+    calories: "330 calories",
+  });
+  assert.deepEqual(
+    publicNutritionJsonLdFields({ calories: 330, carbs: 0, protein: 12, fat: 0 }),
+    {
+      calories: "330 calories",
+      proteinContent: "12 grams",
+    },
+  );
+
+  // Fiber-only still counts for admin emptiness, but public UI/schema stay hidden.
+  assert.equal(nutritionHasPublicContent({ calories: 0, carbs: 0, protein: 0, fat: 0, fiber: 3 }), true);
+  assert.equal(hasKnownPublicNutrition({ calories: 0, carbs: 0, protein: 0, fat: 0, fiber: 3 }), false);
+  assert.equal(formatPublicNutritionSummary({ calories: 0, carbs: 0, protein: 0, fat: 0, fiber: 3 }), null);
 });

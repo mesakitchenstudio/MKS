@@ -3,8 +3,10 @@ import { test } from "node:test";
 import {
   isTrustworthyDishLabel,
   looksLikeTopicTitle,
+  resolvePublicRecipeH1,
   resolveRecipeCardTitle,
   resolveRecipeDishIdentity,
+  resolveRecipeSecondaryDishLine,
 } from "./recipe-dish-identity";
 
 test("looksLikeTopicTitle detects how-to headlines", () => {
@@ -104,5 +106,46 @@ test("resolveRecipeCardTitle rejects untrustworthy dishName fallbacks", () => {
       dishName: "Four golden baguettes resting in a cloth-lined basket",
     }),
     "Classic French Baguettes",
+  );
+});
+
+test("resolvePublicRecipeH1 uses dishName with title fallback", () => {
+  assert.equal(
+    resolvePublicRecipeH1({
+      title: "Golden Crispy Rice with Eggs: You Won't Believe How Easy This Is!",
+      dishName: "Golden Crispy Rice with Eggs",
+    }),
+    "Golden Crispy Rice with Eggs",
+  );
+  assert.equal(
+    resolvePublicRecipeH1({
+      title: "Herb Focaccia",
+      dishName: "",
+    }),
+    "Herb Focaccia",
+  );
+});
+
+test("resolveRecipeSecondaryDishLine omits when H1 is already the dish name", () => {
+  assert.equal(
+    resolveRecipeSecondaryDishLine({
+      title: "Golden Crispy Rice with Eggs: You Won't Believe How Easy This Is!",
+      course: "Main",
+      dishName: "Golden Crispy Rice with Eggs",
+      typeName: "Main",
+    }),
+    null,
+  );
+});
+
+test("resolveRecipeSecondaryDishLine keeps useful identity when H1 is topic title", () => {
+  assert.equal(
+    resolveRecipeSecondaryDishLine({
+      title: "Why Your Homemade Bread Isn't Crusty (And How to Fix It)",
+      course: "Breads",
+      typeName: "Bread",
+      seriesItemTitles: ["French Baguettes"],
+    }),
+    "French Baguettes",
   );
 });
