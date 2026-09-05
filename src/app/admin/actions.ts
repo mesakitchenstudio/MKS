@@ -907,8 +907,17 @@ export async function replyToReviewAction(formData: FormData) {
   const admin = await requireAccess("content");
   const reviewId = String(formData.get("reviewId") || "").trim();
   const body = String(formData.get("body") || "");
+  const pageRaw = String(formData.get("page") || "1").trim();
+  const page = Number.parseInt(pageRaw, 10);
+  const returnToIndex = String(formData.get("returnTo") || "").trim() === "index";
 
   if (!reviewId) redirect("/admin/reviews?error=missing");
+
+  function indexRedirect(extra: Record<string, string>) {
+    const params = new URLSearchParams(extra);
+    if (Number.isFinite(page) && page > 1) params.set("page", String(page));
+    redirect(`/admin/reviews?${params.toString()}`);
+  }
 
   try {
     const { submitAdminRecipeReviewReply } = await import("@/lib/recipe-reviews");
@@ -921,10 +930,14 @@ export async function replyToReviewAction(formData: FormData) {
         role: admin.role,
       },
     });
-    if (!slug) redirect(`/admin/reviews/${reviewId}?error=missing`);
+    if (!slug) {
+      if (returnToIndex) indexRedirect({ error: "missing" });
+      redirect(`/admin/reviews/${reviewId}?error=missing`);
+    }
     revalidatePath(`/recipes/${slug}`);
     revalidatePath("/admin/reviews");
     revalidatePath(`/admin/reviews/${reviewId}`);
+    if (returnToIndex) indexRedirect({ replied: "1" });
     redirect(`/admin/reviews/${reviewId}?replied=1`);
   } catch (error) {
     if (
@@ -937,6 +950,7 @@ export async function replyToReviewAction(formData: FormData) {
       throw error;
     }
     console.error("Could not post admin review reply", error);
+    if (returnToIndex) indexRedirect({ error: "reply" });
     redirect(`/admin/reviews/${reviewId}?error=reply`);
   }
 }

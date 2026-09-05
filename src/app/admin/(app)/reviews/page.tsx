@@ -1,6 +1,7 @@
 import {
   AdminFlashStatus,
   REVIEW_REMOVED_PARAMS,
+  REVIEW_REPLIED_PARAMS,
 } from "@/lib/admin-transient-feedback";
 import { AdminReviewsIndex } from "@/components/admin/AdminReviewsIndex";
 import { requireAccess } from "@/lib/auth";
@@ -13,12 +14,13 @@ export default async function AdminReviewsPage({
 }: {
   searchParams: Promise<{
     removed?: string;
+    replied?: string;
     error?: string;
     page?: string;
   }>;
 }) {
   await requireAccess("content");
-  const { removed, error, page: pageParam } = await searchParams;
+  const { removed, replied, error, page: pageParam } = await searchParams;
   const requestedPage = Number.parseInt(pageParam || "1", 10);
   const { reviews, page, totalPages, total } = await listReviewsForAdmin({
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
@@ -33,10 +35,17 @@ export default async function AdminReviewsPage({
         Read and respond to member reviews on Mesa recipes.
       </p>
 
+      <AdminFlashStatus active={Boolean(replied)} clearParams={REVIEW_REPLIED_PARAMS}>
+        Reply posted.
+      </AdminFlashStatus>
       <AdminFlashStatus active={Boolean(removed)} clearParams={REVIEW_REMOVED_PARAMS}>
         Review removed.
       </AdminFlashStatus>
-      {error ? (
+      {error === "reply" ? (
+        <p className="mt-4 text-sm text-terracotta" role="alert">
+          Could not post that reply. Check the text and try again.
+        </p>
+      ) : error ? (
         <p className="mt-4 text-sm text-terracotta" role="alert">
           Could not remove that item. It may already be gone.
         </p>

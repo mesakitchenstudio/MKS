@@ -15,11 +15,11 @@ import {
 import {
   adminReviewPublicAnchorHref,
   adminReviewRecipeHref,
-  adminReviewReplyWorkflowHref,
   canManageRecipeReviewReplies,
   canReplyToRecipeReview,
   countStaffReviewReplies,
   formatAdminReplyAuthorDisplay,
+  formatAdminReviewerType,
   formatReviewRating,
   formatReviewRatingAccessible,
   isRecipeReviewAuthor,
@@ -134,7 +134,7 @@ describe("admin review helpers", () => {
     );
   });
 
-  it("builds public review anchors and admin reply workflow hrefs", () => {
+  it("builds public review anchors and Member/Visitor type labels", () => {
     assert.equal(
       adminReviewPublicAnchorHref({
         recipeSlug: "soft-stovetop-flatbread",
@@ -151,7 +151,9 @@ describe("admin review helpers", () => {
       }),
       null,
     );
-    assert.equal(adminReviewReplyWorkflowHref("rev_abc"), "/admin/reviews/rev_abc?reply=1");
+    assert.equal(formatAdminReviewerType("user_1"), "Member");
+    assert.equal(formatAdminReviewerType(null), "Visitor");
+    assert.equal(formatAdminReviewerType(undefined), "Visitor");
   });
 });
 
@@ -166,21 +168,26 @@ describe("admin Reviews index contracts", () => {
     assert.doesNotMatch(reviewsPage, /AdminReviewsLiveFeed|AdminReviewDetail/);
   });
 
-  it("renders a compact ledger with split public and reply workflows", () => {
+  it("renders a compact ledger with public title links and inline reply expansion", () => {
     assert.match(reviewsIndex, /adminReviewPublicAnchorHref/);
-    assert.match(reviewsIndex, /adminReviewReplyWorkflowHref/);
+    assert.match(reviewsIndex, /formatAdminReviewerType/);
+    assert.match(reviewsIndex, /variant="inline"/);
+    assert.match(reviewsIndex, /expandedReviewId/);
+    assert.match(reviewsIndex, /ReviewExcerptButton/);
+    assert.match(reviewsIndex, /AdminReviewReplyControls/);
     assert.match(reviewsIndex, /View \$\{review\.authorName\}'s review of \$\{review\.recipeTitle\} on the public recipe page/);
-    assert.match(reviewsIndex, /Reply to \$\{review\.authorName\}'s review of \$\{review\.recipeTitle\}/);
     assert.match(reviewsIndex, /line-clamp-2/);
     assert.match(reviewsIndex, /scope="col"/);
     assert.match(reviewsIndex, />\s*Review\s*</);
     assert.match(reviewsIndex, />\s*Reviewer\s*</);
+    assert.match(reviewsIndex, />\s*Type\s*</);
     assert.match(reviewsIndex, />\s*Rating\s*</);
     assert.match(reviewsIndex, />\s*Response\s*</);
     assert.match(reviewsIndex, />\s*Date\s*</);
     assert.match(reviewsIndex, /hidden min-w-0 xl:block/);
     assert.match(reviewsIndex, /xl:hidden/);
-    assert.doesNotMatch(reviewsIndex, /AdminReviewReplyControls|ReviewRepliesSection|RemoveReviewButton|RemoveReplyButton/);
+    assert.doesNotMatch(reviewsIndex, /adminReviewReplyWorkflowHref/);
+    assert.doesNotMatch(reviewsIndex, /ReviewRepliesSection|RemoveReviewButton|RemoveReplyButton/);
     assert.doesNotMatch(reviewsIndex, /ReplyAvatar/);
     assert.doesNotMatch(reviewsIndex, /max-w-\[42rem\]/);
   });
@@ -226,10 +233,12 @@ describe("admin Reviews index contracts", () => {
     assert.doesNotMatch(reviewsPage, /canAccess\(admin\.role, "members"\)/);
   });
 
-  it("shows Review removed flash on the index after delete", () => {
+  it("shows Review removed and Reply posted flashes on the index", () => {
     assert.match(reviewsPage, /Review removed\./);
+    assert.match(reviewsPage, /Reply posted\./);
     assert.match(reviewsPage, /REVIEW_REMOVED_PARAMS/);
-    assert.doesNotMatch(reviewsPage, /Reply removed\.|Reply posted\./);
+    assert.match(reviewsPage, /REVIEW_REPLIED_PARAMS/);
+    assert.doesNotMatch(reviewsPage, /Reply removed\./);
     assert.match(actions, /deleteReviewAction[\s\S]*?redirect\("\/admin\/reviews\?removed=1"\)/);
   });
 });
@@ -268,13 +277,14 @@ describe("admin Reviews detail contracts", () => {
 
   it("uses Reply vs Add another reply from staff reply count only", () => {
     assert.match(replyControls, /staffReplyCount > 0 \? "Add another reply" : "Reply"/);
-    assert.match(replyControls, /aria-expanded=\{open\}/);
-    assert.match(replyControls, /aria-controls=\{panelId\}/);
+    assert.match(replyControls, /variant === "inline"/);
+    assert.match(replyControls, /name="page"/);
+    assert.match(replyControls, /name="returnTo"/);
+    assert.match(replyControls, /value="index"/);
     assert.match(replyControls, /minLength=\{3\}/);
     assert.match(replyControls, /maxLength=\{5000\}/);
     assert.match(replyControls, /Post reply/);
     assert.match(replyControls, /triggerRef\.current\?\.focus/);
-    assert.doesNotMatch(replyControls, /name="page"/);
   });
 
   it("keeps remove review/reply confirmations and contextual labels", () => {
@@ -292,15 +302,16 @@ describe("admin Reviews detail contracts", () => {
     assert.doesNotMatch(removeReply, /rounded-full/);
   });
 
-  it("keeps reply flash on detail and redirects reply delete back to detail", () => {
+  it("keeps reply delete on detail; index inline replies return to the ledger", () => {
     assert.match(reviewDetailPage, /Reply posted\./);
     assert.match(reviewDetailPage, /Reply removed\./);
     assert.match(reviewDetailPage, /REVIEW_REPLY_REMOVED_PARAMS/);
-    assert.match(reviewDetailPage, /REVIEW_REPLIED_PARAMS/);
     assert.match(
       actions,
       /deleteReviewReplyAction[\s\S]*?redirect\(`\/admin\/reviews\/\$\{result\.reviewId\}\?replyRemoved=1`\)/,
     );
+    assert.match(actions, /returnToIndex/);
+    assert.match(actions, /indexRedirect\(\{ replied: "1" \}\)/);
     assert.match(
       actions,
       /replyToReviewAction[\s\S]*?redirect\(`\/admin\/reviews\/\$\{reviewId\}\?replied=1`\)/,

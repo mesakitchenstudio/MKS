@@ -529,6 +529,7 @@ export function adminReviewRecipeHref(input: {
 /**
  * Public recipe URL that scrolls to a specific review.
  * Only for published recipes — drafts are not on the public site.
+ * Uses the stored recipe slug, never a title-derived slug.
  */
 export function adminReviewPublicAnchorHref(input: {
   recipeSlug: string;
@@ -541,9 +542,9 @@ export function adminReviewPublicAnchorHref(input: {
   return `/recipes/${encodeURIComponent(slug)}#review-${encodeURIComponent(reviewId)}`;
 }
 
-/** Admin detail with reply composer opened. */
-export function adminReviewReplyWorkflowHref(reviewId: string) {
-  return `/admin/reviews/${encodeURIComponent(reviewId.trim())}?reply=1`;
+/** Member when linked to a User row; otherwise Visitor (guest review). */
+export function formatAdminReviewerType(userId: string | null | undefined) {
+  return userId ? "Member" : "Visitor";
 }
 
 export async function listReviewsForAdmin(options?: {

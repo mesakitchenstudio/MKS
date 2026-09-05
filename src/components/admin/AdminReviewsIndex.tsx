@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { AdminReviewReplyControls } from "@/components/admin/AdminReviewReplyControls";
 import {
   adminFocusRing,
   adminTableHeadClass,
@@ -14,8 +15,8 @@ import {
 } from "@/lib/recipe-reviews-client";
 import {
   adminReviewPublicAnchorHref,
-  adminReviewReplyWorkflowHref,
   countStaffReviewReplies,
+  formatAdminReviewerType,
   formatReviewRating,
   formatReviewRatingAccessible,
   type AdminReviewListItem,
@@ -59,17 +60,13 @@ function RatingCell({ rating }: { rating: number }) {
   );
 }
 
-function ReviewTitleCell({ review }: { review: LiveReview }) {
+function RecipeNameLink({ review }: { review: LiveReview }) {
   const publicHref = adminReviewPublicAnchorHref({
     recipeSlug: review.recipeSlug,
     recipeStatus: review.recipeStatus,
     reviewId: review.id,
   });
-  const titleClass =
-    "block break-words font-serif text-base leading-snug text-ink xl:text-base";
-  const preview = (
-    <span className="mt-1 line-clamp-2 block text-sm leading-5 text-muted">{review.body}</span>
-  );
+  const titleClass = "break-words font-serif text-base leading-snug text-ink";
 
   if (publicHref) {
     return (
@@ -77,127 +74,165 @@ function ReviewTitleCell({ review }: { review: LiveReview }) {
         href={publicHref}
         target="_blank"
         rel="noreferrer"
-        className={`block min-w-0 ${adminFocusRing}`}
+        className={`${adminFocusRing} ${titleClass} hover:text-terracotta`}
         aria-label={`View ${review.authorName}'s review of ${review.recipeTitle} on the public recipe page`}
       >
-        <span className={`${titleClass} hover:text-terracotta`}>
-          {review.recipeTitle}
-          <span className="ml-1 font-sans text-sm font-normal text-muted" aria-hidden>
-            ↗
-          </span>
+        {review.recipeTitle}
+        <span className="ml-1 font-sans text-sm font-normal text-muted" aria-hidden>
+          ↗
         </span>
         <span className="sr-only"> (opens in a new tab)</span>
-        {preview}
       </Link>
     );
   }
 
-  return (
-    <div className="min-w-0">
-      <span className={titleClass}>{review.recipeTitle}</span>
-      {preview}
-    </div>
-  );
+  return <span className={titleClass}>{review.recipeTitle}</span>;
 }
 
-function ResponseCell({ review }: { review: LiveReview }) {
-  const href = adminReviewReplyWorkflowHref(review.id);
-  const needs = countStaffReviewReplies(review.replies) === 0;
+function ReviewExcerptButton({
+  review,
+  expanded,
+  onToggle,
+}: {
+  review: LiveReview;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const staffReplyCount = countStaffReviewReplies(review.replies);
+  const action = staffReplyCount > 0 ? "Add another reply" : "Reply";
+
   return (
-    <Link
-      href={href}
-      className={`inline-flex min-h-11 items-center ${adminFocusRing} hover:opacity-90 sm:min-h-0`}
-      aria-label={
-        needs
-          ? `Reply to ${review.authorName}'s review of ${review.recipeTitle}`
-          : `Add another reply to ${review.authorName}'s review of ${review.recipeTitle}`
-      }
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={`${action} to ${review.authorName} on ${review.recipeTitle}`}
+      className={`mt-1 line-clamp-2 w-full min-w-0 text-left text-sm leading-5 text-muted transition-colors hover:text-ink ${adminFocusRing} rounded-sm`}
     >
-      <ResponseStatus replies={review.replies} />
-    </Link>
+      {review.body}
+    </button>
   );
 }
 
-function ReviewIndexRow({ review }: { review: LiveReview }) {
+function ReviewIndexRow({
+  review,
+  page,
+  expanded,
+  onToggleComposer,
+}: {
+  review: LiveReview;
+  page: number;
+  expanded: boolean;
+  onToggleComposer: () => void;
+}) {
+  const staffReplyCount = countStaffReviewReplies(review.replies);
+  const reviewerType = formatAdminReviewerType(review.userId);
+
   return (
-    <tr className="border-b border-line/80 last:border-b-0">
-      <td className="min-w-0 py-3.5 pr-4 align-top">
-        <ReviewTitleCell review={review} />
-      </td>
-      <td className="max-w-[11rem] py-3.5 pr-4 align-top">
-        <p className="truncate text-sm font-semibold text-ink">{review.authorName}</p>
-      </td>
-      <td className="whitespace-nowrap py-3.5 pr-4 align-top">
-        <RatingCell rating={review.rating} />
-      </td>
-      <td className="py-3.5 pr-4 align-top">
-        <ResponseCell review={review} />
-      </td>
-      <td className="whitespace-nowrap py-3.5 align-top text-sm text-muted">
-        {formatAdminDate(review.createdAt)}
-      </td>
-    </tr>
+    <Fragment>
+      <tr className="border-b border-line/80 last:border-b-0">
+        <td className="min-w-0 py-3.5 pr-3 align-top">
+          <div className="min-w-0">
+            <RecipeNameLink review={review} />
+            <ReviewExcerptButton
+              review={review}
+              expanded={expanded}
+              onToggle={onToggleComposer}
+            />
+          </div>
+        </td>
+        <td className="max-w-[9rem] py-3.5 pr-3 align-top">
+          <p className="truncate text-sm font-semibold text-ink">{review.authorName}</p>
+        </td>
+        <td className="whitespace-nowrap py-3.5 pr-3 align-top text-sm text-muted">
+          {reviewerType}
+        </td>
+        <td className="whitespace-nowrap py-3.5 pr-3 align-top">
+          <RatingCell rating={review.rating} />
+        </td>
+        <td className="py-3.5 pr-3 align-top">
+          <ResponseStatus replies={review.replies} />
+        </td>
+        <td className="whitespace-nowrap py-3.5 align-top text-sm text-muted">
+          {formatAdminDate(review.createdAt)}
+        </td>
+      </tr>
+      {expanded ? (
+        <tr className="border-b border-line/80">
+          <td colSpan={6} className="px-0 pb-4 pt-0 align-top">
+            <AdminReviewReplyControls
+              variant="inline"
+              open={expanded}
+              onDismiss={onToggleComposer}
+              reviewId={review.id}
+              authorName={review.authorName}
+              recipeTitle={review.recipeTitle}
+              staffReplyCount={staffReplyCount}
+              page={page}
+            />
+          </td>
+        </tr>
+      ) : null}
+    </Fragment>
   );
 }
 
-function ReviewIndexMobileCard({ review }: { review: LiveReview }) {
-  const publicHref = adminReviewPublicAnchorHref({
-    recipeSlug: review.recipeSlug,
-    recipeStatus: review.recipeStatus,
-    reviewId: review.id,
-  });
-  const replyHref = adminReviewReplyWorkflowHref(review.id);
-  const needs = countStaffReviewReplies(review.replies) === 0;
+function ReviewIndexMobileCard({
+  review,
+  page,
+  expanded,
+  onToggleComposer,
+}: {
+  review: LiveReview;
+  page: number;
+  expanded: boolean;
+  onToggleComposer: () => void;
+}) {
+  const staffReplyCount = countStaffReviewReplies(review.replies);
+  const reviewerType = formatAdminReviewerType(review.userId);
 
   return (
     <li className="border-b border-line/80 py-4 last:border-b-0">
       <div className="flex min-w-0 items-start justify-between gap-3">
-        {publicHref ? (
-          <Link
-            href={publicHref}
-            target="_blank"
-            rel="noreferrer"
-            className={`min-w-0 flex-1 ${adminFocusRing}`}
-            aria-label={`View ${review.authorName}'s review of ${review.recipeTitle} on the public recipe page`}
-          >
-            <span className="block break-words font-serif text-lg leading-snug text-ink hover:text-terracotta">
-              {review.recipeTitle}
-              <span className="ml-1 font-sans text-sm font-normal text-muted" aria-hidden>
-                ↗
-              </span>
-            </span>
-            <span className="sr-only"> (opens in a new tab)</span>
-          </Link>
-        ) : (
-          <span className="min-w-0 flex-1 break-words font-serif text-lg leading-snug text-ink">
-            {review.recipeTitle}
-          </span>
-        )}
+        <div className="min-w-0 flex-1">
+          <RecipeNameLink review={review} />
+        </div>
         <RatingCell rating={review.rating} />
       </div>
-      <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted">{review.body}</p>
+      <ReviewExcerptButton
+        review={review}
+        expanded={expanded}
+        onToggle={onToggleComposer}
+      />
       <p className="mt-2 text-sm text-ink">
         <span className="font-semibold">{review.authorName}</span>
-        <span className="text-muted"> · {formatAdminDate(review.createdAt)}</span>
+        <span className="text-muted">
+          {" "}
+          · {reviewerType} · {formatAdminDate(review.createdAt)}
+        </span>
       </p>
       <div className="mt-2">
-        <Link
-          href={replyHref}
-          className={`inline-flex min-h-11 items-center ${adminFocusRing} hover:opacity-90`}
-          aria-label={
-            needs
-              ? `Reply to ${review.authorName}'s review of ${review.recipeTitle}`
-              : `Add another reply to ${review.authorName}'s review of ${review.recipeTitle}`
-          }
-        >
-          <ResponseStatus replies={review.replies} />
-        </Link>
+        <ResponseStatus replies={review.replies} />
       </div>
+      {expanded ? (
+        <div className="mt-3">
+          <AdminReviewReplyControls
+            variant="inline"
+            open={expanded}
+            onDismiss={onToggleComposer}
+            reviewId={review.id}
+            authorName={review.authorName}
+            recipeTitle={review.recipeTitle}
+            staffReplyCount={staffReplyCount}
+            page={page}
+          />
+        </div>
+      ) : null}
     </li>
   );
 }
 
-/** Compact Reviews triage index with live list polling. */
+/** Compact Reviews triage index with live list polling and inline reply. */
 export function AdminReviewsIndex({
   initialReviews,
   page,
@@ -214,6 +249,7 @@ export function AdminReviewsIndex({
   const [listSignature, setListSignature] = useState(() =>
     adminReviewsListSignature(initialReviews),
   );
+  const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
   const pageRef = useRef(page);
   const sigRef = useRef(listSignature);
   const [trackedPage, setTrackedPage] = useState(page);
@@ -222,6 +258,7 @@ export function AdminReviewsIndex({
     setReviews(initialReviews);
     setListMeta({ page, totalPages, total });
     setListSignature(adminReviewsListSignature(initialReviews));
+    setExpandedReviewId(null);
   }
 
   useEffect(() => {
@@ -288,6 +325,10 @@ export function AdminReviewsIndex({
     };
   }, [page]);
 
+  function toggleComposer(reviewId: string) {
+    setExpandedReviewId((current) => (current === reviewId ? null : reviewId));
+  }
+
   if (!reviews.length) {
     return <p className="mt-10 text-sm text-muted">No reviews yet.</p>;
   }
@@ -298,26 +339,35 @@ export function AdminReviewsIndex({
         <table className="w-full table-fixed border-y border-line/80 text-left">
           <thead>
             <tr className={adminTableHeadClass}>
-              <th scope="col" className="w-[42%] py-2.5 pr-4 font-medium">
+              <th scope="col" className="w-[34%] py-2.5 pr-3 font-medium">
                 Review
               </th>
-              <th scope="col" className="w-[18%] py-2.5 pr-4 font-medium">
+              <th scope="col" className="w-[14%] py-2.5 pr-3 font-medium">
                 Reviewer
               </th>
-              <th scope="col" className="w-[12%] py-2.5 pr-4 font-medium">
+              <th scope="col" className="w-[10%] py-2.5 pr-3 font-medium">
+                Type
+              </th>
+              <th scope="col" className="w-[10%] py-2.5 pr-3 font-medium">
                 Rating
               </th>
-              <th scope="col" className="w-[16%] py-2.5 pr-4 font-medium">
+              <th scope="col" className="w-[16%] py-2.5 pr-3 font-medium">
                 Response
               </th>
-              <th scope="col" className="w-[12%] py-2.5 font-medium">
+              <th scope="col" className="w-[16%] py-2.5 font-medium">
                 Date
               </th>
             </tr>
           </thead>
           <tbody>
             {reviews.map((review) => (
-              <ReviewIndexRow key={review.id} review={review} />
+              <ReviewIndexRow
+                key={review.id}
+                review={review}
+                page={listMeta.page}
+                expanded={expandedReviewId === review.id}
+                onToggleComposer={() => toggleComposer(review.id)}
+              />
             ))}
           </tbody>
         </table>
@@ -325,7 +375,13 @@ export function AdminReviewsIndex({
 
       <ul className="mt-10 divide-y divide-line/80 border-y border-line/80 xl:hidden">
         {reviews.map((review) => (
-          <ReviewIndexMobileCard key={review.id} review={review} />
+          <ReviewIndexMobileCard
+            key={review.id}
+            review={review}
+            page={listMeta.page}
+            expanded={expandedReviewId === review.id}
+            onToggleComposer={() => toggleComposer(review.id)}
+          />
         ))}
       </ul>
 
