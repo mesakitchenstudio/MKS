@@ -62,23 +62,27 @@ export function VisitorsRecentSection({
 
   return (
     <section aria-labelledby="recent-visitors-heading" className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 id="recent-visitors-heading" className="font-serif text-xl text-ink">
-            Recent visitors
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            {list.total === 0
-              ? "No matching visitors"
-              : `${from.toLocaleString("en-US")}–${to.toLocaleString("en-US")} of ${list.total.toLocaleString("en-US")}`}
-          </p>
-        </div>
-        <VisitorsSelectModeToggle
-          canDelete={canDeleteVisitors}
-          selectMode={selectMode}
-          onSelectModeChange={setSelectMode}
-        />
+      <div>
+        <h2 id="recent-visitors-heading" className="font-serif text-xl text-ink">
+          Recent visitors
+        </h2>
+        <p className="mt-1 text-xs text-muted">
+          {list.total === 0
+            ? "No matching visitors"
+            : `${from.toLocaleString("en-US")}–${to.toLocaleString("en-US")} of ${list.total.toLocaleString("en-US")}`}
+        </p>
       </div>
+
+      {/* Same left-aligned bulk-selection entry as Admin Reviews (not a heading far-right action). */}
+      {canDeleteVisitors ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <VisitorsSelectModeToggle
+            canDelete={canDeleteVisitors}
+            selectMode={selectMode}
+            onSelectModeChange={setSelectMode}
+          />
+        </div>
+      ) : null}
 
       <div
         className="flex flex-wrap gap-1 rounded-sm border border-line bg-cream/40 p-1"

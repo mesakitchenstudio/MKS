@@ -93,12 +93,33 @@ describe("Visitors Owner-only bulk delete UI", () => {
     assert.match(tableSource, /setSelectedIds\(new Set\(\)\)/);
   });
 
-  it("places Select visitors beside the Recent visitors heading", () => {
+  it("places Select visitors in a left-aligned management row like Reviews, not the heading far-right", () => {
     assert.match(recentSource, /Recent visitors/);
     assert.match(recentSource, /VisitorsSelectModeToggle/);
+    assert.doesNotMatch(
+      recentSource,
+      /justify-between[\s\S]{0,400}VisitorsSelectModeToggle/,
+    );
+    assert.doesNotMatch(
+      recentSource,
+      /items-end justify-between/,
+    );
+    assert.match(
+      recentSource,
+      /flex flex-wrap items-center gap-3[\s\S]{0,200}VisitorsSelectModeToggle/,
+    );
     const heading = recentSource.indexOf('id="recent-visitors-heading"');
     const toggle = recentSource.indexOf("<VisitorsSelectModeToggle");
+    const chips = recentSource.indexOf('aria-label="Visitor classification"');
     assert.ok(heading >= 0 && toggle > heading);
+    assert.ok(chips > toggle);
+  });
+
+  it("keeps selection-mode chrome (Select page / Delete selected) below the entry control", () => {
+    assert.match(tableSource, /role="status"/);
+    assert.match(tableSource, /showSelectionChrome = canDelete && activeSelectMode/);
+    assert.match(tableSource, /Cancel selection/);
+    assert.match(tableSource, /Delete selected/);
   });
 
   it("does not redesign overview analytics chrome", () => {

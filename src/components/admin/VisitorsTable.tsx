@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { PresenceDot } from "@/components/admin/MemberPresence";
-import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
+import { adminFocusRing } from "@/lib/admin-ui";
 import { formatAdminShortDateTime } from "@/lib/datetime";
 import type { GuestVisitorAdminListRow } from "@/lib/guest-analytics";
 import { GUEST_ADMIN_PRESENCE_POLL_MS } from "@/lib/guest-tracking";
@@ -231,7 +231,10 @@ export function VisitorsTable({
       ) : null}
 
       {showSelectionChrome ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <div
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
+          role="status"
+        >
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-ink sm:min-h-9">
             <input
               type="checkbox"
@@ -422,7 +425,7 @@ export function VisitorsTable({
   );
 }
 
-/** Owner-only Select visitors / Cancel selection control for the Recent visitors heading. */
+/** Owner-only Select visitors / Cancel selection — same left-aligned pattern as Reviews. */
 export function VisitorsSelectModeToggle({
   canDelete,
   selectMode,
@@ -436,8 +439,10 @@ export function VisitorsSelectModeToggle({
   return (
     <button
       type="button"
-      className={`inline-flex min-h-11 items-center text-sm font-semibold transition-colors sm:min-h-9 ${adminLinkClass} ${adminFocusRing} ${
-        selectMode ? "text-muted hover:text-ink" : "text-ink hover:text-terracotta"
+      className={`inline-flex min-h-11 items-center text-sm font-semibold transition-colors sm:min-h-9 ${adminFocusRing} ${
+        selectMode
+          ? "text-muted hover:text-ink"
+          : "text-ink hover:text-terracotta"
       }`}
       onClick={() => onSelectModeChange(!selectMode)}
       aria-pressed={selectMode}
