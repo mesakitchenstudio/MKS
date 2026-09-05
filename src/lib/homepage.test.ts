@@ -245,7 +245,7 @@ describe("homepage Phase 1 discovery UI", () => {
     assert.doesNotMatch(block, /getDb\(|prisma/i);
   });
 
-  it("keeps Browse taxonomy text-first with larger touch targets", () => {
+  it("keeps Browse taxonomy text-first with a compact editorial link cluster", () => {
     const browse = read("src/components/HomepageBrowseCategories.tsx");
     assert.match(browse, /Browse the table/);
     assert.match(browse, /Browse recipes/);
@@ -253,9 +253,19 @@ describe("homepage Phase 1 discovery UI", () => {
     assert.match(browse, /buildRecipesUrl\(\{ category: slug \}\)/);
     assert.match(browse, /min-h-11/);
     assert.match(browse, /inline-flex/);
+    assert.match(browse, /max-w-3xl/);
     assert.match(browse, /grid-cols-2/);
     assert.match(browse, /sm:grid-cols-3/);
+    assert.match(browse, /md:grid-cols-4/);
     assert.doesNotMatch(browse, /aspect-|Image|img |rounded-full bg-|border border-line/);
+  });
+
+  it("uses Cooking Series eyebrow on Featured Series without From the studio", () => {
+    const block = read("src/components/HomepageFeaturedSeries.tsx");
+    assert.match(block, /Cooking Series/);
+    assert.doesNotMatch(block, /From the studio/);
+    assert.match(block, /Featured series/);
+    assert.match(block, /event="series_item_click"/);
   });
 
   it("preserves homepage section order through Studio closing", () => {

@@ -18,15 +18,15 @@ export function HomepageBrowseCategories() {
         <h2 id="browse-recipes-heading" className="mt-2 font-serif text-2xl md:text-3xl">
           Browse recipes
         </h2>
-        <nav className="mt-6" aria-label="Recipe categories">
-          <ul className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm font-semibold text-ink sm:grid-cols-3 lg:grid-cols-3 lg:gap-x-10">
+        <nav className="mt-6 max-w-3xl min-w-0" aria-label="Recipe categories">
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm font-semibold text-ink sm:grid-cols-3 md:grid-cols-4 md:gap-x-8">
             {PRIMARY_CATEGORY_SLUGS.map((slug) => (
               <li key={slug} className="min-w-0">
                 <Link
                   href={buildRecipesUrl({ category: slug })}
-                  className={`inline-flex min-h-11 items-center text-terracotta hover:text-terracotta-dark ${linkFocus}`}
+                  className={`inline-flex min-h-11 max-w-full items-center text-terracotta hover:text-terracotta-dark ${linkFocus}`}
                 >
-                  {PRIMARY_CATEGORY_LABELS[slug]}
+                  <span className="min-w-0">{PRIMARY_CATEGORY_LABELS[slug]}</span>
                 </Link>
               </li>
             ))}

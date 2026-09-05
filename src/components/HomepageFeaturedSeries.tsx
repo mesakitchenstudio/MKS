@@ -22,7 +22,7 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
     >
       <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-12">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-          From the studio
+          Cooking Series
         </p>
         <h2 id="featured-series-heading" className="mt-2 font-serif text-3xl text-ink md:text-4xl">
           Featured series
