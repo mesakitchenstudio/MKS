@@ -318,8 +318,26 @@ describe("public videos UI wiring", () => {
     const catalogue = read("components/youtube/PublicVideosCatalogue.tsx");
     assert.match(featured, /Featured video/);
     assert.doesNotMatch(featured, /From the kitchen/);
+    assert.match(featured, /Watch video →/);
     assert.match(catalogue, /sectionHeading = format === "shorts" \? "Shorts" : "Full videos"/);
     assert.doesNotMatch(catalogue, /All videos/);
+  });
+
+  it("polishes featured and grid typography without rewriting titles", () => {
+    const featured = read("components/youtube/PublicFeaturedVideo.tsx");
+    const card = read("components/youtube/PublicVideoCard.tsx");
+    assert.match(featured, /md:text-\[1\.95rem\]/);
+    assert.match(card, /line-clamp-3/);
+    assert.match(card, /md:text-\[1\.15rem\]/);
+  });
+
+  it("closes the catalogue with an editorial Mesa on YouTube section", () => {
+    const catalogue = read("components/youtube/PublicVideosCatalogue.tsx");
+    assert.match(catalogue, /Mesa on YouTube/);
+    assert.match(catalogue, /Cook along with Mesa/);
+    assert.match(catalogue, /Visit Mesa on YouTube →/);
+    assert.match(catalogue, /videos_catalog_footer/);
+    assert.doesNotMatch(catalogue, /More from Mesa on YouTube/);
   });
 
   it("clamps card titles and fires live catalogue analytics", () => {

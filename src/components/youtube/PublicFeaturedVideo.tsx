@@ -74,11 +74,21 @@ export function PublicFeaturedVideo({ video }: { video: PublicVideoCardType }) {
             </p>
             <h2
               id="featured-video-title"
-              className="mt-2 font-serif text-3xl leading-tight text-ink md:text-[2.15rem]"
+              className="mt-2 font-serif text-[1.75rem] leading-tight text-ink md:text-[1.95rem]"
             >
               {video.title}
             </h2>
           </div>
+
+          <p className="relative z-20 mt-4">
+            <Link
+              href={watchHref}
+              onClick={trackFeaturedClick}
+              className={`text-base text-terracotta underline-offset-2 transition hover:text-terracotta-dark hover:underline ${focusRing}`}
+            >
+              Watch video →
+            </Link>
+          </p>
 
           {video.recipeSlug && video.recipeTitle ? (
             <p className="relative z-20 mt-5 text-sm leading-6 text-muted">

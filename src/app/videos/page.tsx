@@ -33,7 +33,7 @@ export default async function VideosPage({
         From the kitchen
       </p>
       <h1 className="mt-2 font-serif text-4xl text-ink md:text-5xl">Videos</h1>
-      <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
+      <p className="mt-4 max-w-2xl text-base leading-7 text-muted md:mt-5">
         Step-by-step recipes and kitchen techniques from the Mesa kitchen. Watch the method, then
         cook from the written recipe when there is one.
       </p>

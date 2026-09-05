@@ -78,7 +78,7 @@ export function PublicVideosCatalogue({
       {featured && format === "long" ? <PublicFeaturedVideo video={featured} /> : null}
 
       <section
-        className="mt-12 border-t border-line pt-10 md:mt-14 md:pt-12"
+        className="mt-12 border-t border-line pt-10 md:mt-16 md:pt-12"
         aria-labelledby="all-videos-heading"
       >
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -141,16 +141,33 @@ export function PublicVideosCatalogue({
         )}
       </section>
 
-      <p className="mt-14 text-sm text-muted">
-        <VideosYoutubeOutboundLink
-          href={site.social.youtube}
-          placement="catalogue_footer"
-          format="channel"
-          className="underline-offset-2 transition hover:text-terracotta hover:underline"
+      <section
+        className="mt-16 max-w-xl border-t border-line pt-10 md:mt-20 md:pt-12"
+        aria-labelledby="mesa-on-youtube-heading"
+      >
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
+          Mesa on YouTube
+        </p>
+        <h2
+          id="mesa-on-youtube-heading"
+          className="mt-2 font-serif text-[1.65rem] leading-tight text-ink md:text-[1.75rem]"
         >
-          More from Mesa on YouTube →
-        </VideosYoutubeOutboundLink>
-      </p>
+          Cook along with Mesa
+        </h2>
+        <p className="mt-3 text-base leading-7 text-muted">
+          Watch the full video library and follow new recipes from the kitchen.
+        </p>
+        <p className="mt-5">
+          <VideosYoutubeOutboundLink
+            href={site.social.youtube}
+            placement="videos_catalog_footer"
+            format="channel"
+            className="text-base text-terracotta underline-offset-2 transition hover:text-terracotta-dark hover:underline"
+          >
+            Visit Mesa on YouTube →
+          </VideosYoutubeOutboundLink>
+        </p>
+      </section>
     </>
   );
 }

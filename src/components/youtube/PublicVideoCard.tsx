@@ -72,7 +72,7 @@ export function PublicVideoCard({
             </span>
           ) : null}
         </div>
-        <h3 className="mt-3 line-clamp-3 font-serif text-xl leading-tight text-ink transition group-hover/card:text-terracotta">
+        <h3 className="mt-3 line-clamp-3 font-serif text-xl leading-tight text-ink transition group-hover/card:text-terracotta md:text-[1.15rem] md:leading-snug">
           {video.title}
         </h3>
       </Link>
