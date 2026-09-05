@@ -37,16 +37,18 @@ A new field on a type appears on the next recipe form with no code change.
 
 Local images are saved to `public/uploads`. On Vercel, set `BLOB_READ_WRITE_TOKEN` so photos go to Vercel Blob.
 
-### Transactional email (password reset, contact, newsletter notices)
+### Transactional email (password reset, contact, newsletter)
 
-Admin and member password-reset emails use [Resend](https://resend.com). Set these in Vercel (Production + Preview):
+Admin and member password-reset emails, contact-form delivery, and newsletter welcome / studio signup notices use [Resend](https://resend.com). Set these in Vercel (Production + Preview):
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `RESEND_API_KEY` | Yes | Resend API key (`re_…`) |
-| `EMAIL_FROM` | Recommended | Verified sender, e.g. `Mesa Kitchen Studio <hello@mesakitchenstudio.com>` |
+| `EMAIL_FROM` | Recommended | Verified sender on your domain, e.g. `Mesa Kitchen Studio <hello@mesakitchenstudio.com>` |
+| `CONTACT_TO_EMAIL` | Optional | Studio inbox for contact + newsletter signup notices (falls back to `ADMIN_EMAIL`) |
 
-Without `RESEND_API_KEY`, forgot-password still shows the same generic success message (no account enumeration), but no email is sent and the server logs that mail is not configured.
+`EMAIL_FROM` must use a domain verified in Resend. Without `RESEND_API_KEY`, forgot-password still shows the same generic success message (no account enumeration), newsletter signup still persists subscribers, and welcome mail is skipped with a server log that mail is not configured.
+
 
 Optional: set `IP2LOCATION_API_KEY` for member IP lookups (free plan at [ip2location.io](https://www.ip2location.io) — 50k lookups/month). Without a key, IP2Location allows 1,000 lookups/day.
 

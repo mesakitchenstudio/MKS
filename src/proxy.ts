@@ -50,6 +50,7 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/api/") ||
     PUBLIC_WHILE_PRIVATE.includes(pathname) ||
     pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/newsletter/unsubscribe") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/uploads")

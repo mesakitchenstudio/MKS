@@ -24,8 +24,8 @@ export function NewsletterForm({ tone = "light" }: { tone?: "light" | "dark" }) 
     setDone(true);
     setMessage(
       result.duplicate
-        ? "You are already on the list. We will write when there is something good to cook."
-        : "You are on the list. We will write when there is something good to cook.",
+        ? "You’re already on the list. We’ll write when there’s something good to cook."
+        : "You’re on the list. We’ll write when there’s something good to cook.",
     );
   }
 

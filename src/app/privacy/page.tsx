@@ -19,8 +19,9 @@ export default function PrivacyPage() {
           secure. We do not sell personal information.
         </p>
         <p>
-          When we connect a real email service, we will use addresses solely to send
-          recipes and studio notes you asked for. You can unsubscribe at any time.
+          When you join the newsletter, we store your email so we can send recipes and studio notes
+          you asked for. You may receive a short welcome message after signing up. You can
+          unsubscribe at any time using the link in those emails.
         </p>
         <p>
           The site may use standard hosting logs and analytics to understand which pages

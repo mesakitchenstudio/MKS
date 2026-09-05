@@ -37,6 +37,7 @@ export type AnalyticsEvent =
   | "recipe_discovery_sort_change"
   | "recipe_discovery_recipe_click"
   | "recipe_related_scroll"
+  | "newsletter_unsubscribe"
   | "series_item_click"
   | "series_watch_click"
   | "series_watch_playlist_on_youtube_click";

@@ -289,12 +289,19 @@ model FunnelEvent {
 }
 
 model NewsletterSubscriber {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  source    String   @default("site")
-  createdAt DateTime @default(now())
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  source               String    @default("site")
+  /** active | unsubscribed */
+  status               String    @default("active")
+  /** SHA-256 hex of the raw unsubscribe token (raw token never stored). */
+  unsubscribeTokenHash String?   @unique
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  unsubscribedAt       DateTime?
 
   @@index([createdAt])
+  @@index([status])
 }
 
 model ContactMessage {

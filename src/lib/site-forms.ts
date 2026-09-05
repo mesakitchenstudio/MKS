@@ -2,44 +2,9 @@ import "server-only";
 
 import { getDb } from "@/lib/db";
 import { sendTransactionalEmail, studioInboxEmail } from "@/lib/email";
-import { validateNewsletterEmail, type NewsletterResult } from "@/lib/newsletter";
+import { validateNewsletterEmail } from "@/lib/newsletter";
 
-export async function subscribeNewsletterServer(
-  email: string,
-  source = "site",
-): Promise<NewsletterResult> {
-  const validated = validateNewsletterEmail(email);
-  if (!validated.ok) return validated;
-
-  try {
-    const db = getDb();
-    const existing = await db.newsletterSubscriber.findUnique({
-      where: { email: validated.email },
-    });
-    if (existing) {
-      return { ok: true, duplicate: true };
-    }
-
-    await db.newsletterSubscriber.create({
-      data: { email: validated.email, source },
-    });
-
-    const inbox = studioInboxEmail();
-    void sendTransactionalEmail({
-      to: inbox,
-      subject: `Newsletter signup: ${validated.email}`,
-      html: `<p>New newsletter subscriber.</p><p><strong>${validated.email}</strong></p><p>Source: ${source}</p>`,
-    });
-
-    return { ok: true };
-  } catch (error) {
-    console.error("Newsletter subscribe failed", error);
-    return {
-      ok: false,
-      message: "We could not save your subscription. Please try again in a moment.",
-    };
-  }
-}
+export { subscribeNewsletterServer } from "@/lib/newsletter-subscribe";
 
 export async function submitContactMessage(input: {
   name: string;

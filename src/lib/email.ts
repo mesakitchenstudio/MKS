@@ -22,13 +22,14 @@ export function transactionalEmailFromAddress() {
 }
 
 export type SendTransactionalEmailResult =
-  | { ok: true }
+  | { ok: true; id?: string }
   | { ok: false; reason: "not_configured" | "provider_error" };
 
 export async function sendTransactionalEmail(input: {
   to: string | string[];
   subject: string;
   html: string;
+  text?: string;
   replyTo?: string;
 }): Promise<boolean> {
   const result = await sendTransactionalEmailDetailed(input);
@@ -40,6 +41,7 @@ export async function sendTransactionalEmailDetailed(input: {
   to: string | string[];
   subject: string;
   html: string;
+  text?: string;
   replyTo?: string;
 }): Promise<SendTransactionalEmailResult> {
   const key = process.env.RESEND_API_KEY?.trim();
@@ -64,6 +66,7 @@ export async function sendTransactionalEmailDetailed(input: {
         to: input.to,
         subject: input.subject,
         html: input.html,
+        ...(input.text ? { text: input.text } : {}),
         ...(input.replyTo ? { reply_to: input.replyTo } : {}),
       }),
     });
@@ -73,7 +76,17 @@ export async function sendTransactionalEmailDetailed(input: {
       console.error("Could not send email via Resend", response.status, detail.slice(0, 500));
       return { ok: false, reason: "provider_error" };
     }
-    return { ok: true };
+
+    let id: string | undefined;
+    try {
+      const payload = (await response.json()) as { id?: string };
+      if (typeof payload.id === "string" && payload.id.trim()) {
+        id = payload.id.trim();
+      }
+    } catch {
+      // Provider accepted the send; id is optional diagnostics only.
+    }
+    return { ok: true, id };
   } catch (error) {
     console.error("Could not send email via Resend", error);
     return { ok: false, reason: "provider_error" };
