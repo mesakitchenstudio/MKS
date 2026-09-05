@@ -72,20 +72,15 @@ function RecipeNameLink({ review }: { review: LiveReview }) {
   const titleClass = "break-words font-serif text-base leading-snug text-ink";
 
   if (publicHref) {
+    // Plain <a>: same-tab operational nav; avoids App Router Link scroll/hash races.
     return (
-      <Link
+      <a
         href={publicHref}
-        target="_blank"
-        rel="noreferrer"
         className={`${adminFocusRing} ${titleClass} hover:text-terracotta`}
-        aria-label={`View ${review.authorName}'s review of ${review.recipeTitle} on the public recipe page`}
+        aria-label={`View ${review.authorName}'s review on ${review.recipeTitle}`}
       >
         {review.recipeTitle}
-        <span className="ml-1 font-sans text-sm font-normal text-muted" aria-hidden>
-          ↗
-        </span>
-        <span className="sr-only"> (opens in a new tab)</span>
-      </Link>
+      </a>
     );
   }
 

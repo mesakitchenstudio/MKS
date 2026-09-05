@@ -15,6 +15,9 @@ import {
 import {
   adminReviewPublicAnchorHref,
   adminReviewRecipeHref,
+  PUBLIC_RECIPE_VISIBLE_COMMENTS,
+  resolvePublicTargetReviewId,
+  visibleRecipeReviewsForTarget,
   canManageRecipeReviewReplies,
   canReplyToRecipeReview,
   countStaffReviewReplies,
@@ -141,7 +144,7 @@ describe("admin review helpers", () => {
         recipeStatus: "published",
         reviewId: "rev_abc",
       }),
-      "/recipes/soft-stovetop-flatbread#review-rev_abc",
+      "/recipes/soft-stovetop-flatbread?review=rev_abc#review-rev_abc",
     );
     assert.equal(
       adminReviewPublicAnchorHref({
@@ -154,6 +157,100 @@ describe("admin review helpers", () => {
     assert.equal(formatAdminReviewerType("user_1"), "Member");
     assert.equal(formatAdminReviewerType(null), "Visitor");
     assert.equal(formatAdminReviewerType(undefined), "Visitor");
+  });
+
+  it("uses stored recipe slug and distinct review ids for same-recipe deep links", () => {
+    const hrefA = adminReviewPublicAnchorHref({
+      recipeSlug: "iced-horchata-coffee",
+      recipeStatus: "published",
+      reviewId: "rev_omid_excellent",
+    });
+    const hrefB = adminReviewPublicAnchorHref({
+      recipeSlug: "iced-horchata-coffee",
+      recipeStatus: "published",
+      reviewId: "rev_masoomeh_water",
+    });
+    const hrefC = adminReviewPublicAnchorHref({
+      recipeSlug: "vanilla-bean-cupcakes",
+      recipeStatus: "published",
+      reviewId: "rev_cupcake_1",
+    });
+
+    assert.equal(
+      hrefA,
+      "/recipes/iced-horchata-coffee?review=rev_omid_excellent#review-rev_omid_excellent",
+    );
+    assert.equal(
+      hrefB,
+      "/recipes/iced-horchata-coffee?review=rev_masoomeh_water#review-rev_masoomeh_water",
+    );
+    assert.equal(
+      hrefC,
+      "/recipes/vanilla-bean-cupcakes?review=rev_cupcake_1#review-rev_cupcake_1",
+    );
+    assert.notEqual(hrefA, hrefB);
+  });
+
+  it("resolves targeted review ids from query first, then hash", () => {
+    assert.equal(
+      resolvePublicTargetReviewId({
+        reviewQuery: "rev_from_query",
+        hash: "#review-rev_hash",
+      }),
+      "rev_from_query",
+    );
+    assert.equal(
+      resolvePublicTargetReviewId({ reviewQuery: "", hash: "#review-rev_hash" }),
+      "rev_hash",
+    );
+    assert.equal(
+      resolvePublicTargetReviewId({ reviewQuery: null, hash: "review-rev_hash" }),
+      "rev_hash",
+    );
+    assert.equal(resolvePublicTargetReviewId({ reviewQuery: "  ", hash: null }), null);
+  });
+
+  it("includes a targeted review outside the first page without duplicating", () => {
+    const reviews = Array.from({ length: PUBLIC_RECIPE_VISIBLE_COMMENTS + 3 }, (_, i) => ({
+      id: `rev_${i}`,
+    }));
+    const firstPage = visibleRecipeReviewsForTarget(reviews, {
+      showAll: false,
+      targetReviewId: null,
+    });
+    assert.equal(firstPage.length, PUBLIC_RECIPE_VISIBLE_COMMENTS);
+    assert.deepEqual(
+      firstPage.map((r) => r.id),
+      reviews.slice(0, PUBLIC_RECIPE_VISIBLE_COMMENTS).map((r) => r.id),
+    );
+
+    const withTarget = visibleRecipeReviewsForTarget(reviews, {
+      showAll: false,
+      targetReviewId: `rev_${PUBLIC_RECIPE_VISIBLE_COMMENTS + 1}`,
+    });
+    assert.equal(withTarget.length, PUBLIC_RECIPE_VISIBLE_COMMENTS + 1);
+    assert.equal(
+      withTarget.filter((r) => r.id === `rev_${PUBLIC_RECIPE_VISIBLE_COMMENTS + 1}`).length,
+      1,
+    );
+    assert.equal(withTarget.at(-1)?.id, `rev_${PUBLIC_RECIPE_VISIBLE_COMMENTS + 1}`);
+
+    const alreadyVisible = visibleRecipeReviewsForTarget(reviews, {
+      showAll: false,
+      targetReviewId: "rev_2",
+    });
+    assert.equal(alreadyVisible.length, PUBLIC_RECIPE_VISIBLE_COMMENTS);
+    assert.equal(alreadyVisible.filter((r) => r.id === "rev_2").length, 1);
+
+    const showAll = visibleRecipeReviewsForTarget(reviews, {
+      showAll: true,
+      targetReviewId: `rev_${PUBLIC_RECIPE_VISIBLE_COMMENTS + 1}`,
+    });
+    assert.equal(showAll.length, reviews.length);
+    assert.equal(
+      showAll.filter((r) => r.id === `rev_${PUBLIC_RECIPE_VISIBLE_COMMENTS + 1}`).length,
+      1,
+    );
   });
 
   it("normalizes review IDs for bulk deletion", async () => {
@@ -181,7 +278,14 @@ describe("admin Reviews index contracts", () => {
     assert.match(reviewsIndex, /ReviewExcerptControl/);
     assert.match(reviewsIndex, /AdminReviewReplyControls/);
     assert.match(reviewsIndex, /RemoveReviewButton/);
-    assert.match(reviewsIndex, /View \$\{review\.authorName\}'s review of \$\{review\.recipeTitle\} on the public recipe page/);
+    assert.match(
+      reviewsIndex,
+      /View \$\{review\.authorName\}'s review on \$\{review\.recipeTitle\}/,
+    );
+    assert.match(reviewsIndex, /<a[\s\S]*href=\{publicHref\}/);
+    assert.doesNotMatch(reviewsIndex, /target="_blank"/);
+    assert.match(reviewsIndex, /ReviewExcerptControl/);
+    assert.match(reviewsIndex, /onToggle/);
     assert.match(reviewsIndex, /line-clamp-2/);
     assert.match(reviewsIndex, /scope="col"/);
     assert.match(reviewsIndex, />\s*Review\s*</);
@@ -404,9 +508,29 @@ describe("public recipe review anchors", () => {
       path.join(root, "../components/RecipeReviews.tsx"),
       "utf8",
     );
+    const recipePage = readFileSync(
+      path.join(root, "../app/recipes/[slug]/page.tsx"),
+      "utf8",
+    );
     assert.match(publicReviews, /id=\{`review-\$\{review\.id\}`\}/);
-    assert.match(publicReviews, /pendingScrollReviewIdRef/);
+    assert.match(publicReviews, /visibleRecipeReviewsForTarget/);
+    assert.match(publicReviews, /targetReviewId/);
+    assert.match(publicReviews, /scroll-mt-28/);
+    assert.match(publicReviews, /\btarget:/);
     assert.match(publicReviews, /#review-/);
+    assert.match(recipePage, /targetReviewId=\{verifiedTargetReviewId\}/);
+    assert.match(recipePage, /searchParams/);
+    assert.match(recipePage, /reviewData\.reviews\.some/);
+  });
+
+  it("keeps review excerpt as inline reply control, not a public navigation link", () => {
+    assert.match(reviewsIndex, /function ReviewExcerptControl/);
+    assert.match(reviewsIndex, /type="button"/);
+    assert.match(reviewsIndex, /aria-expanded=\{expanded\}/);
+    assert.doesNotMatch(
+      reviewsIndex,
+      /ReviewExcerptControl[\s\S]{0,400}href=\{publicHref\}/,
+    );
   });
 });
 

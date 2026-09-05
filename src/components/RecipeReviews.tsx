@@ -11,7 +11,14 @@ import {
   RECIPE_REVIEW_POLL_MS,
   recipeReviewThreadSignature,
 } from "@/lib/recipe-reviews-client";
-import type { RecipeReviewData, RecipeReviewReplyRow, RecipeReviewRow } from "@/lib/recipe-reviews";
+import {
+  PUBLIC_RECIPE_VISIBLE_COMMENTS,
+  resolvePublicTargetReviewId,
+  visibleRecipeReviewsForTarget,
+  type RecipeReviewData,
+  type RecipeReviewReplyRow,
+  type RecipeReviewRow,
+} from "@/lib/recipe-reviews";
 
 type RecipeReviewsProps = {
   slug: string;
@@ -19,10 +26,12 @@ type RecipeReviewsProps = {
   initial: RecipeReviewData;
   defaultName?: string;
   defaultEmail?: string;
+  /** From `?review=` — durable deep-link target for admin → public navigation. */
+  targetReviewId?: string | null;
 };
 
 /** Initial top-level reviews before "Show more comments". */
-const VISIBLE_COMMENTS = 12;
+const VISIBLE_COMMENTS = PUBLIC_RECIPE_VISIBLE_COMMENTS;
 
 function initials(name: string) {
   return name
@@ -252,7 +261,7 @@ function ReviewItem({
   return (
     <li
       id={`review-${review.id}`}
-      className="scroll-mt-28 border-b border-line/70 py-8 last:border-b-0 md:py-10"
+      className="scroll-mt-28 border-b border-line/70 py-8 last:border-b-0 target:border-l-2 target:border-l-olive/50 target:bg-sand/25 target:pl-3 md:py-10 md:target:pl-4"
     >
       {/* Flat editorial metadata — no card chrome */}
       <div className="flex items-start justify-between gap-4">
@@ -322,6 +331,7 @@ export function RecipeReviews({
   initial,
   defaultName = "",
   defaultEmail = "",
+  targetReviewId = null,
 }: RecipeReviewsProps) {
   const { data: session } = useSession();
   const [data, setData] = useState<RecipeReviewData>({
@@ -339,7 +349,8 @@ export function RecipeReviews({
   const [showAllComments, setShowAllComments] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
-  const pendingScrollReviewIdRef = useRef<string | null>(null);
+  const [hashTargetId, setHashTargetId] = useState<string | null>(null);
+  const scrolledTargetRef = useRef<string | null>(null);
   const threadSigRef = useRef(recipeReviewThreadSignature(data));
 
   const knownIdentity = Boolean(
@@ -351,10 +362,21 @@ export function RecipeReviews({
     session?.user?.email?.trim() ||
     "";
 
+  const resolvedTargetId = resolvePublicTargetReviewId({
+    reviewQuery: targetReviewId,
+    hash: hashTargetId ? `#review-${hashTargetId}` : null,
+  });
+  const targetInThread =
+    resolvedTargetId && data.reviews.some((review) => review.id === resolvedTargetId)
+      ? resolvedTargetId
+      : null;
+
   const replyable = new Set(data.replyableReviewIds || []);
-  const visibleReviews = showAllComments
-    ? data.reviews
-    : data.reviews.slice(0, VISIBLE_COMMENTS);
+  const visibleReviews = visibleRecipeReviewsForTarget(data.reviews, {
+    showAll: showAllComments,
+    targetReviewId: targetInThread,
+    visibleCount: VISIBLE_COMMENTS,
+  });
   const hasMoreComments = data.reviews.length > VISIBLE_COMMENTS;
 
   useEffect(() => {
@@ -376,42 +398,68 @@ export function RecipeReviews({
     setFormOpen(false);
     setSubmitted(false);
     setError("");
-    pendingScrollReviewIdRef.current = null;
+    scrolledTargetRef.current = null;
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps -- SSR snapshot for this slug
   }, [slug]);
 
   useEffect(() => {
-    function tryScrollToPendingReview() {
-      const reviewId = pendingScrollReviewIdRef.current;
-      if (!reviewId) return;
-      const el = document.getElementById(`review-${reviewId}`);
-      if (!el) return;
-      pendingScrollReviewIdRef.current = null;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    function syncHashTarget() {
+      if (typeof window === "undefined") return;
+      const fromHash = resolvePublicTargetReviewId({ hash: window.location.hash });
+      setHashTargetId(fromHash);
+    }
+    syncHashTarget();
+    window.addEventListener("hashchange", syncHashTarget);
+    return () => window.removeEventListener("hashchange", syncHashTarget);
+  }, [slug]);
+
+  useEffect(() => {
+    if (!targetInThread) return;
+
+    // Keep hash in sync so CSS :target applies when arriving via ?review= only.
+    if (typeof window !== "undefined") {
+      const expectedHash = `#review-${targetInThread}`;
+      if (window.location.hash !== expectedHash) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("review", targetInThread);
+        url.hash = expectedHash;
+        window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+      }
     }
 
-    function resolveReviewHash() {
-      if (typeof window === "undefined") return;
-      const match = /^#review-(.+)$/.exec(window.location.hash);
-      if (!match) return;
-      const reviewId = decodeURIComponent(match[1]);
-      const reviewIndex = data.reviews.findIndex((review) => review.id === reviewId);
-      if (reviewIndex < 0) return;
-      pendingScrollReviewIdRef.current = reviewId;
-      if (reviewIndex >= VISIBLE_COMMENTS && !showAllComments) {
-        setShowAllComments(true);
+    if (scrolledTargetRef.current === targetInThread) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    let raf = 0;
+    let timeout = 0;
+
+    function tryScroll() {
+      if (cancelled) return;
+      const el = document.getElementById(`review-${targetInThread}`);
+      if (el) {
+        scrolledTargetRef.current = targetInThread;
+        // auto: more reliable than smooth against layout/hydration scroll resets
+        el.scrollIntoView({ behavior: "auto", block: "start" });
         return;
       }
-      queueMicrotask(() => {
-        requestAnimationFrame(tryScrollToPendingReview);
-      });
+      if (attempts++ < 60) {
+        raf = requestAnimationFrame(tryScroll);
+      }
     }
 
-    resolveReviewHash();
-    window.addEventListener("hashchange", resolveReviewHash);
-    return () => window.removeEventListener("hashchange", resolveReviewHash);
-  }, [data.reviews, slug, showAllComments]);
+    // Defer past Next.js App Router scroll-to-top on navigation.
+    timeout = window.setTimeout(() => {
+      raf = requestAnimationFrame(tryScroll);
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      cancelAnimationFrame(raf);
+    };
+  }, [targetInThread, visibleReviews, slug]);
 
   useEffect(() => {
     let cancelled = false;

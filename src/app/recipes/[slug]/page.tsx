@@ -36,6 +36,7 @@ import { getRelatedLessonsForRecipeSlug } from "@/lib/studio-recipe-links";
 
 type Props = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ review?: string | string[] }>;
 };
 
 export const revalidate = 300;
@@ -71,8 +72,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function RecipePage({ params }: Props) {
+export default async function RecipePage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { review: reviewParam } = await searchParams;
+  const targetReviewId = Array.isArray(reviewParam)
+    ? reviewParam[0]?.trim() || null
+    : reviewParam?.trim() || null;
   const recipe = await getRecipeBySlug(slug);
   if (!recipe) notFound();
 
@@ -91,6 +96,11 @@ export default async function RecipePage({ params }: Props) {
     email: session?.user?.email ?? null,
     userId: session?.user?.id ?? null,
   });
+  // Only honor ?review= when it belongs to this recipe's thread (no cross-recipe scroll).
+  const verifiedTargetReviewId =
+    targetReviewId && reviewData.reviews.some((review) => review.id === targetReviewId)
+      ? targetReviewId
+      : null;
 
   const visibleExtrasList = publicExtrasForPage(recipe).filter((field) =>
     fieldValueHasContent(field.value, field.kind),
@@ -204,6 +214,7 @@ export default async function RecipePage({ params }: Props) {
           initial={reviewData}
           defaultName={session?.user?.name ?? ""}
           defaultEmail={session?.user?.email ?? ""}
+          targetReviewId={verifiedTargetReviewId}
         />
 
         {!youtube ? (

@@ -526,10 +526,16 @@ export function adminReviewRecipeHref(input: {
   return null;
 }
 
+/** Initial top-level reviews shown on the public recipe page before "Show more". */
+export const PUBLIC_RECIPE_VISIBLE_COMMENTS = 12;
+
 /**
  * Public recipe URL that scrolls to a specific review.
  * Only for published recipes — drafts are not on the public site.
  * Uses the stored recipe slug, never a title-derived slug.
+ *
+ * Query `review=` is the durable target (survives App Router hash/scroll races);
+ * `#review-{id}` is the DOM anchor for native/:target positioning.
  */
 export function adminReviewPublicAnchorHref(input: {
   recipeSlug: string;
@@ -539,7 +545,52 @@ export function adminReviewPublicAnchorHref(input: {
   const slug = input.recipeSlug.trim();
   const reviewId = input.reviewId.trim();
   if (input.recipeStatus !== "published" || !slug || !reviewId) return null;
-  return `/recipes/${encodeURIComponent(slug)}#review-${encodeURIComponent(reviewId)}`;
+  const encodedId = encodeURIComponent(reviewId);
+  return `/recipes/${encodeURIComponent(slug)}?review=${encodedId}#review-${encodedId}`;
+}
+
+/** Resolve a targeted review id from `?review=` (preferred) or `#review-…` hash. */
+export function resolvePublicTargetReviewId(input: {
+  reviewQuery?: string | null;
+  hash?: string | null;
+}): string | null {
+  const fromQuery = (input.reviewQuery || "").trim();
+  if (fromQuery) return fromQuery;
+  const hash = (input.hash || "").trim();
+  const match = /^#?review-(.+)$/i.exec(hash);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+/**
+ * Visible top-level reviews for the public list.
+ * When a target id would be truncated, include it once (no duplicate) so the
+ * deep-link anchor exists without forcing every historical review into the DOM.
+ * Ordinary loads (no target) keep the first-page slice unchanged.
+ */
+export function visibleRecipeReviewsForTarget<T extends { id: string }>(
+  reviews: T[],
+  options: {
+    showAll: boolean;
+    targetReviewId?: string | null;
+    visibleCount?: number;
+  },
+): T[] {
+  const visibleCount = options.visibleCount ?? PUBLIC_RECIPE_VISIBLE_COMMENTS;
+  if (options.showAll || reviews.length <= visibleCount) return reviews;
+
+  const head = reviews.slice(0, visibleCount);
+  const targetId = (options.targetReviewId || "").trim();
+  if (!targetId) return head;
+  if (head.some((review) => review.id === targetId)) return head;
+
+  const target = reviews.find((review) => review.id === targetId);
+  if (!target) return head;
+  return [...head, target];
 }
 
 /** Member when linked to a User row; otherwise Visitor (guest review). */
