@@ -102,6 +102,9 @@ describe("related recipe shelf", () => {
     assert.match(row, /more_from_studio/);
     assert.match(row, /RecipeGridCard/);
     assert.match(row, /showControls/);
+    assert.match(row, /items-end/);
+    assert.match(row, /disabled:text-ink\/35/);
+    assert.doesNotMatch(row, /rounded-full border border-line/);
     assert.doesNotMatch(row, /pagination|autoplay|embla|swiper/i);
 
     const analytics = read("lib/analytics.ts");

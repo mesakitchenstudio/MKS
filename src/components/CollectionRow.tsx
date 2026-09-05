@@ -15,8 +15,9 @@ import {
 const linkFocus =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
+/** Editorial arrow-only controls: large hit area, no resting circle/chrome. */
 const arrowClass =
-  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-ink transition-colors hover:border-olive hover:text-olive focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:pointer-events-none disabled:opacity-35";
+  "inline-flex h-11 w-11 shrink-0 items-end justify-center pb-0.5 text-[1.15rem] leading-none text-ink/80 transition-colors hover:text-terracotta focus-visible:text-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta disabled:cursor-not-allowed disabled:text-ink/35 disabled:opacity-100";
 
 export function CollectionRow({
   title,
@@ -166,12 +167,12 @@ function RelatedRecipeShelf({
 
   return (
     <>
-      <div className="mb-4 flex items-end justify-between gap-4">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <h2 className="font-serif text-2xl text-ink">{title}</h2>
+          <h2 className="font-serif text-2xl leading-none text-ink">{title}</h2>
           {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-end gap-3">
           {showControls ? (
             <>
               <button
@@ -181,9 +182,7 @@ function RelatedRecipeShelf({
                 onClick={() => scrollByDirection("previous")}
                 className={arrowClass}
               >
-                <span aria-hidden className="text-lg leading-none">
-                  ←
-                </span>
+                <span aria-hidden>←</span>
               </button>
               <button
                 type="button"
@@ -192,16 +191,14 @@ function RelatedRecipeShelf({
                 onClick={() => scrollByDirection("next")}
                 className={arrowClass}
               >
-                <span aria-hidden className="text-lg leading-none">
-                  →
-                </span>
+                <span aria-hidden>→</span>
               </button>
             </>
           ) : null}
           {href ? (
             <Link
               href={href}
-              className={`text-sm font-semibold text-terracotta hover:text-terracotta-dark ${linkFocus}`}
+              className={`pb-0.5 text-sm font-semibold text-terracotta hover:text-terracotta-dark ${linkFocus}`}
             >
               {viewMoreLabel}
             </Link>
