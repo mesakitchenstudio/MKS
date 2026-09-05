@@ -17,12 +17,12 @@ export function HomepageHero({
       href={`/recipes/${recipe.slug}`}
       className={`group relative mt-10 block md:mt-0 ${linkFocus}`}
     >
-      <div className="relative aspect-[4/5] overflow-hidden md:aspect-[5/6]">
+      <div className="relative aspect-[4/5] overflow-hidden md:aspect-[5/6] lg:aspect-[11/13]">
         <RecipeImage
           src={recipe.image}
           alt={recipe.imageAlt}
           priority
-          sizes="(min-width: 768px) 40vw, 100vw"
+          sizes="(min-width: 1280px) 44vw, (min-width: 768px) 42vw, 100vw"
           className="object-cover transition duration-700 motion-safe:group-hover:scale-[1.03]"
         />
       </div>

@@ -247,11 +247,37 @@ describe("homepage Phase 1 discovery UI", () => {
 
   it("keeps Browse taxonomy text-first with larger touch targets", () => {
     const browse = read("src/components/HomepageBrowseCategories.tsx");
+    assert.match(browse, /Browse the table/);
+    assert.match(browse, /Browse recipes/);
     assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
     assert.match(browse, /buildRecipesUrl\(\{ category: slug \}\)/);
     assert.match(browse, /min-h-11/);
     assert.match(browse, /inline-flex/);
-    assert.doesNotMatch(browse, /aspect-|Image|img /);
+    assert.match(browse, /grid-cols-2/);
+    assert.match(browse, /sm:grid-cols-3/);
+    assert.doesNotMatch(browse, /aspect-|Image|img |rounded-full bg-|border border-line/);
+  });
+
+  it("preserves homepage section order through Studio closing", () => {
+    const page = read("src/app/page.tsx");
+    const body = page.slice(page.indexOf("return ("));
+    const heroIdx = body.indexOf('bg-ink text-cream');
+    const latestIdx = body.indexOf("<HomepageLatestSection");
+    const seriesIdx = body.indexOf("<HomepageFeaturedSeries");
+    const browseIdx = body.indexOf("<HomepageBrowseCategories");
+    const studioIdx = body.indexOf("A small kitchen, tested recipes");
+    assert.ok(heroIdx >= 0 && latestIdx > heroIdx);
+    assert.ok(seriesIdx > latestIdx);
+    assert.ok(browseIdx > seriesIdx);
+    assert.ok(studioIdx > browseIdx);
+  });
+
+  it("keeps Featured Series analytics and omits YouTube chrome after polish", () => {
+    const block = read("src/components/HomepageFeaturedSeries.tsx");
+    assert.match(block, /listPublishedSeries|PublicSeriesCard|publishedSeries\[0\]|series\.slug/);
+    assert.match(block, /event="series_item_click"/);
+    assert.match(block, /placement="homepage_series"/);
+    assert.doesNotMatch(block, /<iframe|youtube\.com\/embed|Watch the full series on YouTube/i);
   });
 
   it("aligns newsletter Subscribe focus-visible with public CTA pattern", () => {

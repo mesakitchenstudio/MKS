@@ -20,7 +20,7 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
       className="border-y border-line bg-cream/50"
       aria-labelledby="featured-series-heading"
     >
-      <div className="mx-auto max-w-6xl px-4 py-12 md:px-6 md:py-14">
+      <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-12">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
           From the studio
         </p>
@@ -28,7 +28,7 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
           Featured series
         </h2>
 
-        <div className="mt-8 grid min-w-0 grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-10">
+        <div className="mt-6 grid min-w-0 grid-cols-1 items-center gap-7 lg:grid-cols-2 lg:gap-10">
           <div className="relative aspect-[5/4] min-w-0 overflow-hidden border border-line bg-sand">
             <Image
               src={series.heroImage}

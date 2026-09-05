@@ -26,14 +26,14 @@ export function HomepageLatestSection({
   if (!recipes.length || recipes.length < 3) return null;
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-12 md:px-6 md:py-14" aria-labelledby="latest-recipes-heading">
+    <section className="mx-auto max-w-6xl px-4 py-11 md:px-6 md:py-12" aria-labelledby="latest-recipes-heading">
       <div className="mb-8 flex items-end justify-between gap-4">
         <h2 id="latest-recipes-heading" className="font-serif text-3xl md:text-4xl">{title}</h2>
         <Link href={href} className={`text-sm font-semibold text-terracotta hover:text-terracotta-dark ${linkFocus}`}>
           {viewMoreLabel}
         </Link>
       </div>
-      <div className={latestGridClass(recipes.length)}>
+      <div className={`${latestGridClass(recipes.length)} items-start`}>
         {recipes.map((recipe) => (
           <RecipeGridCard key={recipe.slug} recipe={recipe} />
         ))}

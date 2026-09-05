@@ -48,8 +48,8 @@ export default async function Home() {
   return (
     <>
       <section className="relative overflow-hidden bg-ink text-cream">
-        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-12 md:grid-cols-2 md:gap-10 md:px-6 md:py-14 lg:py-16">
-          <div className="order-1">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] md:gap-8 md:px-6 md:py-11 lg:gap-10 lg:py-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)]">
+          <div className="order-1 min-w-0">
             <h1 className="max-w-xl font-serif text-5xl leading-[1.1] md:text-6xl">
               Recipes for the table.
             </h1>
@@ -70,7 +70,7 @@ export default async function Home() {
             </div>
           </div>
           {homepage.hero ? (
-            <div className="order-2">
+            <div className="order-2 min-w-0">
               <HomepageHero recipe={homepage.hero} eyebrow={homepage.heroEyebrow} />
             </div>
           ) : null}
