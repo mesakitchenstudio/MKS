@@ -186,6 +186,23 @@ describe("primary public taxonomy", () => {
     assert.equal(recipeMatchesPrimaryCategory(fromType, "drinks"), true);
   });
 
+  it("maps Condiment RecipeType to Condiments card label until type is corrected in CMS", () => {
+    const misTypedMain = {
+      ...recipes[0],
+      slug: "salad-typed-as-condiment",
+      title: "Chicken Caesar Salad",
+      course: "Main",
+      categories: ["main-dishes", "toppings"],
+      typeName: "Condiment",
+    };
+    assert.equal(resolveRecipePrimaryCategorySlug(misTypedMain), "toppings");
+    assert.equal(recipePrimaryCategoryDisplayLabel(misTypedMain), "Condiments");
+
+    const corrected = { ...misTypedMain, typeName: "Main", categories: ["main-dishes"] };
+    assert.equal(resolveRecipePrimaryCategorySlug(corrected), "main-dishes");
+    assert.equal(recipePrimaryCategoryDisplayLabel(corrected), "Main Dishes");
+  });
+
   it("keeps dessert child union filtering functional", () => {
     const collectionMap = homepageCollectionSlugMap();
     const desserts = applyDiscoveryFilters(recipes, { category: "desserts" }, collectionMap);

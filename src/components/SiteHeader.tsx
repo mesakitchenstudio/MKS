@@ -206,7 +206,7 @@ export function SiteHeader() {
           <AccountMenu />
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink md:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta md:hidden"
             aria-expanded={open}
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((value) => !value)}
@@ -228,11 +228,15 @@ export function SiteHeader() {
             </button>
           ) : (
             <form onSubmit={onSearch} className="mb-4">
+              <label className="sr-only" htmlFor="header-search-mobile">
+                Search recipes
+              </label>
               <input
+                id="header-search-mobile"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search recipes"
-                className="w-full rounded-full border border-line bg-cream/60 px-4 py-2 text-sm outline-none focus:border-terracotta"
+                className="w-full rounded-full border border-line bg-cream/60 px-4 py-2.5 text-sm outline-none focus:border-terracotta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
               />
             </form>
           )}
@@ -261,7 +265,7 @@ export function SiteHeader() {
                       <Link
                         href={buildRecipesUrl({ category: slug })}
                         onClick={closeMenus}
-                        className="text-sm text-ink/80"
+                        className={`inline-flex min-h-11 items-center text-sm text-ink/80 hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS}`}
                       >
                         {primaryMegaLabel(slug)}
                       </Link>

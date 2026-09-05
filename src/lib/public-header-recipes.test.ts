@@ -162,4 +162,10 @@ describe("public header mobile recipes navigation", () => {
     );
     assert.doesNotMatch(siteHeaderSource, /md:hidden[\s\S]*aria-label=\{RECIPES_DISCLOSURE_LABEL\}/);
   });
+
+  it("gives the mobile header search an accessible label and focus treatment", () => {
+    assert.match(siteHeaderSource, /htmlFor="header-search-mobile"/);
+    assert.match(siteHeaderSource, /id="header-search-mobile"/);
+    assert.match(siteHeaderSource, /min-h-11 items-center text-sm text-ink\/80/);
+  });
 });

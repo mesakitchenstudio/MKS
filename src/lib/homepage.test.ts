@@ -441,3 +441,59 @@ describe("homepage Phase 4 editorial interactions", () => {
     assert.ok(studioIdx > kitchenIdx);
   });
 });
+
+describe("homepage final launch QA contracts", () => {
+  const root = process.cwd();
+  const read = (rel: string) => readFileSync(join(root, rel), "utf8");
+
+  it("keeps a single homepage H1 in the hero and H2 section landmarks", () => {
+    const page = read("src/app/page.tsx");
+    assert.equal((page.match(/<h1\b/g) || []).length, 1);
+    assert.match(page, /Recipes for the table\./);
+    const latest = read("src/components/HomepageLatestSection.tsx");
+    assert.match(latest, /<h2 id="latest-recipes-heading"/);
+    const series = read("src/components/HomepageFeaturedSeries.tsx");
+    assert.match(series, /<h2 id="featured-series-heading"/);
+    const browse = read("src/components/HomepageBrowseCategories.tsx");
+    assert.match(browse, /<h2 id="browse-recipes-heading"/);
+    assert.match(page, /<h2 id="studio-heading"/);
+    assert.doesNotMatch(page, /<h2[^>]*>The studio/);
+    assert.doesNotMatch(series, /<h[1-6][^>]*>Part /);
+  });
+
+  it("wires homepage destinations to known public routes", () => {
+    const page = read("src/app/page.tsx");
+    assert.match(page, /href="\/recipes"/);
+    assert.match(page, /href="\/about"/);
+    const hero = read("src/components/HomepageHero.tsx");
+    assert.match(hero, /href=\{`\/recipes\/\$\{recipe\.slug\}`\}/);
+    assert.equal((hero.match(/<Link\b/g) || []).length, 1);
+    const latest = read("src/components/HomepageLatestSection.tsx");
+    assert.match(latest, /href=\{href\}/);
+    assert.match(latest, /RecipeGridCard/);
+    const series = read("src/components/HomepageFeaturedSeries.tsx");
+    assert.match(series, /href = `\/series\/\$\{series\.slug\}`/);
+    assert.match(series, /href=\{seriesHref\}/);
+    assert.match(series, /placement="homepage_series"/);
+    const browse = read("src/components/HomepageBrowseCategories.tsx");
+    assert.match(browse, /buildRecipesUrl\(\{ category: slug \}\)/);
+    assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
+  });
+
+  it("keeps hero overlay contrast via strong ink gradient without an opaque text card", () => {
+    const hero = read("src/components/HomepageHero.tsx");
+    assert.match(hero, /from-ink\/95/);
+    assert.match(hero, /via-ink\/70/);
+    assert.match(hero, /text-cream/);
+    assert.doesNotMatch(hero, /bg-ink\/100|bg-paper|rounded-xl bg-/);
+  });
+
+  it("labels desktop and mobile header search accessibly and encodes queries", () => {
+    const header = read("src/components/SiteHeader.tsx");
+    assert.match(header, /htmlFor="header-search"/);
+    assert.match(header, /htmlFor="header-search-mobile"/);
+    assert.match(header, /encodeURIComponent\(next\)/);
+    assert.match(header, /\/recipes\?q=\$\{encodeURIComponent\(next\)\}/);
+    assert.match(header, /next \? `\/recipes\?q=/);
+  });
+});
