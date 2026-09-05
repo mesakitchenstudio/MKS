@@ -7,11 +7,11 @@ import { listPublishedSeries } from "@/lib/series";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Cooking Series",
+  title: "Series",
   description: "Explore step-by-step recipes and videos from Mesa Kitchen Studio.",
   alternates: { canonical: "/series" },
   openGraph: {
-    title: `Cooking Series | ${site.name}`,
+    title: `Series | ${site.name}`,
     description: "Explore step-by-step recipes and videos from Mesa Kitchen Studio.",
     url: `${site.url}/series`,
     siteName: site.name,
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: `Cooking Series | ${site.name}`,
+    title: `Series | ${site.name}`,
     description: "Explore step-by-step recipes and videos from Mesa Kitchen Studio.",
   },
 };

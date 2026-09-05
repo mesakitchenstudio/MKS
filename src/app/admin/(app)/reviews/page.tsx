@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import {
   AdminFlashStatus,
   REVIEW_BULK_REMOVED_PARAMS,
@@ -7,6 +8,10 @@ import {
 import { AdminReviewsIndex } from "@/components/admin/AdminReviewsIndex";
 import { requireAccess } from "@/lib/auth";
 import { listReviewsForAdmin } from "@/lib/recipe-reviews";
+
+export const metadata: Metadata = {
+  title: "Reviews",
+};
 
 export const dynamic = "force-dynamic";
 

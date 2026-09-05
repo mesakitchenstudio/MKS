@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { StaffTeamSection } from "@/components/admin/StaffAddMemberPanel";
 import { StaffTeamList } from "@/components/admin/StaffTeamList";
 import { ACCESS_LEVELS } from "@/lib/admin-access";
@@ -12,6 +13,10 @@ import {
   MIN_ADMIN_PASSWORD_LENGTH,
 } from "@/lib/admin-staff";
 import { AdminFlashStatus, STAFF_REMOVED_PARAMS } from "@/lib/admin-transient-feedback";
+
+export const metadata: Metadata = {
+  title: "Team Access",
+};
 
 function staffErrorMessage(error?: string) {
   switch (error) {

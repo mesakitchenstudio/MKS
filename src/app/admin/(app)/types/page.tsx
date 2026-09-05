@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AddTypeForm } from "@/components/admin/AddTypeForm";
 import { DeleteTypeButton } from "@/components/admin/DeleteTypeButton";
@@ -5,6 +6,10 @@ import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
 import { CORE_FIELDS } from "@/lib/fields";
+
+export const metadata: Metadata = {
+  title: "Recipe Types",
+};
 
 const coreFieldKeys = new Set(CORE_FIELDS.map((field) => field.key));
 

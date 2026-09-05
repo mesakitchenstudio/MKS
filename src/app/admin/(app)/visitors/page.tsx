@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { VisitorsOverview } from "@/components/admin/VisitorsOverview";
 import { canDeleteGuestVisitors } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
@@ -10,6 +11,10 @@ import {
   parseAnalyticsRangeDays,
 } from "@/lib/guest-analytics";
 import { parseGuestTrafficSource } from "@/lib/guest-acquisition";
+
+export const metadata: Metadata = {
+  title: "Visitors",
+};
 
 export const dynamic = "force-dynamic";
 

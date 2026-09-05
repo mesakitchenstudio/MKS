@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { YoutubeDashboard } from "@/components/admin/YoutubeDashboard";
 import { YoutubeFunnelPanel } from "@/components/admin/YoutubeFunnelPanel";
@@ -16,6 +17,10 @@ import {
 } from "@/lib/youtube-data/video-format";
 import { parseAnalyticsRangeDays } from "@/lib/youtube-analytics/ranges";
 import { loadYoutubeFunnelDashboard } from "@/lib/youtube-funnel/load";
+
+export const metadata: Metadata = {
+  title: "YouTube",
+};
 
 export const dynamic = "force-dynamic";
 

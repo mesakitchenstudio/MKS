@@ -17,9 +17,7 @@ import { getAllRecipes } from "@/lib/recipes";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: {
-    absolute: `${site.name} | ${site.tagline}`,
-  },
+  title: "Home",
   description: `${site.name} — ${site.description}`,
   alternates: { canonical: "/" },
   openGraph: {

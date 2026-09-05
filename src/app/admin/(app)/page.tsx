@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { RecipesIndex } from "@/components/admin/RecipesIndex";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+
+export const metadata: Metadata = {
+  title: "Admin",
+};
 
 export default async function AdminHomePage() {
   await requireAccess("content");

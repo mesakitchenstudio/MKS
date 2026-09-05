@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { RecipeDiscovery } from "@/components/RecipeDiscovery";
 import { homepageCollectionSlugMap, homepageCollectionTitles } from "@/data/homepage";
-import { site } from "@/data/site";
 import { applyDiscoveryFilters, parseDiscoveryParams } from "@/lib/recipe-discovery";
+import { pageTitleSegment } from "@/lib/page-title";
 import { getAllRecipes } from "@/lib/recipes";
 
 export const revalidate = 300;
@@ -15,9 +15,9 @@ export async function generateMetadata({
   const params = parseDiscoveryParams(await searchParams);
   const collectionTitles = homepageCollectionTitles();
   const title = params.collection
-    ? `${collectionTitles[params.collection] ?? "Recipes"} | ${site.name}`
+    ? pageTitleSegment(collectionTitles[params.collection] ?? "Recipes")
     : params.q
-      ? `Search: ${params.q} | ${site.name}`
+      ? pageTitleSegment(`Search: ${params.q}`)
       : "Recipes";
 
   return {

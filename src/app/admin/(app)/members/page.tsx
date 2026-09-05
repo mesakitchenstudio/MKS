@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { MembersTable } from "@/components/admin/MembersTable";
 import {
   AdminFlashStatus,
@@ -6,6 +7,10 @@ import {
 import { canDeleteMembers } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { listUsersForAdmin } from "@/lib/accounts";
+
+export const metadata: Metadata = {
+  title: "Members",
+};
 
 export const dynamic = "force-dynamic";
 

@@ -9,7 +9,7 @@ import { loadPublicVideoCatalogue } from "@/lib/public-videos/load";
 import type { PublicVideoCard } from "@/lib/public-videos/types";
 
 export const metadata: Metadata = {
-  title: `About ${site.name}`,
+  title: "About",
   description: `${site.name} publishes carefully tested home-cooking and baking recipes using everyday ingredients — with instructions that explain what to do and, when useful, why it works.`,
   alternates: { canonical: "/about" },
 };

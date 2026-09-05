@@ -6,6 +6,10 @@ import { AnalyticsScripts } from "@/components/AnalyticsScripts";
 import { FunnelAnalyticsBridge } from "@/components/FunnelAnalyticsBridge";
 import { JsonLd } from "@/components/JsonLd";
 import { PublicChrome } from "@/components/PublicChrome";
+import {
+  PAGE_TITLE_DEFAULT,
+  PAGE_TITLE_TEMPLATE,
+} from "@/lib/page-title";
 import { site } from "@/data/site";
 import { getAdminSession } from "@/lib/auth";
 import { isSitePrivate } from "@/lib/flags";
@@ -30,8 +34,8 @@ const brandDescription = `${site.name} — ${site.description}`;
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
-    default: `${site.name} | ${site.tagline}`,
-    template: `%s | ${site.name}`,
+    default: PAGE_TITLE_DEFAULT,
+    template: PAGE_TITLE_TEMPLATE,
   },
   description: brandDescription,
   applicationName: site.name,

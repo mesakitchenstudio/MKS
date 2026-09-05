@@ -10,7 +10,7 @@ import { studioRobotsNoIndex, visibleStudioLessons } from "@/lib/studio-public";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: "Studio lessons",
+    title: "Studio",
     description: `Kitchen fundamentals from ${site.name} — measuring, butter, ovens, and mise en place.`,
     alternates: { canonical: "/studio" },
     robots: studioRobotsNoIndex() ? { index: false, follow: false } : undefined,

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AdminProfilePhotoForm } from "@/components/admin/AdminPhotoField";
 import {
@@ -11,6 +12,10 @@ import { getAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { AdminFlashStatus, PROFILE_SAVED_PARAMS } from "@/lib/admin-transient-feedback";
 import { redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Profile",
+};
 
 export default async function AdminProfilePage({
   searchParams,

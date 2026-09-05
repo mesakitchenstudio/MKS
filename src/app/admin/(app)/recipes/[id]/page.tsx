@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RecipeEditor } from "@/components/admin/RecipeEditor";
 import { requireAccess } from "@/lib/auth";
@@ -5,6 +6,20 @@ import { getDb } from "@/lib/db";
 import { parseRecipeAiMeta } from "@/lib/ai-recipe/types";
 import { parseValues } from "@/lib/recipe-map";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const recipe = await getDb().recipe.findUnique({
+    where: { id },
+    select: { title: true },
+  });
+  if (!recipe) return { title: "Recipe" };
+  return { title: recipe.title };
+}
 
 export default async function EditRecipePage({
   params,

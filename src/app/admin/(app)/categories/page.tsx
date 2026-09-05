@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { CategoriesManager } from "@/components/admin/CategoriesManager";
 import { requireAccess } from "@/lib/auth";
 import { type AdminCategory } from "@/lib/category-admin";
 import { getDb } from "@/lib/db";
+
+export const metadata: Metadata = {
+  title: "Categories",
+};
 
 export default async function AdminCategoriesPage({
   searchParams,

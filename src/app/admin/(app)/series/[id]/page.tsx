@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import {
   AdminFlashStatus,
 } from "@/lib/admin-transient-feedback";
@@ -9,6 +10,20 @@ import { getAdminSeries, listSeriesPickerCandidates } from "@/lib/series-admin";
 import { listImportableChannelPlaylists } from "@/lib/series-playlist";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const series = await getDb().series.findUnique({
+    where: { id },
+    select: { title: true },
+  });
+  if (!series) return { title: "Series" };
+  return { title: series.title };
+}
 
 export const SERIES_EDITOR_FLASH_PARAMS = [
   "saved",

@@ -15,6 +15,7 @@ import {
   formatSeriesCollectionMeta,
   SERIES_PLAYLIST_CTA_LABEL,
 } from "@/lib/series-public-meta";
+import { pageTitleSegment } from "@/lib/page-title";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -31,17 +32,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const series = await getPublishedSeriesBySlug(slug);
   if (!series) return { title: "Series" };
-  const title = series.seoTitle.trim() || series.title;
+  const documentTitle = series.title;
+  const socialTitle = pageTitleSegment(series.seoTitle.trim() || documentTitle);
   const description =
     series.seoDescription.trim() ||
     series.description.trim() ||
     `Cooking series from ${site.name}.`;
   return {
-    title,
+    title: series.title,
     description,
     alternates: { canonical: `/series/${series.slug}` },
     openGraph: {
-      title: `${title} | ${site.name}`,
+      title: `${socialTitle} | ${site.name}`,
       description,
       url: `${site.url}/series/${series.slug}`,
       images: series.heroImage ? [series.heroImage] : undefined,
@@ -50,7 +52,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: `${title} | ${site.name}`,
+      title: `${socialTitle} | ${site.name}`,
       description,
       images: series.heroImage ? [series.heroImage] : undefined,
     },

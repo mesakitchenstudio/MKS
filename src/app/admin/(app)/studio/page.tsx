@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { saveStudioLessonLinksAction } from "@/app/admin/actions";
 import { HomepageCurationForm } from "@/components/admin/HomepageCurationForm";
@@ -13,6 +14,9 @@ import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass } from "@/lib/a
 import { studioLessonTypeLabel } from "@/lib/studio-types";
 import { lessonHref } from "@/data/lessons";
 
+export const metadata: Metadata = {
+  title: "Studio",
+};
 export const dynamic = "force-dynamic";
 
 export default async function AdminStudioPage({

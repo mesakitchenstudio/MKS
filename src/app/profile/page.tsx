@@ -11,7 +11,7 @@ import { EmailUpdatesPreference } from "@/components/EmailUpdatesPreference";
 import { FavoritesEmptyState, ProfileFavorites } from "@/components/ProfileFavorites";
 
 export const metadata: Metadata = {
-  title: "Your profile",
+  title: "Profile",
   robots: { index: false, follow: false },
 };
 

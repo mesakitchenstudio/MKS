@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SeriesIndexRowOverflow } from "@/components/admin/SeriesIndexRowOverflow";
 import { requireAccess } from "@/lib/auth";
@@ -10,6 +11,10 @@ import {
   adminTableHeadClass,
 } from "@/lib/admin-ui";
 import { youtubePlaylistUrl } from "@/lib/youtube";
+
+export const metadata: Metadata = {
+  title: "Series",
+};
 
 export const dynamic = "force-dynamic";
 
