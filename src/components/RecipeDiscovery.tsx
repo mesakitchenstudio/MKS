@@ -137,7 +137,7 @@ export function RecipeDiscovery({
         </div>
       </form>
 
-      <div className="mt-8">
+      <div className="mt-7">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
           Browse by category
         </p>
@@ -157,8 +157,8 @@ export function RecipeDiscovery({
                     onClick={() => onCategorySelect(category.id)}
                     className={`inline-flex min-h-11 max-w-full items-center py-2 transition-colors ${controlFocus} ${
                       isSelected
-                        ? "border-b-2 border-terracotta text-terracotta"
-                        : "text-terracotta/80 hover:text-terracotta"
+                        ? "border-b-2 border-terracotta font-semibold text-terracotta"
+                        : "font-medium text-ink/75 hover:text-terracotta"
                     }`}
                   >
                     <span className="min-w-0 text-left">{label}</span>
@@ -170,7 +170,7 @@ export function RecipeDiscovery({
         </nav>
       </div>
 
-      <div className="mt-8 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+      <div className="mt-7 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
         <div className="min-w-0">
           <p className="text-sm text-muted" aria-live="polite" role="status">
             {contextParts.length > 0 ? (

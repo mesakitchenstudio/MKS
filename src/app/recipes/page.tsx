@@ -49,7 +49,7 @@ export default async function RecipesPage({
         </p>
       </header>
 
-      <section className="mt-8 border-t border-line pt-8 md:mt-10 md:pt-9" aria-label="Recipe discovery">
+      <section className="mt-8 border-t border-line pt-7 md:mt-9 md:pt-8" aria-label="Recipe discovery">
         <RecipeDiscovery
           recipes={filtered}
           params={params}

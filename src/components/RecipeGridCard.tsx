@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Recipe } from "@/data/types";
 import { RecipeImage } from "@/components/RecipeImage";
 import { recipePrimaryCategoryDisplayLabel } from "@/lib/recipe-primary-taxonomy";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 
 const linkFocus =
@@ -38,6 +39,8 @@ export function RecipeGridCard({
   const discovery = variant === "discovery";
   const excerptClamp = excerptLines ?? (discovery ? 2 : 3);
   const excerptClampClass = excerptClamp === 2 ? "line-clamp-2" : "line-clamp-3";
+  const cardTitle = resolveRecipeCardTitle(recipe);
+  const excerpt = recipe.excerpt.trim();
 
   const imageBlock = discovery ? (
     <div className="relative h-40 w-full overflow-hidden bg-sand md:h-44">
@@ -74,19 +77,21 @@ export function RecipeGridCard({
           large ? "text-2xl md:text-3xl" : discovery ? "text-lg" : "text-xl"
         }`}
       >
-        {recipe.title}
+        {cardTitle}
       </h3>
       {compact ? null : (
         <>
-          <p
-            className={`text-muted ${
-              discovery
-                ? `mt-1 ${excerptClampClass} text-sm leading-5`
-                : `mt-2 ${excerptClampClass} text-sm leading-6`
-            }`}
-          >
-            {recipe.excerpt}
-          </p>
+          {excerpt ? (
+            <p
+              className={`text-muted ${
+                discovery
+                  ? `mt-1 ${excerptClampClass} text-sm leading-5`
+                  : `mt-2 ${excerptClampClass} text-sm leading-6`
+              }`}
+            >
+              {excerpt}
+            </p>
+          ) : null}
           <p className={`text-muted ${discovery ? "mt-1 text-xs" : "mt-2 text-xs"}`}>
             {formatTime(totalMinutes(recipe))} · {recipe.servings} {recipe.servingsUnit}
           </p>

@@ -82,3 +82,17 @@ export function looksLikeTopicTitle(title: string) {
   if (/\((and|&)\s+how\b/i.test(value)) return true;
   return false;
 }
+
+/**
+ * Catalog / grid card heading. Prefer an editorial `dishName` when present and
+ * trustworthy; otherwise keep the canonical `title` (SEO / YouTube / admin).
+ * Does not invent names from type, series, or video titles.
+ */
+export function resolveRecipeCardTitle(
+  recipe: Pick<Recipe, "title" | "dishName">,
+): string {
+  const title = recipe.title.trim();
+  const dishName = recipe.dishName?.trim() || "";
+  if (dishName && isTrustworthyDishLabel(dishName)) return dishName;
+  return title;
+}

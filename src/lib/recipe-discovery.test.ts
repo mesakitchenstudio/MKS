@@ -245,6 +245,8 @@ describe("public recipes Phase 1 editorial discovery UI", () => {
     assert.doesNotMatch(discovery, /rounded-full px-3 py-1/);
     assert.doesNotMatch(discovery, /overflow-x-auto/);
     assert.match(discovery, /aria-pressed=\{isSelected\}/);
+    assert.match(discovery, /text-ink\/75 hover:text-terracotta/);
+    assert.match(discovery, /border-b-2 border-terracotta font-semibold text-terracotta/);
     assert.match(discovery, /grid gap-8 sm:grid-cols-2 lg:grid-cols-3/);
     assert.doesNotMatch(discovery, /xl:grid-cols-4/);
     assert.match(discovery, /imageAspect="4\/3"/);
@@ -265,6 +267,13 @@ describe("public recipes Phase 1 editorial discovery UI", () => {
     const analytics = read("src/lib/analytics.ts");
     assert.match(analytics, /recipe_discovery_search/);
     assert.match(analytics, /search_query\?:/);
+  });
+
+  it("uses shared card title resolver and omits empty excerpts", () => {
+    const card = read("src/components/RecipeGridCard.tsx");
+    assert.match(card, /resolveRecipeCardTitle/);
+    assert.match(card, /\{cardTitle\}/);
+    assert.match(card, /excerpt \? \(/);
   });
 
   it("keeps collection compatibility and category URL helpers", () => {
