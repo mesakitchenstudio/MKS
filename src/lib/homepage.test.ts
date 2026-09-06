@@ -120,6 +120,15 @@ describe("homepage curation", () => {
     assert.match(footer, /hideNewsletter/);
   });
 
+  it("does not render a Staff preview banner on public chrome", () => {
+    const chrome = readFileSync(join(process.cwd(), "src/components/PublicChrome.tsx"), "utf8");
+    const layout = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
+    assert.doesNotMatch(chrome, /StaffPreviewBanner|Staff preview|showStaffPreviewBanner/);
+    assert.doesNotMatch(layout, /showStaffPreviewBanner|showStudioStaffPreviewBanner/);
+    assert.match(layout, /staffPreview/);
+    assert.match(layout, /privateMode/);
+  });
+
   it("hides latest when fewer than three candidates remain after hero", () => {
     const tinyCatalog = recipes.slice(0, 4).map((recipe) =>
       cloneRecipe(recipe, { image: RECIPE_IMAGE_FALLBACK }),
