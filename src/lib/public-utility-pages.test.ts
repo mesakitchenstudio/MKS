@@ -26,6 +26,7 @@ describe("public utility pages polish", () => {
     assert.match(form, /name="message"/);
     assert.match(form, /Thanks for writing to us/);
     assert.match(form, /\/api\/contact/);
+    assert.match(form, /sm:w-auto sm:justify-self-start/);
     assert.doesNotMatch(form, /name="topic"|Topic/);
   });
 
@@ -41,6 +42,17 @@ describe("public utility pages polish", () => {
     assert.match(privacy, /unsubscribe at any time/i);
     assert.match(privacy, /first-party visitor analytics/i);
     assert.match(privacy, /Google account/);
+    assert.match(privacy, /Third-party services/);
+    const thirdPartyIdx = privacy.indexOf("Third-party services");
+    const youtubeIdx = privacy.indexOf(
+      "Embedded YouTube videos are loaded from YouTube when you play them",
+    );
+    const emailProviderIdx = privacy.indexOf(
+      "email provider when that service is configured",
+    );
+    assert.ok(thirdPartyIdx > 0);
+    assert.ok(youtubeIdx > thirdPartyIdx);
+    assert.ok(emailProviderIdx > thirdPartyIdx);
     assert.doesNotMatch(privacy, /all personal data is permanently erased/i);
     assert.doesNotMatch(privacy, /GDPR|CCPA|sell your data to advertisers/i);
   });

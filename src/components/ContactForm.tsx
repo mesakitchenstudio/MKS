@@ -98,7 +98,7 @@ export function ContactForm() {
       <button
         type="submit"
         disabled={loading}
-        className={`inline-flex min-h-11 w-full items-center justify-center rounded-full bg-terracotta px-6 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 hover:bg-terracotta-dark active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto ${authFocusRing}`}
+        className={`inline-flex min-h-11 w-full items-center justify-center justify-self-stretch rounded-full bg-terracotta px-6 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 hover:bg-terracotta-dark active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:justify-self-start ${authFocusRing}`}
       >
         {loading ? "Sending…" : "Send message"}
       </button>

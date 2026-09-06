@@ -116,8 +116,19 @@ export default function PrivacyPage() {
             </p>
             <p>
               Recipe pages include structured data so search engines can show cook times
-              and ingredients. Embedded YouTube videos are loaded from YouTube when you
-              play them.
+              and ingredients. Our hosting provider may also keep operational request logs
+              needed to run and secure the site.
+            </p>
+          </div>
+        </section>
+
+        <section className={sectionClass} aria-labelledby="privacy-third-party">
+          <h2 id="privacy-third-party" className={headingClass}>
+            Third-party services
+          </h2>
+          <div className={bodyClass}>
+            <p>
+              Embedded YouTube videos are loaded from YouTube when you play them.
             </p>
             <p>
               Emails we send (contact replies, newsletter, password reset) are delivered
