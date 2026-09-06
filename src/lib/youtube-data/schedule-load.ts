@@ -8,6 +8,7 @@ import {
   formatScheduleLastSyncedLabel,
   formatScheduledPublishParts,
   parseVideoTagsJson,
+  resolveScheduledVideoTitles,
   scheduleFormatLabel,
   scheduledVideoStatusLabel,
   selectNextUpScheduledVideo,
@@ -80,6 +81,10 @@ export async function loadYoutubeScheduleDashboard(input?: {
       durationSeconds: video.durationSeconds,
     });
     const linked = recipeIndex.byVideoId.get(video.videoId) ?? null;
+    const titles = resolveScheduledVideoTitles({
+      youtubeTitle: video.title,
+      linkedRecipeTitle: linked?.recipeTitle,
+    });
     const parts = formatScheduledPublishParts(video.scheduledPublishAt);
     const seriesTitle =
       video.seriesItems.find((item) => item.series?.title)?.series?.title?.trim() || null;
@@ -87,7 +92,8 @@ export async function loadYoutubeScheduleDashboard(input?: {
     return {
       videoId: video.videoId,
       youtubeTitle: video.title,
-      displayTitle: linked?.recipeTitle || video.title,
+      displayTitle: titles.displayTitle,
+      showYoutubeTitle: titles.showYoutubeTitle,
       thumbnailUrl: video.thumbnailUrl,
       format,
       formatLabel: scheduleFormatLabel(format),
@@ -95,6 +101,8 @@ export async function loadYoutubeScheduleDashboard(input?: {
       scheduledDateLabel: parts.dateLabel,
       scheduledTimeLabel: parts.timeLabel,
       timezoneLabel: parts.timezoneLabel,
+      localTimeLabel: parts.localTimeLabel,
+      localTimezoneLabel: parts.localTimezoneLabel,
       statusLabel: scheduledVideoStatusLabel({
         scheduledPublishAt: video.scheduledPublishAt,
         privacyStatus: video.privacyStatus,

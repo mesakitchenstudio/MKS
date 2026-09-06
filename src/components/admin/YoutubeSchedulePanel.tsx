@@ -25,10 +25,6 @@ function ScheduleItem({
   item: ScheduledVideoRow;
   emphasized?: boolean;
 }) {
-  const showYoutubeTitle =
-    item.youtubeTitle.trim() &&
-    item.youtubeTitle.trim().toLowerCase() !== item.displayTitle.trim().toLowerCase();
-
   return (
     <article
       className={`grid gap-4 border-b border-line py-5 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-5 ${
@@ -54,9 +50,6 @@ function ScheduleItem({
             <h3 className="font-serif text-xl leading-snug text-ink sm:text-[1.35rem]">
               {item.displayTitle}
             </h3>
-            {showYoutubeTitle ? (
-              <p className="text-sm leading-5 text-muted">YouTube: {item.youtubeTitle}</p>
-            ) : null}
             <p className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive">
               {item.formatLabel}
               <span className="mx-2 text-line" aria-hidden>
@@ -70,6 +63,18 @@ function ScheduleItem({
               <span aria-hidden> · </span>
               {item.scheduledTimeLabel} {item.timezoneLabel}
             </p>
+            <p className="text-sm leading-6 text-muted">
+              <span className="sr-only">Local time </span>
+              {item.localTimeLabel} {item.localTimezoneLabel}
+            </p>
+            {item.showYoutubeTitle ? (
+              <p className="text-sm leading-5 text-muted">
+                <span className="block text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive/80">
+                  YouTube
+                </span>
+                {item.youtubeTitle}
+              </p>
+            ) : null}
             {item.recipe ? (
               <p className="text-sm leading-6 text-muted">
                 Recipe:{" "}
@@ -134,7 +139,7 @@ export function YoutubeSchedulePanel({ schedule, canSync, canManageAnalytics }: 
             Upcoming videos scheduled for publication on the Mesa Kitchen Studio YouTube channel.
           </p>
           <p className="text-xs leading-5 text-muted">
-            Last synced: {schedule.lastSyncedLabel} GMT · Times in GMT
+            Last synced: {schedule.lastSyncedLabel} GMT · Times in GMT · Istanbul local shown
           </p>
         </div>
         {canSync ? (
@@ -144,7 +149,7 @@ export function YoutubeSchedulePanel({ schedule, canSync, canManageAnalytics }: 
             disabled={pending}
             className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
           >
-            {pending ? "Refreshing…" : "Refresh Public YouTube"}
+            {pending ? "Refreshing…" : "Refresh YouTube"}
           </button>
         ) : null}
       </div>
@@ -188,7 +193,7 @@ export function YoutubeSchedulePanel({ schedule, canSync, canManageAnalytics }: 
             </p>
           ) : (
             <p className="text-sm leading-6 text-muted">
-              Ask an Owner to connect YouTube Analytics, then refresh the public catalog.
+              Ask an Owner to connect YouTube Analytics, then refresh YouTube.
             </p>
           )}
         </div>
@@ -202,8 +207,6 @@ export function YoutubeSchedulePanel({ schedule, canSync, canManageAnalytics }: 
           </p>
         </div>
       ) : null}
-
-      {!showHardError && !hasItems && schedule.status === "needs_oauth" ? null : null}
 
       {!showHardError && schedule.nextUp ? (
         <section aria-labelledby="schedule-next-up" className="space-y-3">

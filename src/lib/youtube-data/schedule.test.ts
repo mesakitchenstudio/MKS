@@ -5,8 +5,10 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { canAccess } from "../admin-access.ts";
 import {
+  coalesceScheduledPublishAt,
   formatScheduledPublishParts,
   isFutureScheduledPublishAt,
+  resolveScheduledVideoTitles,
   scheduleFormatLabel,
   scheduledVideoStatusLabel,
   selectNextUpScheduledVideo,
@@ -42,15 +44,44 @@ describe("youtube schedule helpers", () => {
       ["next", "later"],
     );
     assert.equal(selectNextUpScheduledVideo(upcoming)?.id, "next");
+    assert.equal(upcoming.slice(1).some((row) => row.id === "next"), false);
     assert.equal(isFutureScheduledPublishAt(new Date("2026-09-01T12:00:00.000Z"), now), false);
     assert.equal(isFutureScheduledPublishAt(null, now), false);
   });
 
-  it("K: formats scheduled publish parts in GMT", () => {
-    const parts = formatScheduledPublishParts(new Date("2026-09-11T12:00:00.000Z"));
-    assert.equal(parts.dateLabel, "Sep 11, 2026");
+  it("K: formats scheduled publish parts in GMT and Europe/Istanbul", () => {
+    const parts = formatScheduledPublishParts(new Date("2026-09-08T12:00:00.000Z"));
+    assert.equal(parts.dateLabel, "Sep 8, 2026");
     assert.equal(parts.timeLabel, "12:00 PM");
     assert.equal(parts.timezoneLabel, "GMT");
+    assert.equal(parts.localTimeLabel, "3:00 PM");
+    assert.equal(parts.localTimezoneLabel, "Istanbul");
+  });
+
+  it("prefers linked editorial identity over YouTube SEO title", () => {
+    const linked = resolveScheduledVideoTitles({
+      youtubeTitle: "How to make the perfect crispy potato puffs at home #cooking #snacks",
+      linkedRecipeTitle: "Crispy Potato Puffs",
+    });
+    assert.equal(linked.displayTitle, "Crispy Potato Puffs");
+    assert.equal(linked.showYoutubeTitle, true);
+
+    const fallback = resolveScheduledVideoTitles({
+      youtubeTitle: "How to make the perfect crispy potato puffs at home #cooking #snacks",
+      linkedRecipeTitle: null,
+    });
+    assert.equal(
+      fallback.displayTitle,
+      "How to make the perfect crispy potato puffs at home #cooking #snacks",
+    );
+    assert.equal(fallback.showYoutubeTitle, false);
+  });
+
+  it("coalesceScheduledPublishAt clears past and missing publishAt", () => {
+    assert.ok(coalesceScheduledPublishAt("2026-09-11T12:00:00.000Z", now));
+    assert.equal(coalesceScheduledPublishAt("2026-09-01T12:00:00.000Z", now), null);
+    assert.equal(coalesceScheduledPublishAt(null, now), null);
+    assert.equal(coalesceScheduledPublishAt("", now), null);
   });
 
   it("status labels distinguish scheduled vs published vs private drafts", () => {
@@ -121,6 +152,8 @@ describe("youtube schedule access and wiring", () => {
     assert.match(page, /view === "schedule"/);
     assert.match(page, />\s*Schedule\s*</);
     assert.match(page, /YoutubeSchedulePanel/);
+    assert.match(page, /next !== "schedule" && filterQuery/);
+    assert.match(page, /view === "schedule" && params\.filter/);
   });
 
   it("N: public catalogue still filters to public privacy only", () => {
@@ -131,8 +164,9 @@ describe("youtube schedule access and wiring", () => {
     assert.doesNotMatch(catalogue, /scheduledPublishAt/);
   });
 
-  it("M/L: schedule panel distinguishes empty vs error", () => {
+  it("M/L: schedule panel distinguishes empty vs error and Refresh YouTube", () => {
     const panel = read("components/admin/YoutubeSchedulePanel.tsx");
+    const dashboard = read("components/admin/YoutubeDashboard.tsx");
     assert.match(panel, /No upcoming videos are currently scheduled/);
     assert.match(panel, /We couldn&apos;t load the YouTube schedule/);
     assert.match(panel, /showHardError/);
@@ -141,19 +175,31 @@ describe("youtube schedule access and wiring", () => {
     assert.match(panel, /Next up/);
     assert.match(panel, /Upcoming/);
     assert.match(panel, /Times in GMT/);
+    assert.match(panel, /Istanbul/);
+    assert.match(panel, /Refresh YouTube/);
+    assert.doesNotMatch(panel, /Refresh Public YouTube/);
+    assert.match(dashboard, /Refresh YouTube/);
+    assert.doesNotMatch(dashboard, /Refresh Public YouTube/);
+    assert.match(panel, /showYoutubeTitle/);
   });
 
-  it("sync stores publishAt via OAuth extension", () => {
+  it("sync stores publishAt via OAuth extension and clears stale schedules", () => {
     const sync = read("lib/youtube-data/sync.ts");
     const scheduled = read("lib/youtube-data/scheduled-sync.ts");
     const client = read("lib/youtube-data/client.ts");
+    const load = read("lib/youtube-data/schedule-load.ts");
     const schema = readFileSync(path.join(srcRoot, "..", "prisma", "schema.prisma"), "utf8");
 
     assert.match(schema, /scheduledPublishAt/);
     assert.match(schema, /uploadStatus/);
     assert.match(client, /publishAt/);
     assert.match(sync, /syncYoutubeScheduledViaOAuth/);
+    assert.match(sync, /coalesceScheduledPublishAt/);
     assert.match(scheduled, /getAnalyticsAccessToken/);
     assert.match(scheduled, /scheduledPublishAt/);
+    assert.match(scheduled, /coalesceScheduledPublishAt/);
+    assert.match(scheduled, /scheduledPublishAt: \{ lte: now \}/);
+    assert.match(load, /resolveScheduledVideoTitles/);
+    assert.match(load, /buildRecipeVideoIndex/);
   });
 });

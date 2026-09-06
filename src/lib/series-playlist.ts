@@ -11,6 +11,7 @@ import {
 } from "@/lib/youtube-data/client";
 import { resolveYoutubeChannelId } from "@/lib/youtube-data/config";
 import { YouTubeDataError } from "@/lib/youtube-data/errors";
+import { coalesceScheduledPublishAt } from "@/lib/youtube-data/schedule";
 
 export type PlaylistImportCandidate = YouTubeApiPlaylist & {
   alreadyImported: boolean;
@@ -70,7 +71,7 @@ async function ensureLocalYoutubeVideos(videoIds: string[], channelId: string): 
         title: video.title,
         description: video.description,
         publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
-        scheduledPublishAt: video.scheduledPublishAt ? new Date(video.scheduledPublishAt) : null,
+        scheduledPublishAt: coalesceScheduledPublishAt(video.scheduledPublishAt),
         thumbnailUrl: video.thumbnailUrl,
         durationSeconds: video.durationSeconds,
         durationDisplay: video.durationDisplay,
@@ -91,7 +92,7 @@ async function ensureLocalYoutubeVideos(videoIds: string[], channelId: string): 
         title: video.title,
         description: video.description,
         publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
-        scheduledPublishAt: video.scheduledPublishAt ? new Date(video.scheduledPublishAt) : null,
+        scheduledPublishAt: coalesceScheduledPublishAt(video.scheduledPublishAt),
         thumbnailUrl: video.thumbnailUrl,
         durationSeconds: video.durationSeconds,
         durationDisplay: video.durationDisplay,

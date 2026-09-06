@@ -17,6 +17,8 @@ export type ScheduledVideoRow = {
   videoId: string;
   youtubeTitle: string;
   displayTitle: string;
+  /** True when displayTitle is editorial and YouTube title should show secondarily. */
+  showYoutubeTitle: boolean;
   thumbnailUrl: string;
   format: YouTubeVideoFormat;
   formatLabel: string;
@@ -24,6 +26,8 @@ export type ScheduledVideoRow = {
   scheduledDateLabel: string;
   scheduledTimeLabel: string;
   timezoneLabel: string;
+  localTimeLabel: string;
+  localTimezoneLabel: string;
   statusLabel: ScheduledVideoStatusLabel;
   privacyStatus: string;
   uploadStatus: string;
@@ -72,13 +76,25 @@ export function scheduledVideoStatusLabel(input: {
   return "Unavailable";
 }
 
-/** Split UTC scheduled time for editorial layout (date + time + GMT). */
+/** Split UTC scheduled time for editorial layout (GMT + Europe/Istanbul). */
 export function formatScheduledPublishParts(
   value: Date | string | null | undefined,
-): { dateLabel: string; timeLabel: string; timezoneLabel: string } {
+): {
+  dateLabel: string;
+  timeLabel: string;
+  timezoneLabel: string;
+  localTimeLabel: string;
+  localTimezoneLabel: string;
+} {
   const date = value instanceof Date ? value : value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) {
-    return { dateLabel: "—", timeLabel: "—", timezoneLabel: "GMT" };
+    return {
+      dateLabel: "—",
+      timeLabel: "—",
+      timezoneLabel: "GMT",
+      localTimeLabel: "—",
+      localTimezoneLabel: "Istanbul",
+    };
   }
 
   const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
@@ -90,12 +106,56 @@ export function formatScheduledPublishParts(
     hour12: true,
     timeZone: "UTC",
   });
+  const localTime = date.toLocaleString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Europe/Istanbul",
+  });
 
   return {
     dateLabel: `${month} ${day}, ${year}`,
     timeLabel: time,
     timezoneLabel: "GMT",
+    localTimeLabel: localTime,
+    localTimezoneLabel: "Istanbul",
   };
+}
+
+/**
+ * Prefer linked recipe editorial identity (dishName via resolveRecipeCardTitle in the index).
+ * Fall back to the raw YouTube title. Do not invent a second resolver.
+ */
+export function resolveScheduledVideoTitles(input: {
+  youtubeTitle: string;
+  linkedRecipeTitle?: string | null;
+}): { displayTitle: string; showYoutubeTitle: boolean } {
+  const youtubeTitle = String(input.youtubeTitle || "").trim();
+  const editorial = String(input.linkedRecipeTitle || "").trim();
+  if (editorial) {
+    const same =
+      editorial.localeCompare(youtubeTitle, undefined, { sensitivity: "accent" }) === 0;
+    return {
+      displayTitle: editorial,
+      showYoutubeTitle: Boolean(youtubeTitle) && !same,
+    };
+  }
+  return {
+    displayTitle: youtubeTitle || "Untitled video",
+    showYoutubeTitle: false,
+  };
+}
+
+/** Persist only future YouTube publishAt values; past/missing clear the schedule field. */
+export function coalesceScheduledPublishAt(
+  value: string | Date | null | undefined,
+  now = new Date(),
+): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  if (date.getTime() <= now.getTime()) return null;
+  return date;
 }
 
 export function youtubeStudioVideoUrl(videoId: string): string {

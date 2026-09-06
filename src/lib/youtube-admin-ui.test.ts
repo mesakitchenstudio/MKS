@@ -32,6 +32,8 @@ describe("YouTube admin UI redesign contracts", () => {
     assert.match(page, /view === "schedule"/);
     assert.match(page, /qs\.set\("view", "funnel"\)/);
     assert.match(page, /qs\.set\("view", "schedule"\)/);
+    assert.match(page, /next !== "schedule" && filterQuery/);
+    assert.match(page, /view === "schedule" && params\.filter/);
     assert.match(page, /Website video/);
     assert.match(page, />\s*Channel\s*</);
     assert.match(page, />\s*Schedule\s*</);

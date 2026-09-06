@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { YoutubeDashboard } from "@/components/admin/YoutubeDashboard";
 import { YoutubeFunnelPanel } from "@/components/admin/YoutubeFunnelPanel";
 import { YoutubeSchedulePanel } from "@/components/admin/YoutubeSchedulePanel";
@@ -54,6 +55,14 @@ export default async function AdminYoutubePage({
   const filter = parseYoutubeDashboardFilter(params.filter);
   const filterQuery = youtubeDashboardFilterQueryValue(filter);
 
+  // Schedule does not use Channel format filters — drop stale filter from the URL.
+  if (view === "schedule" && params.filter) {
+    const qs = new URLSearchParams();
+    qs.set("view", "schedule");
+    if (rangeDays !== 28) qs.set("range", String(rangeDays));
+    redirect(`/admin/youtube?${qs.toString()}`);
+  }
+
   const [dashboard, recipeTypes, funnel, schedule, importedSeriesCount] = await Promise.all([
     view === "channel"
       ? loadYoutubeAdminDashboard({ analyticsRangeDays: rangeDays })
@@ -85,7 +94,8 @@ export default async function AdminYoutubePage({
     const qs = new URLSearchParams();
     if (next === "funnel") qs.set("view", "funnel");
     if (next === "schedule") qs.set("view", "schedule");
-    if (filterQuery) qs.set("filter", filterQuery);
+    // Channel format filters are not used on Schedule.
+    if (next !== "schedule" && filterQuery) qs.set("filter", filterQuery);
     if (rangeDays !== 28) qs.set("range", String(rangeDays));
     const s = qs.toString();
     return s ? `/admin/youtube?${s}` : "/admin/youtube";

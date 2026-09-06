@@ -12,6 +12,7 @@ import {
   shouldCreateVideoSnapshot,
 } from "@/lib/youtube-data/snapshots";
 import { syncYoutubeScheduledViaOAuth } from "@/lib/youtube-data/scheduled-sync";
+import { coalesceScheduledPublishAt } from "@/lib/youtube-data/schedule";
 import type { YouTubeApiVideo, YouTubeSyncResult } from "@/lib/youtube-data/types";
 
 function counterDelta(current: string, previous: string | undefined): string | null {
@@ -25,19 +26,13 @@ function counterDelta(current: string, previous: string | undefined): string | n
   }
 }
 
-function scheduledPublishDate(video: YouTubeApiVideo): Date | null {
-  if (!video.scheduledPublishAt) return null;
-  const date = new Date(video.scheduledPublishAt);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function videoUpsertData(video: YouTubeApiVideo, channelId: string, now: Date) {
   return {
     channelId,
     title: video.title,
     description: video.description,
     publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
-    scheduledPublishAt: scheduledPublishDate(video),
+    scheduledPublishAt: coalesceScheduledPublishAt(video.scheduledPublishAt, now),
     thumbnailUrl: video.thumbnailUrl,
     durationSeconds: video.durationSeconds,
     durationDisplay: video.durationDisplay,

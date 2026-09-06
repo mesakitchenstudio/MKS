@@ -6,17 +6,11 @@ import {
   fetchUploadsPlaylistVideoIdsOAuth,
   fetchVideosByIdsOAuth,
 } from "@/lib/youtube-data/oauth-videos";
-import type { YouTubeApiVideo } from "@/lib/youtube-data/types";
+import { coalesceScheduledPublishAt } from "@/lib/youtube-data/schedule";
 
 export type ScheduledSyncResult =
   | { ok: true; videosSynced: number; scheduledCount: number }
   | { ok: false; error: string; code: "not_connected" | "api_error" | "skipped" };
-
-function scheduledPublishDate(video: YouTubeApiVideo): Date | null {
-  if (!video.scheduledPublishAt) return null;
-  const date = new Date(video.scheduledPublishAt);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
 /** Upsert channel-owned videos via OAuth so private scheduled publishAt is stored. */
 export async function syncYoutubeScheduledViaOAuth(input: {
@@ -55,12 +49,12 @@ export async function syncYoutubeScheduledViaOAuth(input: {
     const db = getDb();
     const now = new Date();
     let scheduledCount = 0;
+    const syncedIds: string[] = [];
 
     for (const video of remoteVideos) {
-      const scheduledPublishAt = scheduledPublishDate(video);
-      if (scheduledPublishAt && scheduledPublishAt.getTime() > now.getTime()) {
-        scheduledCount += 1;
-      }
+      const scheduledPublishAt = coalesceScheduledPublishAt(video.scheduledPublishAt, now);
+      if (scheduledPublishAt) scheduledCount += 1;
+      syncedIds.push(video.videoId);
 
       await db.youTubeVideo.upsert({
         where: { videoId: video.videoId },
@@ -110,6 +104,25 @@ export async function syncYoutubeScheduledViaOAuth(input: {
         },
       });
     }
+
+    // Clear schedules for channel videos missing from this OAuth pass (deleted / no longer owned).
+    await db.youTubeVideo.updateMany({
+      where: {
+        channelId: input.channelId,
+        scheduledPublishAt: { not: null },
+        ...(syncedIds.length ? { videoId: { notIn: syncedIds } } : {}),
+      },
+      data: { scheduledPublishAt: null },
+    });
+
+    // Past publishAt values must not linger as "scheduled".
+    await db.youTubeVideo.updateMany({
+      where: {
+        channelId: input.channelId,
+        scheduledPublishAt: { lte: now },
+      },
+      data: { scheduledPublishAt: null },
+    });
 
     return { ok: true, videosSynced: remoteVideos.length, scheduledCount };
   } catch (error) {

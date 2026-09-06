@@ -1129,7 +1129,7 @@ function FreshnessStrip({
                     </button>
                     {canSync ? (
                       <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={dataPending} onClick={onSync}>
-                        {dataPending ? "Refreshing…" : "Refresh Public YouTube"}
+                        {dataPending ? "Refreshing…" : "Refresh YouTube"}
                       </button>
                     ) : null}
                     <div className="border-t border-line/50 pt-2">
@@ -1148,7 +1148,7 @@ function FreshnessStrip({
             ) : null}
             {canSync && !(canManageAnalytics && analytics.connection.connected) ? (
               <button type="button" className={`${secondaryBtn} ${adminFocusRing}`} disabled={dataPending} onClick={onSync}>
-                {dataPending ? "Refreshing…" : "Refresh Public YouTube"}
+                {dataPending ? "Refreshing…" : "Refresh YouTube"}
               </button>
             ) : null}
           </div>
