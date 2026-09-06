@@ -12,8 +12,10 @@ import {
   PAGE_TITLE_TEMPLATE,
 } from "@/lib/page-title";
 import { site } from "@/data/site";
+import { auth } from "@/auth";
 import { getAdminSession } from "@/lib/auth";
 import { isSitePrivate } from "@/lib/flags";
+import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
 import { getAllRecipes } from "@/lib/recipes";
 import { recipeSearchHaystack } from "@/lib/recipe-utils";
 import { siteGraphJsonLd } from "@/lib/schema";
@@ -115,6 +117,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     process.env.AUTH_GOOGLE_ID?.trim() ||
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() ||
     "";
+  const session = await auth();
+  const memberEmail = session?.user?.email?.trim() || "";
+  const newsletterSubscribed =
+    Boolean(memberEmail) &&
+    session?.error !== "MemberDeleted" &&
+    session?.error !== "SessionRevoked" &&
+    (await isMemberNewsletterSubscribed(memberEmail));
   const recipes = privateMode
     ? []
     : (await getAllRecipes()).map((recipe) => ({
@@ -150,6 +159,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             hideTools={privateMode}
             showChrome={!privateMode}
             recipes={recipes}
+            newsletterSubscribed={newsletterSubscribed}
           >
             <main
               id="main-content"

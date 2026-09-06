@@ -22,7 +22,18 @@ const FOOTER_SITE_LINKS = [
   { href: "/disclosures", label: "Disclosures" },
 ] as const;
 
-export function SiteFooter({ hideNewsletter = false }: { hideNewsletter?: boolean }) {
+/** Shown in the footer when the signed-in member is already an active subscriber. */
+export const FOOTER_NEWSLETTER_SUBSCRIBED_MESSAGE =
+  "You’re on the list. New recipes and seasonal notes will arrive when there’s something worth sharing. 🎉";
+
+export function SiteFooter({
+  hideNewsletter = false,
+  newsletterSubscribed = false,
+}: {
+  hideNewsletter?: boolean;
+  /** Active NewsletterSubscriber for the authenticated session email (server-resolved). */
+  newsletterSubscribed?: boolean;
+}) {
   return (
     <footer className="no-print mt-auto border-t border-line bg-ink text-cream">
       <div
@@ -73,7 +84,13 @@ export function SiteFooter({ hideNewsletter = false }: { hideNewsletter?: boolea
             <p className="mt-2.5 mb-3 max-w-sm text-sm leading-6 text-sand/80">
               New recipes and seasonal notes, sent when we have something worth the inbox.
             </p>
-            <NewsletterForm tone="dark" />
+            {newsletterSubscribed ? (
+              <p className="max-w-sm text-sm leading-6 text-sand" role="status">
+                {FOOTER_NEWSLETTER_SUBSCRIBED_MESSAGE}
+              </p>
+            ) : (
+              <NewsletterForm tone="dark" />
+            )}
           </div>
         )}
       </div>

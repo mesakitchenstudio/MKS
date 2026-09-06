@@ -1,10 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EMAIL_CONSENT_LABEL } from "@/lib/auth-credentials";
 import { authFocusRing, authPrimaryButtonClass } from "@/lib/auth-ui";
 
 export function EmailUpdatesPreference({ initialNotify }: { initialNotify: boolean }) {
+  const router = useRouter();
   const [notify, setNotify] = useState(initialNotify);
   const [savedNotify, setSavedNotify] = useState(initialNotify);
   const [busy, setBusy] = useState(false);
@@ -37,6 +39,8 @@ export function EmailUpdatesPreference({ initialNotify }: { initialNotify: boole
           : "You’re unsubscribed from Mesa email updates.",
       );
       setBusy(false);
+      // Refresh root layout so the footer newsletter column matches NewsletterSubscriber.
+      router.refresh();
     } catch {
       setError("Check your connection and try again.");
       setBusy(false);

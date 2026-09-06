@@ -11,12 +11,15 @@ export function PublicChrome({
   hideTools = false,
   showChrome = true,
   recipes = [],
+  newsletterSubscribed = false,
 }: {
   children: React.ReactNode;
   hideTools?: boolean;
   /** When false (coming-soon / private mode), omit public header and footer. */
   showChrome?: boolean;
   recipes?: OverlayRecipe[];
+  /** Server-resolved: session email has an active NewsletterSubscriber row. */
+  newsletterSubscribed?: boolean;
 }) {
   const pathname = usePathname() || "";
 
@@ -35,7 +38,12 @@ export function PublicChrome({
     <>
       {showPublicChrome ? <SiteHeader /> : null}
       {children}
-      {showPublicChrome ? <SiteFooter hideNewsletter={pathname === "/"} /> : null}
+      {showPublicChrome ? (
+        <SiteFooter
+          hideNewsletter={pathname === "/"}
+          newsletterSubscribed={newsletterSubscribed}
+        />
+      ) : null}
       {showFloatTools ? <RecipeFloatTools recipes={recipes} /> : null}
     </>
   );

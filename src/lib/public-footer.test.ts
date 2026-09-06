@@ -63,4 +63,24 @@ describe("public footer polish", () => {
     assert.match(form, /flex-\[1\.45\]/);
     assert.match(form, /type="submit"/);
   });
+
+  it("shows subscribed success copy for active members without exposing email", () => {
+    const footer = read("components/SiteFooter.tsx");
+    const chrome = read("components/PublicChrome.tsx");
+    const layout = read("app/layout.tsx");
+
+    assert.match(footer, /FOOTER_NEWSLETTER_SUBSCRIBED_MESSAGE/);
+    assert.match(
+      footer,
+      /You’re on the list\. New recipes and seasonal notes will arrive when there’s something worth sharing\. 🎉/,
+    );
+    assert.match(footer, /newsletterSubscribed/);
+    assert.match(footer, /role="status"/);
+    assert.doesNotMatch(footer, /session\.user\.email|memberEmail|user\.email/);
+
+    assert.match(chrome, /newsletterSubscribed/);
+    assert.match(layout, /isMemberNewsletterSubscribed/);
+    assert.match(layout, /newsletterSubscribed=\{newsletterSubscribed\}/);
+    assert.doesNotMatch(layout, /User\.notify|user\.notify/);
+  });
 });
