@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { GuestTracker } from "@/components/GuestTracker";
 import { GoogleOneTap } from "@/components/GoogleOneTap";
+import { usePrivacyConsentOptional } from "@/components/PrivacyConsentProvider";
 import {
   getPresenceSessionKey,
   registerMemberPresenceKey,
@@ -16,6 +17,25 @@ import {
 import { endAnonymousGuestPresenceOnAuth } from "@/lib/guest-tracking";
 import { hydrateLikesFromProfile } from "@/lib/likes";
 import { MEMBER_PRESENCE_HEARTBEAT_MS } from "@/lib/member-presence";
+
+function ConsentGatedGuestTracker() {
+  const consent = usePrivacyConsentOptional();
+  if (!consent?.ready || !consent.analyticsAllowed) return null;
+  return <GuestTracker />;
+}
+
+function ConsentGatedGoogleOneTap({
+  enabled,
+  clientId,
+}: {
+  enabled: boolean;
+  clientId: string;
+}) {
+  const consent = usePrivacyConsentOptional();
+  const oneTapAllowed =
+    enabled && Boolean(consent?.ready && consent.googleSignInEnhancementsAllowed);
+  return <GoogleOneTap enabled={oneTapAllowed} clientId={clientId} />;
+}
 
 function SessionSync() {
   const { data: session, status } = useSession();
@@ -174,8 +194,8 @@ export function AuthSessionProvider({
   return (
     <SessionProvider>
       <SessionSync />
-      <GuestTracker />
-      <GoogleOneTap enabled={googleOneTapEnabled} clientId={googleClientId} />
+      <ConsentGatedGuestTracker />
+      <ConsentGatedGoogleOneTap enabled={googleOneTapEnabled} clientId={googleClientId} />
       {children}
     </SessionProvider>
   );
