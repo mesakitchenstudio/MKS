@@ -4,7 +4,7 @@ import { ComingSoonGuestBeacon } from "@/components/ComingSoonGuestBeacon";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
 
-const HOLDING_TITLE = `${site.name} | Recipes for the Table`;
+const HOLDING_TITLE = `Coming Soon | ${site.name}`;
 const HOLDING_DESCRIPTION =
   "Thoughtful recipes for everyday cooking, baking, and the table. Mesa Kitchen Studio is opening soon.";
 
