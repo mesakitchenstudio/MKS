@@ -8,6 +8,7 @@ import { getAllRecipes } from "@/lib/recipes";
 import { authFocusRing } from "@/lib/auth-ui";
 import { memberIdentityLines, resolveMemberDisplayName } from "@/lib/auth-client";
 import { EmailUpdatesPreference } from "@/components/EmailUpdatesPreference";
+import { DeleteAccountSection } from "@/components/DeleteAccountSection";
 import { ProfileFavorites } from "@/components/ProfileFavorites";
 import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
 
@@ -129,6 +130,8 @@ export default async function ProfilePage() {
       </section>
 
       <EmailUpdatesPreference initialNotify={newsletterSubscribed} />
+
+      <DeleteAccountSection />
     </div>
   );
 }

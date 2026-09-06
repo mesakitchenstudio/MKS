@@ -11,17 +11,19 @@ export default function PrivacyPage() {
       <h1 className="font-serif text-5xl">Privacy policy</h1>
       <div className="prose-mesa mt-8 text-base leading-8 text-muted">
         <p>
-          {site.name} respects your kitchen and your inbox. When you create an
-          account we store your name, email, and the recipes you save so they
-          appear on your profile. We also keep a record of how you signed in
-          (Google or email), your IP address, and approximate location from the
-          hosting provider so we can understand sign-ups and keep the site
-          secure. We do not sell personal information.
+          {site.name} respects your kitchen and your inbox. When you create an account we store your
+          name, email, and the recipes you save so they appear on your profile. We also keep a
+          record of how you signed in (Google or email), your IP address, and approximate location
+          from the hosting provider so we can understand sign-ups and keep the site secure. You can
+          delete your account from your profile; that permanently removes your account and saved
+          recipes, stops newsletter emails to that address, and leaves any published reviews without
+          a link to your account. We do not sell personal information.
         </p>
         <p>
           When you join the newsletter, we store your email so we can send recipes and studio notes
           you asked for. You may receive a short welcome message after signing up. You can
-          unsubscribe at any time using the link in those emails.
+          unsubscribe at any time using the link in those emails, or by deleting your member
+          account.
         </p>
         <p>
           The site may use standard hosting logs and analytics to understand which pages

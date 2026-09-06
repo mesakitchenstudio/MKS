@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { HomepageBrowseCategories } from "@/components/HomepageBrowseCategories";
 import { HomepageFeaturedSeries } from "@/components/HomepageFeaturedSeries";
 import { HomepageFromKitchenSection } from "@/components/HomepageFromKitchenSection";
 import { HomepageHero } from "@/components/HomepageHero";
 import { HomepageLatestSection } from "@/components/HomepageLatestSection";
+import { AccountDeletedNotice } from "@/components/AccountDeletedNotice";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { site } from "@/data/site";
 import { homepageConfig } from "@/data/homepage";
@@ -50,6 +52,9 @@ export default async function Home() {
 
   return (
     <>
+      <Suspense fallback={null}>
+        <AccountDeletedNotice />
+      </Suspense>
       <section className="relative overflow-hidden bg-ink text-cream">
         <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] md:gap-8 md:px-6 md:py-11 lg:gap-10 lg:py-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <div className="order-1 min-w-0">
