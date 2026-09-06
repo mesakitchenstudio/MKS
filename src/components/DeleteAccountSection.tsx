@@ -130,7 +130,13 @@ function DeleteAccountDialog({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     if (main) main.setAttribute("inert", "");
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (main) main.removeAttribute("inert");
+    };
+  }, []);
 
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         if (busy) return;
@@ -155,11 +161,7 @@ function DeleteAccountDialog({
     }
 
     document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      if (main) main.removeAttribute("inert");
-    };
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [busy, onCancel]);
 
   // Portal outside #main-content so marking main inert does not disable this dialog's input.

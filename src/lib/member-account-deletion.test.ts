@@ -216,6 +216,7 @@ describe("member account deletion wiring", () => {
     assert.match(ui, /createPortal/);
     assert.match(ui, /document\.body/);
     assert.match(ui, /main\.setAttribute\("inert"/);
+    assert.match(ui, /cancelRef\.current\?\.focus\(\);[\s\S]*?\}, \[\]\);/);
     assert.match(ui, /newsletter[\s\S]*subscription will be stopped/);
     assert.match(ui, /Published reviews may remain/);
 
