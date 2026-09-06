@@ -5,14 +5,15 @@ import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { usePrivacyConsent } from "@/components/PrivacyConsentProvider";
 import { authFocusRing } from "@/lib/auth-ui";
+import { PRIVACY_CONSENT_SAFE_AREA_CSS_VAR } from "@/lib/privacy-consent";
 
 const focusRing = authFocusRing;
 
-/** Shared primary actions — equal visual weight (no Accept bias). */
-const choiceButtonClass = `inline-flex min-h-11 items-center justify-center border border-line bg-cream px-4 text-sm font-semibold text-ink transition-colors hover:border-ink/30 disabled:opacity-60 ${focusRing}`;
+/** Reject / Accept visual twins — terracotta hairline, paper fill, no Accept bias. */
+const choiceButtonClass = `inline-flex h-10 min-h-11 items-center justify-center rounded-full border border-terracotta bg-paper px-3.5 text-sm font-semibold text-terracotta transition-colors hover:bg-cream disabled:opacity-60 sm:min-h-10 ${focusRing}`;
 
-/** Secondary manage control — quieter than Accept/Reject. */
-const manageButtonClass = `inline-flex min-h-11 items-center justify-center border border-transparent bg-transparent px-3 text-sm font-semibold text-muted underline-offset-4 transition-colors hover:text-ink hover:underline disabled:opacity-60 ${focusRing}`;
+/** Manage — text-only secondary, usable hit area. */
+const manageButtonClass = `inline-flex min-h-11 items-center justify-center bg-transparent px-1 text-sm font-semibold text-muted underline-offset-4 transition-colors hover:text-ink hover:underline disabled:opacity-60 sm:min-h-10 ${focusRing}`;
 
 export function PrivacyConsentUi() {
   const pathname = usePathname() || "/";
@@ -76,6 +77,33 @@ function PrivacyConsentBanner({
 }) {
   const [busy, setBusy] = useState<"accept" | "reject" | null>(null);
   const headingId = useId();
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Publish measured height + breathing room for Coming Soon / footer safe-area.
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || typeof document === "undefined") return;
+    const root = document.documentElement;
+
+    function publish() {
+      if (!card) return;
+      const height = card.getBoundingClientRect().height;
+      root.style.setProperty(
+        PRIVACY_CONSENT_SAFE_AREA_CSS_VAR,
+        `${Math.ceil(height) + 24}px`,
+      );
+    }
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(card);
+    window.addEventListener("resize", publish);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", publish);
+      root.style.removeProperty(PRIVACY_CONSENT_SAFE_AREA_CSS_VAR);
+    };
+  }, []);
 
   async function run(kind: "accept" | "reject", action: () => void | Promise<void>) {
     if (busy) return;
@@ -89,30 +117,35 @@ function PrivacyConsentBanner({
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] p-3 sm:p-4"
+      className="pointer-events-none fixed bottom-4 left-4 z-[80] w-[calc(100%-2rem)] max-w-[392px] sm:bottom-6 sm:left-6 sm:w-[min(392px,calc(100vw-3rem))]"
       role="region"
       aria-labelledby={headingId}
     >
-      <div className="pointer-events-auto mx-auto flex max-w-5xl flex-col gap-3 border border-line bg-paper px-4 py-3 text-ink sm:px-5 sm:py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
-        <div className="min-w-0 lg:max-w-2xl">
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">
-            Privacy
-          </p>
-          <h2 id={headingId} className="mt-0.5 font-serif text-xl leading-snug text-ink sm:text-2xl">
-            Your privacy
-          </h2>
-          <p className="mt-1.5 text-sm leading-6 text-muted">
-            Mesa uses essential technologies to keep the site working. With your permission, we
-            also use optional analytics to understand how the site is used and Google sign-in
-            enhancements to make signing in easier.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+      <div
+        ref={cardRef}
+        className="pointer-events-auto max-h-[min(50dvh,24rem)] overflow-y-auto rounded border border-line bg-paper px-[22px] pb-[18px] pt-5 text-ink"
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-olive">
+          Privacy
+        </p>
+        <p
+          id={headingId}
+          role="heading"
+          aria-level={2}
+          className="mt-2 font-serif text-lg leading-snug text-ink sm:text-xl"
+        >
+          Your privacy
+        </p>
+        <p className="mt-2 max-w-[40ch] text-sm leading-[1.5] text-muted">
+          Mesa uses essential technologies to keep the site working. Optional analytics and
+          Google sign-in enhancements run only if you allow them.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2">
           <button
             type="button"
             disabled={Boolean(busy)}
             onClick={() => void run("reject", onReject)}
-            className={choiceButtonClass}
+            className={`${choiceButtonClass} order-1 w-full sm:w-auto`}
           >
             {busy === "reject" ? "Saving…" : "Reject optional"}
           </button>
@@ -120,7 +153,7 @@ function PrivacyConsentBanner({
             type="button"
             disabled={Boolean(busy)}
             onClick={onManage}
-            className={manageButtonClass}
+            className={`${manageButtonClass} order-3 col-span-full w-full justify-center sm:order-2 sm:col-auto sm:w-auto`}
           >
             Manage preferences
           </button>
@@ -128,7 +161,7 @@ function PrivacyConsentBanner({
             type="button"
             disabled={Boolean(busy)}
             onClick={() => void run("accept", onAccept)}
-            className={choiceButtonClass}
+            className={`${choiceButtonClass} order-2 w-full sm:order-3 sm:w-auto`}
           >
             {busy === "accept" ? "Saving…" : "Accept optional"}
           </button>

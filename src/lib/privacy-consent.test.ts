@@ -153,14 +153,25 @@ describe("privacy consent wiring", () => {
     assert.match(ui, /status !== "loading"/);
     assert.match(ui, /choiceButtonClass/);
     assert.match(ui, /manageButtonClass/);
-    assert.match(ui, /max-w-5xl/);
-    assert.match(ui, /lg:flex-row/);
+    assert.match(ui, /max-w-\[392px\]/);
+    assert.match(ui, /sm:left-6/);
+    assert.match(ui, /sm:bottom-6/);
+    assert.match(ui, /PRIVACY_CONSENT_SAFE_AREA_CSS_VAR|ResizeObserver/);
+    assert.match(
+      ui,
+      /Optional analytics and\s+Google sign-in enhancements run only if you allow them/
+    );
+    assert.doesNotMatch(ui, /max-w-5xl/);
     // First-choice Accept must not use filled terracotta (equal weight with Reject).
     const bannerSrc = ui.slice(
       ui.indexOf("function PrivacyConsentBanner"),
       ui.indexOf("function PrivacyPreferencesDialog"),
     );
     assert.doesNotMatch(bannerSrc, /bg-terracotta/);
+    assert.match(ui, /border-terracotta/);
+    const comingSoon = read("app/coming-soon/page.tsx");
+    assert.match(comingSoon, /--mks-privacy-consent-safe/);
+    assert.match(footer, /--mks-privacy-consent-safe/);
     assert.match(footer, /PrivacyPreferencesFooterLink/);
     assert.match(privacy, /Cookies &amp; preferences/);
     assert.match(privacy, /Advertising is not currently active/);

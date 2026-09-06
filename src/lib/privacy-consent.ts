@@ -7,6 +7,12 @@ export const PRIVACY_CONSENT_COOKIE = "mks_consent";
 export const PRIVACY_CONSENT_VERSION = 1;
 /** ~400 days - aligned with guest cookie lifespan. */
 export const PRIVACY_CONSENT_MAX_AGE = 60 * 60 * 24 * 400;
+/**
+ * Document CSS variable set while the first-choice studio note is visible.
+ * Value = measured card height + breathing room (px). Used for Coming Soon /
+ * footer safe-area so Meanwhile and footer controls stay reachable.
+ */
+export const PRIVACY_CONSENT_SAFE_AREA_CSS_VAR = "--mks-privacy-consent-safe";
 
 export type PrivacyConsentRecord = {
   version: number;

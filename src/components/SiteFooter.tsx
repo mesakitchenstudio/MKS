@@ -38,7 +38,7 @@ export function SiteFooter({
   newsletterSubscribed?: boolean;
 }) {
   return (
-    <footer className="no-print mt-auto border-t border-line bg-ink text-cream">
+    <footer className="no-print mt-auto border-t border-line bg-ink text-cream pb-[var(--mks-privacy-consent-safe,0px)]">
       <div
         className={`mx-auto grid max-w-6xl gap-8 px-4 py-11 sm:grid-cols-2 md:px-6 lg:gap-x-10 lg:gap-y-8 ${
           hideNewsletter
