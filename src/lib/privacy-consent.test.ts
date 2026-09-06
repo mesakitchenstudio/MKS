@@ -177,9 +177,12 @@ describe("privacy consent wiring", () => {
     assert.match(ui, /border-terracotta/);
     const comingSoon = read("app/coming-soon/page.tsx");
     assert.match(comingSoon, /--mks-privacy-consent-safe/);
-    assert.match(comingSoon, /marginBottom/);
+    assert.match(comingSoon, /paddingBottom/);
+    assert.match(comingSoon, /mt-auto/);
+    assert.doesNotMatch(comingSoon, /marginBottom/);
     assert.doesNotMatch(comingSoon, /lg:overflow-y-auto/);
-    assert.match(comingSoon, /overflow-hidden/);
+    assert.doesNotMatch(comingSoon, /lg:h-dvh/);
+    assert.doesNotMatch(comingSoon, /overflow-hidden/);
     assert.match(footer, /--mks-privacy-consent-safe/);
     assert.match(footer, /PrivacyPreferencesFooterLink/);
     assert.match(privacy, /Cookies &amp; preferences/);
