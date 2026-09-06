@@ -2,11 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AdminProfilePhotoForm } from "@/components/admin/AdminPhotoField";
 import {
+  AdminRevokeAllOtherButton,
+  AdminSessionList,
+} from "@/components/admin/AdminSessionControls";
+import {
   ADMIN_PROFILE_SYSTEM_OWNER_PHOTO_COPY,
   adminProfileAccountRows,
   adminProfilePhotoUsageCopy,
   buildAdminProfileAccountView,
 } from "@/lib/admin-profile-ui";
+import {
+  revokeAllOtherOwnAdminSessionsAction,
+  revokeOwnAdminSessionAction,
+} from "@/lib/admin-session-actions";
+import { loadMyAdminSessionRows } from "@/lib/admin-session-ui";
 import { adminFocusRing, adminLinkClass } from "@/lib/admin-ui";
 import { getAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -20,11 +29,17 @@ export const metadata: Metadata = {
 export default async function AdminProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    error?: string;
+    sessionRevoked?: string;
+    sessionsRevoked?: string;
+    sessionError?: string;
+  }>;
 }) {
   const actor = await getAdminSession();
   if (!actor) redirect("/admin/login");
-  const { saved, error } = await searchParams;
+  const { saved, error, sessionRevoked, sessionsRevoked, sessionError } = await searchParams;
 
   const isSystemOwner = actor.id === "env";
   let accountName = actor.name;
@@ -49,6 +64,9 @@ export default async function AdminProfilePage({
     email: accountEmail,
   });
 
+  const sessions = await loadMyAdminSessionRows(actor);
+  const otherSessions = sessions.filter((session) => !session.isCurrent);
+
   return (
     <div className="w-full">
       <header className="pb-2">
@@ -65,6 +83,38 @@ export default async function AdminProfilePage({
         >
           Photo saved.
         </AdminFlashStatus>
+      ) : null}
+      {sessionRevoked ? (
+        <p
+          role="status"
+          className="mt-4 border border-olive/30 bg-olive/10 px-4 py-2.5 text-sm text-olive-dark"
+        >
+          Session revoked.
+        </p>
+      ) : null}
+      {sessionsRevoked ? (
+        <p
+          role="status"
+          className="mt-4 border border-olive/30 bg-olive/10 px-4 py-2.5 text-sm text-olive-dark"
+        >
+          Other sessions revoked.
+        </p>
+      ) : null}
+      {sessionError === "current" ? (
+        <p
+          role="alert"
+          className="mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-2.5 text-sm text-terracotta-dark"
+        >
+          Use Sign out to leave this device.
+        </p>
+      ) : null}
+      {sessionError === "forbidden" || sessionError === "missing" ? (
+        <p
+          role="alert"
+          className="mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-2.5 text-sm text-terracotta-dark"
+        >
+          That session could not be revoked. Refresh and try again.
+        </p>
       ) : null}
       {error === "named" ? (
         <p
@@ -147,6 +197,36 @@ export default async function AdminProfilePage({
               usageCopy={adminProfilePhotoUsageCopy(actor.role)}
             />
           </div>
+        )}
+      </section>
+
+      <div className="mt-8 border-t border-line/80" />
+
+      <section className="mt-8" aria-labelledby="security-sessions-heading" id="security-sessions">
+        <h2
+          id="security-sessions-heading"
+          className="text-[0.6875rem] font-semibold uppercase tracking-[0.11em] text-olive"
+        >
+          Security
+        </h2>
+        <h3 className="mt-3 font-serif text-2xl text-ink">Active sessions</h3>
+        <p className="mt-1.5 max-w-xl text-sm leading-6 text-muted">
+          Devices currently signed in to your Mesa Studio account.
+        </p>
+
+        <AdminSessionList
+          sessions={sessions}
+          revokeAction={revokeOwnAdminSessionAction}
+          emptyCopy="No active sessions."
+        />
+
+        {otherSessions.length === 0 ? (
+          <p className="mt-4 text-sm leading-6 text-muted">
+            No other active sessions. This device is the only active Mesa Studio session for your
+            account.
+          </p>
+        ) : (
+          <AdminRevokeAllOtherButton action={revokeAllOtherOwnAdminSessionsAction} />
         )}
       </section>
     </div>

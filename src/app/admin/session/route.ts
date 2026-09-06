@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolvePublicStaffForAdmin } from "@/lib/admin-bridge";
 import { homeForRole } from "@/lib/admin-access";
 import { syncStaffGooglePhoto } from "@/lib/accounts";
+import { createAdminAuthSession } from "@/lib/admin-auth-sessions";
 import {
   ADMIN_COOKIE,
   adminCookieOptions,
@@ -29,9 +30,21 @@ export async function GET(request: Request) {
 
   await syncStaffGooglePhoto(resolved.email, resolved.image);
   await persistAdminLastSeen(resolved.staff);
+  const row = await createAdminAuthSession({
+    adminId: resolved.staff.id,
+    headers: request.headers,
+  });
   const response = NextResponse.redirect(
     new URL(homeForRole(resolved.staff.role), request.url),
   );
-  response.cookies.set(ADMIN_COOKIE, createSessionToken(resolved.staff), adminCookieOptions());
+  response.cookies.set(
+    ADMIN_COOKIE,
+    createSessionToken({
+      ...resolved.staff,
+      sid: row.sessionTokenId,
+      exp: row.expiresAt.getTime(),
+    }),
+    adminCookieOptions(),
+  );
   return response;
 }

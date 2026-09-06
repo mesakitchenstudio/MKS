@@ -87,6 +87,8 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function logoutAction() {
+  const { revokeCurrentAdminSession } = await import("@/lib/auth");
+  await revokeCurrentAdminSession("sign_out");
   const jar = await cookies();
   const present = jar.getAll().map((cookie) => cookie.name);
   clearAllAuthCookies(jar, present);
@@ -637,6 +639,10 @@ export async function saveAdminAction(formData: FormData) {
           : {}),
       },
     });
+    if (passwordChanging) {
+      const { revokeAdminAuthSessionsForSubject } = await import("@/lib/admin-auth-sessions");
+      await revokeAdminAuthSessionsForSubject(id, "password_changed");
+    }
 
     if ((existing!.photoUrl || "") && (existing!.photoUrl || "") !== photoUrl) {
       const { deleteOwnedAdminImage } = await import("@/lib/admin-upload-store");

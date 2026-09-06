@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
+import {
+  AdminRevokeStaffSessionsButton,
+  AdminSessionList,
+} from "@/components/admin/AdminSessionControls";
 import { StaffTeamSection } from "@/components/admin/StaffAddMemberPanel";
 import { StaffTeamList } from "@/components/admin/StaffTeamList";
 import { ACCESS_LEVELS } from "@/lib/admin-access";
+import {
+  revokeAllSessionsForStaffAction,
+  revokeStaffAdminSessionAction,
+} from "@/lib/admin-session-actions";
+import { loadOwnerAdminSessionGroups } from "@/lib/admin-session-ui";
 import { requireAccess } from "@/lib/auth";
 import { formatAdminDateTime } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
@@ -50,10 +59,22 @@ export default async function AdminStaffPage({
     created?: string;
     removed?: string;
     admin?: string;
+    sessionRevoked?: string;
+    sessionsRevoked?: string;
+    sessionError?: string;
   }>;
 }) {
   const actor = await requireAccess("staff");
-  const { error, saved, created, removed, admin: focusAdminId } = await searchParams;
+  const {
+    error,
+    saved,
+    created,
+    removed,
+    admin: focusAdminId,
+    sessionRevoked,
+    sessionsRevoked,
+    sessionError,
+  } = await searchParams;
   const admins = await getDb().admin.findMany({
     orderBy: { createdAt: "asc" },
     select: {
@@ -103,6 +124,8 @@ export default async function AdminStaffPage({
     ? `${teamCount} team member${teamCount === 1 ? "" : "s"} · ${namedOwnerCount} owner${namedOwnerCount === 1 ? "" : "s"}`
     : "No team members yet.";
 
+  const sessionGroups = await loadOwnerAdminSessionGroups(actor);
+
   return (
     <div className="w-full">
       <header className="border-b border-line pb-6">
@@ -116,6 +139,30 @@ export default async function AdminStaffPage({
         <AdminFlashStatus active clearParams={STAFF_REMOVED_PARAMS}>
           Admin removed.
         </AdminFlashStatus>
+      ) : null}
+      {sessionRevoked ? (
+        <p
+          role="status"
+          className="mt-4 border border-olive/30 bg-olive/10 px-4 py-2.5 text-sm text-olive-dark"
+        >
+          Session revoked.
+        </p>
+      ) : null}
+      {sessionsRevoked ? (
+        <p
+          role="status"
+          className="mt-4 border border-olive/30 bg-olive/10 px-4 py-2.5 text-sm text-olive-dark"
+        >
+          Sessions revoked.
+        </p>
+      ) : null}
+      {sessionError === "current" ? (
+        <p
+          role="alert"
+          className="mt-4 border border-terracotta/30 bg-terracotta/10 px-4 py-2.5 text-sm text-terracotta-dark"
+        >
+          Use Sign out to leave this device.
+        </p>
       ) : null}
 
       <StaffTeamSection
@@ -152,6 +199,47 @@ export default async function AdminStaffPage({
           </div>
         </section>
       ) : null}
+
+      <section className="mt-12" aria-labelledby="team-sessions-heading" id="team-sessions">
+        <h2 id="team-sessions-heading" className="font-serif text-2xl text-ink">
+          Sessions
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+          Active Mesa Studio sign-ins across the team. Revoke a device when access should end
+          immediately.
+        </p>
+
+        {sessionGroups.length === 0 ? (
+          <p className="mt-5 text-sm leading-6 text-muted">No active admin sessions right now.</p>
+        ) : (
+          <div className="mt-6 space-y-10">
+            {sessionGroups.map((group) => (
+              <div key={group.subjectKey} className="max-w-2xl">
+                <div>
+                  <p className="font-medium text-ink">{group.name}</p>
+                  <p className="mt-0.5 text-sm text-muted">
+                    {group.roleLabel}
+                    {group.email ? ` · ${group.email}` : ""}
+                  </p>
+                </div>
+                <AdminSessionList
+                  sessions={group.sessions}
+                  revokeAction={revokeStaffAdminSessionAction}
+                  emptyCopy="No active sessions."
+                />
+                {group.sessions.some((session) => !session.isCurrent) ||
+                group.sessions.length > 0 ? (
+                  <AdminRevokeStaffSessionsButton
+                    subjectKey={group.subjectKey}
+                    staffName={group.name}
+                    action={revokeAllSessionsForStaffAction}
+                  />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="mt-12" aria-labelledby="access-levels-heading">
         <h2 id="access-levels-heading" className="font-serif text-2xl text-ink">

@@ -61,6 +61,7 @@ describe("studio public launch gate", () => {
       name: "Owner",
       role: "owner",
       sv: 0,
+      sid: "test-sid",
     });
     const cookie = `${ADMIN_COOKIE}=${token}`;
     assert.equal(shouldGateStudioRequest("/studio", cookie), false);
@@ -84,6 +85,7 @@ describe("studio public launch gate", () => {
       name: "Owner",
       role: "owner",
       sv: 0,
+      sid: "test-sid",
     });
     const cookie = `${ADMIN_COOKIE}=${token}`;
     const req = new NextRequest(new URL("http://localhost:3000/studio"), {

@@ -339,6 +339,8 @@ export async function resetPasswordWithToken(
         where: { id: admin.id },
         data: { passwordHash, sessionVersion: { increment: 1 } },
       });
+      const { revokeAdminAuthSessionsForSubject } = await import("@/lib/admin-auth-sessions");
+      await revokeAdminAuthSessionsForSubject(admin.id, "password_reset");
       return true;
     });
   const updateMemberPassword =

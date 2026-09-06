@@ -48,6 +48,7 @@ describe("site-gate", () => {
       name: "Owner",
       role: "owner",
       sv: 0,
+      sid: "test-sid",
     });
     const cookie = `${ADMIN_COOKIE}=${token}`;
     assert.equal(isStaffPublicPreview(cookie), true);

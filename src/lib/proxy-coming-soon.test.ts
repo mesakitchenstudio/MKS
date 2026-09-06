@@ -49,6 +49,7 @@ describe("proxy while SITE_PRIVATE", () => {
       name: "Owner",
       role: "owner",
       sv: 0,
+      sid: "test-sid",
     });
     const cookie = `${ADMIN_COOKIE}=${token}`;
 
@@ -77,6 +78,7 @@ describe("proxy while SITE_PRIVATE", () => {
       name: "Owner",
       role: "owner",
       sv: 0,
+      sid: "test-sid",
     });
     const page = new NextRequest(
       new URL(

@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
 
+/** Matches mesa_admin_session cookie maxAge / token TTL. */
+export const ADMIN_SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
+
 /** HttpOnly cookie set by Studio admin login (`path: "/"`). */
 export const ADMIN_COOKIE = "mesa_admin_session";
 
@@ -12,6 +15,11 @@ export type AdminSession = {
   /** Matches Admin.sessionVersion; stale cookies are rejected after password change. */
   sv: number;
   exp: number;
+  /**
+   * Opaque AdminSession.sessionTokenId from the server registry.
+   * Absent on legacy cookies minted before the registry existed.
+   */
+  sid?: string;
 };
 
 function secret() {
@@ -37,7 +45,10 @@ function safeEqual(a: string, b: string) {
   return timingSafeEqual(paddedLeft, paddedRight) && left.length === right.length;
 }
 
-export function createSessionToken(admin: Omit<AdminSession, "exp">) {
+export function createSessionToken(
+  admin: Omit<AdminSession, "exp"> & { sid: string; exp?: number },
+) {
+  const exp = admin.exp ?? Date.now() + ADMIN_SESSION_TTL_MS;
   const payload = Buffer.from(
     JSON.stringify({
       id: admin.id,
@@ -45,7 +56,8 @@ export function createSessionToken(admin: Omit<AdminSession, "exp">) {
       name: admin.name,
       role: admin.role,
       sv: admin.sv ?? 0,
-      exp: Date.now() + 2 * 24 * 60 * 60 * 1000,
+      sid: admin.sid,
+      exp,
     }),
   ).toString("base64url");
   return `${payload}.${sign(payload)}`;
@@ -68,9 +80,11 @@ export function verifySessionToken(token: string | undefined): AdminSession | nu
     const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as Partial<AdminSession> & {
       exp?: number;
       sv?: number;
+      sid?: string;
     };
     if (!data.exp || Date.now() >= data.exp) return null;
     const role: AccessLevel = data.role && isAccessLevel(data.role) ? data.role : "owner";
+    const sid = typeof data.sid === "string" && data.sid.trim() ? data.sid.trim() : undefined;
     return {
       id: data.id || "env",
       email: data.email || "owner",
@@ -78,6 +92,7 @@ export function verifySessionToken(token: string | undefined): AdminSession | nu
       role,
       sv: typeof data.sv === "number" && Number.isFinite(data.sv) ? data.sv : 0,
       exp: data.exp,
+      ...(sid ? { sid } : {}),
     };
   } catch {
     return null;

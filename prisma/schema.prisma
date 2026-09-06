@@ -174,17 +174,55 @@ model UserConnection {
 }
 
 model Admin {
-  id             String   @id @default(cuid())
-  email          String   @unique
+  id             String         @id @default(cuid())
+  email          String         @unique
   name           String
   passwordHash   String
   role           String
-  photoUrl       String   @default("")
+  photoUrl       String         @default("")
   /** Bumped on password change to revoke existing mesa_admin_session cookies. */
-  sessionVersion Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  lastSeenAt     DateTime @default(now())
+  sessionVersion Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  lastSeenAt     DateTime       @default(now())
+  sessions       AdminSession[]
+}
+
+/**
+ * Server-side registry for Studio admin cookie sessions (`mesa_admin_session`).
+ * Opaque `sessionTokenId` is embedded in the signed cookie as `sid`.
+ * System Owner (env) rows use subjectKey "env" with adminId null.
+ */
+model AdminSession {
+  id              String    @id @default(cuid())
+  adminId         String?
+  /** Opaque id placed in the admin cookie — never the database row id alone for auth. */
+  sessionTokenId  String    @unique
+  /** adminId for named staff, or "env" for System Owner. */
+  subjectKey      String
+  createdAt       DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  revokedReason   String    @default("")
+  userAgent       String    @default("")
+  browser         String    @default("")
+  browserVersion  String    @default("")
+  operatingSystem String    @default("")
+  deviceType      String    @default("")
+  ipAddress       String?
+  country         String    @default("")
+  region          String    @default("")
+  city            String    @default("")
+  admin           Admin?    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([subjectKey])
+  @@index([sessionTokenId])
+  @@index([lastSeenAt])
+  @@index([revokedAt])
+  @@index([expiresAt])
+  @@index([subjectKey, revokedAt, expiresAt])
 }
 
 model PasswordReset {

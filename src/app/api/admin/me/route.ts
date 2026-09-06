@@ -4,8 +4,8 @@ import { buildAdminNavSections } from "@/lib/admin-nav";
 import {
   ADMIN_COOKIE,
   getAdminSession,
+  rewriteAdminSessionCookie,
   verifySessionToken,
-  writeAdminSession,
 } from "@/lib/auth";
 import { cookies } from "next/headers";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 /** Live admin identity for the shell — always from the current Team Access row. */
 export async function GET() {
   const live = await getAdminSession();
-  if (!live) {
+  if (!live || !live.sid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -26,15 +26,19 @@ export async function GET() {
       cookieSession.id !== live.id ||
       cookieSession.name !== live.name ||
       cookieSession.email !== live.email ||
-      cookieSession.sv !== live.sv)
+      cookieSession.sv !== live.sv ||
+      cookieSession.sid !== live.sid)
   ) {
     // Keep the signed cookie aligned with the persisted role/session version.
-    await writeAdminSession({
+    // Preserve sid so role sync does not mint a new device session.
+    await rewriteAdminSessionCookie({
       id: live.id,
       email: live.email,
       name: live.name,
       role: live.role,
       sv: live.sv,
+      sid: live.sid,
+      exp: live.exp,
     });
   }
 

@@ -1,7 +1,12 @@
 import { timingSafeEqual } from "crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { canAccess, homeForRole, isAccessLevel, type AccessLevel, type AdminArea } from "@/lib/admin-access";
+import { canAccess, homeForRole, isAccessLevel, type AdminArea } from "@/lib/admin-access";
+import {
+  bindAdminCookieToRegistry,
+  createAdminAuthSession,
+  revokeAdminAuthSessionByTokenId,
+} from "@/lib/admin-auth-sessions";
 import { applyPersistedStaffRole, isAdminSessionVersionCurrent } from "@/lib/admin-staff";
 import {
   ADMIN_COOKIE,
@@ -54,22 +59,54 @@ async function loadPersistedStaff(session: AdminSession) {
   });
 }
 
+/**
+ * Live staff + registry checks. Cookies must map to an active AdminSession row
+ * (bootstrapped on first request for legacy cookies without `sid`).
+ */
 export async function resolveLiveAdminSession(session: AdminSession): Promise<AdminSession | null> {
   try {
     const persisted = await loadPersistedStaff(session);
     const live = applyPersistedStaffRole(session, persisted);
     if (!live) return null;
 
-    if (!persisted) {
-      // Pure system owner — no named row / session version to revoke.
-      return { ...live, sv: 0 };
-    }
-
-    if (!isAdminSessionVersionCurrent(session.sv, persisted.sessionVersion)) {
+    if (persisted && !isAdminSessionVersionCurrent(session.sv, persisted.sessionVersion)) {
       return null;
     }
 
-    return { ...live, sv: persisted.sessionVersion };
+    const requestHeaders = await headers().catch(() => null);
+    const bound = await bindAdminCookieToRegistry(session, requestHeaders);
+    if (!bound) return null;
+
+    const next: AdminSession = {
+      ...live,
+      sv: persisted ? persisted.sessionVersion : 0,
+      sid: bound.sid,
+      exp: bound.expiresAt.getTime(),
+    };
+
+    // Best-effort cookie rewrite when bootstrapping sid (Route Handlers / Server Actions only).
+    if (!session.sid) {
+      try {
+        const jar = await cookies();
+        jar.set(
+          ADMIN_COOKIE,
+          createSessionToken({
+            id: next.id,
+            email: next.email,
+            name: next.name,
+            role: next.role,
+            sv: next.sv,
+            sid: next.sid!,
+            exp: next.exp,
+          }),
+          adminCookieOptions(),
+        );
+      } catch {
+        // Server Components cannot set cookies; /api/admin/me rewrites shortly after.
+      }
+    }
+
+    return next;
   } catch (error) {
     console.error("Could not refresh admin access level", error);
     return null;
@@ -99,7 +136,7 @@ export function clearAllAuthCookies(
   });
 }
 
-export async function persistAdminLastSeen(admin: Omit<AdminSession, "exp">) {
+export async function persistAdminLastSeen(admin: Omit<AdminSession, "exp" | "sid">) {
   if (admin.id === "env") return;
   try {
     await getDb().admin.update({ where: { id: admin.id }, data: { lastSeenAt: new Date() } });
@@ -108,14 +145,46 @@ export async function persistAdminLastSeen(admin: Omit<AdminSession, "exp">) {
   }
 }
 
-export async function writeAdminSession(admin: Omit<AdminSession, "exp">) {
+/** Mint a new registry row and set the admin cookie (login / bridge). */
+export async function writeAdminSession(admin: Omit<AdminSession, "exp" | "sid">) {
+  const requestHeaders = await headers().catch(() => null);
+  const row = await createAdminAuthSession({
+    adminId: admin.id,
+    headers: requestHeaders,
+  });
   const jar = await cookies();
   jar.set(
     ADMIN_COOKIE,
-    createSessionToken({ ...admin, sv: admin.sv ?? 0 }),
+    createSessionToken({
+      ...admin,
+      sv: admin.sv ?? 0,
+      sid: row.sessionTokenId,
+      exp: row.expiresAt.getTime(),
+    }),
     adminCookieOptions(),
   );
   await persistAdminLastSeen(admin);
+}
+
+/**
+ * Rewrite cookie fields while keeping the same registry session id
+ * (role / profile sync — must not mint a new device session).
+ */
+export async function rewriteAdminSessionCookie(admin: AdminSession & { sid: string }) {
+  const jar = await cookies();
+  jar.set(
+    ADMIN_COOKIE,
+    createSessionToken({
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      role: admin.role,
+      sv: admin.sv ?? 0,
+      sid: admin.sid,
+      exp: admin.exp,
+    }),
+    adminCookieOptions(),
+  );
 }
 
 export async function getAdminSession() {
@@ -123,6 +192,20 @@ export async function getAdminSession() {
   const session = verifySessionToken(jar.get(ADMIN_COOKIE)?.value);
   if (!session) return null;
   return resolveLiveAdminSession(session);
+}
+
+export async function getCurrentAdminSessionTokenId() {
+  const session = await getAdminSession();
+  return session?.sid || null;
+}
+
+/** Revoke the current registry row (if any) then clear cookies — used by logout. */
+export async function revokeCurrentAdminSession(reason = "sign_out") {
+  const jar = await cookies();
+  const session = verifySessionToken(jar.get(ADMIN_COOKIE)?.value);
+  if (session?.sid) {
+    await revokeAdminAuthSessionByTokenId(session.sid, reason);
+  }
 }
 
 export async function isAdmin() {
@@ -139,7 +222,7 @@ export async function requireAccess(area: AdminArea) {
 export async function authenticateAdmin(
   email: string,
   password: string,
-): Promise<Omit<AdminSession, "exp"> | null> {
+): Promise<Omit<AdminSession, "exp" | "sid"> | null> {
   const identifier = email.trim();
   if (!identifier || !password) return null;
 
