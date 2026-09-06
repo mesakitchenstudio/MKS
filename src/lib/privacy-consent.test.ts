@@ -148,6 +148,19 @@ describe("privacy consent wiring", () => {
     assert.match(ui, /Reject optional/);
     assert.match(ui, /Accept optional/);
     assert.match(ui, /Manage preferences/);
+    assert.match(ui, /useSession/);
+    assert.match(ui, /displayFirstChoiceBanner/);
+    assert.match(ui, /status !== "loading"/);
+    assert.match(ui, /choiceButtonClass/);
+    assert.match(ui, /manageButtonClass/);
+    assert.match(ui, /max-w-5xl/);
+    assert.match(ui, /lg:flex-row/);
+    // First-choice Accept must not use filled terracotta (equal weight with Reject).
+    const bannerSrc = ui.slice(
+      ui.indexOf("function PrivacyConsentBanner"),
+      ui.indexOf("function PrivacyPreferencesDialog"),
+    );
+    assert.doesNotMatch(bannerSrc, /bg-terracotta/);
     assert.match(footer, /PrivacyPreferencesFooterLink/);
     assert.match(privacy, /Cookies &amp; preferences/);
     assert.match(privacy, /Advertising is not currently active/);

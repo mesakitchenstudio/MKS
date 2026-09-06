@@ -1,14 +1,22 @@
 ﻿"use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { usePrivacyConsent } from "@/components/PrivacyConsentProvider";
 import { authFocusRing } from "@/lib/auth-ui";
 
 const focusRing = authFocusRing;
 
+/** Shared primary actions — equal visual weight (no Accept bias). */
+const choiceButtonClass = `inline-flex min-h-11 items-center justify-center border border-line bg-cream px-4 text-sm font-semibold text-ink transition-colors hover:border-ink/30 disabled:opacity-60 ${focusRing}`;
+
+/** Secondary manage control — quieter than Accept/Reject. */
+const manageButtonClass = `inline-flex min-h-11 items-center justify-center border border-transparent bg-transparent px-3 text-sm font-semibold text-muted underline-offset-4 transition-colors hover:text-ink hover:underline disabled:opacity-60 ${focusRing}`;
+
 export function PrivacyConsentUi() {
   const pathname = usePathname() || "/";
+  const { data: session, status } = useSession();
   const {
     showBanner,
     preferencesOpen,
@@ -22,9 +30,17 @@ export function PrivacyConsentUi() {
 
   if (pathname.startsWith("/admin")) return null;
 
+  // Optional categories only matter for signed-out guests. Do not show the
+  // first-choice banner while authenticated (member or staff). Session loading
+  // stays suppressed to avoid a signed-in flash. Existing decisions are untouched.
+  const isSignedIn =
+    status === "authenticated" && Boolean(session?.user?.email || session?.staffRole);
+  const displayFirstChoiceBanner =
+    showBanner && status !== "loading" && !isSignedIn;
+
   return (
     <>
-      {showBanner ? (
+      {displayFirstChoiceBanner ? (
         <PrivacyConsentBanner
           onAccept={() => void acceptOptional()}
           onReject={() => void rejectOptional()}
@@ -73,28 +89,30 @@ function PrivacyConsentBanner({
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] p-3 sm:p-4 md:p-5"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] p-3 sm:p-4"
       role="region"
       aria-labelledby={headingId}
     >
-      <div className="pointer-events-auto mx-auto max-w-3xl border border-line bg-paper px-4 py-4 text-ink sm:px-5 sm:py-5">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">
-          Privacy
-        </p>
-        <h2 id={headingId} className="mt-1 font-serif text-2xl leading-snug text-ink">
-          Your privacy
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Mesa uses essential technologies to keep the site working. With your permission, we
-          also use optional analytics to understand how the site is used and Google sign-in
-          enhancements to make signing in easier.
-        </p>
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="pointer-events-auto mx-auto flex max-w-5xl flex-col gap-3 border border-line bg-paper px-4 py-3 text-ink sm:px-5 sm:py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+        <div className="min-w-0 lg:max-w-2xl">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">
+            Privacy
+          </p>
+          <h2 id={headingId} className="mt-0.5 font-serif text-xl leading-snug text-ink sm:text-2xl">
+            Your privacy
+          </h2>
+          <p className="mt-1.5 text-sm leading-6 text-muted">
+            Mesa uses essential technologies to keep the site working. With your permission, we
+            also use optional analytics to understand how the site is used and Google sign-in
+            enhancements to make signing in easier.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
           <button
             type="button"
             disabled={Boolean(busy)}
             onClick={() => void run("reject", onReject)}
-            className={`inline-flex min-h-11 items-center justify-center border border-line bg-cream px-4 text-sm font-semibold text-ink transition-colors hover:border-ink/30 disabled:opacity-60 ${focusRing}`}
+            className={choiceButtonClass}
           >
             {busy === "reject" ? "Saving…" : "Reject optional"}
           </button>
@@ -102,7 +120,7 @@ function PrivacyConsentBanner({
             type="button"
             disabled={Boolean(busy)}
             onClick={onManage}
-            className={`inline-flex min-h-11 items-center justify-center border border-line bg-paper px-4 text-sm font-semibold text-ink transition-colors hover:border-ink/30 disabled:opacity-60 ${focusRing}`}
+            className={manageButtonClass}
           >
             Manage preferences
           </button>
@@ -110,7 +128,7 @@ function PrivacyConsentBanner({
             type="button"
             disabled={Boolean(busy)}
             onClick={() => void run("accept", onAccept)}
-            className={`inline-flex min-h-11 items-center justify-center rounded-full bg-terracotta px-5 text-sm font-semibold text-paper transition-colors hover:bg-terracotta-dark disabled:opacity-60 ${focusRing}`}
+            className={choiceButtonClass}
           >
             {busy === "accept" ? "Saving…" : "Accept optional"}
           </button>
