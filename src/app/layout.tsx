@@ -109,6 +109,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Staff with a valid admin session unlock public chrome while Coming Soon stays on for visitors.
   const staffPreview = sitePrivate && Boolean(admin);
   const privateMode = sitePrivate && !staffPreview;
+  // OAuth Web client ID is public by design; pass from AUTH_GOOGLE_ID so One Tap
+  // does not depend on a separate NEXT_PUBLIC_* build-time env.
+  const googleClientId =
+    process.env.AUTH_GOOGLE_ID?.trim() ||
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() ||
+    "";
   const recipes = privateMode
     ? []
     : (await getAllRecipes()).map((recipe) => ({
@@ -135,7 +141,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <AnalyticsScripts />
         <AdSensePathLoader sitePrivate={sitePrivate} />
         <AnalyticsBridge />
-        <AuthSessionProvider googleOneTapEnabled={!sitePrivate}>
+        <AuthSessionProvider
+          googleOneTapEnabled={!sitePrivate && Boolean(googleClientId)}
+          googleClientId={googleClientId}
+        >
           <FunnelAnalyticsBridge />
           <PublicChrome
             hideTools={privateMode}

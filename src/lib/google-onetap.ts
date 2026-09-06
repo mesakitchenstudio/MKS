@@ -20,13 +20,23 @@ export function isGoogleOneTapPathEligible(pathname: string) {
   return true;
 }
 
-/** Public GIS client ID (same Web OAuth client as AUTH_GOOGLE_ID). */
+/**
+ * Optional build-time public env (same value as AUTH_GOOGLE_ID).
+ * Prefer the server-passed `clientId` prop so One Tap works when only AUTH_GOOGLE_ID is set.
+ */
 export function publicGoogleClientId() {
   return process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
 }
 
-export function isGoogleOneTapClientConfigured() {
-  return Boolean(publicGoogleClientId());
+/** Resolve GIS client_id: server AUTH_GOOGLE_ID prop first, then NEXT_PUBLIC. */
+export function resolveGoogleOneTapClientId(serverClientId?: string | null) {
+  const fromServer = serverClientId?.trim() || "";
+  if (fromServer) return fromServer;
+  return publicGoogleClientId();
+}
+
+export function isGoogleOneTapClientConfigured(serverClientId?: string | null) {
+  return Boolean(resolveGoogleOneTapClientId(serverClientId));
 }
 
 export function isGoogleMemberAuthProvider(provider: string | null | undefined) {

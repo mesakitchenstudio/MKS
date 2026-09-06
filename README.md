@@ -20,12 +20,12 @@ Public members use Auth.js with the same Google Web client for redirect sign-in 
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `AUTH_GOOGLE_ID` | Yes (for Google) | Google Cloud Web OAuth client ID (audience for ID tokens) |
+| `AUTH_GOOGLE_ID` | Yes (for Google) | Google Cloud Web OAuth client ID (audience for ID tokens + One Tap) |
 | `AUTH_GOOGLE_SECRET` | Yes (for redirect OAuth) | Google OAuth client secret (server only) |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Yes (for One Tap) | Same client ID as `AUTH_GOOGLE_ID` (public; GIS script only) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Optional | Same client ID as `AUTH_GOOGLE_ID`; layout already passes `AUTH_GOOGLE_ID` to the One Tap client |
 | `AUTH_SECRET` | Yes | Auth.js session signing secret |
 
-Authorized JavaScript origins in Google Cloud must include the production host (e.g. `https://www.mesakitchenstudio.com`). Redirect URI: `https://www.mesakitchenstudio.com/api/auth/callback/google`. One Tap stays off while `SITE_PRIVATE=true`.
+Authorized JavaScript origins in Google Cloud must include the live host after redirect: `https://www.mesakitchenstudio.com` (apex `https://mesakitchenstudio.com` 308s to www). Redirect URI: `https://www.mesakitchenstudio.com/api/auth/callback/google`. One Tap stays off while `SITE_PRIVATE=true`.
 
 ### AI recipe assistant (Admin)
 

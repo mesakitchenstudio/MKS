@@ -163,16 +163,19 @@ function SessionSync() {
 export function AuthSessionProvider({
   children,
   googleOneTapEnabled = false,
+  googleClientId = "",
 }: {
   children: ReactNode;
   /** Off while SITE_PRIVATE (Coming Soon), including staff preview. */
   googleOneTapEnabled?: boolean;
+  /** AUTH_GOOGLE_ID (or NEXT_PUBLIC) — required for GIS initialize. */
+  googleClientId?: string;
 }) {
   return (
     <SessionProvider>
       <SessionSync />
       <GuestTracker />
-      <GoogleOneTap enabled={googleOneTapEnabled} />
+      <GoogleOneTap enabled={googleOneTapEnabled} clientId={googleClientId} />
       {children}
     </SessionProvider>
   );

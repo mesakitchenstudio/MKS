@@ -7,7 +7,7 @@ import {
   GOOGLE_ONETAP_PROVIDER_ID,
   isGoogleOneTapClientConfigured,
   isGoogleOneTapPathEligible,
-  publicGoogleClientId,
+  resolveGoogleOneTapClientId,
 } from "@/lib/google-onetap";
 
 const GIS_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
@@ -86,11 +86,42 @@ export function disableGoogleOneTapAutoSelect() {
   }
 }
 
+function reportPromptMoment(notification: PromptNotification) {
+  try {
+    let kind = "unknown";
+    let reason = "";
+    if (notification.isNotDisplayed()) {
+      kind = "not_displayed";
+      reason = notification.getNotDisplayedReason?.() || "";
+    } else if (notification.isSkippedMoment()) {
+      kind = "skipped";
+      reason = notification.getSkippedReason?.() || "";
+    } else if (notification.isDismissedMoment()) {
+      kind = "dismissed";
+      reason = notification.getDismissedReason?.() || "";
+    } else {
+      return;
+    }
+    // No tokens / PII — GIS reason strings only (e.g. browser_not_supported).
+    console.debug("[mesa:google-onetap]", kind, reason || "(no reason)");
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Google Identity Services One Tap / FedCM prompt for signed-out public visitors.
  * Browser/Google own the UI; Mesa only consumes a verified ID token via Auth.js.
+ * Does not force a custom popup when FedCM elects not to display.
  */
-export function GoogleOneTap({ enabled }: { enabled: boolean }) {
+export function GoogleOneTap({
+  enabled,
+  clientId: clientIdProp = "",
+}: {
+  enabled: boolean;
+  /** Same Web OAuth client as AUTH_GOOGLE_ID (public by design). */
+  clientId?: string;
+}) {
   const { status } = useSession();
   const pathname = usePathname() || "/";
   const handlingRef = useRef(false);
@@ -106,16 +137,17 @@ export function GoogleOneTap({ enabled }: { enabled: boolean }) {
       }
       return;
     }
-    if (!isGoogleOneTapClientConfigured()) return;
+    if (!isGoogleOneTapClientConfigured(clientIdProp)) return;
     if (!isGoogleOneTapPathEligible(pathname)) return;
 
     let cancelled = false;
-    const clientId = publicGoogleClientId();
+    const clientId = resolveGoogleOneTapClientId(clientIdProp);
 
     async function start() {
       try {
         await loadGisScript();
       } catch {
+        console.debug("[mesa:google-onetap]", "gis_script_failed");
         return;
       }
       if (cancelled || !window.google?.accounts?.id) return;
@@ -153,6 +185,7 @@ export function GoogleOneTap({ enabled }: { enabled: boolean }) {
             itp_support: true,
           });
           initializedRef.current = true;
+          console.debug("[mesa:google-onetap]", "initialized");
         }
 
         if (window.__mesaGoogleOneTapDisableAutoSelect) {
@@ -164,11 +197,12 @@ export function GoogleOneTap({ enabled }: { enabled: boolean }) {
           window.__mesaGoogleOneTapDisableAutoSelect = false;
         }
 
-        window.google.accounts.id.prompt(() => {
-          // Dismissed / skipped / not displayed — silent; Sign in remains.
+        window.google.accounts.id.prompt((notification) => {
+          reportPromptMoment(notification);
         });
+        console.debug("[mesa:google-onetap]", "prompt_called");
       } catch {
-        // GIS unavailable — silent.
+        console.debug("[mesa:google-onetap]", "gis_unavailable");
       }
     }
 
@@ -182,7 +216,7 @@ export function GoogleOneTap({ enabled }: { enabled: boolean }) {
         // ignore
       }
     };
-  }, [enabled, status, pathname]);
+  }, [enabled, status, pathname, clientIdProp]);
 
   return null;
 }

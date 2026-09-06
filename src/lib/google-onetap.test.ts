@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import {
   GOOGLE_ONETAP_PROVIDER_ID,
   isGoogleMemberAuthProvider,
+  isGoogleOneTapClientConfigured,
   isGoogleOneTapPathEligible,
+  resolveGoogleOneTapClientId,
 } from "./google-onetap";
 import { isGoogleIdTokenAuthConfigured } from "./google-id-token";
 
@@ -69,6 +71,37 @@ describe("Google ID token verification contracts", () => {
   });
 });
 
+describe("Google One Tap client ID resolution", () => {
+  it("prefers the server-passed AUTH_GOOGLE_ID over empty NEXT_PUBLIC", () => {
+    const previous = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    try {
+      delete process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      assert.equal(resolveGoogleOneTapClientId(""), "");
+      assert.equal(isGoogleOneTapClientConfigured(""), false);
+      assert.equal(
+        resolveGoogleOneTapClientId("mesa-from-server.apps.googleusercontent.com"),
+        "mesa-from-server.apps.googleusercontent.com",
+      );
+      assert.equal(
+        isGoogleOneTapClientConfigured("mesa-from-server.apps.googleusercontent.com"),
+        true,
+      );
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = "mesa-from-public.apps.googleusercontent.com";
+      assert.equal(
+        resolveGoogleOneTapClientId(""),
+        "mesa-from-public.apps.googleusercontent.com",
+      );
+      assert.equal(
+        resolveGoogleOneTapClientId("mesa-from-server.apps.googleusercontent.com"),
+        "mesa-from-server.apps.googleusercontent.com",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      else process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = previous;
+    }
+  });
+});
+
 describe("Google One Tap wiring", () => {
   it("registers Auth.js google-onetap provider and mounts client prompt behind public gate", () => {
     const auth = read("auth.ts");
@@ -83,12 +116,14 @@ describe("Google One Tap wiring", () => {
     assert.match(auth, /isGoogleMemberAuthProvider/);
     assert.doesNotMatch(auth, /use_fedcm_for_prompt/);
 
-    assert.match(layout, /googleOneTapEnabled=\{!sitePrivate\}/);
-    assert.match(sessionProvider, /GoogleOneTap enabled=\{googleOneTapEnabled\}/);
+    assert.match(layout, /AUTH_GOOGLE_ID/);
+    assert.match(layout, /googleOneTapEnabled=\{!sitePrivate && Boolean\(googleClientId\)\}/);
+    assert.match(layout, /googleClientId=\{googleClientId\}/);
+    assert.match(sessionProvider, /GoogleOneTap enabled=\{googleOneTapEnabled\} clientId=\{googleClientId\}/);
     assert.match(oneTap, /accounts\.google\.com\/gsi\/client/);
     assert.match(oneTap, /signIn\(GOOGLE_ONETAP_PROVIDER_ID/);
     assert.match(oneTap, /disableAutoSelect/);
-    assert.match(oneTap, /NEXT_PUBLIC_GOOGLE_CLIENT_ID|publicGoogleClientId/);
+    assert.match(oneTap, /resolveGoogleOneTapClientId|getNotDisplayedReason/);
     assert.doesNotMatch(oneTap, /use_fedcm_for_prompt/);
     assert.doesNotMatch(oneTap, /localStorage\.setItem\([^)]*credential|id_token/i);
 
