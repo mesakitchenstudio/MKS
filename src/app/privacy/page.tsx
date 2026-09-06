@@ -14,10 +14,11 @@ export default function PrivacyPage() {
           {site.name} respects your kitchen and your inbox. When you create an account we store your
           name, email, and the recipes you save so they appear on your profile. We also keep a
           record of how you signed in (Google or email), your IP address, and approximate location
-          from the hosting provider so we can understand sign-ups and keep the site secure. You can
-          delete your account from your profile; that permanently removes your account and saved
-          recipes, stops newsletter emails to that address, and leaves any published reviews without
-          a link to your account. We do not sell personal information.
+          from the hosting provider so we can understand sign-ups and keep the site secure. When you
+          delete your account, your Mesa member account and saved recipes are removed. Published
+          reviews may remain without a link to your former account. If you subscribed to email
+          updates, your address may remain in an unsubscribed state so we can honor that preference.
+          We do not sell personal information.
         </p>
         <p>
           When you join the newsletter, we store your email so we can send recipes and studio notes

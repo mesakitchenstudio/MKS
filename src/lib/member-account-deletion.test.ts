@@ -218,7 +218,16 @@ describe("member account deletion wiring", () => {
 
     assert.match(profile, /DeleteAccountSection/);
     assert.match(home, /AccountDeletedNotice/);
-    assert.match(privacy, /delete your account from your profile/i);
+    assert.match(privacy, /When you[\s\S]*delete your account/i);
+    assert.match(privacy, /Published[\s\S]*reviews may remain without a link to your former account/i);
+    assert.match(privacy, /unsubscribed state so we can honor that preference/i);
+    assert.doesNotMatch(privacy, /permanently removes your account and saved[\s\S]*stops newsletter emails to that address/);
+
+    const notice = read("components/AccountDeletedNotice.tsx");
+    assert.match(notice, /history\.replaceState/);
+    assert.match(notice, /searchParams\.delete\("account"\)/);
+    assert.match(notice, /setSticky\(true\)/);
+    assert.doesNotMatch(notice, /reload|location\.assign|location\.href\s*=/);
 
     assert.match(core, /FORMER_MEMBER_DISPLAY_NAME/);
     assert.match(core, /recipeSave\.deleteMany/);
