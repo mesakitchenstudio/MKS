@@ -41,6 +41,8 @@ describe("public footer polish", () => {
     assert.match(footer, /Instagram/);
     assert.match(footer, /Pinterest/);
     assert.match(footer, /YouTube/);
+    assert.match(footer, /Made with ❤️ in Istanbul/);
+    assert.match(footer, /md:grid-cols-3/);
     assert.doesNotMatch(footer, /gradient|shadow|fa-instagram|svg.*youtube/i);
   });
 

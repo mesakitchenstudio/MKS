@@ -79,11 +79,12 @@ export function SiteFooter({ hideNewsletter = false }: { hideNewsletter?: boolea
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2.5 px-4 py-4 text-xs text-sand/70 md:flex-row md:items-center md:justify-between md:px-6">
-          <p>
+        <div className="mx-auto grid max-w-6xl gap-2.5 px-4 py-4 text-xs text-sand/70 md:grid-cols-3 md:items-center md:gap-4 md:px-6">
+          <p className="text-center md:text-left">
             © {new Date().getFullYear()} {site.name}. All rights reserved.
           </p>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <p className="text-center">Made with ❤️ in Istanbul</p>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 md:justify-end">
             <a href={site.social.instagram} className={socialLinkClass}>
               Instagram
             </a>
