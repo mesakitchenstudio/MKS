@@ -9,6 +9,7 @@ import { authFocusRing } from "@/lib/auth-ui";
 import { memberIdentityLines, resolveMemberDisplayName } from "@/lib/auth-client";
 import { EmailUpdatesPreference } from "@/components/EmailUpdatesPreference";
 import { FavoritesEmptyState, ProfileFavorites } from "@/components/ProfileFavorites";
+import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -53,7 +54,11 @@ export default async function ProfilePage() {
     );
   }
 
-  const [user, recipes] = await Promise.all([getUserByEmail(email), getAllRecipes()]);
+  const [user, recipes, newsletterSubscribed] = await Promise.all([
+    getUserByEmail(email),
+    getAllRecipes(),
+    isMemberNewsletterSubscribed(email),
+  ]);
   if (!user) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 md:px-6">
@@ -135,7 +140,7 @@ export default async function ProfilePage() {
         )}
       </section>
 
-      <EmailUpdatesPreference initialNotify={user.notify} />
+      <EmailUpdatesPreference initialNotify={newsletterSubscribed} />
     </div>
   );
 }

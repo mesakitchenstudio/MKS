@@ -28,9 +28,14 @@ export function EmailUpdatesPreference({ initialNotify }: { initialNotify: boole
         setBusy(false);
         return;
       }
-      setSavedNotify(Boolean(data.notify));
-      setNotify(Boolean(data.notify));
-      setStatus("Email update preference saved.");
+      const subscribed = Boolean(data.notify);
+      setSavedNotify(subscribed);
+      setNotify(subscribed);
+      setStatus(
+        subscribed
+          ? "You’re subscribed to Mesa email updates."
+          : "You’re unsubscribed from Mesa email updates.",
+      );
       setBusy(false);
     } catch {
       setError("Check your connection and try again.");

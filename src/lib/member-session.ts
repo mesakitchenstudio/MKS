@@ -49,6 +49,10 @@ export function evaluatePasswordRegistration(
   return { allowed: false, reason: "google_only_account" };
 }
 
+/**
+ * Whether signup should call the real newsletter subscribe path.
+ * Does not write User.notify — NewsletterSubscriber is the source of truth.
+ */
 export function defaultNotifyForMemberCreation(input: {
   method: "email" | "google";
   explicitNotify?: boolean;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { updateMemberNotifyPreference } from "@/lib/accounts";
+import { setMemberNewsletterPreference } from "@/lib/member-newsletter";
 
 export async function PATCH(request: Request) {
   const session = await auth();
@@ -17,9 +17,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid preference." }, { status: 400 });
   }
 
+  // Session email only — ignore any client-supplied address.
   try {
-    const updated = await updateMemberNotifyPreference(email, body.notify);
-    return NextResponse.json({ notify: updated.notify });
+    const result = await setMemberNewsletterPreference(email, body.notify);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+    return NextResponse.json({ notify: result.subscribed });
   } catch {
     return NextResponse.json({ error: "Could not update your preference." }, { status: 500 });
   }

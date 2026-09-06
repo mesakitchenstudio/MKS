@@ -6,6 +6,7 @@ import {
   MEMBER_GOOGLE_ONLY_ACCOUNT_API_ERROR,
   MEMBER_PASSWORD_MIN_LENGTH,
 } from "@/lib/auth-credentials";
+import { subscribeNewsletterServer } from "@/lib/newsletter-subscribe";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
@@ -34,8 +35,18 @@ export async function POST(request: Request) {
       name,
       email,
       password,
-      notify: Boolean(body.notify),
     });
+
+    // Same NewsletterSubscriber lifecycle as footer / profile (not User.notify).
+    if (Boolean(body.notify)) {
+      const subscription = await subscribeNewsletterServer(user.email, "signup");
+      if (!subscription.ok) {
+        console.error("Member signup newsletter opt-in failed", {
+          reason: subscription.message,
+        });
+      }
+    }
+
     return NextResponse.json({ email: user.email, name: user.name });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create account.";

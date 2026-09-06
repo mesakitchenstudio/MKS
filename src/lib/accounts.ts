@@ -211,7 +211,6 @@ export async function registerEmailUser(input: {
   name: string;
   email: string;
   password: string;
-  notify: boolean;
 }) {
   const db = getDb();
   const email = emailKey(input.email);
@@ -228,12 +227,13 @@ export async function registerEmailUser(input: {
   }
   const passwordHash = hashPassword(input.password);
   const name = input.name.trim() || email;
+  // User.notify is legacy — NewsletterSubscriber is the newsletter source of truth.
   return db.user.create({
     data: {
       email,
       name,
       passwordHash,
-      notify: input.notify,
+      notify: false,
     },
   });
 }
@@ -253,16 +253,6 @@ export async function authenticateEmailUser(email: string, password: string) {
   return db.user.update({
     where: { id: user.id },
     data: { lastSeenAt: new Date() },
-  });
-}
-
-export async function updateMemberNotifyPreference(email: string, notify: boolean) {
-  const db = getDb();
-  const user = await requireActiveMember(email);
-  return db.user.update({
-    where: { id: user.id },
-    data: { notify },
-    select: { notify: true },
   });
 }
 

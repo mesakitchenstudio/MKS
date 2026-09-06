@@ -159,6 +159,48 @@ export type UnsubscribeNewsletterResult =
   | { ok: true; alreadyUnsubscribed: boolean }
   | { ok: false; reason: "invalid" };
 
+async function markNewsletterUnsubscribed(subscriberId: string) {
+  await getDb().newsletterSubscriber.update({
+    where: { id: subscriberId },
+    data: {
+      status: "unsubscribed",
+      unsubscribedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Idempotent unsubscribe by authenticated account email (server-derived).
+ * Same status semantics as token unsubscribe; does not delete the row or expose tokens.
+ */
+export async function unsubscribeNewsletterByEmail(
+  email: string,
+): Promise<UnsubscribeNewsletterResult> {
+  const validated = validateNewsletterEmail(email);
+  if (!validated.ok) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  try {
+    const db = getDb();
+    const row = await db.newsletterSubscriber.findUnique({
+      where: { email: validated.email },
+    });
+    if (!row) {
+      return { ok: true, alreadyUnsubscribed: true };
+    }
+    if (row.status === "unsubscribed") {
+      return { ok: true, alreadyUnsubscribed: true };
+    }
+
+    await markNewsletterUnsubscribed(row.id);
+    return { ok: true, alreadyUnsubscribed: false };
+  } catch (error) {
+    console.error("Newsletter unsubscribe by email failed", error);
+    return { ok: false, reason: "invalid" };
+  }
+}
+
 /**
  * Idempotent unsubscribe by raw token (never store the raw token).
  * Does not delete the subscriber row.
@@ -188,14 +230,7 @@ export async function unsubscribeNewsletterByToken(
       return { ok: true, alreadyUnsubscribed: true };
     }
 
-    await db.newsletterSubscriber.update({
-      where: { id: row.id },
-      data: {
-        status: "unsubscribed",
-        unsubscribedAt: new Date(),
-      },
-    });
-
+    await markNewsletterUnsubscribed(row.id);
     return { ok: true, alreadyUnsubscribed: false };
   } catch (error) {
     console.error("Newsletter unsubscribe failed", error);
