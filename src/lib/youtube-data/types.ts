@@ -19,6 +19,8 @@ export type YouTubeApiVideo = {
   title: string;
   description: string;
   publishedAt: string | null;
+  /** ISO timestamp from status.publishAt when the video is scheduled to publish. */
+  scheduledPublishAt: string | null;
   thumbnailUrl: string;
   tags: string[];
   categoryId: string;
@@ -27,6 +29,7 @@ export type YouTubeApiVideo = {
   definition: string;
   caption: string;
   privacyStatus: string;
+  uploadStatus: string;
   embeddable: boolean;
   madeForKids: boolean;
   viewCount: string;

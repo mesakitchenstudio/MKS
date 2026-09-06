@@ -11,7 +11,8 @@ import {
   shouldCreateChannelSnapshot,
   shouldCreateVideoSnapshot,
 } from "@/lib/youtube-data/snapshots";
-import type { YouTubeSyncResult } from "@/lib/youtube-data/types";
+import { syncYoutubeScheduledViaOAuth } from "@/lib/youtube-data/scheduled-sync";
+import type { YouTubeApiVideo, YouTubeSyncResult } from "@/lib/youtube-data/types";
 
 function counterDelta(current: string, previous: string | undefined): string | null {
   if (!previous) return null;
@@ -22,6 +23,37 @@ function counterDelta(current: string, previous: string | undefined): string | n
   } catch {
     return null;
   }
+}
+
+function scheduledPublishDate(video: YouTubeApiVideo): Date | null {
+  if (!video.scheduledPublishAt) return null;
+  const date = new Date(video.scheduledPublishAt);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function videoUpsertData(video: YouTubeApiVideo, channelId: string, now: Date) {
+  return {
+    channelId,
+    title: video.title,
+    description: video.description,
+    publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
+    scheduledPublishAt: scheduledPublishDate(video),
+    thumbnailUrl: video.thumbnailUrl,
+    durationSeconds: video.durationSeconds,
+    durationDisplay: video.durationDisplay,
+    tags: JSON.stringify(video.tags),
+    categoryId: video.categoryId,
+    definition: video.definition,
+    caption: video.caption,
+    privacyStatus: video.privacyStatus,
+    uploadStatus: video.uploadStatus,
+    embeddable: video.embeddable,
+    madeForKids: video.madeForKids,
+    viewCount: video.viewCount,
+    likeCount: video.likeCount,
+    commentCount: video.commentCount,
+    lastSyncedAt: now,
+  };
 }
 
 export async function syncYoutubeChannel(input?: {
@@ -82,50 +114,22 @@ export async function syncYoutubeChannel(input?: {
     const now = new Date();
 
     for (const video of remoteVideos) {
+      const data = videoUpsertData(video, remote.channelId, now);
       await db.youTubeVideo.upsert({
         where: { videoId: video.videoId },
         create: {
           videoId: video.videoId,
-          channelId: remote.channelId,
-          title: video.title,
-          description: video.description,
-          publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
-          thumbnailUrl: video.thumbnailUrl,
-          durationSeconds: video.durationSeconds,
-          durationDisplay: video.durationDisplay,
-          tags: JSON.stringify(video.tags),
-          categoryId: video.categoryId,
-          definition: video.definition,
-          caption: video.caption,
-          privacyStatus: video.privacyStatus,
-          embeddable: video.embeddable,
-          madeForKids: video.madeForKids,
-          viewCount: video.viewCount,
-          likeCount: video.likeCount,
-          commentCount: video.commentCount,
-          lastSyncedAt: now,
+          ...data,
         },
-        update: {
-          title: video.title,
-          description: video.description,
-          publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
-          thumbnailUrl: video.thumbnailUrl,
-          durationSeconds: video.durationSeconds,
-          durationDisplay: video.durationDisplay,
-          tags: JSON.stringify(video.tags),
-          categoryId: video.categoryId,
-          definition: video.definition,
-          caption: video.caption,
-          privacyStatus: video.privacyStatus,
-          embeddable: video.embeddable,
-          madeForKids: video.madeForKids,
-          viewCount: video.viewCount,
-          likeCount: video.likeCount,
-          commentCount: video.commentCount,
-          lastSyncedAt: now,
-        },
+        update: data,
       });
     }
+
+    // Channel-owner OAuth (same Analytics connection) is required for private scheduled publishAt.
+    await syncYoutubeScheduledViaOAuth({
+      channelId: remote.channelId,
+      uploadsPlaylistId: remote.uploadsPlaylistId,
+    });
 
     let snapshotCreated = false;
 

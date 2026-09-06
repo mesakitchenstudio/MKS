@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { YoutubeDashboard } from "@/components/admin/YoutubeDashboard";
 import { YoutubeFunnelPanel } from "@/components/admin/YoutubeFunnelPanel";
+import { YoutubeSchedulePanel } from "@/components/admin/YoutubeSchedulePanel";
 import { canAccess, canManageYoutubeAnalytics, canManageYoutubeSync } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -11,6 +12,7 @@ import {
 } from "@/lib/admin-transient-feedback";
 import { adminFocusRing } from "@/lib/admin-ui";
 import { loadYoutubeAdminDashboard } from "@/lib/youtube-data/dashboard";
+import { loadYoutubeScheduleDashboard } from "@/lib/youtube-data/schedule-load";
 import {
   parseYoutubeDashboardFilter,
   youtubeDashboardFilterQueryValue,
@@ -24,8 +26,11 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-function parseYoutubeView(raw: unknown): "channel" | "funnel" {
-  return String(raw || "").trim() === "funnel" ? "funnel" : "channel";
+function parseYoutubeView(raw: unknown): "channel" | "funnel" | "schedule" {
+  const value = String(raw || "").trim();
+  if (value === "funnel") return "funnel";
+  if (value === "schedule") return "schedule";
+  return "channel";
 }
 
 export default async function AdminYoutubePage({
@@ -49,8 +54,10 @@ export default async function AdminYoutubePage({
   const filter = parseYoutubeDashboardFilter(params.filter);
   const filterQuery = youtubeDashboardFilterQueryValue(filter);
 
-  const [dashboard, recipeTypes, funnel, importedSeriesCount] = await Promise.all([
-    loadYoutubeAdminDashboard({ analyticsRangeDays: rangeDays }),
+  const [dashboard, recipeTypes, funnel, schedule, importedSeriesCount] = await Promise.all([
+    view === "channel"
+      ? loadYoutubeAdminDashboard({ analyticsRangeDays: rangeDays })
+      : Promise.resolve(null),
     canCreateRecipes
       ? db.recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
       : Promise.resolve([] as { id: string; name: string }[]),
@@ -61,6 +68,7 @@ export default async function AdminYoutubePage({
           includeEditorTracking: admin.role === "editor",
         })
       : null,
+    view === "schedule" ? loadYoutubeScheduleDashboard() : null,
     canCreateRecipes
       ? db.series.count({ where: { youtubePlaylistId: { not: "" } } })
       : Promise.resolve(0),
@@ -73,9 +81,10 @@ export default async function AdminYoutubePage({
   const successFlash = [connectedFlash, noticeFlash].filter(Boolean).join(" ");
   const errorFlash = params.analyticsError?.trim() || "";
 
-  function viewHref(next: "channel" | "funnel") {
+  function viewHref(next: "channel" | "funnel" | "schedule") {
     const qs = new URLSearchParams();
     if (next === "funnel") qs.set("view", "funnel");
+    if (next === "schedule") qs.set("view", "schedule");
     if (filterQuery) qs.set("filter", filterQuery);
     if (rangeDays !== 28) qs.set("range", String(rangeDays));
     const s = qs.toString();
@@ -129,12 +138,25 @@ export default async function AdminYoutubePage({
           >
             Website video
           </Link>
+          <Link
+            href={viewHref("schedule")}
+            className={navLinkClass(view === "schedule")}
+            aria-current={view === "schedule" ? "page" : undefined}
+          >
+            Schedule
+          </Link>
         </nav>
       </header>
 
       {view === "funnel" && funnel ? (
         <YoutubeFunnelPanel funnel={funnel} filterQuery={filterQuery || undefined} />
-      ) : (
+      ) : view === "schedule" && schedule ? (
+        <YoutubeSchedulePanel
+          schedule={schedule}
+          canSync={canManageYoutubeSync(admin.role)}
+          canManageAnalytics={canManageYoutubeAnalytics(admin.role)}
+        />
+      ) : dashboard ? (
         <YoutubeDashboard
           channel={dashboard.channel}
           summary={dashboard.summary}
@@ -150,7 +172,7 @@ export default async function AdminYoutubePage({
           importedSeriesCount={importedSeriesCount}
           showSeriesUtility={canCreateRecipes}
         />
-      )}
+      ) : null}
     </div>
   );
 }

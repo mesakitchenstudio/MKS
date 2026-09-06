@@ -375,7 +375,7 @@ model YouTubeChannel {
   videos               YouTubeVideo[]
 }
 
-/// Public uploaded video metadata synced from YouTube Data API v3.
+/// Uploaded video metadata synced from YouTube Data API v3 (public + OAuth private/scheduled).
 model YouTubeVideo {
   id              String   @id @default(cuid())
   videoId         String   @unique
@@ -384,6 +384,8 @@ model YouTubeVideo {
   title           String   @default("")
   description     String   @default("")
   publishedAt     DateTime?
+  /** YouTube status.publishAt — future time when a private upload is scheduled to go public. */
+  scheduledPublishAt DateTime?
   thumbnailUrl    String   @default("")
   durationSeconds Int      @default(0)
   durationDisplay String   @default("")
@@ -392,6 +394,8 @@ model YouTubeVideo {
   definition      String   @default("")
   caption         String   @default("")
   privacyStatus   String   @default("")
+  /** YouTube status.uploadStatus (uploaded, processed, rejected, …). */
+  uploadStatus    String   @default("")
   embeddable      Boolean  @default(true)
   madeForKids     Boolean  @default(false)
   viewCount       String   @default("0")
@@ -402,6 +406,7 @@ model YouTubeVideo {
   seriesItems     SeriesItem[]
 
   @@index([channelId, publishedAt])
+  @@index([scheduledPublishAt])
 }
 
 /// Mesa cooking series — custom collections or imported YouTube playlists.

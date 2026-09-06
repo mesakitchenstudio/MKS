@@ -42,7 +42,7 @@ export type PlaylistRefreshResult = {
 
 async function uniqueSeriesSlug(base: string): Promise<string> {
   const db = getDb();
-  let slug = slugify(base) || "series";
+  const slug = slugify(base) || "series";
   let attempt = 0;
   while (attempt < 50) {
     const candidate = attempt === 0 ? slug : `${slug}-${attempt + 1}`;
@@ -70,6 +70,7 @@ async function ensureLocalYoutubeVideos(videoIds: string[], channelId: string): 
         title: video.title,
         description: video.description,
         publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
+        scheduledPublishAt: video.scheduledPublishAt ? new Date(video.scheduledPublishAt) : null,
         thumbnailUrl: video.thumbnailUrl,
         durationSeconds: video.durationSeconds,
         durationDisplay: video.durationDisplay,
@@ -78,6 +79,7 @@ async function ensureLocalYoutubeVideos(videoIds: string[], channelId: string): 
         definition: video.definition,
         caption: video.caption,
         privacyStatus: video.privacyStatus,
+        uploadStatus: video.uploadStatus,
         embeddable: video.embeddable,
         madeForKids: video.madeForKids,
         viewCount: video.viewCount,
@@ -89,6 +91,7 @@ async function ensureLocalYoutubeVideos(videoIds: string[], channelId: string): 
         title: video.title,
         description: video.description,
         publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
+        scheduledPublishAt: video.scheduledPublishAt ? new Date(video.scheduledPublishAt) : null,
         thumbnailUrl: video.thumbnailUrl,
         durationSeconds: video.durationSeconds,
         durationDisplay: video.durationDisplay,
@@ -97,6 +100,7 @@ async function ensureLocalYoutubeVideos(videoIds: string[], channelId: string): 
         definition: video.definition,
         caption: video.caption,
         privacyStatus: video.privacyStatus,
+        uploadStatus: video.uploadStatus,
         embeddable: video.embeddable,
         madeForKids: video.madeForKids,
         viewCount: video.viewCount,

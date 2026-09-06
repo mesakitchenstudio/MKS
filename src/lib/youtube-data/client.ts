@@ -59,6 +59,8 @@ type VideoItem = {
   };
   status?: {
     privacyStatus?: string;
+    uploadStatus?: string;
+    publishAt?: string;
     embeddable?: boolean;
     madeForKids?: boolean;
   };
@@ -105,6 +107,7 @@ function mapVideoItem(item: VideoItem): YouTubeApiVideo | null {
     title: String(item.snippet?.title ?? ""),
     description: String(item.snippet?.description ?? ""),
     publishedAt: item.snippet?.publishedAt ?? null,
+    scheduledPublishAt: item.status?.publishAt ?? null,
     thumbnailUrl: pickBestThumbnail(item.snippet?.thumbnails),
     tags: Array.isArray(item.snippet?.tags) ? item.snippet!.tags!.map(String) : [],
     categoryId: String(item.snippet?.categoryId ?? ""),
@@ -113,6 +116,7 @@ function mapVideoItem(item: VideoItem): YouTubeApiVideo | null {
     definition: String(item.contentDetails?.definition ?? ""),
     caption: String(item.contentDetails?.caption ?? ""),
     privacyStatus: String(item.status?.privacyStatus ?? ""),
+    uploadStatus: String(item.status?.uploadStatus ?? ""),
     embeddable: item.status?.embeddable !== false,
     madeForKids: Boolean(item.status?.madeForKids),
     viewCount: String(item.statistics?.viewCount ?? "0"),

@@ -29,9 +29,12 @@ describe("YouTube admin UI redesign contracts", () => {
     assert.equal(adminWorkspaceWidthForPath("/admin/youtube"), adminWorkspaceWide);
     assert.match(page, /parseYoutubeView/);
     assert.match(page, /view === "funnel"/);
+    assert.match(page, /view === "schedule"/);
     assert.match(page, /qs\.set\("view", "funnel"\)/);
+    assert.match(page, /qs\.set\("view", "schedule"\)/);
     assert.match(page, /Website video/);
     assert.match(page, />\s*Channel\s*</);
+    assert.match(page, />\s*Schedule\s*</);
     assert.doesNotMatch(page, /Website funnel/);
     assert.doesNotMatch(page, /Channel analytics/);
   });
@@ -40,6 +43,7 @@ describe("YouTube admin UI redesign contracts", () => {
     assert.match(page, /<h1[\s\S]*>\s*YouTube\s*</);
     assert.match(page, /aria-current=\{view === "channel" \? "page" : undefined\}/);
     assert.match(page, /aria-current=\{view === "funnel" \? "page" : undefined\}/);
+    assert.match(page, /aria-current=\{view === "schedule" \? "page" : undefined\}/);
     assert.doesNotMatch(dashboard, /<h1[\s\S]*>YouTube</);
     assert.doesNotMatch(funnel, /<h1[\s\S]*>/);
     assert.doesNotMatch(funnel, /Website funnel/);
