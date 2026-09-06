@@ -4,7 +4,7 @@ import { loginAction } from "@/app/admin/actions";
 import { AdminGoogleSignIn } from "@/components/admin/AdminGoogleSignIn";
 import { AuthOrDivider } from "@/components/auth/GoogleAuthButton";
 import { homeForRole } from "@/lib/admin-access";
-import { bridgePublicSessionToAdmin } from "@/lib/admin-bridge";
+import { resolvePublicStaffForAdmin } from "@/lib/admin-bridge";
 import { getAdminSession } from "@/lib/auth";
 import {
   authFocusRing,
@@ -31,10 +31,13 @@ export default async function AdminLoginPage({
   if (admin) redirect(homeForRole(admin.role));
 
   const { error, reset } = await searchParams;
-  const bridged = await bridgePublicSessionToAdmin();
-  if (bridged.status === "bridged") redirect(bridged.redirectTo);
+  // Never mint admin cookies from this RSC — Route Handler sets the session cookie.
+  const resolved = await resolvePublicStaffForAdmin();
+  if (resolved.status === "authorized") {
+    redirect("/admin/session");
+  }
 
-  const denied = bridged.status === "unauthorized" || error === "not-admin";
+  const denied = resolved.status === "unauthorized" || error === "not-admin";
   const errorMessage = loginErrorMessage(error);
 
   return (

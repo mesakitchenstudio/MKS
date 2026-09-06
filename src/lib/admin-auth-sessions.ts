@@ -6,6 +6,7 @@ import {
 } from "@/lib/guest-client";
 import { connectionMeta, formatApproxLocation, type ConnectionMeta } from "@/lib/request-meta";
 import { getDb } from "@/lib/db";
+import { isAdminSessionVersionCurrent } from "@/lib/admin-staff";
 import { ADMIN_SESSION_TTL_MS, type AdminSession as AdminCookieSession } from "@/lib/admin-session-token";
 
 export { ADMIN_SESSION_TTL_MS };
@@ -15,7 +16,6 @@ export const ADMIN_SESSION_LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000;
 
 /** Revoked/expired rows eligible for cleanup after this window (document for future cron). */
 export const ADMIN_SESSION_RETENTION_DAYS = 60;
-
 
 export type AdminSessionClientLabels = {
   primary: string;
@@ -36,6 +36,34 @@ export function legacyAdminSessionTokenId(session: Pick<AdminCookieSession, "id"
   return createHash("sha256")
     .update(`mesa-admin-legacy|${session.id}|${session.exp}|${session.sv}`)
     .digest("base64url");
+}
+
+/**
+ * Live authorization for staff-preview / AdminSession binding.
+ * Crypto-valid cookies alone are not enough after revoke or staff removal.
+ */
+export async function isLiveAdminCookieSession(session: AdminCookieSession): Promise<boolean> {
+  if (!session.sid) return false;
+  try {
+    const db = getDb();
+    const row = await db.adminSession.findUnique({
+      where: { sessionTokenId: session.sid },
+    });
+    if (!row) return false;
+    if (row.subjectKey !== adminSessionSubjectKey(session.id)) return false;
+    if (!isAdminAuthSessionActive(row)) return false;
+
+    if (session.id === "env") return true;
+
+    const admin = await db.admin.findUnique({
+      where: { id: session.id },
+      select: { id: true, sessionVersion: true },
+    });
+    if (!admin) return false;
+    return isAdminSessionVersionCurrent(session.sv, admin.sessionVersion);
+  } catch {
+    return false;
+  }
 }
 
 export function parseAdminSessionClient(userAgent: string): {

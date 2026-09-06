@@ -5,6 +5,7 @@ import {
   hasValidAdminSessionCookie,
   verifySessionToken,
 } from "@/lib/admin-session-token";
+import { isLiveAdminCookieSession } from "@/lib/admin-auth-sessions";
 
 export { isSitePrivate };
 
@@ -21,6 +22,7 @@ export function adminSessionTokenFromRequestCookies(
   );
 }
 
+/** Cryptographic cookie presence only — not sufficient for staff preview after revoke. */
 export function hasValidAdminSessionFromRequest(
   request: {
     cookies: { get: (name: string) => { value: string } | undefined };
@@ -28,6 +30,18 @@ export function hasValidAdminSessionFromRequest(
   },
 ): boolean {
   return Boolean(verifySessionToken(adminSessionTokenFromRequestCookies(request)));
+}
+
+/** Live AdminSession + staff identity check for SITE_PRIVATE staff preview. */
+export async function hasLiveAdminSessionFromRequest(
+  request: {
+    cookies: { get: (name: string) => { value: string } | undefined };
+    headers: { get: (name: string) => string | null };
+  },
+): Promise<boolean> {
+  const session = verifySessionToken(adminSessionTokenFromRequestCookies(request));
+  if (!session) return false;
+  return isLiveAdminCookieSession(session);
 }
 
 export function isPublicApiWhilePrivate(pathname: string) {
@@ -42,32 +56,39 @@ export function isPublicApiWhilePrivate(pathname: string) {
 }
 
 /**
- * True when SITE_PRIVATE is on and this request has a valid Studio admin cookie.
- * Used to unlock the full public site for staff QA while visitors stay on Coming Soon.
+ * True when SITE_PRIVATE is on and this request has a LIVE Studio admin session.
+ * Crypto-only cookies (revoked / deleted staff) must not unlock the public site.
  */
 export function isStaffPublicPreview(cookieHeader: string | null | undefined): boolean {
+  // Sync helper kept for call sites that only have a header string; prefer
+  // hasLiveAdminSessionFromRequest in proxy. Crypto alone is intentionally
+  // insufficient — callers must use the async live check for authorization.
   return isSitePrivate() && hasValidAdminSessionCookie(cookieHeader);
 }
 
 /**
- * Visitors (no admin cookie) are gated to Coming Soon while private.
- * Staff with a valid admin session are not gated.
+ * Visitors (no live admin session) are gated to Coming Soon while private.
+ * Pass `liveStaffPreview` from the async live check — do not trust crypto alone.
  */
-export function shouldGatePublicRequest(cookieHeader: string | null | undefined): boolean {
+export function shouldGatePublicRequest(
+  cookieHeader: string | null | undefined,
+  liveStaffPreview = false,
+): boolean {
   if (!isSitePrivate()) return false;
-  return !hasValidAdminSessionCookie(cookieHeader);
+  return !liveStaffPreview;
 }
 
 /** Block recipe/content APIs from public access while the site is private.
  * Guest + funnel analytics stay open so anonymous visits are recorded.
- * Staff preview (valid admin cookie) can call recipe APIs for QA.
+ * Only LIVE staff preview can call recipe APIs for QA.
  */
 export function isBlockedApiWhilePrivate(
   pathname: string,
   cookieHeader?: string | null,
+  liveStaffPreview = false,
 ) {
   if (!isSitePrivate()) return false;
-  if (hasValidAdminSessionCookie(cookieHeader)) return false;
+  if (liveStaffPreview) return false;
   if (isPublicApiWhilePrivate(pathname)) return false;
   if (pathname.startsWith("/api/analytics/guest")) return false;
   if (pathname.startsWith("/api/analytics/events")) return false;

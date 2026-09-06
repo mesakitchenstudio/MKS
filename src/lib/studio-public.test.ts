@@ -52,7 +52,7 @@ describe("studio public launch gate", () => {
     assert.equal(shouldGateStudioRequest("/recipes", null), false);
   });
 
-  it("allows staff to preview studio while launch is disabled", () => {
+  it("marks unpublished studio paths as gated; live staff bypass is applied by proxy", () => {
     process.env.STUDIO_PUBLIC_LAUNCH = "false";
     process.env.ADMIN_SECRET = "test-admin-secret-for-studio";
     const token = createSessionToken({
@@ -64,36 +64,53 @@ describe("studio public launch gate", () => {
       sid: "test-sid",
     });
     const cookie = `${ADMIN_COOKIE}=${token}`;
-    assert.equal(shouldGateStudioRequest("/studio", cookie), false);
+    assert.equal(shouldGateStudioRequest("/studio", cookie), true);
   });
 
-  it("rewrites public studio requests to Coming Soon while unpublished", () => {
+  it("rewrites public studio requests to Coming Soon while unpublished", async () => {
     process.env.SITE_PRIVATE = "false";
     process.env.STUDIO_PUBLIC_LAUNCH = "false";
     const req = new NextRequest(new URL("http://localhost:3000/studio"));
-    const res = proxy(req);
+    const res = await proxy(req);
     assert.equal(res.headers.get("x-middleware-rewrite"), "http://localhost:3000/coming-soon");
   });
 
-  it("lets staff browse studio while launch is disabled", () => {
+  it("lets live staff browse studio while launch is disabled", async () => {
     process.env.SITE_PRIVATE = "false";
     process.env.STUDIO_PUBLIC_LAUNCH = "false";
     process.env.ADMIN_SECRET = "test-admin-secret-for-studio";
-    const token = createSessionToken({
-      id: "env",
-      email: "owner@example.com",
-      name: "Owner",
-      role: "owner",
-      sv: 0,
-      sid: "test-sid",
+    const { PrismaClient } = await import("@prisma/client");
+    const { ADMIN_SESSION_TTL_MS } = await import("./admin-auth-sessions.ts");
+    const db = new PrismaClient();
+    const sid = `studio-live-${Date.now()}`;
+    await db.adminSession.create({
+      data: {
+        adminId: null,
+        sessionTokenId: sid,
+        subjectKey: "env",
+        expiresAt: new Date(Date.now() + ADMIN_SESSION_TTL_MS),
+      },
     });
-    const cookie = `${ADMIN_COOKIE}=${token}`;
-    const req = new NextRequest(new URL("http://localhost:3000/studio"), {
-      headers: { cookie },
-    });
-    const res = proxy(req);
-    assert.equal(res.headers.get("x-middleware-rewrite"), null);
-    assert.equal(res.headers.get("x-middleware-next"), "1");
+    try {
+      const token = createSessionToken({
+        id: "env",
+        email: "owner@example.com",
+        name: "Owner",
+        role: "owner",
+        sv: 0,
+        sid,
+      });
+      const cookie = `${ADMIN_COOKIE}=${token}`;
+      const req = new NextRequest(new URL("http://localhost:3000/studio"), {
+        headers: { cookie },
+      });
+      const res = await proxy(req);
+      assert.equal(res.headers.get("x-middleware-rewrite"), null);
+      assert.equal(res.headers.get("x-middleware-next"), "1");
+    } finally {
+      await db.adminSession.deleteMany({ where: { sessionTokenId: sid } });
+      await db.$disconnect();
+    }
   });
 
   it("hides draft lessons from public views and recipe cross-links", () => {

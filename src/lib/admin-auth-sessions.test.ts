@@ -235,6 +235,52 @@ describe("admin auth session registry", () => {
     assert.equal(first!.sid, legacyAdminSessionTokenId(cookie));
   });
 
+  it("B/K: revoke-all does not bump sessionVersion; fresh login sid differs", async () => {
+    const before = await db.admin.findUniqueOrThrow({ where: { id: adminId } });
+    const oldA = await createAdminAuthSession({ adminId });
+    const oldB = await createAdminAuthSession({ adminId });
+    await revokeAdminAuthSessionsForSubject(adminId, "revoked_all_by_owner");
+    const after = await db.admin.findUniqueOrThrow({ where: { id: adminId } });
+    assert.equal(after.sessionVersion, before.sessionVersion);
+
+    const fresh = await createAdminAuthSession({ adminId });
+    assert.notEqual(fresh.sessionTokenId, oldA.sessionTokenId);
+    assert.notEqual(fresh.sessionTokenId, oldB.sessionTokenId);
+    assert.equal(isAdminAuthSessionActive(fresh), true);
+
+    const cookie = {
+      id: adminId,
+      email: `${prefix}editor@example.com`,
+      name: "Session Editor",
+      role: "editor" as const,
+      sv: after.sessionVersion,
+      exp: fresh.expiresAt.getTime(),
+      sid: fresh.sessionTokenId,
+    };
+    assert.ok(await bindAdminCookieToRegistry(cookie));
+    assert.equal(
+      await bindAdminCookieToRegistry({ ...cookie, sid: oldA.sessionTokenId }),
+      null,
+    );
+  });
+
+  it("live cookie check rejects revoked and missing staff", async () => {
+    const { isLiveAdminCookieSession } = await import("./admin-auth-sessions.ts");
+    const row = await createAdminAuthSession({ adminId });
+    const liveCookie = {
+      id: adminId,
+      email: `${prefix}editor@example.com`,
+      name: "Session Editor",
+      role: "editor" as const,
+      sv: 0,
+      exp: row.expiresAt.getTime(),
+      sid: row.sessionTokenId,
+    };
+    assert.equal(await isLiveAdminCookieSession(liveCookie), true);
+    await revokeAdminAuthSessionByTokenId(row.sessionTokenId, "test");
+    assert.equal(await isLiveAdminCookieSession(liveCookie), false);
+  });
+
   it("wiring: UI and auth contracts", () => {
     const token = read("lib/admin-session-token.ts");
     const auth = read("lib/auth.ts");
@@ -244,6 +290,8 @@ describe("admin auth session registry", () => {
     const controls = read("components/admin/AdminSessionControls.tsx");
     const logout = read("app/admin/logout/route.ts");
     const me = read("app/api/admin/me/route.ts");
+    const login = read("app/admin/(auth)/login/page.tsx");
+    const proxySrc = read("proxy.ts");
     const schema = readFileSync(path.join(root, "..", "..", "prisma", "schema.prisma"), "utf8");
 
     assert.match(schema, /model AdminSession/);
@@ -252,6 +300,7 @@ describe("admin auth session registry", () => {
     assert.match(auth, /bindAdminCookieToRegistry/);
     assert.match(auth, /createAdminAuthSession/);
     assert.match(auth, /rewriteAdminSessionCookie/);
+    assert.match(auth, /maxAge: 0/);
     assert.match(profile, /Active sessions/);
     assert.match(profile, /revokeOwnAdminSessionAction/);
     assert.match(profile, /AdminRevokeAllOtherButton/);
@@ -260,8 +309,13 @@ describe("admin auth session registry", () => {
     assert.match(staff, /revokeStaffAdminSessionAction/);
     assert.match(actions, /requireAccess\("staff"\)/);
     assert.match(actions, /subjectKey !== adminSessionSubjectKey\(actor\.id\)/);
+    assert.doesNotMatch(actions, /sessionVersion/);
     assert.match(logout, /revokeAdminAuthSessionByTokenId/);
     assert.match(me, /rewriteAdminSessionCookie/);
+    assert.match(login, /redirect\("\/admin\/session"\)/);
+    assert.doesNotMatch(login, /bridgePublicSessionToAdmin/);
+    assert.match(proxySrc, /hasLiveAdminSessionFromRequest/);
+    assert.match(proxySrc, /staleAdminCookie/);
     assert.doesNotMatch(actions, /Trusted Device|TRUSTED DEVICE/);
     assert.doesNotMatch(controls, /Trusted Device|TRUSTED DEVICE/);
     assert.ok(mintAdminSessionTokenId().length > 20);

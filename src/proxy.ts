@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isSitePrivate } from "@/lib/flags";
 import {
+  hasLiveAdminSessionFromRequest,
   hasValidAdminSessionFromRequest,
   isBlockedApiWhilePrivate,
   shouldGatePublicRequest,
 } from "@/lib/site-gate";
 import { shouldGateStudioRequest } from "@/lib/studio-public";
+import { ADMIN_COOKIE } from "@/lib/admin-session-token";
 
 /** Keep brand icons reachable while the public site is gated. */
 const PUBLIC_WHILE_PRIVATE = [
@@ -21,31 +23,51 @@ const PUBLIC_WHILE_PRIVATE = [
   "/icon.svg",
 ];
 
-export function proxy(request: NextRequest) {
+function clearAdminCookie(response: NextResponse) {
+  response.cookies.set(ADMIN_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
+  return response;
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const cookieHeader = request.headers.get("cookie");
-  // Cookie jar is the source of truth; raw header alone can miss the admin session.
-  const staffPreview = hasValidAdminSessionFromRequest(request);
+  const cryptoAdmin = hasValidAdminSessionFromRequest(request);
+  const staffPreview = await hasLiveAdminSessionFromRequest(request);
+  const staleAdminCookie = cryptoAdmin && !staffPreview;
 
-  // Recipe/content APIs stay blocked while private (unless staff preview).
-  if (isBlockedApiWhilePrivate(pathname, cookieHeader) && !staffPreview) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Recipe/content APIs stay blocked while private (unless live staff preview).
+  if (isBlockedApiWhilePrivate(pathname, cookieHeader, staffPreview)) {
+    const res = NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (staleAdminCookie) clearAdminCookie(res);
+    return res;
   }
 
   if (!isSitePrivate()) {
-    if (shouldGateStudioRequest(pathname, cookieHeader) && !staffPreview) {
-      return NextResponse.rewrite(new URL("/coming-soon", request.url));
+    if (shouldGateStudioRequest(pathname) && !staffPreview) {
+      const res = NextResponse.rewrite(new URL("/coming-soon", request.url));
+      if (staleAdminCookie) clearAdminCookie(res);
+      return res;
+    }
+    if (staleAdminCookie) {
+      const res = NextResponse.next();
+      clearAdminCookie(res);
+      return res;
     }
     return NextResponse.next();
   }
 
-  // Staff with a valid admin session may browse the full public site.
-  if (staffPreview || !shouldGatePublicRequest(cookieHeader)) {
+  // Live staff may browse the full public site while private.
+  if (staffPreview) {
     return NextResponse.next();
   }
 
-  // Unblocked APIs (guest analytics, auth, admin, etc.) must not be rewritten to Coming Soon.
-  // Rewriting /api/analytics/guest previously returned HTML → POST 405 and no visitor rows.
+  // Unblocked APIs / admin auth surfaces must not be rewritten to Coming Soon.
   if (
     pathname.startsWith("/api/") ||
     PUBLIC_WHILE_PRIVATE.includes(pathname) ||
@@ -55,10 +77,19 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/uploads")
   ) {
-    return NextResponse.next();
+    const res = NextResponse.next();
+    // Clear revoked/deleted staff cookies so login and public gates start clean.
+    if (staleAdminCookie) clearAdminCookie(res);
+    return res;
   }
 
-  return NextResponse.rewrite(new URL("/coming-soon", request.url));
+  if (shouldGatePublicRequest(cookieHeader, staffPreview) || staleAdminCookie) {
+    const res = NextResponse.rewrite(new URL("/coming-soon", request.url));
+    if (staleAdminCookie) clearAdminCookie(res);
+    return res;
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {

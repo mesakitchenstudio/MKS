@@ -189,10 +189,32 @@ export async function rewriteAdminSessionCookie(admin: AdminSession & { sid: str
 
 export async function getAdminSession() {
   const jar = await cookies();
-  const session = verifySessionToken(jar.get(ADMIN_COOKIE)?.value);
-  if (!session) return null;
-  return resolveLiveAdminSession(session);
+  const raw = jar.get(ADMIN_COOKIE)?.value;
+  const session = verifySessionToken(raw);
+  if (!session) {
+    // Drop malformed/expired cookie so proxy crypto checks stop treating it as staff.
+    if (raw) {
+      try {
+        jar.set(ADMIN_COOKIE, "", { ...adminCookieOptions(), maxAge: 0 });
+      } catch {
+        // RSC may not allow cookie writes; proxy also clears stale cookies.
+      }
+    }
+    return null;
+  }
+  const live = await resolveLiveAdminSession(session);
+  if (!live) {
+    // Revoked / deleted staff / stale sid — clear so re-login can mint a fresh session.
+    try {
+      jar.set(ADMIN_COOKIE, "", { ...adminCookieOptions(), maxAge: 0 });
+    } catch {
+      // Best-effort; proxy clears on the next gated response.
+    }
+    return null;
+  }
+  return live;
 }
+
 
 export async function getCurrentAdminSessionTokenId() {
   const session = await getAdminSession();

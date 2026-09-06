@@ -39,7 +39,7 @@ describe("site-gate", () => {
     assert.equal(isBlockedApiWhilePrivate("/api/contact"), false);
   });
 
-  it("staff preview unlocks recipe APIs and skips public gate", () => {
+  it("crypto-only staff cookie does not unlock recipe APIs without live preview flag", () => {
     process.env.SITE_PRIVATE = "true";
     process.env.ADMIN_SECRET = "test-admin-secret-for-gate";
     const token = createSessionToken({
@@ -51,9 +51,12 @@ describe("site-gate", () => {
       sid: "test-sid",
     });
     const cookie = `${ADMIN_COOKIE}=${token}`;
+    // Sync helper still sees a crypto cookie, but authorization requires liveStaffPreview.
     assert.equal(isStaffPublicPreview(cookie), true);
-    assert.equal(shouldGatePublicRequest(cookie), false);
-    assert.equal(isBlockedApiWhilePrivate("/api/recipes/bread/reviews", cookie), false);
+    assert.equal(shouldGatePublicRequest(cookie), true);
+    assert.equal(shouldGatePublicRequest(cookie, true), false);
+    assert.equal(isBlockedApiWhilePrivate("/api/recipes/bread/reviews", cookie), true);
+    assert.equal(isBlockedApiWhilePrivate("/api/recipes/bread/reviews", cookie, true), false);
   });
 
   it("invalid admin cookie does not unlock private site", () => {

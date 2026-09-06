@@ -1,5 +1,4 @@
 import type { Lesson } from "@/data/types";
-import { hasValidAdminSessionCookie } from "@/lib/admin-session-token";
 
 /** Flip to true when Studio is ready for a public launch. */
 export function isStudioPublicLaunchEnabled(): boolean {
@@ -34,15 +33,13 @@ export function canViewStudioLesson(lesson: Lesson, staffPreview: boolean): bool
 
 /**
  * Gate /studio routes for visitors while Studio remains unpublished.
- * Staff with a valid admin session may preview drafts.
+ * Staff bypass is applied by the proxy via a LIVE AdminSession check
+ * (`!staffPreview`), not crypto-only cookies.
  */
-export function shouldGateStudioRequest(
-  pathname: string,
-  cookieHeader: string | null | undefined,
-): boolean {
+export function shouldGateStudioRequest(pathname: string): boolean {
   if (!isStudioPath(pathname)) return false;
   if (isStudioPublicLaunchEnabled()) return false;
-  return !hasValidAdminSessionCookie(cookieHeader);
+  return true;
 }
 
 export function studioRobotsNoIndex(): boolean {
