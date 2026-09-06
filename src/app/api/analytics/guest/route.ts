@@ -20,6 +20,11 @@ import {
   shouldRotateMissingGuestVisitor,
   shouldSkipGuestAnalyticsIngest,
 } from "@/lib/guest-tracking";
+import {
+  isAnalyticsConsentGranted,
+  parsePrivacyConsentValue,
+  PRIVACY_CONSENT_COOKIE,
+} from "@/lib/privacy-consent";
 
 type GuestBody = {
   path?: string;
@@ -108,6 +113,11 @@ export async function POST(request: Request) {
 
   if (skipGuestAnalytics) {
     return NextResponse.json({ ok: true, skipped: "signed-in", visitorKey });
+  }
+
+  const consentDecision = parsePrivacyConsentValue(jar.get(PRIVACY_CONSENT_COOKIE)?.value);
+  if (!isAnalyticsConsentGranted(consentDecision)) {
+    return NextResponse.json({ ok: true, skipped: "consent", visitorKey: "" });
   }
 
   try {

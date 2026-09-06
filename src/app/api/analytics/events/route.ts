@@ -9,6 +9,11 @@ import {
   resolveGuestVisitorKey,
   shouldSkipGuestAnalyticsIngest,
 } from "@/lib/guest-tracking";
+import {
+  isAnalyticsConsentGranted,
+  parsePrivacyConsentValue,
+  PRIVACY_CONSENT_COOKIE,
+} from "@/lib/privacy-consent";
 
 export const runtime = "nodejs";
 
@@ -64,8 +69,13 @@ export async function POST(request: Request) {
       return new NextResponse(null, { status: 204 });
     }
 
-    const body = await readBody(request);
     const jar = await cookies();
+    const consentDecision = parsePrivacyConsentValue(jar.get(PRIVACY_CONSENT_COOKIE)?.value);
+    if (!isAnalyticsConsentGranted(consentDecision)) {
+      return new NextResponse(null, { status: 204 });
+    }
+
+    const body = await readBody(request);
     const resolved = resolveGuestVisitorKey({
       cookieKey: jar.get(GUEST_COOKIE)?.value,
       clientVisitorKey: body.clientVisitorKey,

@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useEffect, useRef } from "react";
+import { usePrivacyConsentOptional } from "@/components/PrivacyConsentProvider";
 import {
   funnelPayloadFromAnalyticsDetail,
   recordFunnelEvent,
@@ -13,21 +14,26 @@ import {
 
 /**
  * Persists website → YouTube funnel events from mesa:analytics CustomEvents.
- * Skips signed-in members and staff (same client rule as GuestTracker).
- * Server also enforces admin-session skip via shouldSkipGuestAnalyticsIngest.
+ * Requires analytics consent. Server also enforces consent + admin skip.
  */
 export function FunnelAnalyticsBridge() {
   const { data: session } = useSession();
+  const consent = usePrivacyConsentOptional();
   const skipRef = useRef(false);
+  const analyticsAllowed = Boolean(consent?.analyticsAllowed);
 
   useEffect(() => {
-    skipRef.current = shouldSkipGuestAnalytics({
-      email: session?.user?.email,
-      staffRole: session?.staffRole,
-    });
-  }, [session?.user?.email, session?.staffRole]);
+    skipRef.current =
+      !analyticsAllowed ||
+      shouldSkipGuestAnalytics({
+        email: session?.user?.email,
+        staffRole: session?.staffRole,
+      });
+  }, [analyticsAllowed, session?.user?.email, session?.staffRole]);
 
   useEffect(() => {
+    if (!analyticsAllowed) return;
+
     function onEvent(event: Event) {
       if (skipRef.current) return;
       const detail = (event as CustomEvent<Record<string, unknown>>).detail;
@@ -46,7 +52,7 @@ export function FunnelAnalyticsBridge() {
 
     window.addEventListener("mesa:analytics", onEvent);
     return () => window.removeEventListener("mesa:analytics", onEvent);
-  }, []);
+  }, [analyticsAllowed]);
 
   return null;
 }
