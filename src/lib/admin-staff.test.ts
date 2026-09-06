@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canAccess, canDeleteGuestVisitors, canDeleteMembers, canManageYoutubeAnalytics, canManageYoutubeSync, canViewGuestNetworkDiagnostics, homeForRole } from "./admin-access";
+import { canAccess, canDeleteGuestVisitors, canDeleteMembers, canManageYoutubeAnalytics, canManageYoutubeSync, canOpenYouTube, canViewGuestNetworkDiagnostics, homeForRole } from "./admin-access";
 import {
   applyPersistedStaffRole,
   emailsConflictCaseInsensitive,
@@ -215,6 +215,9 @@ test("Owner has full admin access including staff", () => {
   assert.equal(canManageYoutubeAnalytics("owner"), true);
   assert.equal(canManageYoutubeAnalytics("editor"), false);
   assert.equal(canManageYoutubeAnalytics("members"), false);
+  assert.equal(canOpenYouTube("owner"), true);
+  assert.equal(canOpenYouTube("editor"), false);
+  assert.equal(canOpenYouTube("members"), false);
 });
 
 test("Phase 2B: guest network diagnostics and delete are Owner-only", () => {

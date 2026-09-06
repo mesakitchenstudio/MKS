@@ -76,6 +76,9 @@ export type PlannerStreamRow = {
   youtubeTitle: string | null;
   thumbnailUrl: string | null;
   needsAttention: boolean;
+  /** Synced YouTube duration when available (archive / detail). */
+  durationSeconds?: number | null;
+  durationDisplay?: string | null;
 };
 
 export type PlannerMonthGroup = {
@@ -522,6 +525,64 @@ export function buildMonthJumper(now = new Date()): MonthJumperYear[] {
 }
 
 /**
+ * Archive / read-only Schedule jumper.
+ * Starts at Sep 2026 (Mesa schedule era) or earlier if synced videos occupy older months.
+ * Extends through Dec of (now year + 1) or the latest occupied year.
+ * Does not invent Jan–Aug 2026 unless occupied month keys require it.
+ */
+export function buildArchiveMonthJumper(
+  now = new Date(),
+  occupiedMonthKeys: string[] = [],
+): MonthJumperYear[] {
+  const nowParts = formatIstanbulParts(now);
+  const currentMonthKey = nowParts.monthKey;
+
+  let startYear = 2026;
+  let startMonth = 9;
+  let endYear = Math.max(nowParts.year + 1, 2026);
+
+  for (const key of occupiedMonthKeys) {
+    const match = /^(\d{4})-(\d{2})$/.exec(key.trim());
+    if (!match) continue;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (!Number.isInteger(year) || month < 1 || month > 12) continue;
+    if (year < startYear || (year === startYear && month < startMonth)) {
+      startYear = year;
+      startMonth = month;
+    }
+    if (year > endYear) endYear = year;
+  }
+
+  const years: MonthJumperYear[] = [];
+  for (let year = startYear; year <= endYear; year += 1) {
+    const firstMonth = year === startYear ? startMonth : 1;
+    const months: MonthJumperMonth[] = [];
+    for (let month = firstMonth; month <= 12; month += 1) {
+      const monthKey = `${year}-${pad2(month)}`;
+      months.push({
+        month,
+        monthKey,
+        label: MONTH_SHORT[month - 1],
+        isCurrent: monthKey === currentMonthKey,
+      });
+    }
+    years.push({ year, months });
+  }
+  return years;
+}
+
+/** Visible Schedule archive rows: synced YouTube scheduled/published only. */
+export function filterYoutubeArchiveRows(rows: PlannerStreamRow[]): PlannerStreamRow[] {
+  return rows.filter(
+    (row) =>
+      row.source === "youtube" &&
+      (row.status === "SCHEDULED" || row.status === "PUBLISHED") &&
+      Boolean(row.releaseAt),
+  );
+}
+
+/**
  * Overdue attention after releaseAt + grace (default 2h).
  * PUBLISHED / SKIPPED / BACKLOG (no date) do not need slot attention.
  */
@@ -580,6 +641,8 @@ export type MergePlannerInput = {
     publishedAt: Date | null;
     /** Classified format: LONG | SHORT | SPECIAL | UNKNOWN */
     videoType?: string;
+    durationSeconds?: number | null;
+    durationDisplay?: string | null;
   }>;
 };
 
@@ -676,6 +739,8 @@ export function mergePlannerRows(input: MergePlannerInput): PlannerStreamRow[] {
       youtubeTitle: video.title,
       thumbnailUrl: video.thumbnailUrl || null,
       needsAttention: attention.needsAttention,
+      durationSeconds: video.durationSeconds ?? null,
+      durationDisplay: video.durationDisplay ?? null,
     });
   }
 

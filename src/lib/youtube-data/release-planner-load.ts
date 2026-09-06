@@ -3,8 +3,11 @@ import { getDb } from "@/lib/db";
 import { getAnalyticsConnectionPublic } from "@/lib/youtube-analytics/connection";
 import { getReleaseCadence } from "@/lib/youtube-data/release-cadence";
 import { formatScheduleLastSyncedLabel } from "@/lib/youtube-data/schedule";
+import { ENABLE_LOCAL_RELEASE_PLANNING } from "@/lib/youtube-data/schedule-ui";
 import {
+  buildArchiveMonthJumper,
   buildMonthJumper,
+  filterYoutubeArchiveRows,
   groupPlannerRowsByMonth,
   mergePlannerRows,
   projectCadenceSlots,
@@ -54,14 +57,22 @@ export async function loadYoutubeReleasePlanner(input?: {
     Math.max(now.getTime() - RECENT_PUBLISHED_MS, PLANNER_HISTORY_FLOOR.getTime()),
   );
 
-  const [videos, localReleases] = await Promise.all([
-    db.youTubeVideo.findMany({
-      where: {
+  // Archive mode: all synced videos with a publish or schedule timestamp.
+  // Planner mode: keep the rolling published window used by the release planner.
+  const videoWhere = ENABLE_LOCAL_RELEASE_PLANNING
+    ? {
         OR: [
           { scheduledPublishAt: { gt: now } },
           { publishedAt: { gte: publishedSince } },
         ],
-      },
+      }
+    : {
+        OR: [{ scheduledPublishAt: { not: null } }, { publishedAt: { not: null } }],
+      };
+
+  const [videos, localReleases] = await Promise.all([
+    db.youTubeVideo.findMany({
+      where: videoWhere,
       orderBy: [{ scheduledPublishAt: "asc" }, { publishedAt: "desc" }],
       select: {
         videoId: true,
@@ -69,19 +80,24 @@ export async function loadYoutubeReleasePlanner(input?: {
         description: true,
         tags: true,
         durationSeconds: true,
+        durationDisplay: true,
         thumbnailUrl: true,
         scheduledPublishAt: true,
         publishedAt: true,
       },
     }),
-    db.youTubeRelease.findMany({
-      orderBy: [{ releaseAt: "asc" }, { createdAt: "asc" }],
-    }),
+    ENABLE_LOCAL_RELEASE_PLANNING
+      ? db.youTubeRelease.findMany({
+          orderBy: [{ releaseAt: "asc" }, { createdAt: "asc" }],
+        })
+      : Promise.resolve([]),
   ]);
 
-  const openSlots = projectCadenceSlots({ cadence, from: now, weeksAhead: 12, now });
+  const openSlots = ENABLE_LOCAL_RELEASE_PLANNING
+    ? projectCadenceSlots({ cadence, from: now, weeksAhead: 12, now })
+    : [];
 
-  const stream = mergePlannerRows({
+  const merged = mergePlannerRows({
     now,
     openSlots,
     localReleases: localReleases.map((row) => ({
@@ -111,36 +127,45 @@ export async function loadYoutubeReleasePlanner(input?: {
         scheduledPublishAt: video.scheduledPublishAt,
         publishedAt: video.publishedAt,
         videoType,
+        durationSeconds: video.durationSeconds,
+        durationDisplay: video.durationDisplay,
       };
     }),
   });
 
-  const backlog: PlannerStreamRow[] = localReleases
-    .filter((row) => row.status === "BACKLOG")
-    .map((row) => ({
-      id: `local:${row.id}`,
-      source: "local" as const,
-      status: "BACKLOG" as const,
-      workingTitle: row.workingTitle || "Untitled",
-      videoType:
-        row.videoType === "SHORT" || row.videoType === "SPECIAL" || row.videoType === "LONG"
-          ? row.videoType
-          : ("UNKNOWN" as const),
-      releaseAt: row.releaseAt,
-      slotKey: row.slotKey,
-      dateKey: "",
-      monthKey: "",
-      label: "Backlog",
-      timeLabel: "",
-      skipReason: row.skipReason,
-      notes: row.notes,
-      youtubeVideoId: row.youtubeVideoId,
-      youtubeTitle: null,
-      thumbnailUrl: null,
-      needsAttention: false,
-    }));
+  const stream = ENABLE_LOCAL_RELEASE_PLANNING
+    ? merged
+    : filterYoutubeArchiveRows(merged);
+
+  const backlog: PlannerStreamRow[] = ENABLE_LOCAL_RELEASE_PLANNING
+    ? localReleases
+        .filter((row) => row.status === "BACKLOG")
+        .map((row) => ({
+          id: `local:${row.id}`,
+          source: "local" as const,
+          status: "BACKLOG" as const,
+          workingTitle: row.workingTitle || "Untitled",
+          videoType:
+            row.videoType === "SHORT" || row.videoType === "SPECIAL" || row.videoType === "LONG"
+              ? row.videoType
+              : ("UNKNOWN" as const),
+          releaseAt: row.releaseAt,
+          slotKey: row.slotKey,
+          dateKey: "",
+          monthKey: "",
+          label: "Backlog",
+          timeLabel: "",
+          skipReason: row.skipReason,
+          notes: row.notes,
+          youtubeVideoId: row.youtubeVideoId,
+          youtubeTitle: null,
+          thumbnailUrl: null,
+          needsAttention: false,
+        }))
+    : [];
 
   const lastSyncedAt = channel?.lastSyncedAt ?? null;
+  const occupiedMonthKeys = stream.map((row) => row.monthKey).filter(Boolean);
 
   return {
     status,
@@ -149,9 +174,11 @@ export async function loadYoutubeReleasePlanner(input?: {
     lastSyncedLabel: formatScheduleLastSyncedLabel(lastSyncedAt),
     analyticsConnected: analytics.connected,
     cadence,
-    monthJumper: buildMonthJumper(now),
+    monthJumper: ENABLE_LOCAL_RELEASE_PLANNING
+      ? buildMonthJumper(now)
+      : buildArchiveMonthJumper(now, occupiedMonthKeys),
     upNext: selectPlannerUpNext(stream, now),
-    attention: selectPlannerAttention(stream),
+    attention: ENABLE_LOCAL_RELEASE_PLANNING ? selectPlannerAttention(merged) : [],
     backlog,
     months: groupPlannerRowsByMonth(stream),
     stream,

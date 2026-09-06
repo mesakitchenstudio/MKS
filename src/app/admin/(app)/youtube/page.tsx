@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { YoutubeDashboard } from "@/components/admin/YoutubeDashboard";
 import { YoutubeFunnelPanel } from "@/components/admin/YoutubeFunnelPanel";
 import { YoutubeSchedulePanel } from "@/components/admin/YoutubeSchedulePanel";
-import { canAccess, canManageYoutubeAnalytics, canManageYoutubeSync } from "@/lib/admin-access";
+import { canAccess, canManageYoutubeAnalytics, canManageYoutubeSync, canOpenYouTube } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import {
@@ -165,6 +165,7 @@ export default async function AdminYoutubePage({
           planner={planner}
           canSync={canManageYoutubeSync(admin.role)}
           canManageAnalytics={canManageYoutubeAnalytics(admin.role)}
+          canOpenYouTube={canOpenYouTube(admin.role)}
         />
       ) : dashboard ? (
         <YoutubeDashboard

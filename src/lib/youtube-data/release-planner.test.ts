@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 import { DEFAULT_CADENCE, PLANNER_START_DATE } from "./release-cadence.ts";
 import {
   RELEASE_ATTENTION_GRACE_MS,
+  buildArchiveMonthJumper,
   buildMonthJumper,
   deriveAttention,
+  filterYoutubeArchiveRows,
   formatIstanbulParts,
   isThisWeekIstanbul,
   mergePlannerRows,
@@ -308,5 +310,72 @@ describe("youtube release planner", () => {
 
     assert.equal(rows.find((r) => r.youtubeVideoId === "shortVid0001")?.videoType, "SHORT");
     assert.equal(rows.find((r) => r.youtubeVideoId === "longVid00001")?.videoType, "LONG");
+  });
+
+  it("filterYoutubeArchiveRows keeps only synced scheduled/published YouTube rows", () => {
+    const now = new Date("2026-09-06T12:00:00.000Z");
+    const merged = mergePlannerRows({
+      now,
+      openSlots: projectCadenceSlots({
+        cadence: DEFAULT_CADENCE,
+        from: now,
+        weeksAhead: 4,
+        now,
+      }),
+      localReleases: [
+        {
+          id: "local1",
+          status: "PLANNED",
+          workingTitle: "Local plan",
+          videoType: "LONG",
+          releaseAt: new Date("2026-09-18T12:00:00.000Z"),
+          slotKey: "2026-09-18",
+          notes: "",
+          skipReason: "",
+          youtubeVideoId: null,
+        },
+      ],
+      youtubeVideos: [
+        {
+          videoId: "ytSched001",
+          title: "Upcoming",
+          thumbnailUrl: "",
+          scheduledPublishAt: new Date("2026-09-11T12:00:00.000Z"),
+          publishedAt: null,
+          videoType: "SHORT",
+        },
+        {
+          videoId: "ytPub00001",
+          title: "Published",
+          thumbnailUrl: "",
+          scheduledPublishAt: null,
+          publishedAt: new Date("2026-09-01T12:00:00.000Z"),
+          videoType: "LONG",
+        },
+      ],
+    });
+
+    const archive = filterYoutubeArchiveRows(merged);
+    assert.equal(archive.every((r) => r.source === "youtube"), true);
+    assert.equal(
+      archive.every((r) => r.status === "SCHEDULED" || r.status === "PUBLISHED"),
+      true,
+    );
+    assert.equal(archive.some((r) => r.status === "OPEN"), false);
+    assert.equal(archive.some((r) => r.source === "local"), false);
+    assert.equal(archive.length, 2);
+
+    const upNext = selectPlannerUpNext(archive, now);
+    assert.equal(upNext?.youtubeVideoId, "ytSched001");
+  });
+
+  it("buildArchiveMonthJumper extends earlier when occupied months exist", () => {
+    const jumper = buildArchiveMonthJumper(new Date("2026-09-06T12:00:00.000Z"), [
+      "2026-08",
+      "2026-09",
+    ]);
+    assert.equal(jumper[0]?.year, 2026);
+    assert.equal(jumper[0]?.months[0]?.month, 8);
+    assert.ok(jumper[0]?.months.some((m) => m.monthKey === "2026-09"));
   });
 });

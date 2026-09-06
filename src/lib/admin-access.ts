@@ -46,6 +46,14 @@ export function canManageYoutubeAnalytics(role: string) {
 }
 
 /**
+ * Direct "Open on YouTube" / Studio links from the YouTube Schedule experience.
+ * Owner only — Editors may view Schedule and open details, but not jump to Studio.
+ */
+export function canOpenYouTube(role: string) {
+  return role === "owner";
+}
+
+/**
  * Raw visitor network diagnostics (IP lookup, UA, ASN/ISP, map).
  * Owner only — Audience may view behavioral Visitors analytics without raw network data.
  */

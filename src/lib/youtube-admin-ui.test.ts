@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { canAccess, canManageYoutubeAnalytics, canManageYoutubeSync } from "./admin-access";
+import { canAccess, canManageYoutubeAnalytics, canManageYoutubeSync, canOpenYouTube } from "./admin-access";
 import { adminWorkspaceWide } from "./admin-ui";
 import { adminWorkspaceWidthForPath } from "./admin-nav";
 import {
@@ -122,5 +122,8 @@ describe("YouTube admin UI redesign contracts", () => {
     assert.equal(canManageYoutubeAnalytics("editor"), false);
     assert.equal(canManageYoutubeSync("owner"), true);
     assert.equal(canManageYoutubeSync("editor"), false);
+    assert.equal(canOpenYouTube("owner"), true);
+    assert.equal(canOpenYouTube("editor"), false);
+    assert.equal(canOpenYouTube("members"), false);
   });
 });

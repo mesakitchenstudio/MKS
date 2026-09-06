@@ -167,23 +167,65 @@ describe("youtube schedule access and wiring", () => {
   it("M/L: schedule panel distinguishes empty vs error and Refresh YouTube", () => {
     const panel = read("components/admin/YoutubeSchedulePanel.tsx");
     const dashboard = read("components/admin/YoutubeDashboard.tsx");
-    assert.match(panel, /No releases on the calendar yet/);
+    const scheduleUi = read("lib/youtube-data/schedule-ui.ts");
+    assert.match(scheduleUi, /ENABLE_LOCAL_RELEASE_PLANNING\s*=\s*false/);
+    assert.match(panel, /No YouTube videos on the schedule yet/);
     assert.match(panel, /We couldn&apos;t load the YouTube schedule/);
     assert.match(panel, /showHardError/);
     assert.match(panel, /[Cc]onnect YouTube Analytics/);
     assert.match(panel, /YouTube Schedule/);
+    assert.match(panel, /View Mesa&apos;s YouTube publishing schedule/);
     assert.match(panel, /Up Next/);
-    assert.match(panel, /Needs Attention/);
     assert.match(panel, /Times in Istanbul \(UTC\+3\)/);
     assert.match(panel, /Refresh YouTube/);
-    assert.match(panel, /\+ Add release/);
     assert.match(panel, /month-\$\{month\.monthKey\}/);
     assert.match(panel, /syncYoutubeAction/);
+    // Planner chrome retained behind the flag, not rendered in archive mode.
+    assert.match(panel, /ENABLE_LOCAL_RELEASE_PLANNING/);
+    assert.match(panel, /\+ Add release/);
     assert.match(panel, /createYoutubeReleaseAction/);
     assert.match(panel, /skipYoutubeSlotAction/);
     assert.doesNotMatch(panel, /Refresh Public YouTube/);
     assert.match(dashboard, /Refresh YouTube/);
     assert.doesNotMatch(dashboard, /Refresh Public YouTube/);
+  });
+
+  it("archive Schedule hides planner-only chrome while keeping actions in code", () => {
+    const panel = read("components/admin/YoutubeSchedulePanel.tsx");
+    const load = read("lib/youtube-data/release-planner-load.ts");
+    assert.match(panel, /ENABLE_LOCAL_RELEASE_PLANNING \? \(/);
+    assert.match(panel, /No videos scheduled/);
+    assert.match(panel, /No YouTube videos found for this month/);
+    assert.match(panel, /Show all \{visibility\.totalVideos\} videos/);
+    assert.match(load, /filterYoutubeArchiveRows/);
+    assert.match(load, /buildArchiveMonthJumper/);
+    assert.match(load, /scheduledPublishAt: \{ not: null \}/);
+    // Planning UI is gated — Assign/Skip only when ENABLE_LOCAL_RELEASE_PLANNING.
+    assert.match(panel, /ENABLE_LOCAL_RELEASE_PLANNING && planner\.upNext\.status === "OPEN"/);
+    assert.match(panel, /ENABLE_LOCAL_RELEASE_PLANNING && dialog\.kind === "add"/);
+  });
+
+  it("Schedule Open on YouTube is owner-gated via canOpenYouTube", () => {
+    const panel = read("components/admin/YoutubeSchedulePanel.tsx");
+    const page = read("app/admin/(app)/youtube/page.tsx");
+    const access = read("lib/admin-access.ts");
+
+    assert.match(access, /export function canOpenYouTube/);
+    assert.match(access, /return role === "owner"/);
+    assert.match(page, /canOpenYouTube=\{canOpenYouTube\(admin\.role\)\}/);
+    assert.match(panel, /canOpenYouTube: boolean/);
+    assert.match(panel, /function OpenOnYouTubeControl/);
+    assert.match(panel, /title="Owner only"/);
+    assert.match(panel, /aria-disabled="true"/);
+    // Owner path retains Studio destination inside the shared control only.
+    assert.match(panel, /studio\.youtube\.com\/video\/\$\{videoId\}\/edit/);
+    assert.match(panel, /href=\{studioUrl\(videoId\)\}/);
+    assert.match(panel, /if \(canOpen\)/);
+    assert.match(panel, /<OpenOnYouTubeControl/);
+    // Both Up Next and detail drawer use the shared control (no raw per-site anchors).
+    assert.equal((panel.match(/<OpenOnYouTubeControl/g) || []).length, 2);
+    assert.doesNotMatch(panel, /href=\{studioUrl\(planner/);
+    assert.doesNotMatch(panel, /href=\{studioUrl\(row/);
   });
 
   it("schedule page loads release planner into YoutubeSchedulePanel", () => {

@@ -39,16 +39,20 @@ import {
   type ProjectedCadenceSlot,
   type YoutubeReleasePlannerDashboard,
 } from "@/lib/youtube-data/release-planner";
+import { ENABLE_LOCAL_RELEASE_PLANNING } from "@/lib/youtube-data/schedule-ui";
 
 const SCHEDULE_META_CLASS =
   "text-[0.7rem] font-medium uppercase tracking-[0.11em] text-olive";
 const SCHEDULE_ROW_GRID =
   "hidden lg:grid lg:grid-cols-[5.5rem_3.25rem_minmax(0,1fr)_auto_auto] lg:items-center lg:gap-3";
+/** Soft cap before "Show all N videos" on non-current archive months. */
+const ARCHIVE_MONTH_PREVIEW = 8;
 
 type Props = {
   planner: YoutubeReleasePlannerDashboard;
   canSync: boolean;
   canManageAnalytics: boolean;
+  canOpenYouTube: boolean;
 };
 
 type DialogMode =
@@ -77,6 +81,42 @@ const MONTH_SHORT = [
 
 function studioUrl(videoId: string) {
   return `https://studio.youtube.com/video/${videoId}/edit`;
+}
+
+/** Owner: live Studio link. Editor: same label, disabled button with no href. */
+function OpenOnYouTubeControl({
+  videoId,
+  canOpen,
+  className,
+}: {
+  videoId: string;
+  canOpen: boolean;
+  className: string;
+}) {
+  if (canOpen) {
+    return (
+      <a
+        href={studioUrl(videoId)}
+        target="_blank"
+        rel="noreferrer"
+        className={className}
+      >
+        Open on YouTube
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled
+      aria-disabled="true"
+      title="Owner only"
+      className={className}
+    >
+      Open on YouTube
+    </button>
+  );
 }
 
 function statusLabel(status: PlannerStreamRow["status"]) {
@@ -151,13 +191,9 @@ function monthHeaderLabel(label: string) {
 }
 
 function monthStatusStats(rows: PlannerStreamRow[]) {
-  const order: PlannerStreamRow["status"][] = [
-    "PUBLISHED",
-    "SCHEDULED",
-    "PLANNED",
-    "OPEN",
-    "SKIPPED",
-  ];
+  const order: PlannerStreamRow["status"][] = ENABLE_LOCAL_RELEASE_PLANNING
+    ? ["PUBLISHED", "SCHEDULED", "PLANNED", "OPEN", "SKIPPED"]
+    : ["PUBLISHED", "SCHEDULED"];
   const counts = new Map<string, number>();
   for (const row of rows) {
     counts.set(row.status, (counts.get(row.status) || 0) + 1);
@@ -166,6 +202,25 @@ function monthStatusStats(rows: PlannerStreamRow[]) {
     .filter((status) => (counts.get(status) || 0) > 0)
     .map((status) => `${counts.get(status)} ${statusLabel(status)}`)
     .join(" · ");
+}
+
+function emptyMonthMessage(monthKey: string, currentMonthKey: string) {
+  if (monthKey < currentMonthKey) return "No YouTube videos found for this month.";
+  if (monthKey === currentMonthKey) return "No YouTube videos scheduled this month.";
+  return "No videos scheduled.";
+}
+
+function emptyMonthGroup(monthKey: string): PlannerMonthGroup {
+  const [yRaw, mRaw] = monthKey.split("-");
+  const year = Number(yRaw) || 0;
+  const month = Number(mRaw) || 0;
+  return {
+    monthKey,
+    year,
+    month,
+    label: month ? `${MONTH_SHORT[month - 1]} ${year}` : monthKey,
+    rows: [],
+  };
 }
 
 function compactDateLabel(row: PlannerStreamRow): { date: string; time: string; mobile: string } {
@@ -262,7 +317,35 @@ function visibleMonthRows(
   collapsedOnlyOpen: boolean;
   openHiddenCount: number;
   totalOpen: number;
+  videoHiddenCount: number;
+  totalVideos: number;
 } {
+  if (!ENABLE_LOCAL_RELEASE_PLANNING) {
+    const totalVideos = month.rows.length;
+    if (
+      options.expanded ||
+      month.monthKey === options.currentMonthKey ||
+      totalVideos <= ARCHIVE_MONTH_PREVIEW
+    ) {
+      return {
+        rows: month.rows,
+        collapsedOnlyOpen: false,
+        openHiddenCount: 0,
+        totalOpen: 0,
+        videoHiddenCount: 0,
+        totalVideos,
+      };
+    }
+    return {
+      rows: month.rows.slice(0, ARCHIVE_MONTH_PREVIEW),
+      collapsedOnlyOpen: false,
+      openHiddenCount: 0,
+      totalOpen: 0,
+      videoHiddenCount: Math.max(0, totalVideos - ARCHIVE_MONTH_PREVIEW),
+      totalVideos,
+    };
+  }
+
   const openRows = month.rows.filter((row) => row.status === "OPEN");
   const nonOpenRows = month.rows.filter((row) => row.status !== "OPEN");
   const totalOpen = openRows.length;
@@ -270,11 +353,25 @@ function visibleMonthRows(
   const isNext = month.monthKey === options.nextMonthKey;
 
   if (isCurrent || options.expanded || totalOpen === 0) {
-    return { rows: month.rows, collapsedOnlyOpen: false, openHiddenCount: 0, totalOpen };
+    return {
+      rows: month.rows,
+      collapsedOnlyOpen: false,
+      openHiddenCount: 0,
+      totalOpen,
+      videoHiddenCount: 0,
+      totalVideos: nonOpenRows.length,
+    };
   }
 
   if (nonOpenRows.length === 0 && !isNext) {
-    return { rows: [], collapsedOnlyOpen: true, openHiddenCount: totalOpen, totalOpen };
+    return {
+      rows: [],
+      collapsedOnlyOpen: true,
+      openHiddenCount: totalOpen,
+      totalOpen,
+      videoHiddenCount: 0,
+      totalVideos: 0,
+    };
   }
 
   if (isNext) {
@@ -284,15 +381,18 @@ function visibleMonthRows(
       collapsedOnlyOpen: false,
       openHiddenCount: Math.max(0, totalOpen - shownOpen.length),
       totalOpen,
+      videoHiddenCount: 0,
+      totalVideos: nonOpenRows.length,
     };
   }
 
-  // Farther months with a mix: show non-open; hide open until expanded.
   return {
     rows: nonOpenRows,
     collapsedOnlyOpen: false,
     openHiddenCount: totalOpen,
     totalOpen,
+    videoHiddenCount: 0,
+    totalVideos: nonOpenRows.length,
   };
 }
 
@@ -434,6 +534,7 @@ function ScheduleMonthRow({
   const { date, time, mobile } = compactDateLabel(row);
 
   if (row.status === "OPEN") {
+    if (!ENABLE_LOCAL_RELEASE_PLANNING) return null;
     return (
       <li>
         <div className="border-b border-dashed border-line/70 py-2.5">
@@ -562,7 +663,12 @@ function ScheduleMonthRow({
   );
 }
 
-export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: Props) {
+export function YoutubeSchedulePanel({
+  planner,
+  canSync,
+  canManageAnalytics,
+  canOpenYouTube,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [localError, setLocalError] = useState("");
@@ -588,7 +694,9 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
   const showHardError = planner.status === "error" && !hasCalendar;
   const showOauthNotice = planner.status === "needs_oauth";
   const showEmpty = !showHardError && planner.status === "ok" && !hasCalendar;
-  const showSidebarCounts = planner.backlog.length > 0 || planner.attention.length > 0;
+  const showSidebarCounts =
+    ENABLE_LOCAL_RELEASE_PLANNING &&
+    (planner.backlog.length > 0 || planner.attention.length > 0);
 
   useEffect(() => {
     if (!pendingScrollMonth) return;
@@ -643,8 +751,9 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
       return;
     }
 
-    const slots = projectCadenceSlotsForMonth(planner.cadence, monthKey);
-    const group = openSlotsToMonthGroup(monthKey, slots);
+    const group = ENABLE_LOCAL_RELEASE_PLANNING
+      ? openSlotsToMonthGroup(monthKey, projectCadenceSlotsForMonth(planner.cadence, monthKey))
+      : emptyMonthGroup(monthKey);
     setExtraMonths((prev) => {
       if (prev.some((month) => month.monthKey === monthKey)) return prev;
       if (planner.months.some((month) => month.monthKey === monthKey)) return prev;
@@ -690,7 +799,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
             YouTube Schedule
           </h2>
           <p className="text-sm leading-6 text-muted">
-            Plan and review Mesa&apos;s YouTube publishing calendar.
+            View Mesa&apos;s YouTube publishing schedule.
           </p>
           <p className="text-xs leading-5 text-muted">Times in Istanbul (UTC+3)</p>
           <p className="text-xs leading-5 text-muted/80">
@@ -715,13 +824,15 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
               {pending ? "Refreshing…" : "Refresh YouTube"}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setDialog({ kind: "add" })}
-            className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-          >
-            + Add release
-          </button>
+          {ENABLE_LOCAL_RELEASE_PLANNING ? (
+            <button
+              type="button"
+              onClick={() => setDialog({ kind: "add" })}
+              className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
+            >
+              + Add release
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -772,9 +883,15 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
 
       {showEmpty ? (
         <div className="rounded-sm border border-line bg-paper px-4 py-6">
-          <p className="text-sm leading-6 text-ink">No releases on the calendar yet.</p>
+          <p className="text-sm leading-6 text-ink">
+            {ENABLE_LOCAL_RELEASE_PLANNING
+              ? "No releases on the calendar yet."
+              : "No YouTube videos on the schedule yet."}
+          </p>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Add a release or wait for the next cadence slot to appear after sync.
+            {ENABLE_LOCAL_RELEASE_PLANNING
+              ? "Add a release or wait for the next cadence slot to appear after sync."
+              : "Refresh YouTube after videos are scheduled or published in YouTube Studio."}
           </p>
         </div>
       ) : null}
@@ -893,7 +1010,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                         })()}
                       </p>
                       <div className="flex flex-wrap gap-2 pt-0.5">
-                        {planner.upNext.status === "OPEN" ? (
+                        {ENABLE_LOCAL_RELEASE_PLANNING && planner.upNext.status === "OPEN" ? (
                           <>
                             <button
                               type="button"
@@ -920,14 +1037,11 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                           </button>
                         )}
                         {planner.upNext.youtubeVideoId ? (
-                          <a
-                            href={studioUrl(planner.upNext.youtubeVideoId)}
-                            target="_blank"
-                            rel="noreferrer"
+                          <OpenOnYouTubeControl
+                            videoId={planner.upNext.youtubeVideoId}
+                            canOpen={canOpenYouTube}
                             className={`${adminCompactSecondaryButtonClass} ${adminFocusRing}`}
-                          >
-                            Open on YouTube
-                          </a>
+                          />
                         ) : null}
                       </div>
                     </div>
@@ -936,7 +1050,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
               </section>
             ) : null}
 
-            {planner.attention.length > 0 ? (
+            {ENABLE_LOCAL_RELEASE_PLANNING && planner.attention.length > 0 ? (
               <section aria-labelledby="schedule-attention" className="space-y-2">
                 <p
                   id="schedule-attention"
@@ -995,7 +1109,15 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                   partitioned.today.length > 0 ||
                   partitioned.after.length > 0);
               const showExpandOpen =
-                !expanded && visibility.openHiddenCount > 0 && !visibility.collapsedOnlyOpen;
+                ENABLE_LOCAL_RELEASE_PLANNING &&
+                !expanded &&
+                visibility.openHiddenCount > 0 &&
+                !visibility.collapsedOnlyOpen;
+              const showExpandVideos =
+                !ENABLE_LOCAL_RELEASE_PLANNING &&
+                !expanded &&
+                visibility.videoHiddenCount > 0;
+              const isEmptyMonth = month.rows.length === 0;
 
               return (
                 <section
@@ -1021,7 +1143,11 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                     ) : null}
                   </header>
 
-                  {visibility.collapsedOnlyOpen ? (
+                  {isEmptyMonth ? (
+                    <p className="py-3 text-sm text-muted">
+                      {emptyMonthMessage(month.monthKey, currentMonthKey)}
+                    </p>
+                  ) : visibility.collapsedOnlyOpen ? (
                     <div className="py-1.5">
                       <button
                         type="button"
@@ -1084,6 +1210,22 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                           </button>
                         </div>
                       ) : null}
+                      {showExpandVideos ? (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
+                            onClick={() =>
+                              setExpandedOpenMonths((prev) => ({
+                                ...prev,
+                                [month.monthKey]: true,
+                              }))
+                            }
+                          >
+                            Show all {visibility.totalVideos} videos
+                          </button>
+                        </div>
+                      ) : null}
                     </>
                   )}
                 </section>
@@ -1098,6 +1240,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
           row={dialog.row}
           titleId={`${titleId}-detail`}
           pending={pending}
+          canOpenYouTube={canOpenYouTube}
           onClose={closeDialog}
           onSave={(input) =>
             runAction(async () => {
@@ -1109,7 +1252,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
         />
       ) : null}
 
-      {dialog.kind === "add" ? (
+      {ENABLE_LOCAL_RELEASE_PLANNING && dialog.kind === "add" ? (
         <AddReleaseDialog
           titleId={`${titleId}-add`}
           pending={pending}
@@ -1121,7 +1264,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
         />
       ) : null}
 
-      {dialog.kind === "assign" ? (
+      {ENABLE_LOCAL_RELEASE_PLANNING && dialog.kind === "assign" ? (
         <AssignSlotDialog
           row={dialog.row}
           titleId={`${titleId}-assign`}
@@ -1142,7 +1285,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
         />
       ) : null}
 
-      {dialog.kind === "skip" ? (
+      {ENABLE_LOCAL_RELEASE_PLANNING && dialog.kind === "skip" ? (
         <SkipSlotDialog
           row={dialog.row}
           titleId={`${titleId}-skip`}
@@ -1167,12 +1310,14 @@ function DetailDrawer({
   row,
   titleId,
   pending,
+  canOpenYouTube,
   onClose,
   onSave,
 }: {
   row: PlannerStreamRow;
   titleId: string;
   pending: boolean;
+  canOpenYouTube: boolean;
   onClose: () => void;
   onSave: (input: {
     workingTitle?: string;
@@ -1181,7 +1326,7 @@ function DetailDrawer({
   }) => void;
 }) {
   const localId = localIdFromRow(row);
-  const canEditLocal = Boolean(localId);
+  const canEditLocal = ENABLE_LOCAL_RELEASE_PLANNING && Boolean(localId);
   const [workingTitle, setWorkingTitle] = useState(row.workingTitle);
   const [status, setStatus] = useState(row.status === "OPEN" ? "PLANNED" : row.status);
   const [notes, setNotes] = useState(row.notes || "");
@@ -1245,6 +1390,19 @@ function DetailDrawer({
             </dt>
             <dd className="mt-1 text-ink">{videoTypeLabel(row.videoType)}</dd>
           </div>
+          {row.durationDisplay || row.durationSeconds ? (
+            <div>
+              <dt className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive">
+                Duration
+              </dt>
+              <dd className="mt-1 text-ink">
+                {row.durationDisplay ||
+                  (typeof row.durationSeconds === "number"
+                    ? `${Math.floor(row.durationSeconds / 60)}:${String(row.durationSeconds % 60).padStart(2, "0")}`
+                    : "—")}
+              </dd>
+            </div>
+          ) : null}
           {row.skipReason ? (
             <div>
               <dt className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive">
@@ -1321,14 +1479,11 @@ function DetailDrawer({
         ) : null}
 
         {row.youtubeVideoId ? (
-          <a
-            href={studioUrl(row.youtubeVideoId)}
-            target="_blank"
-            rel="noreferrer"
+          <OpenOnYouTubeControl
+            videoId={row.youtubeVideoId}
+            canOpen={canOpenYouTube}
             className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-          >
-            Open on YouTube
-          </a>
+          />
         ) : null}
       </div>
     </OverlayShell>
