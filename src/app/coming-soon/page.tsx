@@ -71,8 +71,8 @@ export default function ComingSoonPage() {
     <>
       <ComingSoonGuestBeacon />
       <div className="grid min-h-dvh lg:h-dvh lg:grid-cols-[minmax(20rem,0.9fr)_1.1fr] lg:overflow-hidden">
-      <section className="relative flex flex-col justify-between bg-paper px-7 pt-9 pb-[max(2.25rem,var(--mks-privacy-consent-safe,0px))] sm:px-10 sm:pt-12 md:px-14 md:pt-14 lg:overflow-y-auto lg:px-16 lg:pt-16">
-        <div>
+      <section className="relative flex min-h-0 flex-col justify-between overflow-hidden bg-paper px-7 py-9 sm:px-10 sm:py-12 md:px-14 md:py-14 lg:h-full lg:px-16 lg:py-16">
+        <div className="min-h-0 shrink">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-olive">
             {site.name}
           </p>
@@ -97,7 +97,15 @@ export default function ComingSoonPage() {
           </div>
         </div>
 
-        <div className="mt-12 sm:mt-14">
+        {/*
+          While the privacy studio note is visible, lift Meanwhile by the measured
+          safe-area so socials stay above the fixed card — without growing this
+          viewport column into an independent scroll region.
+        */}
+        <div
+          className="mt-10 shrink-0 sm:mt-12"
+          style={{ marginBottom: "var(--mks-privacy-consent-safe, 0px)" }}
+        >
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-olive">
             Meanwhile
           </p>

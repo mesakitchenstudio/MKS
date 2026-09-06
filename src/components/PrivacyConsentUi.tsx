@@ -10,10 +10,10 @@ import { PRIVACY_CONSENT_SAFE_AREA_CSS_VAR } from "@/lib/privacy-consent";
 const focusRing = authFocusRing;
 
 /** Reject / Accept visual twins — terracotta hairline, paper fill, no Accept bias. */
-const choiceButtonClass = `inline-flex h-10 min-h-11 items-center justify-center rounded-full border border-terracotta bg-paper px-3.5 text-sm font-semibold text-terracotta transition-colors hover:bg-cream disabled:opacity-60 sm:min-h-10 ${focusRing}`;
+const choiceButtonClass = `inline-flex h-10 min-h-11 w-full items-center justify-center rounded-full border border-terracotta bg-paper px-3 text-sm font-semibold text-terracotta transition-colors hover:bg-cream disabled:opacity-60 sm:min-h-10 ${focusRing}`;
 
 /** Manage — text-only secondary, usable hit area. */
-const manageButtonClass = `inline-flex min-h-11 items-center justify-center bg-transparent px-1 text-sm font-semibold text-muted underline-offset-4 transition-colors hover:text-ink hover:underline disabled:opacity-60 sm:min-h-10 ${focusRing}`;
+const manageButtonClass = `inline-flex min-h-10 items-center justify-center self-start bg-transparent px-0.5 text-sm font-semibold text-muted underline-offset-4 transition-colors hover:text-ink hover:underline disabled:opacity-60 ${focusRing}`;
 
 export function PrivacyConsentUi() {
   const pathname = usePathname() || "/";
@@ -123,7 +123,7 @@ function PrivacyConsentBanner({
     >
       <div
         ref={cardRef}
-        className="pointer-events-auto max-h-[min(50dvh,24rem)] overflow-y-auto rounded border border-line bg-paper px-[22px] pb-[18px] pt-5 text-ink"
+        className="pointer-events-auto rounded border border-line bg-paper px-5 pb-4 pt-4 text-ink"
       >
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-olive">
           Privacy
@@ -132,38 +132,40 @@ function PrivacyConsentBanner({
           id={headingId}
           role="heading"
           aria-level={2}
-          className="mt-2 font-serif text-lg leading-snug text-ink sm:text-xl"
+          className="mt-1.5 font-serif text-lg leading-snug text-ink sm:text-xl"
         >
           Your privacy
         </p>
-        <p className="mt-2 max-w-[40ch] text-sm leading-[1.5] text-muted">
+        <p className="mt-1.5 max-w-[40ch] text-sm leading-[1.5] text-muted">
           Mesa uses essential technologies to keep the site working. Optional analytics and
           Google sign-in enhancements run only if you allow them.
         </p>
-        <div className="mt-4 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2">
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => void run("reject", onReject)}
-            className={`${choiceButtonClass} order-1 w-full sm:w-auto`}
-          >
-            {busy === "reject" ? "Saving…" : "Reject optional"}
-          </button>
+        <div className="mt-3 flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void run("reject", onReject)}
+              className={choiceButtonClass}
+            >
+              {busy === "reject" ? "Saving…" : "Reject optional"}
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void run("accept", onAccept)}
+              className={choiceButtonClass}
+            >
+              {busy === "accept" ? "Saving…" : "Accept optional"}
+            </button>
+          </div>
           <button
             type="button"
             disabled={Boolean(busy)}
             onClick={onManage}
-            className={`${manageButtonClass} order-3 col-span-full w-full justify-center sm:order-2 sm:col-auto sm:w-auto`}
+            className={manageButtonClass}
           >
             Manage preferences
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => void run("accept", onAccept)}
-            className={`${choiceButtonClass} order-2 w-full sm:order-3 sm:w-auto`}
-          >
-            {busy === "accept" ? "Saving…" : "Accept optional"}
           </button>
         </div>
       </div>

@@ -162,6 +162,12 @@ describe("privacy consent wiring", () => {
       /Optional analytics and\s+Google sign-in enhancements run only if you allow them/
     );
     assert.doesNotMatch(ui, /max-w-5xl/);
+    assert.match(ui, /grid-cols-2/);
+    // Reject + Accept twins on one row; Manage on its own line beneath.
+    assert.match(
+      ui,
+      /run\("reject"[\s\S]*?run\("accept"[\s\S]*?Manage preferences/
+    );
     // First-choice Accept must not use filled terracotta (equal weight with Reject).
     const bannerSrc = ui.slice(
       ui.indexOf("function PrivacyConsentBanner"),
@@ -171,6 +177,9 @@ describe("privacy consent wiring", () => {
     assert.match(ui, /border-terracotta/);
     const comingSoon = read("app/coming-soon/page.tsx");
     assert.match(comingSoon, /--mks-privacy-consent-safe/);
+    assert.match(comingSoon, /marginBottom/);
+    assert.doesNotMatch(comingSoon, /lg:overflow-y-auto/);
+    assert.match(comingSoon, /overflow-hidden/);
     assert.match(footer, /--mks-privacy-consent-safe/);
     assert.match(footer, /PrivacyPreferencesFooterLink/);
     assert.match(privacy, /Cookies &amp; preferences/);

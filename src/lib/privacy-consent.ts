@@ -9,8 +9,9 @@ export const PRIVACY_CONSENT_VERSION = 1;
 export const PRIVACY_CONSENT_MAX_AGE = 60 * 60 * 24 * 400;
 /**
  * Document CSS variable set while the first-choice studio note is visible.
- * Value = measured card height + breathing room (px). Used for Coming Soon /
- * footer safe-area so Meanwhile and footer controls stay reachable.
+ * Value = measured card height + breathing room (px).
+ * Applied locally (e.g. Coming Soon Meanwhile margin, public footer padding) —
+ * never as overflow-inducing padding on a viewport-locked column.
  */
 export const PRIVACY_CONSENT_SAFE_AREA_CSS_VAR = "--mks-privacy-consent-safe";
 
