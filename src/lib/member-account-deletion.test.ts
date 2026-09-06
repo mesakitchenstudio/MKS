@@ -213,6 +213,9 @@ describe("member account deletion wiring", () => {
     assert.match(ui, /\/\?account=deleted/);
     assert.match(ui, /role="dialog"/);
     assert.match(ui, /aria-modal="true"/);
+    assert.match(ui, /createPortal/);
+    assert.match(ui, /document\.body/);
+    assert.match(ui, /main\.setAttribute\("inert"/);
     assert.match(ui, /newsletter[\s\S]*subscription will be stopped/);
     assert.match(ui, /Published reviews may remain/);
 

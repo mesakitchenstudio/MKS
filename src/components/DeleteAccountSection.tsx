@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { forcePublicSignOut } from "@/lib/auth-client";
 import { authFocusRing, authInputClass } from "@/lib/auth-ui";
 
@@ -161,7 +162,8 @@ function DeleteAccountDialog({
     };
   }, [busy, onCancel]);
 
-  return (
+  // Portal outside #main-content so marking main inert does not disable this dialog's input.
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center overflow-y-auto bg-ink/45 p-0 sm:items-center sm:p-4"
       onMouseDown={(event) => {
@@ -229,6 +231,7 @@ function DeleteAccountDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
