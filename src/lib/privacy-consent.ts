@@ -19,10 +19,13 @@ export const PRIVACY_CONSENT_NOTE_BOTTOM_INSET_PX = 24;
 /** Visible gap between page content (e.g. Coming Soon tagline) and the note. */
 export const PRIVACY_CONSENT_NOTE_CONTENT_GAP_PX = 20;
 
-export function privacyConsentSafeAreaPx(cardHeight: number) {
+export function privacyConsentSafeAreaPx(
+  cardHeight: number,
+  bottomInsetPx = PRIVACY_CONSENT_NOTE_BOTTOM_INSET_PX,
+) {
   return (
     Math.ceil(cardHeight) +
-    PRIVACY_CONSENT_NOTE_BOTTOM_INSET_PX +
+    Math.max(0, Math.round(bottomInsetPx)) +
     PRIVACY_CONSENT_NOTE_CONTENT_GAP_PX
   );
 }

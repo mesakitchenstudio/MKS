@@ -72,6 +72,7 @@ describe("privacy consent model", () => {
 
   it("reserves card height plus inset and content gap for safe-area", () => {
     assert.equal(privacyConsentSafeAreaPx(100), 144);
+    assert.equal(privacyConsentSafeAreaPx(100, 16), 136);
   });
 
   it("uses a stable UNDECIDED constant (root-cause regression)", () => {
@@ -151,6 +152,12 @@ describe("privacy consent wiring", () => {
     assert.match(consentApi, /PRIVACY_CONSENT_COOKIE/);
     assert.match(consentApi, /GUEST_COOKIE/);
     assert.match(ui, /Reject optional/);
+    assert.match(ui, /Essential technologies keep Mesa working/);
+    assert.match(ui, /aria-label="Reject optional technologies"/);
+    assert.match(ui, /aria-label="Accept optional technologies"/);
+    assert.match(ui, /sm:hidden/);
+    assert.match(ui, />Reject</);
+    assert.match(ui, />Accept</);
     assert.match(ui, /Accept optional/);
     assert.match(ui, /Manage preferences/);
     assert.match(ui, /useSession/);

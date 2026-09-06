@@ -10,10 +10,10 @@ import { PRIVACY_CONSENT_SAFE_AREA_CSS_VAR, privacyConsentSafeAreaPx } from "@/l
 const focusRing = authFocusRing;
 
 /** Reject / Accept visual twins — terracotta hairline, paper fill, no Accept bias. */
-const choiceButtonClass = `inline-flex h-10 min-h-11 w-full items-center justify-center rounded-full border border-terracotta bg-paper px-3 text-sm font-semibold text-terracotta transition-colors hover:bg-cream disabled:opacity-60 sm:min-h-10 ${focusRing}`;
+const choiceButtonClass = `inline-flex h-11 min-h-11 w-full items-center justify-center rounded-md border border-terracotta bg-paper px-3 text-sm font-semibold text-terracotta transition-colors hover:bg-cream disabled:opacity-60 sm:h-10 sm:min-h-10 sm:rounded-full ${focusRing}`;
 
-/** Manage — text-only secondary, usable hit area. */
-const manageButtonClass = `inline-flex min-h-10 items-center justify-center self-start bg-transparent px-0.5 text-sm font-semibold text-muted underline-offset-4 transition-colors hover:text-ink hover:underline disabled:opacity-60 ${focusRing}`;
+/** Manage — text-only secondary, usable hit area (visually quiet on mobile). */
+const manageButtonClass = `inline-flex min-h-11 items-center justify-center self-start bg-transparent px-0.5 text-xs font-semibold text-muted underline-offset-4 transition-colors hover:text-ink hover:underline disabled:opacity-60 sm:min-h-10 sm:text-sm ${focusRing}`;
 
 export function PrivacyConsentUi() {
   const pathname = usePathname() || "/";
@@ -79,7 +79,7 @@ function PrivacyConsentBanner({
   const headingId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Publish measured height + bottom inset + content gap for layout safe-area.
+  // Publish measured height + actual bottom inset + content gap for layout safe-area.
   useEffect(() => {
     const card = cardRef.current;
     if (!card || typeof document === "undefined") return;
@@ -87,10 +87,11 @@ function PrivacyConsentBanner({
 
     function publish() {
       if (!card) return;
-      const height = card.getBoundingClientRect().height;
+      const rect = card.getBoundingClientRect();
+      const bottomInset = Math.max(0, window.innerHeight - rect.bottom);
       root.style.setProperty(
         PRIVACY_CONSENT_SAFE_AREA_CSS_VAR,
-        `${privacyConsentSafeAreaPx(height)}px`,
+        `${privacyConsentSafeAreaPx(rect.height, bottomInset)}px`,
       );
     }
 
@@ -123,40 +124,60 @@ function PrivacyConsentBanner({
     >
       <div
         ref={cardRef}
-        className="pointer-events-auto rounded border border-line bg-paper px-5 pb-4 pt-4 text-ink"
+        className="pointer-events-auto rounded border border-line bg-paper px-4 py-3.5 text-ink sm:px-5 sm:pb-4 sm:pt-4"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-olive">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-olive sm:text-[11px]">
           Privacy
         </p>
         <p
           id={headingId}
           role="heading"
           aria-level={2}
-          className="mt-1.5 font-serif text-lg leading-snug text-ink sm:text-xl"
+          className="mt-1 font-serif text-lg leading-snug text-ink sm:mt-1.5 sm:text-xl"
         >
           Your privacy
         </p>
-        <p className="mt-1.5 max-w-[40ch] text-sm leading-[1.5] text-muted">
+        <p className="mt-1 max-w-[40ch] text-[13px] leading-[1.45] text-muted sm:mt-1.5 sm:hidden">
+          Essential technologies keep Mesa working. Optional analytics and Google sign-in
+          enhancements run only if you allow them.
+        </p>
+        <p className="mt-1.5 hidden max-w-[40ch] text-sm leading-[1.5] text-muted sm:block">
           Mesa uses essential technologies to keep the site working. Optional analytics and
           Google sign-in enhancements run only if you allow them.
         </p>
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="mt-2.5 flex flex-col gap-1.5 sm:mt-3 sm:gap-2">
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={Boolean(busy)}
               onClick={() => void run("reject", onReject)}
               className={choiceButtonClass}
+              aria-label="Reject optional technologies"
             >
-              {busy === "reject" ? "Saving…" : "Reject optional"}
+              {busy === "reject" ? (
+                "Saving…"
+              ) : (
+                <>
+                  <span className="sm:hidden">Reject</span>
+                  <span className="hidden sm:inline">Reject optional</span>
+                </>
+              )}
             </button>
             <button
               type="button"
               disabled={Boolean(busy)}
               onClick={() => void run("accept", onAccept)}
               className={choiceButtonClass}
+              aria-label="Accept optional technologies"
             >
-              {busy === "accept" ? "Saving…" : "Accept optional"}
+              {busy === "accept" ? (
+                "Saving…"
+              ) : (
+                <>
+                  <span className="sm:hidden">Accept</span>
+                  <span className="hidden sm:inline">Accept optional</span>
+                </>
+              )}
             </button>
           </div>
           <button
