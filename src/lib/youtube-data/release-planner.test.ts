@@ -9,6 +9,7 @@ import {
   isThisWeekIstanbul,
   mergePlannerRows,
   projectCadenceSlots,
+  projectCadenceSlotsForMonth,
   selectPlannerUpNext,
   zonedLocalToUtc,
 } from "./release-planner.ts";
@@ -253,5 +254,59 @@ describe("youtube release planner", () => {
     assert.equal(isThisWeekIstanbul(new Date("2026-09-07T12:00:00.000Z"), now), true); // Mon
     assert.equal(isThisWeekIstanbul(new Date("2026-09-13T12:00:00.000Z"), now), true); // Sun
     assert.equal(isThisWeekIstanbul(new Date("2026-09-14T12:00:00.000Z"), now), false); // next Mon
+  });
+
+  it("projectCadenceSlotsForMonth returns Friday slots for one YYYY-MM", () => {
+    const slots = projectCadenceSlotsForMonth(DEFAULT_CADENCE, "2026-10");
+    assert.deepEqual(
+      slots.map((s) => s.slotKey),
+      ["2026-10-02", "2026-10-09", "2026-10-16", "2026-10-23", "2026-10-30"],
+    );
+    assert.equal(slots.every((s) => s.monthKey === "2026-10"), true);
+    assert.equal(slots.every((s) => s.timeLabel === "15:00"), true);
+    assert.equal(slots.every((s) => s.weekdayShort === "Fri"), true);
+  });
+
+  it("projectCadenceSlotsForMonth respects planner start floor", () => {
+    const beforeFloor = projectCadenceSlotsForMonth(DEFAULT_CADENCE, "2026-08");
+    assert.equal(beforeFloor.length, 0);
+
+    const september = projectCadenceSlotsForMonth(DEFAULT_CADENCE, "2026-09");
+    assert.ok(september.length > 0);
+    assert.equal(september[0]?.slotKey, "2026-09-04");
+    assert.equal(
+      september.every((s) => s.dateKey >= PLANNER_START_DATE.slice(0, 10)),
+      true,
+    );
+  });
+
+  it("mergePlannerRows uses youtube videoType when provided", () => {
+    const now = new Date("2026-09-06T12:00:00.000Z");
+    const rows = mergePlannerRows({
+      now,
+      openSlots: [],
+      localReleases: [],
+      youtubeVideos: [
+        {
+          videoId: "shortVid0001",
+          title: "Quick tip #shorts",
+          thumbnailUrl: "",
+          scheduledPublishAt: new Date("2026-09-11T12:00:00.000Z"),
+          publishedAt: null,
+          videoType: "SHORT",
+        },
+        {
+          videoId: "longVid00001",
+          title: "Sunday roast",
+          thumbnailUrl: "",
+          scheduledPublishAt: null,
+          publishedAt: new Date("2026-09-01T12:00:00.000Z"),
+          videoType: "LONG",
+        },
+      ],
+    });
+
+    assert.equal(rows.find((r) => r.youtubeVideoId === "shortVid0001")?.videoType, "SHORT");
+    assert.equal(rows.find((r) => r.youtubeVideoId === "longVid00001")?.videoType, "LONG");
   });
 });

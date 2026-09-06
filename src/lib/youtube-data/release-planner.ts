@@ -428,6 +428,73 @@ export function projectCadenceSlots(input: {
 }
 
 /**
+ * Project cadence slots for a single Istanbul calendar month (YYYY-MM).
+ * Respects cadence weekday/time/timezone and the planner start / effectiveFrom floor.
+ * Does not apply a "from now" horizon — used to materialize jumper months outside the loaded stream.
+ */
+export function projectCadenceSlotsForMonth(
+  cadence: ReleaseCadence,
+  monthKey: string,
+): ProjectedCadenceSlot[] {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthKey.trim());
+  if (!match) return [];
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isInteger(year) || month < 1 || month > 12) return [];
+
+  const resolved = cadence ?? DEFAULT_CADENCE;
+  const floorKey = maxIsoDate(
+    maxIsoDate(resolved.effectiveFrom, resolved.plannerStart),
+    PLANNER_START_DATE,
+  );
+  const [hh, mm] = resolved.timeLocal.split(":").map(Number);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const slots: ProjectedCadenceSlot[] = [];
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dateKey = `${year}-${pad2(month)}-${pad2(day)}`;
+    if (dateKey < floorKey) continue;
+
+    const noon = zonedLocalToUtc({
+      year,
+      month,
+      day,
+      hour: 12,
+      minute: 0,
+      timeZone: resolved.timezone || RELEASE_TIMEZONE,
+    });
+    if (istanbulWeekday(noon) !== resolved.weekday) continue;
+
+    const releaseAt = zonedLocalToUtc({
+      year,
+      month,
+      day,
+      hour: hh,
+      minute: mm,
+      timeZone: resolved.timezone || RELEASE_TIMEZONE,
+    });
+    const labeled = formatIstanbulParts(releaseAt);
+    if (labeled.monthKey !== monthKey) continue;
+
+    slots.push({
+      slotKey: labeled.dateKey,
+      releaseAt,
+      weekdayShort: labeled.weekdayShort,
+      day: labeled.day,
+      monthShort: labeled.monthShort,
+      year: labeled.year,
+      time24: labeled.time24,
+      monthKey: labeled.monthKey,
+      dateKey: labeled.dateKey,
+      label: labeled.label,
+      timeLabel: labeled.timeLabel,
+    });
+  }
+
+  return slots;
+}
+
+/**
  * Month jumper nav: 2026 only Sep–Dec; later years full Jan–Dec; mark current Istanbul month.
  * Range: planner start through December of (now year + 1).
  */
@@ -511,6 +578,8 @@ export type MergePlannerInput = {
     thumbnailUrl: string;
     scheduledPublishAt: Date | null;
     publishedAt: Date | null;
+    /** Classified format: LONG | SHORT | SPECIAL | UNKNOWN */
+    videoType?: string;
   }>;
 };
 
@@ -594,7 +663,7 @@ export function mergePlannerRows(input: MergePlannerInput): PlannerStreamRow[] {
       source: "youtube",
       status,
       workingTitle: video.title || "Untitled video",
-      videoType: "UNKNOWN",
+      videoType: asVideoType(video.videoType || "UNKNOWN"),
       releaseAt: when,
       slotKey: parts.dateKey,
       dateKey: parts.dateKey,

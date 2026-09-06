@@ -20,6 +20,7 @@ import {
   updateYoutubeReleaseAction,
 } from "@/app/admin/youtube-release-actions";
 import {
+  adminCompactSecondaryButtonClass,
   adminDangerButtonClass,
   adminFocusRing,
   adminInputClass,
@@ -29,9 +30,16 @@ import {
   adminSelectClass,
   adminTertiaryButtonClass,
 } from "@/lib/admin-ui";
-import type {
-  PlannerStreamRow,
-  YoutubeReleasePlannerDashboard,
+import {
+  deriveAttention,
+  formatIstanbulParts,
+  istanbulStartOfWeekUtc,
+  isThisWeekIstanbul,
+  projectCadenceSlotsForMonth,
+  type PlannerMonthGroup,
+  type PlannerStreamRow,
+  type ProjectedCadenceSlot,
+  type YoutubeReleasePlannerDashboard,
 } from "@/lib/youtube-data/release-planner";
 
 type Props = {
@@ -49,6 +57,20 @@ type DialogMode =
 
 const SKIP_PRESETS = ["Holiday", "Studio break", "Special schedule", "Custom"] as const;
 const ISTANBUL_TZ = "Europe/Istanbul";
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
 
 function studioUrl(videoId: string) {
   return `https://studio.youtube.com/video/${videoId}/edit`;
@@ -76,13 +98,13 @@ function statusLabel(status: PlannerStreamRow["status"]) {
 function videoTypeLabel(type: PlannerStreamRow["videoType"]) {
   switch (type) {
     case "LONG":
-      return "Long";
+      return "LONG-FORM";
     case "SHORT":
-      return "Short";
+      return "SHORT";
     case "SPECIAL":
-      return "Special";
+      return "SPECIAL";
     default:
-      return "—";
+      return "OTHER";
   }
 }
 
@@ -110,37 +132,15 @@ function istanbulDateKey(date = new Date()): string {
   return `${bag.year}-${bag.month}-${bag.day}`;
 }
 
-function thisWeekDateKeys(now = new Date()): { start: string; end: string } {
-  const todayKey = istanbulDateKey(now);
-  const [y, m, d] = todayKey.split("-").map(Number);
-  const probe = new Date(Date.UTC(y, m - 1, d, 12));
-  const weekday = new Intl.DateTimeFormat("en-US", {
-    timeZone: ISTANBUL_TZ,
-    weekday: "short",
-  }).format(probe);
-  const map: Record<string, number> = {
-    Sun: 0,
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-  };
-  const daysFromMonday = (map[weekday] ?? 1) === 0 ? 6 : (map[weekday] ?? 1) - 1;
-  const monday = new Date(Date.UTC(y, m - 1, d - daysFromMonday));
-  const sunday = new Date(Date.UTC(y, m - 1, d - daysFromMonday + 6));
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return {
-    start: `${monday.getUTCFullYear()}-${pad(monday.getUTCMonth() + 1)}-${pad(monday.getUTCDate())}`,
-    end: `${sunday.getUTCFullYear()}-${pad(sunday.getUTCMonth() + 1)}-${pad(sunday.getUTCDate())}`,
-  };
-}
-
-function isDateKeyThisWeek(dateKey: string, now = new Date()) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false;
-  const { start, end } = thisWeekDateKeys(now);
-  return dateKey >= start && dateKey <= end;
+function nextMonthKey(monthKey: string): string {
+  const [yRaw, mRaw] = monthKey.split("-");
+  const year = Number(yRaw);
+  const month = Number(mRaw);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return monthKey;
+  }
+  if (month === 12) return `${year + 1}-01`;
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
 function monthHeaderLabel(label: string) {
@@ -149,10 +149,10 @@ function monthHeaderLabel(label: string) {
 
 function monthStatusStats(rows: PlannerStreamRow[]) {
   const order: PlannerStreamRow["status"][] = [
+    "PUBLISHED",
     "SCHEDULED",
     "PLANNED",
     "OPEN",
-    "PUBLISHED",
     "SKIPPED",
   ];
   const counts = new Map<string, number>();
@@ -163,6 +163,139 @@ function monthStatusStats(rows: PlannerStreamRow[]) {
     .filter((status) => (counts.get(status) || 0) > 0)
     .map((status) => `${counts.get(status)} ${statusLabel(status)}`)
     .join(" · ");
+}
+
+function compactDateLabel(row: PlannerStreamRow): { date: string; time: string; mobile: string } {
+  const instant = releaseInstant(row);
+  if (!instant) {
+    return { date: row.label || "—", time: row.timeLabel || "", mobile: (row.label || "—").toUpperCase() };
+  }
+  const parts = formatIstanbulParts(instant);
+  const date = `${parts.weekdayShort} ${parts.day} ${parts.monthShort}`;
+  return {
+    date,
+    time: parts.timeLabel,
+    mobile: date.toUpperCase(),
+  };
+}
+
+function partitionRowsByThisWeek(rows: PlannerStreamRow[], now = new Date()) {
+  const weekStart = istanbulStartOfWeekUtc(now).getTime();
+  const weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000;
+  const before: PlannerStreamRow[] = [];
+  const during: PlannerStreamRow[] = [];
+  const after: PlannerStreamRow[] = [];
+
+  for (const row of rows) {
+    const instant = releaseInstant(row);
+    if (!instant) {
+      after.push(row);
+      continue;
+    }
+    if (isThisWeekIstanbul(instant, now)) {
+      during.push(row);
+      continue;
+    }
+    const t = instant.getTime();
+    if (t < weekStart) before.push(row);
+    else if (t >= weekEnd) after.push(row);
+    else during.push(row);
+  }
+
+  return { before, during, after };
+}
+
+function openSlotsToMonthGroup(
+  monthKey: string,
+  slots: ProjectedCadenceSlot[],
+  now = new Date(),
+): PlannerMonthGroup {
+  const [yRaw, mRaw] = monthKey.split("-");
+  const year = Number(yRaw) || 0;
+  const month = Number(mRaw) || 0;
+  const rows: PlannerStreamRow[] = slots.map((slot) => {
+    const attention = deriveAttention({ releaseAt: slot.releaseAt, status: "OPEN", now });
+    return {
+      id: `open:${slot.slotKey}`,
+      source: "open" as const,
+      status: "OPEN" as const,
+      workingTitle: "Open slot",
+      videoType: "LONG" as const,
+      releaseAt: slot.releaseAt,
+      slotKey: slot.slotKey,
+      dateKey: slot.dateKey,
+      monthKey: slot.monthKey,
+      label: slot.label,
+      timeLabel: slot.timeLabel,
+      skipReason: "",
+      notes: "",
+      youtubeVideoId: null,
+      youtubeTitle: null,
+      thumbnailUrl: null,
+      needsAttention: attention.needsAttention,
+    };
+  });
+
+  return {
+    monthKey,
+    year,
+    month,
+    label: month ? `${MONTH_SHORT[month - 1]} ${year}` : monthKey,
+    rows,
+  };
+}
+
+function visibleMonthRows(
+  month: PlannerMonthGroup,
+  options: {
+    currentMonthKey: string;
+    nextMonthKey: string;
+    expanded: boolean;
+  },
+): {
+  rows: PlannerStreamRow[];
+  collapsedOnlyOpen: boolean;
+  openHiddenCount: number;
+  totalOpen: number;
+} {
+  const openRows = month.rows.filter((row) => row.status === "OPEN");
+  const nonOpenRows = month.rows.filter((row) => row.status !== "OPEN");
+  const totalOpen = openRows.length;
+  const isCurrent = month.monthKey === options.currentMonthKey;
+  const isNext = month.monthKey === options.nextMonthKey;
+
+  if (isCurrent || options.expanded || totalOpen === 0) {
+    return { rows: month.rows, collapsedOnlyOpen: false, openHiddenCount: 0, totalOpen };
+  }
+
+  if (nonOpenRows.length === 0 && !isNext) {
+    return { rows: [], collapsedOnlyOpen: true, openHiddenCount: totalOpen, totalOpen };
+  }
+
+  if (isNext) {
+    const shownOpen = openRows.slice(0, 2);
+    return {
+      rows: [...nonOpenRows, ...shownOpen].sort(compareReleaseRows),
+      collapsedOnlyOpen: false,
+      openHiddenCount: Math.max(0, totalOpen - shownOpen.length),
+      totalOpen,
+    };
+  }
+
+  // Farther months with a mix: show non-open; hide open until expanded.
+  return {
+    rows: nonOpenRows,
+    collapsedOnlyOpen: false,
+    openHiddenCount: totalOpen,
+    totalOpen,
+  };
+}
+
+function compareReleaseRows(a: PlannerStreamRow, b: PlannerStreamRow) {
+  const at = releaseInstant(a)?.getTime() ?? Number.POSITIVE_INFINITY;
+  const bt = releaseInstant(b)?.getTime() ?? Number.POSITIVE_INFINITY;
+  if (at !== bt) return at - bt;
+  return a.id.localeCompare(b.id);
 }
 
 /** Treat datetime-local wall clock as Europe/Istanbul (UTC+3, no DST). */
@@ -241,21 +374,17 @@ function OverlayShell({
 function RowMeta({ row }: { row: PlannerStreamRow }) {
   return (
     <p className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive">
+      <span className="tracking-[0.12em]">{videoTypeLabel(row.videoType)}</span>
+      <span className="mx-2 text-line" aria-hidden>
+        ·
+      </span>
       <span>{statusLabel(row.status)}</span>
-      {row.videoType !== "UNKNOWN" ? (
-        <>
-          <span className="mx-2 text-line" aria-hidden>
-            ·
-          </span>
-          <span className="tracking-[0.12em]">{videoTypeLabel(row.videoType)}</span>
-        </>
-      ) : null}
     </p>
   );
 }
 
 function ReleaseThumb({ row, size = "md" }: { row: PlannerStreamRow; size?: "sm" | "md" }) {
-  const width = size === "sm" ? "w-[5.5rem]" : "w-[7.5rem]";
+  const width = size === "sm" ? "w-[4.75rem]" : "w-[7rem]";
   return (
     <div className={`relative aspect-video shrink-0 overflow-hidden rounded-sm bg-sand ${width}`}>
       {row.thumbnailUrl ? (
@@ -264,11 +393,167 @@ function ReleaseThumb({ row, size = "md" }: { row: PlannerStreamRow; size?: "sm"
           alt=""
           fill
           className="object-cover"
-          sizes={size === "sm" ? "88px" : "120px"}
+          sizes={size === "sm" ? "76px" : "112px"}
           unoptimized
         />
       ) : null}
     </div>
+  );
+}
+
+function ThisWeekDivider() {
+  return (
+    <li className="list-none">
+      <p className="pt-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive/80">
+        This week
+      </p>
+    </li>
+  );
+}
+
+function ScheduleMonthRow({
+  row,
+  onOpen,
+  onAssign,
+  onSkip,
+}: {
+  row: PlannerStreamRow;
+  onOpen: (row: PlannerStreamRow) => void;
+  onAssign: (row: PlannerStreamRow) => void;
+  onSkip: (row: PlannerStreamRow) => void;
+}) {
+  const { date, time, mobile } = compactDateLabel(row);
+
+  if (row.status === "OPEN") {
+    return (
+      <li>
+        <div className="border-b border-dashed border-line/70 py-2.5">
+          <div className="flex flex-col gap-2 sm:hidden">
+            <p className="text-[0.7rem] font-medium uppercase tracking-[0.12em] text-muted">
+              {mobile}
+              {time ? (
+                <>
+                  <span aria-hidden> · </span>
+                  {time}
+                </>
+              ) : null}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="text-[0.65rem] font-medium uppercase tracking-[0.12em] text-olive">
+                {videoTypeLabel(row.videoType)}
+              </span>
+              <span className="text-sm text-ink">Open release slot</span>
+              <span className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={`${adminCompactSecondaryButtonClass} ${adminFocusRing}`}
+                  onClick={() => onAssign(row)}
+                >
+                  Assign
+                </button>
+                <button
+                  type="button"
+                  className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
+                  onClick={() => onSkip(row)}
+                >
+                  Skip
+                </button>
+              </span>
+            </div>
+          </div>
+          <div className="hidden items-center gap-3 sm:grid sm:grid-cols-[5.5rem_3.25rem_auto_minmax(0,1fr)_auto]">
+            <span className="text-sm text-ink">{date}</span>
+            <span className="text-sm tabular-nums text-muted">{time || "—"}</span>
+            <span className="text-[0.65rem] font-medium uppercase tracking-[0.12em] text-olive">
+              {videoTypeLabel(row.videoType)}
+            </span>
+            <span className="min-w-0 text-sm text-ink">Open release slot</span>
+            <span className="flex shrink-0 items-center gap-2 justify-self-end">
+              <button
+                type="button"
+                className={`${adminCompactSecondaryButtonClass} ${adminFocusRing}`}
+                onClick={() => onAssign(row)}
+              >
+                Assign
+              </button>
+              <button
+                type="button"
+                className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
+                onClick={() => onSkip(row)}
+              >
+                Skip
+              </button>
+            </span>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  const muted = row.status === "PUBLISHED" || row.status === "SKIPPED" ? "opacity-65" : "";
+  const title =
+    row.status === "SKIPPED" ? row.workingTitle || "Skipped" : row.workingTitle;
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onOpen(row)}
+        className={`w-full border-b border-line/70 py-2.5 text-left transition-colors hover:bg-cream/40 ${adminFocusRing} ${muted}`}
+      >
+        <div className="space-y-1.5 lg:hidden">
+          <p className="text-[0.7rem] font-medium uppercase tracking-[0.12em] text-muted">
+            {mobile}
+            {time ? (
+              <>
+                <span aria-hidden> · </span>
+                {time}
+              </>
+            ) : null}
+          </p>
+          <div className="flex items-start gap-2.5">
+            <ReleaseThumb row={row} size="sm" />
+            <span className="min-w-0 space-y-1">
+              <span className="block font-serif text-base leading-snug text-ink line-clamp-2">
+                {title}
+              </span>
+              <span className="block text-[0.65rem] font-medium uppercase tracking-[0.12em] text-olive">
+                {videoTypeLabel(row.videoType)}
+                <span className="mx-1.5 text-line" aria-hidden>
+                  ·
+                </span>
+                {statusLabel(row.status)}
+              </span>
+              {row.status === "SKIPPED" && row.skipReason ? (
+                <span className="block text-xs text-muted">Reason: {row.skipReason}</span>
+              ) : null}
+            </span>
+          </div>
+        </div>
+
+        <div className="hidden lg:grid lg:grid-cols-[5.5rem_3.25rem_minmax(0,1fr)_auto_auto] lg:items-center lg:gap-3">
+          <span className="text-sm text-ink">{date}</span>
+          <span className="text-sm tabular-nums text-muted">{time || "—"}</span>
+          <span className="flex min-w-0 items-center gap-2.5">
+            <ReleaseThumb row={row} size="sm" />
+            <span className="min-w-0">
+              <span className="block font-serif text-base leading-snug text-ink line-clamp-2">
+                {title}
+              </span>
+              {row.status === "SKIPPED" && row.skipReason ? (
+                <span className="block text-xs text-muted line-clamp-1">Reason: {row.skipReason}</span>
+              ) : null}
+            </span>
+          </span>
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.12em] text-olive">
+            {videoTypeLabel(row.videoType)}
+          </span>
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive">
+            {statusLabel(row.status)}
+          </span>
+        </div>
+      </button>
+    </li>
   );
 }
 
@@ -277,14 +562,39 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
   const [pending, startTransition] = useTransition();
   const [localError, setLocalError] = useState("");
   const [dialog, setDialog] = useState<DialogMode>({ kind: "none" });
+  const [extraMonths, setExtraMonths] = useState<PlannerMonthGroup[]>([]);
+  const [expandedOpenMonths, setExpandedOpenMonths] = useState<Record<string, boolean>>({});
+  const [pendingScrollMonth, setPendingScrollMonth] = useState<string | null>(null);
   const titleId = useId();
   const closeDialog = () => setDialog({ kind: "none" });
 
   const currentMonthKey = useMemo(() => istanbulDateKey().slice(0, 7), []);
-  const hasCalendar = planner.months.length > 0 || Boolean(planner.upNext);
+  const followingMonthKey = useMemo(() => nextMonthKey(currentMonthKey), [currentMonthKey]);
+
+  const displayMonths = useMemo(() => {
+    const map = new Map<string, PlannerMonthGroup>();
+    for (const month of extraMonths) map.set(month.monthKey, month);
+    for (const month of planner.months) map.set(month.monthKey, month);
+    return [...map.values()].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+  }, [planner.months, extraMonths]);
+
+  const hasCalendar = displayMonths.length > 0 || Boolean(planner.upNext);
   const showHardError = planner.status === "error" && !hasCalendar;
   const showOauthNotice = planner.status === "needs_oauth";
   const showEmpty = !showHardError && planner.status === "ok" && !hasCalendar;
+  const showSidebarCounts = planner.backlog.length > 0 || planner.attention.length > 0;
+
+  useEffect(() => {
+    if (!pendingScrollMonth) return;
+    const key = pendingScrollMonth;
+    const frame = requestAnimationFrame(() => {
+      document
+        .getElementById(`month-${key}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPendingScrollMonth(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingScrollMonth, displayMonths]);
 
   function refresh() {
     setLocalError("");
@@ -303,6 +613,31 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
     const monthEl = document.getElementById(`month-${currentMonthKey}`);
     const target = monthEl || upNextEl;
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function ensureMonthExpanded(monthKey: string) {
+    setExpandedOpenMonths((prev) =>
+      prev[monthKey] ? prev : { ...prev, [monthKey]: true },
+    );
+  }
+
+  function jumpToMonth(monthKey: string) {
+    if (!monthKey) return;
+    ensureMonthExpanded(monthKey);
+    const existing = document.getElementById(`month-${monthKey}`);
+    if (existing) {
+      existing.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    const slots = projectCadenceSlotsForMonth(planner.cadence, monthKey);
+    const group = openSlotsToMonthGroup(monthKey, slots);
+    setExtraMonths((prev) => {
+      if (prev.some((month) => month.monthKey === monthKey)) return prev;
+      if (planner.months.some((month) => month.monthKey === monthKey)) return prev;
+      return [...prev, group].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+    });
+    setPendingScrollMonth(monthKey);
   }
 
   function openRow(row: PlannerStreamRow) {
@@ -434,9 +769,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                 onChange={(event) => {
                   const key = event.target.value;
                   if (!key) return;
-                  document
-                    .getElementById(`month-${key}`)
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  jumpToMonth(key);
                   event.target.value = "";
                 }}
               >
@@ -469,9 +802,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                           }`}
                           onClick={(event) => {
                             event.preventDefault();
-                            document
-                              .getElementById(`month-${month.monthKey}`)
-                              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            jumpToMonth(month.monthKey);
                           }}
                         >
                           {month.label}
@@ -483,53 +814,66 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
               ))}
             </nav>
 
-            <div className="space-y-1 border-t border-line pt-4 text-sm text-muted">
-              <p>
-                Backlog{" "}
-                <span className="font-semibold text-ink">{planner.backlog.length}</span>
-              </p>
-              <p>
-                Attention{" "}
-                <span className="font-semibold text-ink">{planner.attention.length}</span>
-              </p>
-            </div>
+            {showSidebarCounts ? (
+              <div className="space-y-1 border-t border-line pt-4 text-sm text-muted">
+                {planner.backlog.length > 0 ? (
+                  <p>
+                    Backlog{" "}
+                    <span className="font-semibold text-ink">{planner.backlog.length}</span>
+                  </p>
+                ) : null}
+                {planner.attention.length > 0 ? (
+                  <p>
+                    Attention{" "}
+                    <span className="font-semibold text-ink">{planner.attention.length}</span>
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </aside>
 
           <div className="min-w-0 space-y-8">
             {planner.upNext ? (
-              <section id="up-next" aria-labelledby="schedule-up-next" className="space-y-3">
+              <section id="up-next" aria-labelledby="schedule-up-next" className="scroll-mt-4 space-y-2">
                 <p
                   id="schedule-up-next"
                   className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive"
                 >
                   Up Next
                 </p>
-                <article className="rounded-sm border border-line bg-paper px-4 py-4 sm:px-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                <article className="rounded-sm border border-line bg-paper px-3 py-3 sm:px-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                     <ReleaseThumb row={planner.upNext} />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <h3 className="font-serif text-xl leading-snug text-ink sm:text-[1.35rem]">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <h3 className="font-serif text-lg leading-snug text-ink line-clamp-3 sm:text-xl">
                         {planner.upNext.workingTitle}
                       </h3>
                       <RowMeta row={planner.upNext} />
-                      <p className="text-sm leading-6 text-ink">
-                        {planner.upNext.label}
-                        {planner.upNext.timeLabel ? (
-                          <>
-                            <span aria-hidden> · </span>
-                            {planner.upNext.timeLabel} Istanbul
-                          </>
-                        ) : null}
+                      <p className="text-sm leading-5 text-muted">
+                        {(() => {
+                          const { date, time } = compactDateLabel(planner.upNext!);
+                          return (
+                            <>
+                              {date}
+                              {time ? (
+                                <>
+                                  <span aria-hidden> · </span>
+                                  {time}
+                                </>
+                              ) : null}
+                            </>
+                          );
+                        })()}
                       </p>
-                      <div className="flex flex-wrap gap-2 pt-1">
+                      <div className="flex flex-wrap gap-2 pt-0.5">
                         {planner.upNext.status === "OPEN" ? (
                           <>
                             <button
                               type="button"
-                              className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                              className={`${adminCompactSecondaryButtonClass} ${adminFocusRing}`}
                               onClick={() => setDialog({ kind: "assign", row: planner.upNext! })}
                             >
-                              Assign video
+                              Assign
                             </button>
                             <button
                               type="button"
@@ -542,7 +886,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                         ) : (
                           <button
                             type="button"
-                            className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                            className={`${adminCompactSecondaryButtonClass} ${adminFocusRing}`}
                             onClick={() => openRow(planner.upNext!)}
                           >
                             Open details
@@ -553,7 +897,7 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                             href={studioUrl(planner.upNext.youtubeVideoId)}
                             target="_blank"
                             rel="noreferrer"
-                            className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                            className={`${adminCompactSecondaryButtonClass} ${adminFocusRing}`}
                           >
                             Open on YouTube
                           </a>
@@ -566,49 +910,67 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
             ) : null}
 
             {planner.attention.length > 0 ? (
-              <section aria-labelledby="schedule-attention" className="space-y-3">
+              <section aria-labelledby="schedule-attention" className="space-y-2">
                 <p
                   id="schedule-attention"
                   className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive"
                 >
                   Needs Attention
                 </p>
-                <ul className="space-y-2">
-                  {planner.attention.map((row) => (
-                    <li key={row.id}>
-                      <button
-                        type="button"
-                        onClick={() => openRow(row)}
-                        className={`flex w-full items-start gap-3 rounded-sm border border-terracotta/25 bg-paper px-3 py-3 text-left ${adminFocusRing}`}
-                      >
-                        <ReleaseThumb row={row} size="sm" />
-                        <span className="min-w-0 space-y-1">
-                          <span className="block font-serif text-lg leading-snug text-ink">
-                            {row.workingTitle}
+                <ul className="divide-y divide-line/70 border-y border-line/70">
+                  {planner.attention.map((row) => {
+                    const parts = compactDateLabel(row);
+                    return (
+                      <li key={row.id}>
+                        <button
+                          type="button"
+                          onClick={() => openRow(row)}
+                          className={`flex w-full items-center gap-2.5 py-2 text-left ${adminFocusRing}`}
+                        >
+                          <ReleaseThumb row={row} size="sm" />
+                          <span className="min-w-0 flex-1 space-y-0.5">
+                            <span className="block truncate font-serif text-base leading-snug text-ink">
+                              {row.workingTitle}
+                            </span>
+                            <span className="block text-[0.65rem] font-medium uppercase tracking-[0.12em] text-olive">
+                              {videoTypeLabel(row.videoType)}
+                              <span className="mx-1.5 text-line" aria-hidden>
+                                ·
+                              </span>
+                              {statusLabel(row.status)}
+                            </span>
+                            <span className="block text-xs text-muted">
+                              {parts.date}
+                              {parts.time ? ` · ${parts.time}` : ""}
+                              <span className="sr-only"> Needs attention</span>
+                            </span>
                           </span>
-                          <RowMeta row={row} />
-                          <span className="block text-sm text-muted">
-                            {row.label}
-                            {row.timeLabel ? ` · ${row.timeLabel}` : ""}
-                            <span className="sr-only"> Needs attention</span>
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             ) : null}
 
-            {planner.months.map((month) => {
-              let weekDividerShown = false;
+            {displayMonths.map((month) => {
+              const expanded = Boolean(expandedOpenMonths[month.monthKey]);
+              const visibility = visibleMonthRows(month, {
+                currentMonthKey,
+                nextMonthKey: followingMonthKey,
+                expanded,
+              });
               const stats = monthStatusStats(month.rows);
+              const partitioned = partitionRowsByThisWeek(visibility.rows);
+              const showExpandOpen =
+                !expanded && visibility.openHiddenCount > 0 && !visibility.collapsedOnlyOpen;
+
               return (
                 <section
                   key={month.monthKey}
                   id={`month-${month.monthKey}`}
                   aria-labelledby={`month-heading-${month.monthKey}`}
-                  className="scroll-mt-4 space-y-3"
+                  className="scroll-mt-4 space-y-2"
                 >
                   <header className="sticky top-0 z-[1] space-y-1 border-b border-line bg-cream/95 py-2 backdrop-blur-sm lg:static lg:bg-transparent lg:backdrop-blur-none">
                     <h3
@@ -620,90 +982,79 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
                     {stats ? <p className="text-xs leading-5 text-muted">{stats}</p> : null}
                   </header>
 
-                  <ul className="space-y-2">
-                    {month.rows.map((row) => {
-                      const inThisWeek = isDateKeyThisWeek(row.dateKey);
-                      const showWeekDivider = inThisWeek && !weekDividerShown;
-                      if (showWeekDivider) weekDividerShown = true;
-
-                      if (row.status === "OPEN") {
-                        return (
-                          <li key={row.id}>
-                            {showWeekDivider ? (
-                              <p className="mb-2 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive/80">
-                                This week
-                              </p>
-                            ) : null}
-                            <div className="flex flex-col gap-3 rounded-sm border border-dashed border-line/80 bg-paper/60 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div className="min-w-0 space-y-1">
-                                <p className="text-sm font-semibold text-ink">Open release slot</p>
-                                <p className="text-sm text-muted">
-                                  {row.label}
-                                  {row.timeLabel ? ` · ${row.timeLabel}` : ""}
-                                </p>
-                                <p className="sr-only">Status: Open</p>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-                                  onClick={() => setDialog({ kind: "assign", row })}
-                                >
-                                  Assign video
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
-                                  onClick={() => setDialog({ kind: "skip", row })}
-                                >
-                                  Skip
-                                </button>
-                              </div>
-                            </div>
-                          </li>
-                        );
-                      }
-
-                      const muted =
-                        row.status === "PUBLISHED" || row.status === "SKIPPED"
-                          ? "opacity-70"
-                          : "";
-
-                      return (
-                        <li key={row.id}>
-                          {showWeekDivider ? (
-                            <p className="mb-2 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-olive/80">
-                              This week
-                            </p>
-                          ) : null}
+                  {visibility.collapsedOnlyOpen ? (
+                    <div className="flex flex-wrap items-center gap-3 border-b border-dashed border-line/70 py-3">
+                      <p className="text-sm text-muted">
+                        {visibility.totalOpen} open release slot
+                        {visibility.totalOpen === 1 ? "" : "s"}
+                      </p>
+                      <button
+                        type="button"
+                        className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
+                        onClick={() =>
+                          setExpandedOpenMonths((prev) => ({
+                            ...prev,
+                            [month.monthKey]: true,
+                          }))
+                        }
+                      >
+                        Show slots
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <ul className="space-y-0">
+                        {partitioned.before.map((row) => (
+                          <ScheduleMonthRow
+                            key={row.id}
+                            row={row}
+                            onOpen={openRow}
+                            onAssign={(item) => setDialog({ kind: "assign", row: item })}
+                            onSkip={(item) => setDialog({ kind: "skip", row: item })}
+                          />
+                        ))}
+                        {partitioned.during.length > 0 ? (
+                          <>
+                            <ThisWeekDivider />
+                            {partitioned.during.map((row) => (
+                              <ScheduleMonthRow
+                                key={row.id}
+                                row={row}
+                                onOpen={openRow}
+                                onAssign={(item) => setDialog({ kind: "assign", row: item })}
+                                onSkip={(item) => setDialog({ kind: "skip", row: item })}
+                              />
+                            ))}
+                          </>
+                        ) : null}
+                        {partitioned.after.map((row) => (
+                          <ScheduleMonthRow
+                            key={row.id}
+                            row={row}
+                            onOpen={openRow}
+                            onAssign={(item) => setDialog({ kind: "assign", row: item })}
+                            onSkip={(item) => setDialog({ kind: "skip", row: item })}
+                          />
+                        ))}
+                      </ul>
+                      {showExpandOpen ? (
+                        <div className="pt-1">
                           <button
                             type="button"
-                            onClick={() => openRow(row)}
-                            className={`flex w-full items-start gap-3 rounded-sm border border-line bg-paper px-3 py-3 text-left transition-colors hover:bg-cream/60 ${adminFocusRing} ${muted}`}
+                            className={`${adminTertiaryButtonClass} ${adminFocusRing}`}
+                            onClick={() =>
+                              setExpandedOpenMonths((prev) => ({
+                                ...prev,
+                                [month.monthKey]: true,
+                              }))
+                            }
                           >
-                            <ReleaseThumb row={row} size="sm" />
-                            <span className="min-w-0 flex-1 space-y-1">
-                              <span className="block font-serif text-lg leading-snug text-ink">
-                                {row.status === "SKIPPED"
-                                  ? row.workingTitle || "Skipped"
-                                  : row.workingTitle}
-                              </span>
-                              <RowMeta row={row} />
-                              <span className="block text-sm text-muted">
-                                {row.label}
-                                {row.timeLabel ? ` · ${row.timeLabel}` : ""}
-                              </span>
-                              {row.status === "SKIPPED" && row.skipReason ? (
-                                <span className="block text-sm text-muted">
-                                  Reason: {row.skipReason}
-                                </span>
-                              ) : null}
-                            </span>
+                            Show all {visibility.totalOpen} open slots
                           </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </section>
               );
             })}

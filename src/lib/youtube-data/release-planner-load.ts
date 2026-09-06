@@ -14,6 +14,7 @@ import {
   type YoutubeReleasePlannerDashboard,
 } from "@/lib/youtube-data/release-planner";
 import { syncYoutubeScheduledViaOAuth } from "@/lib/youtube-data/scheduled-sync";
+import { classifyYouTubeVideoFormat } from "@/lib/youtube-data/video-format";
 
 export type { YoutubeReleasePlannerDashboard };
 
@@ -65,6 +66,9 @@ export async function loadYoutubeReleasePlanner(input?: {
       select: {
         videoId: true,
         title: true,
+        description: true,
+        tags: true,
+        durationSeconds: true,
         thumbnailUrl: true,
         scheduledPublishAt: true,
         publishedAt: true,
@@ -91,13 +95,24 @@ export async function loadYoutubeReleasePlanner(input?: {
       skipReason: row.skipReason,
       youtubeVideoId: row.youtubeVideoId,
     })),
-    youtubeVideos: videos.map((video) => ({
-      videoId: video.videoId,
-      title: video.title,
-      thumbnailUrl: video.thumbnailUrl,
-      scheduledPublishAt: video.scheduledPublishAt,
-      publishedAt: video.publishedAt,
-    })),
+    youtubeVideos: videos.map((video) => {
+      const format = classifyYouTubeVideoFormat({
+        title: video.title,
+        description: video.description,
+        tags: video.tags,
+        durationSeconds: video.durationSeconds,
+      });
+      const videoType =
+        format === "SHORT" ? "SHORT" : format === "LONG" ? "LONG" : "UNKNOWN";
+      return {
+        videoId: video.videoId,
+        title: video.title,
+        thumbnailUrl: video.thumbnailUrl,
+        scheduledPublishAt: video.scheduledPublishAt,
+        publishedAt: video.publishedAt,
+        videoType,
+      };
+    }),
   });
 
   const backlog: PlannerStreamRow[] = localReleases
