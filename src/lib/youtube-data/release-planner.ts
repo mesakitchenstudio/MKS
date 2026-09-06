@@ -5,6 +5,7 @@ import {
   type ReleaseCadence,
   type ReleaseVideoType,
 } from "@/lib/youtube-data/release-cadence";
+import { classifyYoutubeCalendarEntry } from "@/lib/youtube-data/schedule";
 
 export const RELEASE_ATTENTION_GRACE_MS = 2 * 60 * 60 * 1000;
 
@@ -639,6 +640,8 @@ export type MergePlannerInput = {
     thumbnailUrl: string;
     scheduledPublishAt: Date | null;
     publishedAt: Date | null;
+    privacyStatus?: string | null;
+    uploadStatus?: string | null;
     /** Classified format: LONG | SHORT | SPECIAL | UNKNOWN */
     videoType?: string;
     durationSeconds?: number | null;
@@ -711,13 +714,18 @@ export function mergePlannerRows(input: MergePlannerInput): PlannerStreamRow[] {
   }
 
   for (const video of input.youtubeVideos) {
-    const when = video.scheduledPublishAt ?? video.publishedAt;
-    if (!when) continue;
+    const classified = classifyYoutubeCalendarEntry({
+      privacyStatus: video.privacyStatus,
+      uploadStatus: video.uploadStatus,
+      scheduledPublishAt: video.scheduledPublishAt,
+      publishedAt: video.publishedAt,
+      now,
+    });
+    if (!classified) continue;
+
+    const when = classified.releaseAt;
     const parts = formatIstanbulParts(when);
-    const isFuture = video.scheduledPublishAt
-      ? video.scheduledPublishAt.getTime() > now.getTime()
-      : false;
-    const status: ReleaseStatus = isFuture ? "SCHEDULED" : "PUBLISHED";
+    const status = classified.status;
     if (parts.dateKey) filledSlotKeys.add(parts.dateKey);
 
     const attention = deriveAttention({ releaseAt: when, status, now });

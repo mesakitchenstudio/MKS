@@ -57,17 +57,26 @@ export async function loadYoutubeReleasePlanner(input?: {
     Math.max(now.getTime() - RECENT_PUBLISHED_MS, PLANNER_HISTORY_FLOOR.getTime()),
   );
 
-  // Archive mode: all synced videos with a publish or schedule timestamp.
-  // Planner mode: keep the rolling published window used by the release planner.
+  // Both modes: only calendar-eligible privacy states at the DB layer.
+  // mergePlannerRows also re-classifies so publishedAt alone never becomes Published.
   const videoWhere = ENABLE_LOCAL_RELEASE_PLANNING
     ? {
         OR: [
-          { scheduledPublishAt: { gt: now } },
-          { publishedAt: { gte: publishedSince } },
+          {
+            AND: [{ privacyStatus: "private" }, { scheduledPublishAt: { gt: now } }],
+          },
+          {
+            AND: [{ privacyStatus: "public" }, { publishedAt: { gte: publishedSince } }],
+          },
         ],
       }
     : {
-        OR: [{ scheduledPublishAt: { not: null } }, { publishedAt: { not: null } }],
+        OR: [
+          { privacyStatus: "public" },
+          {
+            AND: [{ privacyStatus: "private" }, { scheduledPublishAt: { gt: now } }],
+          },
+        ],
       };
 
   const [videos, localReleases] = await Promise.all([
@@ -84,6 +93,8 @@ export async function loadYoutubeReleasePlanner(input?: {
         thumbnailUrl: true,
         scheduledPublishAt: true,
         publishedAt: true,
+        privacyStatus: true,
+        uploadStatus: true,
       },
     }),
     ENABLE_LOCAL_RELEASE_PLANNING
@@ -126,6 +137,8 @@ export async function loadYoutubeReleasePlanner(input?: {
         thumbnailUrl: video.thumbnailUrl,
         scheduledPublishAt: video.scheduledPublishAt,
         publishedAt: video.publishedAt,
+        privacyStatus: video.privacyStatus,
+        uploadStatus: video.uploadStatus,
         videoType,
         durationSeconds: video.durationSeconds,
         durationDisplay: video.durationDisplay,

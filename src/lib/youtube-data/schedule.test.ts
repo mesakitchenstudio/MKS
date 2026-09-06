@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { canAccess } from "../admin-access.ts";
 import {
+  classifyYoutubeCalendarEntry,
   coalesceScheduledPublishAt,
   formatScheduledPublishParts,
   isFutureScheduledPublishAt,
@@ -119,6 +120,87 @@ describe("youtube schedule helpers", () => {
     );
   });
 
+  it("classifyYoutubeCalendarEntry uses privacyStatus + publishAt (not publishedAt alone)", () => {
+    // A: public → Published
+    assert.deepEqual(
+      classifyYoutubeCalendarEntry({
+        privacyStatus: "public",
+        publishedAt: new Date("2026-01-27T12:00:00.000Z"),
+        scheduledPublishAt: null,
+        now,
+      }),
+      {
+        status: "PUBLISHED",
+        releaseAt: new Date("2026-01-27T12:00:00.000Z"),
+      },
+    );
+
+    // B: private unscheduled with snippet publishedAt (Sandy Eggplant case) → hidden
+    assert.equal(
+      classifyYoutubeCalendarEntry({
+        privacyStatus: "private",
+        publishedAt: new Date("2026-01-27T12:00:00.000Z"),
+        scheduledPublishAt: null,
+        now,
+      }),
+      null,
+    );
+
+    // C: private + future publishAt → Scheduled
+    const scheduled = classifyYoutubeCalendarEntry({
+      privacyStatus: "private",
+      publishedAt: new Date("2026-01-01T12:00:00.000Z"),
+      scheduledPublishAt: new Date("2026-09-11T12:00:00.000Z"),
+      now,
+    });
+    assert.equal(scheduled?.status, "SCHEDULED");
+    assert.equal(scheduled?.releaseAt.toISOString(), "2026-09-11T12:00:00.000Z");
+
+    // D: unlisted unscheduled → hidden
+    assert.equal(
+      classifyYoutubeCalendarEntry({
+        privacyStatus: "unlisted",
+        publishedAt: new Date("2026-01-27T12:00:00.000Z"),
+        scheduledPublishAt: null,
+        now,
+      }),
+      null,
+    );
+
+    // E: private + past publishAt → not Published
+    assert.equal(
+      classifyYoutubeCalendarEntry({
+        privacyStatus: "private",
+        scheduledPublishAt: new Date("2026-09-01T12:00:00.000Z"),
+        publishedAt: new Date("2026-09-01T12:00:00.000Z"),
+        now,
+      }),
+      null,
+    );
+
+    // F: public after schedule → Published regardless of leftover schedule metadata
+    assert.equal(
+      classifyYoutubeCalendarEntry({
+        privacyStatus: "public",
+        scheduledPublishAt: new Date("2026-09-11T12:00:00.000Z"),
+        publishedAt: new Date("2026-09-11T12:00:00.000Z"),
+        now,
+      })?.status,
+      "PUBLISHED",
+    );
+
+    // rejected upload → hidden
+    assert.equal(
+      classifyYoutubeCalendarEntry({
+        privacyStatus: "public",
+        uploadStatus: "rejected",
+        publishedAt: new Date("2026-09-01T12:00:00.000Z"),
+        now,
+      }),
+      null,
+    );
+  });
+
   it("I: Shorts classification uses existing classifier", () => {
     const format = classifyYouTubeVideoFormat({
       title: "Quick tip #shorts",
@@ -199,7 +281,9 @@ describe("youtube schedule access and wiring", () => {
     assert.match(panel, /Show all \{visibility\.totalVideos\} videos/);
     assert.match(load, /filterYoutubeArchiveRows/);
     assert.match(load, /buildArchiveMonthJumper/);
-    assert.match(load, /scheduledPublishAt: \{ not: null \}/);
+    assert.match(load, /privacyStatus: "public"/);
+    assert.match(load, /privacyStatus: "private"/);
+    assert.match(load, /scheduledPublishAt: \{ gt: now \}/);
     // Planning UI is gated — Assign/Skip only when ENABLE_LOCAL_RELEASE_PLANNING.
     assert.match(panel, /ENABLE_LOCAL_RELEASE_PLANNING && planner\.upNext\.status === "OPEN"/);
     assert.match(panel, /ENABLE_LOCAL_RELEASE_PLANNING && dialog\.kind === "add"/);

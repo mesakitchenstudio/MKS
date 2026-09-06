@@ -209,6 +209,7 @@ describe("youtube release planner", () => {
           thumbnailUrl: "",
           scheduledPublishAt: new Date("2026-09-11T12:00:00.000Z"),
           publishedAt: null,
+          privacyStatus: "private",
         },
       ],
     });
@@ -295,6 +296,7 @@ describe("youtube release planner", () => {
           thumbnailUrl: "",
           scheduledPublishAt: new Date("2026-09-11T12:00:00.000Z"),
           publishedAt: null,
+          privacyStatus: "private",
           videoType: "SHORT",
         },
         {
@@ -303,6 +305,7 @@ describe("youtube release planner", () => {
           thumbnailUrl: "",
           scheduledPublishAt: null,
           publishedAt: new Date("2026-09-01T12:00:00.000Z"),
+          privacyStatus: "public",
           videoType: "LONG",
         },
       ],
@@ -342,6 +345,7 @@ describe("youtube release planner", () => {
           thumbnailUrl: "",
           scheduledPublishAt: new Date("2026-09-11T12:00:00.000Z"),
           publishedAt: null,
+          privacyStatus: "private",
           videoType: "SHORT",
         },
         {
@@ -350,10 +354,22 @@ describe("youtube release planner", () => {
           thumbnailUrl: "",
           scheduledPublishAt: null,
           publishedAt: new Date("2026-09-01T12:00:00.000Z"),
+          privacyStatus: "public",
+          videoType: "LONG",
+        },
+        {
+          videoId: "ytPrivate01",
+          title: "Sandy Eggplant 2026 01 27",
+          thumbnailUrl: "",
+          scheduledPublishAt: null,
+          publishedAt: new Date("2026-01-27T12:00:00.000Z"),
+          privacyStatus: "private",
           videoType: "LONG",
         },
       ],
     });
+
+    assert.equal(merged.some((r) => r.youtubeVideoId === "ytPrivate01"), false);
 
     const archive = filterYoutubeArchiveRows(merged);
     assert.equal(archive.every((r) => r.source === "youtube"), true);
@@ -367,6 +383,63 @@ describe("youtube release planner", () => {
 
     const upNext = selectPlannerUpNext(archive, now);
     assert.equal(upNext?.youtubeVideoId, "ytSched001");
+  });
+
+  it("month counts and Up Next exclude private/unlisted unscheduled uploads", () => {
+    const now = new Date("2026-09-06T12:00:00.000Z");
+    const rows = mergePlannerRows({
+      now,
+      openSlots: [],
+      localReleases: [],
+      youtubeVideos: [
+        {
+          videoId: "pubFeb00001",
+          title: "Public Feb",
+          thumbnailUrl: "",
+          scheduledPublishAt: null,
+          publishedAt: new Date("2026-02-10T12:00:00.000Z"),
+          privacyStatus: "public",
+        },
+        {
+          videoId: "privFeb0001",
+          title: "Sandy Eggplant 2026 01 27",
+          thumbnailUrl: "",
+          scheduledPublishAt: null,
+          publishedAt: new Date("2026-02-15T12:00:00.000Z"),
+          privacyStatus: "private",
+        },
+        {
+          videoId: "unlistFeb01",
+          title: "Unlisted upload",
+          thumbnailUrl: "",
+          scheduledPublishAt: null,
+          publishedAt: new Date("2026-02-20T12:00:00.000Z"),
+          privacyStatus: "unlisted",
+        },
+        {
+          videoId: "schedSep001",
+          title: "Future schedule",
+          thumbnailUrl: "",
+          scheduledPublishAt: new Date("2026-09-18T12:00:00.000Z"),
+          publishedAt: new Date("2026-02-01T12:00:00.000Z"),
+          privacyStatus: "private",
+        },
+        {
+          videoId: "pastSched01",
+          title: "Private past publishAt",
+          thumbnailUrl: "",
+          scheduledPublishAt: new Date("2026-02-01T12:00:00.000Z"),
+          publishedAt: new Date("2026-02-01T12:00:00.000Z"),
+          privacyStatus: "private",
+        },
+      ],
+    });
+
+    assert.equal(rows.length, 2);
+    assert.equal(rows.filter((r) => r.monthKey === "2026-02").length, 1);
+    assert.equal(rows.filter((r) => r.status === "PUBLISHED").length, 1);
+    assert.equal(rows.filter((r) => r.status === "SCHEDULED").length, 1);
+    assert.equal(selectPlannerUpNext(rows, now)?.youtubeVideoId, "schedSep001");
   });
 
   it("buildArchiveMonthJumper extends earlier when occupied months exist", () => {

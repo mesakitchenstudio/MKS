@@ -76,6 +76,57 @@ export function scheduledVideoStatusLabel(input: {
   return "Unavailable";
 }
 
+export type YoutubeCalendarClassification = {
+  status: "PUBLISHED" | "SCHEDULED";
+  releaseAt: Date;
+};
+
+/**
+ * Authoritative Schedule calendar classification from YouTube status fields.
+ * Does NOT treat snippet.publishedAt alone as “Published”.
+ *
+ * - public → Published (releaseAt = publishedAt when valid)
+ * - private + future publishAt → Scheduled
+ * - private/unlisted unscheduled, failed uploads, private+past publishAt → excluded
+ */
+export function classifyYoutubeCalendarEntry(input: {
+  privacyStatus?: string | null;
+  uploadStatus?: string | null;
+  scheduledPublishAt?: Date | string | null;
+  publishedAt?: Date | string | null;
+  now?: Date;
+}): YoutubeCalendarClassification | null {
+  const now = input.now ?? new Date();
+  const upload = String(input.uploadStatus || "").trim().toLowerCase();
+  if (upload === "rejected" || upload === "failed" || upload === "deleted") {
+    return null;
+  }
+
+  const privacy = String(input.privacyStatus || "").trim().toLowerCase();
+
+  if (privacy === "public") {
+    const publishedAt = toValidDate(input.publishedAt);
+    if (publishedAt) return { status: "PUBLISHED", releaseAt: publishedAt };
+    // Public without a usable publishedAt is rare; still calendar-visible using now.
+    return { status: "PUBLISHED", releaseAt: now };
+  }
+
+  if (privacy === "private" && isFutureScheduledPublishAt(input.scheduledPublishAt, now)) {
+    const scheduledAt = toValidDate(input.scheduledPublishAt);
+    if (!scheduledAt) return null;
+    return { status: "SCHEDULED", releaseAt: scheduledAt };
+  }
+
+  // private unscheduled, private+past publishAt, unlisted, unknown → not on calendar
+  return null;
+}
+
+function toValidDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Split UTC scheduled time for editorial layout (GMT + Europe/Istanbul). */
 export function formatScheduledPublishParts(
   value: Date | string | null | undefined,
