@@ -67,7 +67,7 @@ export function AdminShell({
         const response = await fetch("/api/admin/me", { cache: "no-store" });
         if (cancelled) return;
         if (response.status === 401) {
-          window.location.href = "/admin/login";
+          window.location.href = "/admin/login?reason=session-revoked";
           return;
         }
         if (!response.ok) return;

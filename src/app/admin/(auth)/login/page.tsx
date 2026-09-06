@@ -4,7 +4,6 @@ import { loginAction } from "@/app/admin/actions";
 import { AdminGoogleSignIn } from "@/components/admin/AdminGoogleSignIn";
 import { AuthOrDivider } from "@/components/auth/GoogleAuthButton";
 import { homeForRole } from "@/lib/admin-access";
-import { resolvePublicStaffForAdmin } from "@/lib/admin-bridge";
 import { getAdminSession } from "@/lib/auth";
 import {
   authFocusRing,
@@ -18,6 +17,9 @@ function loginErrorMessage(error?: string) {
   if (error === "locked") return "Too many attempts. Try again in 15 minutes.";
   if (error === "google") return "Google sign-in did not finish. Try again.";
   if (error === "not-admin") return "";
+  if (error === "session-revoked") {
+    return "Your Studio session has ended. Sign in again to continue.";
+  }
   if (error) return "That email or password did not match.";
   return "";
 }
@@ -25,20 +27,15 @@ function loginErrorMessage(error?: string) {
 export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; reset?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string; reason?: string }>;
 }) {
   const admin = await getAdminSession();
   if (admin) redirect(homeForRole(admin.role));
 
-  const { error, reset } = await searchParams;
-  // Never mint admin cookies from this RSC — Route Handler sets the session cookie.
-  const resolved = await resolvePublicStaffForAdmin();
-  if (resolved.status === "authorized") {
-    redirect("/admin/session");
-  }
-
-  const denied = resolved.status === "unauthorized" || error === "not-admin";
-  const errorMessage = loginErrorMessage(error);
+  const { error, reset, reason } = await searchParams;
+  // Do NOT auto-bridge from a public member session — that resurrects revoked AdminSessions.
+  const denied = error === "not-admin";
+  const errorMessage = loginErrorMessage(error || (reason === "session-revoked" ? "session-revoked" : undefined));
 
   return (
     <div className="w-full max-w-[28.125rem] rounded-sm border border-line bg-paper p-5 md:p-8">
@@ -78,7 +75,18 @@ export default async function AdminLoginPage({
           Password updated. Sign in with your new password.
         </p>
       ) : null}
-      {errorMessage ? <p className="mt-4 text-sm leading-6 text-terracotta">{errorMessage}</p> : null}
+      {errorMessage ? (
+        <p
+          role="status"
+          className={`mt-4 text-sm leading-6 ${
+            error === "session-revoked" || reason === "session-revoked"
+              ? "text-muted"
+              : "text-terracotta"
+          }`}
+        >
+          {errorMessage}
+        </p>
+      ) : null}
 
       <form action={loginAction} className={`${denied ? "mt-6" : "mt-9"} grid gap-6`}>
         <label className={authLabelClass}>

@@ -145,7 +145,7 @@ export async function persistAdminLastSeen(admin: Omit<AdminSession, "exp" | "si
   }
 }
 
-/** Mint a new registry row and set the admin cookie (login / bridge). */
+/** Mint a new registry row and set the admin cookie (explicit admin login only). */
 export async function writeAdminSession(admin: Omit<AdminSession, "exp" | "sid">) {
   const requestHeaders = await headers().catch(() => null);
   const row = await createAdminAuthSession({

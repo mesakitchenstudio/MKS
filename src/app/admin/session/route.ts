@@ -3,6 +3,7 @@ import { resolvePublicStaffForAdmin } from "@/lib/admin-bridge";
 import { homeForRole } from "@/lib/admin-access";
 import { syncStaffGooglePhoto } from "@/lib/accounts";
 import { createAdminAuthSession } from "@/lib/admin-auth-sessions";
+import { ADMIN_GOOGLE_SESSION_SOURCE } from "@/lib/admin-google-session";
 import {
   ADMIN_COOKIE,
   adminCookieOptions,
@@ -13,15 +14,23 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * Bridge an existing public NextAuth session into a Studio admin session when
- * the authenticated identity has Team Access. Used after Google admin OAuth
- * and when a staff member opens Studio admin from the public site.
+ * Complete an EXPLICIT Admin Google authentication.
+ *
+ * Requires `?source=google-admin` (set by the Admin login Google button).
+ * A public member session alone must never mint AdminSession here — that would
+ * defeat Owner revoke-all.
  */
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const source = url.searchParams.get("source");
+  if (source !== ADMIN_GOOGLE_SESSION_SOURCE) {
+    return NextResponse.redirect(new URL("/admin/login", request.url));
+  }
+
   const resolved = await resolvePublicStaffForAdmin();
 
   if (resolved.status === "unauthenticated") {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    return NextResponse.redirect(new URL("/admin/login?error=google", request.url));
   }
 
   if (resolved.status === "unauthorized") {

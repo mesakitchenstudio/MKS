@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
-import { homeForRole } from "@/lib/admin-access";
-import { getStaffByEmail, syncStaffGooglePhoto } from "@/lib/accounts";
-import { writeAdminSession, type AdminSession } from "@/lib/auth";
+import { getStaffByEmail } from "@/lib/accounts";
+import type { AdminSession } from "@/lib/auth";
 
 export type PublicStaffResolution =
   | { status: "unauthenticated" }
@@ -16,6 +15,10 @@ export type PublicStaffResolution =
 /**
  * Resolve Team Access from the authenticated public (NextAuth) identity only.
  * Never trusts client-supplied email/name.
+ *
+ * This is LOOKUP ONLY — it must never mint AdminSession. Explicit Admin
+ * password or Google login creates sessions; a public member session alone
+ * must not resurrect revoked Studio access.
  */
 export async function resolvePublicStaffForAdmin(): Promise<PublicStaffResolution> {
   const session = await auth();
@@ -36,18 +39,5 @@ export async function resolvePublicStaffForAdmin(): Promise<PublicStaffResolutio
     },
     email,
     image: session?.user?.image,
-  };
-}
-
-/** Open an admin session from a verified public session + Team Access row. */
-export async function bridgePublicSessionToAdmin() {
-  const resolved = await resolvePublicStaffForAdmin();
-  if (resolved.status !== "authorized") return resolved;
-
-  await syncStaffGooglePhoto(resolved.email, resolved.image);
-  await writeAdminSession(resolved.staff);
-  return {
-    status: "bridged" as const,
-    redirectTo: homeForRole(resolved.staff.role),
   };
 }

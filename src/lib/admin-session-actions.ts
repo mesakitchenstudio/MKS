@@ -7,7 +7,7 @@ import {
   revokeAdminAuthSessionByTokenId,
   revokeAdminAuthSessionsForSubject,
 } from "@/lib/admin-auth-sessions";
-import { getAdminSession, requireAccess } from "@/lib/auth";
+import { getAdminSession, requireAccess, rewriteAdminSessionCookie } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 
 function profileSessionsRedirect(query = "") {
@@ -99,6 +99,29 @@ export async function revokeAllSessionsForStaffAction(formData: FormData) {
     "revoked_all_by_owner",
     exceptCurrent,
   );
+
+  // Durable boundary: old cookies with stale sv cannot pass live checks or re-bootstrap.
+  // Fresh explicit login reads the new version and succeeds.
+  if (subjectKey !== "env") {
+    const updated = await getDb().admin.update({
+      where: { id: subjectKey },
+      data: { sessionVersion: { increment: 1 } },
+      select: { sessionVersion: true },
+    });
+    // Keep the Owner's surviving current device aligned with the new version.
+    if (exceptCurrent && actor.sid === exceptCurrent) {
+      await rewriteAdminSessionCookie({
+        id: actor.id,
+        email: actor.email,
+        name: actor.name,
+        role: actor.role,
+        sv: updated.sessionVersion,
+        sid: actor.sid,
+        exp: actor.exp,
+      });
+    }
+  }
+
   revalidatePath("/admin/staff");
   revalidatePath("/admin/profile");
   staffSessionsRedirect("sessionsRevoked=1");

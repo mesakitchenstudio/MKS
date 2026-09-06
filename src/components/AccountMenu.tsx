@@ -146,7 +146,7 @@ export function AccountMenu() {
 
           {data?.staffRole ? (
             <Link
-              href="/admin/session"
+              href="/admin/login"
               role="menuitem"
               className={menuItemClass}
               onClick={() => setOpen(false)}

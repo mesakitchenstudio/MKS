@@ -235,13 +235,30 @@ describe("admin auth session registry", () => {
     assert.equal(first!.sid, legacyAdminSessionTokenId(cookie));
   });
 
-  it("B/K: revoke-all does not bump sessionVersion; fresh login sid differs", async () => {
+  it("B/K: revoke-all + bump sessionVersion; revoked sid cannot bind; fresh login ok", async () => {
     const before = await db.admin.findUniqueOrThrow({ where: { id: adminId } });
     const oldA = await createAdminAuthSession({ adminId });
     const oldB = await createAdminAuthSession({ adminId });
     await revokeAdminAuthSessionsForSubject(adminId, "revoked_all_by_owner");
+    await db.admin.update({
+      where: { id: adminId },
+      data: { sessionVersion: { increment: 1 } },
+    });
     const after = await db.admin.findUniqueOrThrow({ where: { id: adminId } });
-    assert.equal(after.sessionVersion, before.sessionVersion);
+    assert.equal(after.sessionVersion, before.sessionVersion + 1);
+
+    assert.equal(
+      await bindAdminCookieToRegistry({
+        id: adminId,
+        email: `${prefix}editor@example.com`,
+        name: "Session Editor",
+        role: "editor",
+        sv: before.sessionVersion,
+        exp: oldA.expiresAt.getTime(),
+        sid: oldA.sessionTokenId,
+      }),
+      null,
+    );
 
     const fresh = await createAdminAuthSession({ adminId });
     assert.notEqual(fresh.sessionTokenId, oldA.sessionTokenId);
@@ -264,15 +281,123 @@ describe("admin auth session registry", () => {
     );
   });
 
+  it("exact bug: revoke-all does not allow silent public→admin mint; legacy revoked cookie cannot re-bootstrap", async () => {
+    const sessionRoute = read("app/admin/session/route.ts");
+    const login = read("app/admin/(auth)/login/page.tsx");
+    const accountMenu = read("components/AccountMenu.tsx");
+    const shell = read("components/admin/AdminShell.tsx");
+    const bridge = read("lib/admin-bridge.ts");
+    const googleBtn = read("components/admin/AdminGoogleSignIn.tsx");
+
+    assert.doesNotMatch(login, /redirect\("\/admin\/session"\)/);
+    assert.doesNotMatch(login, /resolvePublicStaffForAdmin/);
+    assert.match(login, /session-revoked/);
+    assert.match(accountMenu, /href="\/admin\/login"/);
+    assert.doesNotMatch(accountMenu, /href="\/admin\/session"/);
+    assert.match(shell, /reason=session-revoked/);
+    assert.match(sessionRoute, /ADMIN_GOOGLE_SESSION_SOURCE/);
+    assert.match(sessionRoute, /source !== ADMIN_GOOGLE_SESSION_SOURCE/);
+    assert.match(googleBtn, /source=\$\{ADMIN_GOOGLE_SESSION_SOURCE\}/);
+    assert.doesNotMatch(bridge, /writeAdminSession/);
+    assert.doesNotMatch(bridge, /bridgePublicSessionToAdmin/);
+
+    // Isolate: no leftover active rows from prior cases.
+    await db.adminSession.updateMany({
+      where: { subjectKey: adminId, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: "test_cleanup" },
+    });
+
+    // Registry: after revoke, same legacy cookie must not mint again.
+    const exp = Date.now() + 120_000;
+    const legacyCookie = {
+      id: adminId,
+      email: `${prefix}editor@example.com`,
+      name: "Session Editor",
+      role: "editor" as const,
+      sv: 0,
+      exp,
+    };
+    const boot = await bindAdminCookieToRegistry(legacyCookie);
+    assert.ok(boot);
+    await revokeAdminAuthSessionByTokenId(boot!.sid, "revoked_all_by_owner");
+    assert.equal(await bindAdminCookieToRegistry(legacyCookie), null);
+    assert.equal(
+      await db.adminSession.count({
+        where: { subjectKey: adminId, revokedAt: null },
+      }),
+      0,
+    );
+  });
+
+  it("revoke-one does not bump sessionVersion; other sessions survive", async () => {
+    const before = await db.admin.findUniqueOrThrow({ where: { id: adminId } });
+    const keep = await createAdminAuthSession({ adminId });
+    const drop = await createAdminAuthSession({ adminId });
+    await revokeAdminAuthSessionByTokenId(drop.sessionTokenId, "revoked_by_owner");
+    const after = await db.admin.findUniqueOrThrow({ where: { id: adminId } });
+    assert.equal(after.sessionVersion, before.sessionVersion);
+    assert.ok(
+      await bindAdminCookieToRegistry({
+        id: adminId,
+        email: `${prefix}editor@example.com`,
+        name: "Session Editor",
+        role: "editor",
+        sv: after.sessionVersion,
+        exp: keep.expiresAt.getTime(),
+        sid: keep.sessionTokenId,
+      }),
+    );
+    assert.equal(
+      await bindAdminCookieToRegistry({
+        id: adminId,
+        email: `${prefix}editor@example.com`,
+        name: "Session Editor",
+        role: "editor",
+        sv: after.sessionVersion,
+        exp: drop.expiresAt.getTime(),
+        sid: drop.sessionTokenId,
+      }),
+      null,
+    );
+  });
+
+  it("staff deletion removes sessions; cookie cannot resurrect", async () => {
+    const doomed = await db.admin.create({
+      data: {
+        email: `${prefix}doomed@example.com`,
+        name: "Doomed Editor",
+        passwordHash: hashPassword("password-long-enough"),
+        role: "editor",
+      },
+    });
+    const row = await createAdminAuthSession({ adminId: doomed.id });
+    await db.admin.delete({ where: { id: doomed.id } });
+    const gone = await db.adminSession.findUnique({ where: { sessionTokenId: row.sessionTokenId } });
+    assert.equal(gone, null);
+    assert.equal(
+      await bindAdminCookieToRegistry({
+        id: doomed.id,
+        email: `${prefix}doomed@example.com`,
+        name: "Doomed Editor",
+        role: "editor",
+        sv: 0,
+        exp: row.expiresAt.getTime(),
+        sid: row.sessionTokenId,
+      }),
+      null,
+    );
+  });
+
   it("live cookie check rejects revoked and missing staff", async () => {
     const { isLiveAdminCookieSession } = await import("./admin-auth-sessions.ts");
+    const admin = await db.admin.findUniqueOrThrow({ where: { id: adminId } });
     const row = await createAdminAuthSession({ adminId });
     const liveCookie = {
       id: adminId,
       email: `${prefix}editor@example.com`,
       name: "Session Editor",
       role: "editor" as const,
-      sv: 0,
+      sv: admin.sessionVersion,
       exp: row.expiresAt.getTime(),
       sid: row.sessionTokenId,
     };
@@ -291,6 +416,7 @@ describe("admin auth session registry", () => {
     const logout = read("app/admin/logout/route.ts");
     const me = read("app/api/admin/me/route.ts");
     const login = read("app/admin/(auth)/login/page.tsx");
+    const sessionRoute = read("app/admin/session/route.ts");
     const proxySrc = read("proxy.ts");
     const schema = readFileSync(path.join(root, "..", "..", "prisma", "schema.prisma"), "utf8");
 
@@ -309,11 +435,13 @@ describe("admin auth session registry", () => {
     assert.match(staff, /revokeStaffAdminSessionAction/);
     assert.match(actions, /requireAccess\("staff"\)/);
     assert.match(actions, /subjectKey !== adminSessionSubjectKey\(actor\.id\)/);
-    assert.doesNotMatch(actions, /sessionVersion/);
+    assert.match(actions, /sessionVersion:\s*\{\s*increment:\s*1\s*\}/);
     assert.match(logout, /revokeAdminAuthSessionByTokenId/);
     assert.match(me, /rewriteAdminSessionCookie/);
-    assert.match(login, /redirect\("\/admin\/session"\)/);
+    assert.doesNotMatch(me, /\bcreateAdminAuthSession\b|\bwriteAdminSession\b/);
+    assert.doesNotMatch(login, /redirect\("\/admin\/session"\)/);
     assert.doesNotMatch(login, /bridgePublicSessionToAdmin/);
+    assert.match(sessionRoute, /ADMIN_GOOGLE_SESSION_SOURCE/);
     assert.match(proxySrc, /hasLiveAdminSessionFromRequest/);
     assert.match(proxySrc, /staleAdminCookie/);
     assert.doesNotMatch(actions, /Trusted Device|TRUSTED DEVICE/);
