@@ -603,14 +603,19 @@ export function YoutubeSchedulePanel({ planner, canSync, canManageAnalytics }: P
   }, [pendingScrollMonth, displayMonths]);
 
   function refresh() {
+    if (pending) return;
     setLocalError("");
     startTransition(async () => {
-      const result = await syncYoutubeAction();
-      if (!result.ok) {
-        setLocalError(result.error || "We couldn't load the YouTube schedule.");
-        return;
+      try {
+        const result = await syncYoutubeAction();
+        if (!result.ok) {
+          setLocalError(result.error || "YouTube refresh failed. Please try again.");
+          return;
+        }
+        router.refresh();
+      } catch {
+        setLocalError("YouTube refresh failed. Please try again.");
       }
-      router.refresh();
     });
   }
 

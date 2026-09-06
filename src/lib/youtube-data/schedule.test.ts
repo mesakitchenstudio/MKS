@@ -193,6 +193,27 @@ describe("youtube schedule access and wiring", () => {
     assert.doesNotMatch(page, /loadYoutubeScheduleDashboard/);
   });
 
+  it("youtube-release-actions use server module exports only async functions", () => {
+    const actions = read("app/admin/youtube-release-actions.ts");
+    assert.match(actions, /^"use server";/m);
+    // Non-async value exports crash Schedule server-action POSTs with:
+    // A "use server" file can only export async functions, found object.
+    assert.doesNotMatch(actions, /^export const\s+/m);
+    assert.doesNotMatch(actions, /youtubeReleaseActionHelpers/);
+    assert.match(actions, /export async function createYoutubeReleaseAction/);
+    assert.match(actions, /export async function skipYoutubeSlotAction/);
+  });
+
+  it("syncYoutubeAction catches recoverable failures without crashing the route", () => {
+    const actions = read("app/admin/actions.ts");
+    const panel = read("components/admin/YoutubeSchedulePanel.tsx");
+    assert.match(actions, /export async function syncYoutubeAction/);
+    assert.match(actions, /YouTube refresh failed\. Please try again\./);
+    assert.match(actions, /NEXT_REDIRECT/);
+    assert.match(panel, /if \(pending\) return/);
+    assert.match(panel, /YouTube refresh failed\. Please try again\./);
+  });
+
   it("sync stores publishAt via OAuth extension and clears stale schedules", () => {
     const sync = read("lib/youtube-data/sync.ts");
     const scheduled = read("lib/youtube-data/scheduled-sync.ts");

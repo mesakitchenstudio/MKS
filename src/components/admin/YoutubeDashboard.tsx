@@ -323,17 +323,22 @@ export function YoutubeDashboard({
   }
 
   function onSync() {
+    if (pending) return;
     setSyncMessage("");
     setSyncError("");
     startTransition(async () => {
-      const result = await syncYoutubeAction();
-      if (result.ok) {
-        setSyncMessage(
-          `Refreshed ${result.videosSynced} videos${result.snapshotCreated ? " and recorded a snapshot" : ""}. Recipe content was not changed.`,
-        );
-        router.refresh();
-      } else {
-        setSyncError(result.error || "YouTube sync failed.");
+      try {
+        const result = await syncYoutubeAction();
+        if (result.ok) {
+          setSyncMessage(
+            `Refreshed ${result.videosSynced} videos${result.snapshotCreated ? " and recorded a snapshot" : ""}. Recipe content was not changed.`,
+          );
+          router.refresh();
+        } else {
+          setSyncError(result.error || "YouTube refresh failed. Please try again.");
+        }
+      } catch {
+        setSyncError("YouTube refresh failed. Please try again.");
       }
     });
   }

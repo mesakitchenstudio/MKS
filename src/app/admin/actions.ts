@@ -1015,14 +1015,42 @@ export async function replyToReviewAction(formData: FormData) {
 }
 
 export async function syncYoutubeAction() {
-  const admin = await requireAccess("youtube");
-  if (!canManageYoutubeSync(admin.role)) {
-    return { ok: false as const, videosSynced: 0, snapshotCreated: false, error: "Only owners can sync YouTube." };
-  }
+  try {
+    const admin = await requireAccess("youtube");
+    if (!canManageYoutubeSync(admin.role)) {
+      return {
+        ok: false as const,
+        videosSynced: 0,
+        snapshotCreated: false,
+        error: "Only owners can sync YouTube.",
+      };
+    }
 
-  const result = await syncYoutubeChannel({ forceSnapshot: true });
-  revalidatePath("/admin/youtube");
-  return result;
+    const result = await syncYoutubeChannel({ forceSnapshot: true });
+    revalidatePath("/admin/youtube");
+    return result;
+  } catch (error) {
+    // Preserve Next.js control-flow exceptions (redirect / notFound).
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string" &&
+      (String((error as { digest: string }).digest).startsWith("NEXT_REDIRECT") ||
+        String((error as { digest: string }).digest).startsWith("NEXT_NOT_FOUND"))
+    ) {
+      throw error;
+    }
+
+    console.error("YouTube sync action failed", error);
+    return {
+      ok: false as const,
+      videosSynced: 0,
+      snapshotCreated: false,
+      error: "YouTube refresh failed. Please try again.",
+      errorCode: "api_error",
+    };
+  }
 }
 
 export async function disconnectYoutubeAnalyticsAction() {

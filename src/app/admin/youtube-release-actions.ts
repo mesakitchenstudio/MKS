@@ -11,7 +11,6 @@ import {
   type ReleaseVideoType,
 } from "@/lib/youtube-data/release-cadence";
 import {
-  formatIstanbulParts,
   zonedLocalToUtc,
   type ReleaseStatus,
 } from "@/lib/youtube-data/release-planner";
@@ -272,9 +271,3 @@ export async function updateYoutubeReleaseCadenceAction(
   revalidateYoutube();
   return { ok: true, cadence };
 }
-
-/** Helpers for Schedule planner UI / tests. */
-export const youtubeReleaseActionHelpers = {
-  formatIstanbulParts,
-  slotReleaseAt,
-};
