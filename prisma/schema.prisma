@@ -404,9 +404,35 @@ model YouTubeVideo {
   lastSyncedAt    DateTime?
   snapshots       YouTubeVideoSnapshot[]
   seriesItems     SeriesItem[]
+  releases        YouTubeRelease[]
 
   @@index([channelId, publishedAt])
   @@index([scheduledPublishAt])
+}
+
+/// Local publishing planner row (backlog / planned / skipped / linked). Open cadence slots are projected in memory, not stored.
+model YouTubeRelease {
+  id             String    @id @default(cuid())
+  /// BACKLOG | PLANNED | SCHEDULED | PUBLISHED | SKIPPED
+  status         String
+  workingTitle   String    @default("")
+  /// LONG | SHORT | SPECIAL
+  videoType      String    @default("LONG")
+  releaseAt      DateTime?
+  timezone       String    @default("Europe/Istanbul")
+  youtubeVideoId String?
+  youtubeVideo   YouTubeVideo? @relation(fields: [youtubeVideoId], references: [videoId], onDelete: SetNull)
+  notes          String    @default("")
+  skipReason     String    @default("")
+  /// Stable Istanbul date key for skipped/assigned cadence slots (e.g. "2026-09-25").
+  slotKey        String    @default("")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([releaseAt])
+  @@index([status])
+  @@index([youtubeVideoId])
+  @@index([slotKey])
 }
 
 /// Mesa cooking series — custom collections or imported YouTube playlists.

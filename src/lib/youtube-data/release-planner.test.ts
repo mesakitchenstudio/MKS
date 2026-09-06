@@ -1,0 +1,257 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { DEFAULT_CADENCE, PLANNER_START_DATE } from "./release-cadence.ts";
+import {
+  RELEASE_ATTENTION_GRACE_MS,
+  buildMonthJumper,
+  deriveAttention,
+  formatIstanbulParts,
+  isThisWeekIstanbul,
+  mergePlannerRows,
+  projectCadenceSlots,
+  selectPlannerUpNext,
+  zonedLocalToUtc,
+} from "./release-planner.ts";
+
+describe("youtube release planner", () => {
+  it("month jumper starts Sep 2026 (no Jan–Aug 2026)", () => {
+    const jumper = buildMonthJumper(new Date("2026-09-06T12:00:00.000Z"));
+    assert.equal(jumper[0]?.year, 2026);
+    assert.deepEqual(
+      jumper[0]?.months.map((m) => m.month),
+      [9, 10, 11, 12],
+    );
+    assert.equal(
+      jumper[0]?.months.some((m) => m.month < 9),
+      false,
+    );
+
+    const later = buildMonthJumper(new Date("2027-03-15T12:00:00.000Z"));
+    const y2027 = later.find((y) => y.year === 2027);
+    assert.ok(y2027);
+    assert.deepEqual(
+      y2027.months.map((m) => m.month),
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    );
+    assert.equal(y2027.months.find((m) => m.month === 3)?.isCurrent, true);
+  });
+
+  it("projects Friday 15:00 Istanbul slots from Sep 2026", () => {
+    // Saturday 2026-09-05 12:00 UTC = 15:00 Istanbul — still before first Friday after start.
+    const now = new Date("2026-09-05T12:00:00.000Z");
+    const slots = projectCadenceSlots({
+      cadence: DEFAULT_CADENCE,
+      from: now,
+      weeksAhead: 12,
+      now,
+    });
+
+    assert.ok(slots.length > 0);
+    assert.equal(slots[0]?.slotKey, "2026-09-11");
+    assert.equal(slots[0]?.timeLabel, "15:00");
+    assert.equal(slots[0]?.weekdayShort, "Fri");
+    // 15:00 Istanbul = 12:00 UTC
+    assert.equal(slots[0]?.releaseAt.toISOString(), "2026-09-11T12:00:00.000Z");
+
+    for (const slot of slots) {
+      assert.ok(slot.dateKey >= PLANNER_START_DATE.slice(0, 10));
+      assert.ok(!slot.dateKey.startsWith("2026-0") || slot.dateKey >= "2026-09-01");
+      assert.match(slot.dateKey, /^2026-(09|10|11|12)-/);
+    }
+  });
+
+  it("bounds projection to ~12 weeks and skips pre-September 2026", () => {
+    const now = new Date("2026-09-06T12:00:00.000Z");
+    const slots = projectCadenceSlots({
+      cadence: DEFAULT_CADENCE,
+      from: now,
+      weeksAhead: 12,
+      now,
+    });
+
+    const horizon = now.getTime() + 12 * 7 * 24 * 60 * 60 * 1000;
+    for (const slot of slots) {
+      assert.ok(slot.releaseAt.getTime() <= horizon);
+    }
+
+    // Even if "now" were earlier in 2026, planner floor is Sep 2026.
+    const early = projectCadenceSlots({
+      cadence: DEFAULT_CADENCE,
+      from: new Date("2026-06-01T12:00:00.000Z"),
+      weeksAhead: 20,
+      now: new Date("2026-06-01T12:00:00.000Z"),
+    });
+    assert.ok(early.every((s) => s.dateKey >= "2026-09-01"));
+    assert.equal(early[0]?.slotKey, "2026-09-04");
+  });
+
+  it("grace period attention waits 2 hours past releaseAt", () => {
+    const releaseAt = new Date("2026-09-11T12:00:00.000Z");
+    assert.equal(
+      deriveAttention({
+        releaseAt,
+        status: "PLANNED",
+        now: new Date(releaseAt.getTime() + RELEASE_ATTENTION_GRACE_MS - 1),
+      }).needsAttention,
+      false,
+    );
+    assert.equal(
+      deriveAttention({
+        releaseAt,
+        status: "OPEN",
+        now: new Date(releaseAt.getTime() + RELEASE_ATTENTION_GRACE_MS + 1),
+      }).needsAttention,
+      true,
+    );
+    assert.equal(
+      deriveAttention({
+        releaseAt,
+        status: "PUBLISHED",
+        now: new Date(releaseAt.getTime() + RELEASE_ATTENTION_GRACE_MS + 1),
+      }).needsAttention,
+      false,
+    );
+    assert.equal(
+      deriveAttention({
+        releaseAt,
+        status: "SKIPPED",
+        now: new Date(releaseAt.getTime() + RELEASE_ATTENTION_GRACE_MS + 1),
+      }).needsAttention,
+      false,
+    );
+  });
+
+  it("formats Istanbul parts for labels and keys", () => {
+    // 12:00 UTC = 15:00 Istanbul
+    const parts = formatIstanbulParts(new Date("2026-09-11T12:00:00.000Z"));
+    assert.equal(parts.weekdayShort, "Fri");
+    assert.equal(parts.day, 11);
+    assert.equal(parts.monthShort, "Sep");
+    assert.equal(parts.year, 2026);
+    assert.equal(parts.time24, "15:00");
+    assert.equal(parts.monthKey, "2026-09");
+    assert.equal(parts.dateKey, "2026-09-11");
+    assert.equal(parts.label, "Fri 11 · Sep");
+    assert.equal(parts.timeLabel, "15:00");
+  });
+
+  it("supports multiple same-day rows while filling open Friday slots", () => {
+    const friday = zonedLocalToUtc({
+      year: 2026,
+      month: 9,
+      day: 11,
+      hour: 15,
+      minute: 0,
+    });
+    const openSlots = projectCadenceSlots({
+      cadence: DEFAULT_CADENCE,
+      from: new Date("2026-09-06T12:00:00.000Z"),
+      weeksAhead: 2,
+      now: new Date("2026-09-06T12:00:00.000Z"),
+    });
+
+    const rows = mergePlannerRows({
+      now: new Date("2026-09-06T12:00:00.000Z"),
+      openSlots,
+      localReleases: [
+        {
+          id: "short-1",
+          status: "PLANNED",
+          workingTitle: "Quick tip short",
+          videoType: "SHORT",
+          releaseAt: friday,
+          slotKey: "2026-09-11",
+          notes: "",
+          skipReason: "",
+          youtubeVideoId: null,
+        },
+        {
+          id: "long-1",
+          status: "PLANNED",
+          workingTitle: "Friday long-form",
+          videoType: "LONG",
+          releaseAt: friday,
+          slotKey: "2026-09-11",
+          notes: "",
+          skipReason: "",
+          youtubeVideoId: null,
+        },
+      ],
+      youtubeVideos: [],
+    });
+
+    const dayRows = rows.filter((r) => r.dateKey === "2026-09-11");
+    assert.equal(dayRows.length, 2);
+    assert.equal(
+      dayRows.every((r) => r.source === "local"),
+      true,
+    );
+    assert.equal(
+      rows.some((r) => r.source === "open" && r.slotKey === "2026-09-11"),
+      false,
+    );
+  });
+
+  it("YouTube scheduled video fills the matching Istanbul Friday open slot", () => {
+    const now = new Date("2026-09-06T12:00:00.000Z");
+    const openSlots = projectCadenceSlots({ cadence: DEFAULT_CADENCE, from: now, weeksAhead: 4, now });
+    const rows = mergePlannerRows({
+      now,
+      openSlots,
+      localReleases: [],
+      youtubeVideos: [
+        {
+          videoId: "abc123XYZ01",
+          title: "Scheduled upload",
+          thumbnailUrl: "",
+          scheduledPublishAt: new Date("2026-09-11T12:00:00.000Z"),
+          publishedAt: null,
+        },
+      ],
+    });
+
+    assert.equal(
+      rows.some((r) => r.source === "open" && r.slotKey === "2026-09-11"),
+      false,
+    );
+    assert.equal(
+      rows.some((r) => r.source === "youtube" && r.youtubeVideoId === "abc123XYZ01"),
+      true,
+    );
+  });
+
+  it("up next prefers concrete releases over open slots", () => {
+    const now = new Date("2026-09-06T12:00:00.000Z");
+    const openSlots = projectCadenceSlots({ cadence: DEFAULT_CADENCE, from: now, weeksAhead: 4, now });
+    const rows = mergePlannerRows({
+      now,
+      openSlots,
+      localReleases: [
+        {
+          id: "later",
+          status: "PLANNED",
+          workingTitle: "Later planned",
+          videoType: "LONG",
+          releaseAt: new Date("2026-09-25T12:00:00.000Z"),
+          slotKey: "2026-09-25",
+          notes: "",
+          skipReason: "",
+          youtubeVideoId: null,
+        },
+      ],
+      youtubeVideos: [],
+    });
+
+    const upNext = selectPlannerUpNext(rows, now);
+    assert.ok(upNext);
+    assert.equal(upNext.source, "local");
+    assert.equal(upNext.workingTitle, "Later planned");
+  });
+
+  it("isThisWeekIstanbul uses Europe/Istanbul week bounds", () => {
+    const now = new Date("2026-09-09T12:00:00.000Z"); // Wed
+    assert.equal(isThisWeekIstanbul(new Date("2026-09-07T12:00:00.000Z"), now), true); // Mon
+    assert.equal(isThisWeekIstanbul(new Date("2026-09-13T12:00:00.000Z"), now), true); // Sun
+    assert.equal(isThisWeekIstanbul(new Date("2026-09-14T12:00:00.000Z"), now), false); // next Mon
+  });
+});

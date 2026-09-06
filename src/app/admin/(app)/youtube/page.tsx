@@ -13,7 +13,7 @@ import {
 } from "@/lib/admin-transient-feedback";
 import { adminFocusRing } from "@/lib/admin-ui";
 import { loadYoutubeAdminDashboard } from "@/lib/youtube-data/dashboard";
-import { loadYoutubeScheduleDashboard } from "@/lib/youtube-data/schedule-load";
+import { loadYoutubeReleasePlanner } from "@/lib/youtube-data/release-planner-load";
 import {
   parseYoutubeDashboardFilter,
   youtubeDashboardFilterQueryValue,
@@ -63,7 +63,7 @@ export default async function AdminYoutubePage({
     redirect(`/admin/youtube?${qs.toString()}`);
   }
 
-  const [dashboard, recipeTypes, funnel, schedule, importedSeriesCount] = await Promise.all([
+  const [dashboard, recipeTypes, funnel, planner, importedSeriesCount] = await Promise.all([
     view === "channel"
       ? loadYoutubeAdminDashboard({ analyticsRangeDays: rangeDays })
       : Promise.resolve(null),
@@ -77,7 +77,7 @@ export default async function AdminYoutubePage({
           includeEditorTracking: admin.role === "editor",
         })
       : null,
-    view === "schedule" ? loadYoutubeScheduleDashboard() : null,
+    view === "schedule" ? loadYoutubeReleasePlanner() : null,
     canCreateRecipes
       ? db.series.count({ where: { youtubePlaylistId: { not: "" } } })
       : Promise.resolve(0),
@@ -160,9 +160,9 @@ export default async function AdminYoutubePage({
 
       {view === "funnel" && funnel ? (
         <YoutubeFunnelPanel funnel={funnel} filterQuery={filterQuery || undefined} />
-      ) : view === "schedule" && schedule ? (
+      ) : view === "schedule" && planner ? (
         <YoutubeSchedulePanel
-          schedule={schedule}
+          planner={planner}
           canSync={canManageYoutubeSync(admin.role)}
           canManageAnalytics={canManageYoutubeAnalytics(admin.role)}
         />

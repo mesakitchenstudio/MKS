@@ -167,20 +167,30 @@ describe("youtube schedule access and wiring", () => {
   it("M/L: schedule panel distinguishes empty vs error and Refresh YouTube", () => {
     const panel = read("components/admin/YoutubeSchedulePanel.tsx");
     const dashboard = read("components/admin/YoutubeDashboard.tsx");
-    assert.match(panel, /No upcoming videos are currently scheduled/);
+    assert.match(panel, /No releases on the calendar yet/);
     assert.match(panel, /We couldn&apos;t load the YouTube schedule/);
     assert.match(panel, /showHardError/);
     assert.match(panel, /[Cc]onnect YouTube Analytics/);
-    assert.match(panel, /<ul className="list-none"/);
-    assert.match(panel, /Next up/);
-    assert.match(panel, /Upcoming/);
-    assert.match(panel, /Times in GMT/);
-    assert.match(panel, /Istanbul/);
+    assert.match(panel, /YouTube Schedule/);
+    assert.match(panel, /Up Next/);
+    assert.match(panel, /Needs Attention/);
+    assert.match(panel, /Times in Istanbul \(UTC\+3\)/);
     assert.match(panel, /Refresh YouTube/);
+    assert.match(panel, /\+ Add release/);
+    assert.match(panel, /month-\$\{month\.monthKey\}/);
+    assert.match(panel, /syncYoutubeAction/);
+    assert.match(panel, /createYoutubeReleaseAction/);
+    assert.match(panel, /skipYoutubeSlotAction/);
     assert.doesNotMatch(panel, /Refresh Public YouTube/);
     assert.match(dashboard, /Refresh YouTube/);
     assert.doesNotMatch(dashboard, /Refresh Public YouTube/);
-    assert.match(panel, /showYoutubeTitle/);
+  });
+
+  it("schedule page loads release planner into YoutubeSchedulePanel", () => {
+    const page = read("app/admin/(app)/youtube/page.tsx");
+    assert.match(page, /loadYoutubeReleasePlanner/);
+    assert.match(page, /planner=\{planner\}/);
+    assert.doesNotMatch(page, /loadYoutubeScheduleDashboard/);
   });
 
   it("sync stores publishAt via OAuth extension and clears stale schedules", () => {

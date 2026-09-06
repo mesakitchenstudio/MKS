@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 export const SITE_SETTING_KEYS = {
   homepageFeaturedRecipeSlug: "homepage.featuredRecipeSlug",
   homepageFromKitchenRecipeSlugs: "homepage.fromKitchenRecipeSlugs",
+  youtubeReleaseCadence: "youtube.releaseCadence",
 } as const;
 
 export async function getSiteSetting(key: string): Promise<string | null> {

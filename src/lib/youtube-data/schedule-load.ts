@@ -18,6 +18,16 @@ import {
   type YoutubeScheduleDashboard,
 } from "@/lib/youtube-data/schedule";
 
+/** Planner types + loader (Schedule panel uses these; legacy dashboard loader remains below). */
+export type { YoutubeReleasePlannerDashboard } from "@/lib/youtube-data/release-planner-load";
+export { loadYoutubeReleasePlanner } from "@/lib/youtube-data/release-planner-load";
+export type {
+  PlannerStreamRow,
+  PlannerMonthGroup,
+  MonthJumperYear,
+  ProjectedCadenceSlot,
+} from "@/lib/youtube-data/release-planner";
+
 export async function loadYoutubeScheduleDashboard(input?: {
   /** When true, attempt an OAuth schedule refresh before reading the DB. */
   refresh?: boolean;
