@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Recipe } from "@/data/types";
 import { RecipeGridCard } from "@/components/RecipeGridCard";
 import { MemberSessionExpiredError } from "@/lib/auth-client";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
 import { removeLike } from "@/lib/likes";
 import { authFocusRing } from "@/lib/auth-ui";
 
@@ -17,9 +18,20 @@ export function ProfileFavorites({
   extras?: { slug: string; title: string }[];
 }) {
   const router = useRouter();
+  const browseRef = useRef<HTMLAnchorElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
   const visible = recipes.filter((recipe) => !hidden.includes(recipe.slug));
   const visibleExtras = extras.filter((item) => !hidden.includes(item.slug));
+  const remaining = visible.length + visibleExtras.length;
+  const startedWithFavorites = recipes.length + extras.length > 0;
+  const remainingLabel =
+    remaining === 1 ? "1 saved recipe" : `${remaining} saved recipes`;
+
+  useEffect(() => {
+    if (startedWithFavorites && remaining === 0) {
+      browseRef.current?.focus();
+    }
+  }, [remaining, startedWithFavorites]);
 
   async function remove(slug: string, title: string) {
     setHidden((current) => [...current, slug]);
@@ -36,60 +48,74 @@ export function ProfileFavorites({
     }
   }
 
-  if (!visible.length && !visibleExtras.length) {
-    return <FavoritesEmptyState />;
-  }
-
   return (
     <>
-      {visible.length ? (
-        <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((recipe) => (
-            <RecipeGridCard
-              key={recipe.slug}
-              recipe={recipe}
-              compact
-              mediaOverlay={
-                <button
-                  type="button"
-                  aria-label={`Remove ${recipe.title} from favorites`}
-                  onClick={() => void remove(recipe.slug, recipe.title)}
-                  className={`group/heart flex h-10 w-10 items-center justify-center rounded-full bg-paper/95 shadow-sm transition-colors hover:bg-terracotta ${authFocusRing}`}
-                >
-                  <HeartIcon />
-                </button>
-              }
-            />
-          ))}
-        </div>
-      ) : null}
-      {visibleExtras.length ? (
-        <ul className="mt-6 space-y-2 text-sm">
-          {visibleExtras.map((save) => (
-            <li key={save.slug} className="flex items-center justify-between gap-3">
-              <Link
-                href={`/recipes/${save.slug}`}
-                className={`font-semibold hover:text-terracotta ${authFocusRing} rounded-sm`}
-              >
-                {save.title}
-              </Link>
-              <button
-                type="button"
-                aria-label={`Remove ${save.title} from favorites`}
-                className={`flex h-8 w-8 items-center justify-center rounded-full hover:bg-sand ${authFocusRing}`}
-                onClick={() => void remove(save.slug, save.title)}
-              >
-                <HeartIcon />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p className="text-sm text-muted">Recipes you save are collected here.</p>
+        {remaining > 0 ? <p className="text-sm text-muted">{remainingLabel}</p> : null}
+      </div>
+
+      {remaining === 0 ? (
+        <FavoritesEmptyState browseRef={browseRef} />
+      ) : (
+        <>
+          {visible.length ? (
+            <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {visible.map((recipe) => {
+                const dishLabel = resolveRecipeCardTitle(recipe);
+                return (
+                  <RecipeGridCard
+                    key={recipe.slug}
+                    recipe={recipe}
+                    compact
+                    mediaOverlay={
+                      <button
+                        type="button"
+                        aria-label={`Remove ${dishLabel} from favorites`}
+                        onClick={() => void remove(recipe.slug, recipe.title)}
+                        className={`group/heart flex h-11 w-11 items-center justify-center rounded-full bg-paper/95 shadow-sm transition-colors hover:bg-terracotta ${authFocusRing}`}
+                      >
+                        <HeartIcon />
+                      </button>
+                    }
+                  />
+                );
+              })}
+            </div>
+          ) : null}
+          {visibleExtras.length ? (
+            <ul className="mt-6 space-y-2 text-sm">
+              {visibleExtras.map((save) => (
+                <li key={save.slug} className="flex items-center justify-between gap-3">
+                  <Link
+                    href={`/recipes/${save.slug}`}
+                    className={`min-w-0 break-words font-semibold hover:text-terracotta ${authFocusRing} rounded-sm`}
+                  >
+                    {save.title}
+                  </Link>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${save.title} from favorites`}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-sand ${authFocusRing}`}
+                    onClick={() => void remove(save.slug, save.title)}
+                  >
+                    <HeartIcon />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      )}
     </>
   );
 }
 
-export function FavoritesEmptyState() {
+export function FavoritesEmptyState({
+  browseRef,
+}: {
+  browseRef?: RefObject<HTMLAnchorElement | null>;
+} = {}) {
   return (
     <div className="mt-6 max-w-md">
       <p className="text-sm font-semibold text-ink">No saved recipes yet.</p>
@@ -97,6 +123,7 @@ export function FavoritesEmptyState() {
         Save recipes you love and they&apos;ll appear here.
       </p>
       <Link
+        ref={browseRef}
         href="/recipes"
         className={`mt-4 inline-block rounded-sm text-sm font-semibold text-terracotta transition-colors hover:text-terracotta-dark ${authFocusRing}`}
       >

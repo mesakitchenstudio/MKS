@@ -8,7 +8,7 @@ import { getAllRecipes } from "@/lib/recipes";
 import { authFocusRing } from "@/lib/auth-ui";
 import { memberIdentityLines, resolveMemberDisplayName } from "@/lib/auth-client";
 import { EmailUpdatesPreference } from "@/components/EmailUpdatesPreference";
-import { FavoritesEmptyState, ProfileFavorites } from "@/components/ProfileFavorites";
+import { ProfileFavorites } from "@/components/ProfileFavorites";
 import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
 
 export const metadata: Metadata = {
@@ -85,9 +85,6 @@ export default async function ProfilePage() {
     .filter((recipe): recipe is NonNullable<typeof recipe> => Boolean(recipe));
   const missing = saves.filter((save) => !recipes.some((recipe) => recipe.slug === save.slug));
   const photoUrl = (user.photoUrl || session.user?.image || "").trim();
-  const savedCount = saves.length;
-  const savedLabel =
-    savedCount === 1 ? "1 saved recipe" : `${savedCount} saved recipes`;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-12">
@@ -111,7 +108,9 @@ export default async function ProfilePage() {
           ) : null}
 
           <div className="min-w-0 flex-1">
-            <h1 className="font-serif text-4xl leading-[1.15] text-ink md:text-5xl">{name}</h1>
+            <h1 className="break-words font-serif text-4xl leading-[1.15] text-ink md:text-5xl">
+              {name}
+            </h1>
             {identity.secondary ? (
               <p className="mt-1.5 break-words text-muted">{identity.secondary}</p>
             ) : null}
@@ -126,18 +125,7 @@ export default async function ProfilePage() {
 
       <section className="mt-7 border-t border-line pt-7 md:mt-8 md:pt-8">
         <h2 className="font-serif text-3xl text-ink">Favorite recipes</h2>
-        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <p className="text-sm text-muted">Recipes you save are collected here.</p>
-          {savedCount > 0 ? (
-            <p className="text-sm text-muted">{savedLabel}</p>
-          ) : null}
-        </div>
-
-        {savedRecipes.length || missing.length ? (
-          <ProfileFavorites recipes={savedRecipes} extras={missing} />
-        ) : (
-          <FavoritesEmptyState />
-        )}
+        <ProfileFavorites recipes={savedRecipes} extras={missing} />
       </section>
 
       <EmailUpdatesPreference initialNotify={newsletterSubscribed} />
