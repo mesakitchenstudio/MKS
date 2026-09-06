@@ -9,11 +9,23 @@ export const PRIVACY_CONSENT_VERSION = 1;
 export const PRIVACY_CONSENT_MAX_AGE = 60 * 60 * 24 * 400;
 /**
  * Document CSS variable set while the first-choice studio note is visible.
- * Value = measured card height + breathing room (px).
- * Applied locally (e.g. Coming Soon Meanwhile margin, public footer padding) —
- * never as overflow-inducing padding on a viewport-locked column.
+ * Value = measured card height + fixed bottom inset + gap above the card (px).
+ * Applied as reserved space BELOW full layout groups (Coming Soon utility block,
+ * public footer) — never by pulling content upward into copy above.
  */
 export const PRIVACY_CONSENT_SAFE_AREA_CSS_VAR = "--mks-privacy-consent-safe";
+/** Matches `sm:bottom-6` / desktop studio-note inset. */
+export const PRIVACY_CONSENT_NOTE_BOTTOM_INSET_PX = 24;
+/** Visible gap between page content (e.g. Coming Soon tagline) and the note. */
+export const PRIVACY_CONSENT_NOTE_CONTENT_GAP_PX = 20;
+
+export function privacyConsentSafeAreaPx(cardHeight: number) {
+  return (
+    Math.ceil(cardHeight) +
+    PRIVACY_CONSENT_NOTE_BOTTOM_INSET_PX +
+    PRIVACY_CONSENT_NOTE_CONTENT_GAP_PX
+  );
+}
 
 export type PrivacyConsentRecord = {
   version: number;

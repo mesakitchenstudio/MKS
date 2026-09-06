@@ -12,6 +12,7 @@ import {
   privacyConsentDecisionsEqual,
   PRIVACY_CONSENT_COOKIE,
   PRIVACY_CONSENT_VERSION,
+  privacyConsentSafeAreaPx,
   readPrivacyConsentFromCookieHeader,
   rejectAllOptionalConsent,
   serializePrivacyConsent,
@@ -67,6 +68,10 @@ describe("privacy consent model", () => {
 
     const encoded = encodeURIComponent(serializePrivacyConsent(accepted));
     assert.equal(isAnalyticsConsentGranted(parsePrivacyConsentValue(encoded)), true);
+  });
+
+  it("reserves card height plus inset and content gap for safe-area", () => {
+    assert.equal(privacyConsentSafeAreaPx(100), 144);
   });
 
   it("uses a stable UNDECIDED constant (root-cause regression)", () => {
@@ -177,7 +182,9 @@ describe("privacy consent wiring", () => {
     assert.match(ui, /border-terracotta/);
     const comingSoon = read("app/coming-soon/page.tsx");
     assert.match(comingSoon, /--mks-privacy-consent-safe/);
-    assert.match(comingSoon, /paddingBottom/);
+    assert.match(comingSoon, /height:\s*["']var\(--mks-privacy-consent-safe/);
+    assert.match(comingSoon, /site\.tagline/);
+    assert.match(ui, /privacyConsentSafeAreaPx/);
     assert.match(comingSoon, /mt-auto/);
     assert.doesNotMatch(comingSoon, /marginBottom/);
     assert.doesNotMatch(comingSoon, /lg:overflow-y-auto/);

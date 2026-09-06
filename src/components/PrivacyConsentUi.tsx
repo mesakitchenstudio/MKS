@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { usePrivacyConsent } from "@/components/PrivacyConsentProvider";
 import { authFocusRing } from "@/lib/auth-ui";
-import { PRIVACY_CONSENT_SAFE_AREA_CSS_VAR } from "@/lib/privacy-consent";
+import { PRIVACY_CONSENT_SAFE_AREA_CSS_VAR, privacyConsentSafeAreaPx } from "@/lib/privacy-consent";
 
 const focusRing = authFocusRing;
 
@@ -79,7 +79,7 @@ function PrivacyConsentBanner({
   const headingId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Publish measured height + breathing room for Coming Soon / footer safe-area.
+  // Publish measured height + bottom inset + content gap for layout safe-area.
   useEffect(() => {
     const card = cardRef.current;
     if (!card || typeof document === "undefined") return;
@@ -90,7 +90,7 @@ function PrivacyConsentBanner({
       const height = card.getBoundingClientRect().height;
       root.style.setProperty(
         PRIVACY_CONSENT_SAFE_AREA_CSS_VAR,
-        `${Math.ceil(height) + 24}px`,
+        `${privacyConsentSafeAreaPx(height)}px`,
       );
     }
 

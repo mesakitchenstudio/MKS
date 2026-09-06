@@ -103,31 +103,35 @@ export default function ComingSoonPage() {
           </div>
 
           {/*
-            Meanwhile stays in normal flex flow (mt-auto pins it near the bottom
-            when space allows). Privacy safe-area is reserved BELOW this block via
-            padding-bottom — never by pulling Meanwhile upward into the copy.
+            Meanwhile / socials / tagline are one utility group in normal flow.
+            A spacer BELOW the whole group reserves room for the fixed privacy
+            note (16–24px visual gap included in --mks-privacy-consent-safe).
           */}
-          <div
-            className="mt-auto pt-10 sm:pt-12"
-            style={{ paddingBottom: "var(--mks-privacy-consent-safe, 0px)" }}
-          >
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-olive">
-              Meanwhile
-            </p>
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
-              {socials.map((item) => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`text-ink/80 underline-offset-4 transition-colors hover:text-terracotta hover:underline ${socialFocus}`}
-                >
-                  {item.label}
-                </a>
-              ))}
+          <div className="mt-auto pt-10 sm:pt-12">
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-olive">
+                Meanwhile
+              </p>
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
+                {socials.map((item) => (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`text-ink/80 underline-offset-4 transition-colors hover:text-terracotta hover:underline ${socialFocus}`}
+                  >
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+              <p className="mt-6 text-sm text-muted">{site.tagline}</p>
             </div>
-            <p className="mt-6 text-sm text-muted">{site.tagline}</p>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none shrink-0"
+              style={{ height: "var(--mks-privacy-consent-safe, 0px)" }}
+            />
           </div>
         </section>
 
