@@ -47,7 +47,7 @@ describe("page title system", () => {
     assert.doesNotMatch(readApp("about/page.tsx"), /About \$\{site\.name\}/);
     assert.match(readApp("videos/page.tsx"), /title:\s*"Videos"/);
     assert.match(readApp("contact/page.tsx"), /title:\s*"Contact"/);
-    assert.match(readApp("privacy/page.tsx"), /title:\s*"Privacy"/);
+    assert.match(readApp("privacy/page.tsx"), /title:\s*"Privacy Policy"/);
     assert.match(readApp("disclosures/page.tsx"), /title:\s*"Disclosures"/);
     assert.match(readApp("profile/page.tsx"), /title:\s*"Profile"/);
     assert.match(readApp("studio/page.tsx"), /title:\s*"Studio"/);

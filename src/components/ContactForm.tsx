@@ -1,11 +1,17 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useId, useState } from "react";
+import {
+  authFocusRing,
+  authInputClass,
+  authLabelClass,
+} from "@/lib/auth-ui";
 
 export function ContactForm() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const errorId = useId();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,51 +44,61 @@ export function ContactForm() {
 
   if (done) {
     return (
-      <p className="border border-line bg-paper p-6 text-sm leading-6 text-olive" role="status">
-        Thank you. We read every note — if we can help, we will write back.
-      </p>
+      <div
+        className="border border-line bg-paper px-5 py-6 text-sm leading-7 text-ink"
+        role="status"
+      >
+        <p className="font-semibold text-ink">Thanks for writing to us.</p>
+        <p className="mt-2 text-muted">We&apos;ll get back to you as soon as we can.</p>
+      </div>
     );
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
-      <label className="grid gap-1 text-sm">
+    <form onSubmit={onSubmit} className="grid gap-5" noValidate={false}>
+      <label className={authLabelClass}>
         Name
         <input
           required
           name="name"
           autoComplete="name"
-          className="rounded-sm border border-line bg-paper px-3 py-2 outline-none focus:border-terracotta"
+          className={authInputClass}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
         />
       </label>
-      <label className="grid gap-1 text-sm">
+      <label className={authLabelClass}>
         Email
         <input
           required
           type="email"
           name="email"
           autoComplete="email"
-          className="rounded-sm border border-line bg-paper px-3 py-2 outline-none focus:border-terracotta"
+          className={authInputClass}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
         />
       </label>
-      <label className="grid gap-1 text-sm">
+      <label className={authLabelClass}>
         Message
         <textarea
           required
           name="message"
-          rows={5}
-          className="rounded-sm border border-line bg-paper px-3 py-2 outline-none focus:border-terracotta"
+          rows={6}
+          className={`${authInputClass} h-auto min-h-[9rem] py-3`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
         />
       </label>
       {error ? (
-        <p className="text-sm text-terracotta" role="alert">
+        <p id={errorId} className="text-sm leading-6 text-terracotta" role="alert">
           {error}
         </p>
       ) : null}
       <button
         type="submit"
         disabled={loading}
-        className="justify-self-start rounded-full bg-terracotta px-6 py-2.5 text-sm font-semibold text-paper hover:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60"
+        className={`inline-flex min-h-11 w-full items-center justify-center rounded-full bg-terracotta px-6 text-sm font-semibold text-paper transition-[color,transform,background-color] duration-150 hover:bg-terracotta-dark active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto ${authFocusRing}`}
       >
         {loading ? "Sending…" : "Send message"}
       </button>

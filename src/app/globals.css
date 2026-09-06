@@ -93,6 +93,10 @@ body {
   margin-top: 1rem;
 }
 
+.prose-mesa h2 + * {
+  margin-top: 0.75rem;
+}
+
 /* Recipe page: hide site header once section nav pins, avoiding dual sticky bars. */
 html[data-mesa-recipe-compact="true"] .site-header {
   transform: translateY(-100%);
