@@ -175,6 +175,8 @@ export function AccountMenu() {
               void (async () => {
                 await clearMemberPresenceOnLogout();
                 signOut();
+                const { disableGoogleOneTapAutoSelect } = await import("@/components/GoogleOneTap");
+                disableGoogleOneTapAutoSelect();
                 await signOutGoogle({ redirect: false });
                 setOpen(false);
               })();

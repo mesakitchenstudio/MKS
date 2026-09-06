@@ -12,6 +12,12 @@ import {
   upsertGoogleUser,
 } from "@/lib/accounts";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
+import {
+  GOOGLE_ONETAP_PROVIDER_ID,
+  isGoogleIdTokenAuthConfigured,
+  verifyGoogleIdToken,
+} from "@/lib/google-id-token";
+import { isGoogleMemberAuthProvider } from "@/lib/google-onetap";
 import { isMemberSessionVersionCurrent } from "@/lib/member-session";
 
 if (process.env.VERCEL) {
@@ -23,6 +29,7 @@ if (process.env.VERCEL) {
 const googleId = process.env.AUTH_GOOGLE_ID?.trim() ?? "";
 const googleSecret = process.env.AUTH_GOOGLE_SECRET?.trim() ?? "";
 const googleReady = Boolean(googleId && googleSecret);
+const googleOneTapReady = isGoogleIdTokenAuthConfigured();
 
 function asStaffRole(value: unknown): AccessLevel | null {
   return typeof value === "string" && isAccessLevel(value) ? value : null;
@@ -40,6 +47,53 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
           Google({
             clientId: googleId,
             clientSecret: googleSecret,
+          }),
+        ]
+      : []),
+    ...(googleOneTapReady
+      ? [
+          Credentials({
+            id: GOOGLE_ONETAP_PROVIDER_ID,
+            name: "Google One Tap",
+            credentials: {
+              credential: { label: "Google ID Token", type: "text" },
+            },
+            async authorize(credentials) {
+              const idToken = String(credentials?.credential ?? "").trim();
+              if (!idToken) return null;
+
+              const profile = await verifyGoogleIdToken(idToken);
+              if (!profile) return null;
+
+              try {
+                const staff = await getStaffByEmail(profile.email);
+                if (staff) {
+                  return {
+                    id: staff.id,
+                    email: staff.email,
+                    name: staff.name || profile.name || profile.email,
+                    image: profile.picture || undefined,
+                  };
+                }
+
+                const user = await upsertGoogleUser(
+                  profile.email,
+                  profile.name,
+                  profile.picture,
+                );
+                if (!user) return null;
+                return {
+                  id: user.id,
+                  email: user.email,
+                  name: user.name,
+                  image: profile.picture || undefined,
+                  memberSessionVersion: user.sessionVersion ?? 0,
+                };
+              } catch (error) {
+                console.error("Could not authorize Google One Tap member", error);
+                return null;
+              }
+            },
           }),
         ]
       : []),
@@ -78,7 +132,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
         // Team access may use the public NextAuth session, but admin access requires
         // a separate mesa_admin_session from /admin/login or /admin/session.
         try {
-          if (account?.provider === "google") {
+          if (isGoogleMemberAuthProvider(account?.provider)) {
             await syncStaffGooglePhoto(user.email, user.image);
           }
         } catch (error) {
@@ -88,6 +142,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
         return true;
       }
       if (account?.provider === "google") {
+        // OAuth redirect path — upsert here. One Tap already upserts in authorize.
         try {
           await upsertGoogleUser(user.email, user.name ?? "", user.image);
         } catch (error) {
@@ -201,7 +256,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth((request) => ({
         await recordConnection({
           email: user.email,
           name: user.name ?? "",
-          method: account?.provider === "google" ? "google" : "email",
+          method: isGoogleMemberAuthProvider(account?.provider) ? "google" : "email",
           headers: request?.headers,
         });
       } catch (error) {

@@ -14,6 +14,19 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Admin: [http://localhost:3000/admin](http://localhost:3000/admin). Set `ADMIN_PASSWORD` and `ADMIN_SECRET` in `.env` — never commit those values.
 
+### Google member sign-in (OAuth + One Tap)
+
+Public members use Auth.js with the same Google Web client for redirect sign-in and One Tap / FedCM.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AUTH_GOOGLE_ID` | Yes (for Google) | Google Cloud Web OAuth client ID (audience for ID tokens) |
+| `AUTH_GOOGLE_SECRET` | Yes (for redirect OAuth) | Google OAuth client secret (server only) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Yes (for One Tap) | Same client ID as `AUTH_GOOGLE_ID` (public; GIS script only) |
+| `AUTH_SECRET` | Yes | Auth.js session signing secret |
+
+Authorized JavaScript origins in Google Cloud must include the production host (e.g. `https://www.mesakitchenstudio.com`). Redirect URI: `https://www.mesakitchenstudio.com/api/auth/callback/google`. One Tap stays off while `SITE_PRIVATE=true`.
+
 ### AI recipe assistant (Admin)
 
 Editors/Owners can paste a YouTube cooking URL on **New Recipe** to draft fields via Gemini. Drafts are never auto-published.

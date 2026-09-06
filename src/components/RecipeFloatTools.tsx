@@ -229,6 +229,10 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
                       void (async () => {
                         await clearMemberPresenceOnLogout();
                         signOut();
+                        const { disableGoogleOneTapAutoSelect } = await import(
+                          "@/components/GoogleOneTap"
+                        );
+                        disableGoogleOneTapAutoSelect();
                         await signOutGoogle({ redirect: false });
                         setLiked(false);
                         setLikes([]);

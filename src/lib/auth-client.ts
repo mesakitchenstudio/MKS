@@ -44,6 +44,12 @@ export async function forcePublicSignOut() {
   }
   signOut();
   try {
+    const { disableGoogleOneTapAutoSelect } = await import("@/components/GoogleOneTap");
+    disableGoogleOneTapAutoSelect();
+  } catch {
+    // Optional GIS helper.
+  }
+  try {
     const { signOut: signOutGoogle } = await import("next-auth/react");
     await signOutGoogle({ redirect: false });
   } catch {

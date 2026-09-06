@@ -4,6 +4,7 @@ import { SessionProvider, signOut as signOutGoogle, useSession } from "next-auth
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { GuestTracker } from "@/components/GuestTracker";
+import { GoogleOneTap } from "@/components/GoogleOneTap";
 import {
   getPresenceSessionKey,
   registerMemberPresenceKey,
@@ -37,6 +38,9 @@ function SessionSync() {
       if (!didForceSignOut.current) {
         didForceSignOut.current = true;
         clearLocalSession();
+        void import("@/components/GoogleOneTap").then(({ disableGoogleOneTapAutoSelect }) => {
+          disableGoogleOneTapAutoSelect();
+        });
         void signOutGoogle({ redirect: false });
       }
       return;
@@ -156,11 +160,19 @@ function SessionSync() {
   return null;
 }
 
-export function AuthSessionProvider({ children }: { children: ReactNode }) {
+export function AuthSessionProvider({
+  children,
+  googleOneTapEnabled = false,
+}: {
+  children: ReactNode;
+  /** Off while SITE_PRIVATE (Coming Soon), including staff preview. */
+  googleOneTapEnabled?: boolean;
+}) {
   return (
     <SessionProvider>
       <SessionSync />
       <GuestTracker />
+      <GoogleOneTap enabled={googleOneTapEnabled} />
       {children}
     </SessionProvider>
   );

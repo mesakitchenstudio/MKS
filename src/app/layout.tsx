@@ -137,7 +137,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <AnalyticsScripts />
         <AdSensePathLoader sitePrivate={sitePrivate} />
         <AnalyticsBridge />
-        <AuthSessionProvider>
+        <AuthSessionProvider googleOneTapEnabled={!sitePrivate}>
           <FunnelAnalyticsBridge />
           <PublicChrome
             hideTools={privateMode}
