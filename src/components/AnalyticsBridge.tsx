@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePrivacyConsentOptional } from "@/components/PrivacyConsentProvider";
 
 type AnalyticsDetail = {
   event?: string;
@@ -17,19 +16,15 @@ declare global {
 
 /**
  * Forwards mesa:analytics CustomEvents to Plausible and/or GA4 when those scripts are present.
- * Requires analytics consent — scripts themselves are also consent-gated.
+ * Set NEXT_PUBLIC_PLAUSIBLE_DOMAIN and/or NEXT_PUBLIC_GA_MEASUREMENT_ID in the environment,
+ * and load the corresponding snippet in layout (or via Vercel Analytics / GTM).
  */
 export function AnalyticsBridge() {
-  const consent = usePrivacyConsentOptional();
-
   useEffect(() => {
-    if (!consent?.analyticsAllowed) return;
-
     function onEvent(event: Event) {
       const detail = (event as CustomEvent<AnalyticsDetail>).detail;
       if (!detail?.event) return;
-      const { event: name, at: _ignoredAt, ...props } = detail;
-      void _ignoredAt;
+      const { event: name, at: _at, ...props } = detail;
 
       if (typeof window.plausible === "function") {
         window.plausible(name, { props });
@@ -41,7 +36,7 @@ export function AnalyticsBridge() {
 
     window.addEventListener("mesa:analytics", onEvent);
     return () => window.removeEventListener("mesa:analytics", onEvent);
-  }, [consent?.analyticsAllowed]);
+  }, []);
 
   return null;
 }

@@ -119,8 +119,7 @@ describe("Google One Tap wiring", () => {
     assert.match(layout, /AUTH_GOOGLE_ID/);
     assert.match(layout, /googleOneTapEnabled=\{!sitePrivate && Boolean\(googleClientId\)\}/);
     assert.match(layout, /googleClientId=\{googleClientId\}/);
-    assert.match(sessionProvider, /ConsentGatedGoogleOneTap/);
-    assert.match(sessionProvider, /googleSignInEnhancementsAllowed/);
+    assert.match(sessionProvider, /GoogleOneTap enabled=\{googleOneTapEnabled\} clientId=\{googleClientId\}/);
     assert.match(oneTap, /accounts\.google\.com\/gsi\/client/);
     assert.match(oneTap, /signIn\(GOOGLE_ONETAP_PROVIDER_ID/);
     assert.match(oneTap, /disableAutoSelect/);

@@ -1,10 +1,7 @@
-"use client";
-
 import Link from "next/link";
 import { site } from "@/data/site";
 import { Logo } from "./Logo";
 import { NewsletterForm } from "./NewsletterForm";
-import { PrivacyPreferencesFooterLink } from "./PrivacyConsentUi";
 import { buildRecipesUrl } from "@/lib/recipe-discovery";
 import {
   PRIMARY_CATEGORY_LABELS,
@@ -76,9 +73,6 @@ export function SiteFooter({
                 </Link>
               </li>
             ))}
-            <li>
-              <PrivacyPreferencesFooterLink className={footerLinkClass} />
-            </li>
           </ul>
         </div>
 

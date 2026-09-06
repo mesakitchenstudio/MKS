@@ -27,31 +27,8 @@ export const GUEST_ADMIN_PRESENCE_POLL_MS = 3_000;
 
 /** Shared across tabs in the same browser/incognito session (not tab-scoped). */
 export const GUEST_VISITOR_STORAGE_KEY = "mesa-guest-visitor";
-export const GUEST_CONNECTION_STORAGE_KEY = "mesa-guest-connection";
+const GUEST_CONNECTION_STORAGE_KEY = "mesa-guest-connection";
 const GUEST_VISITOR_LOCK_NAME = "mesa-guest-visitor-key";
-const GUEST_CONVERTED_STORAGE_KEY = "mesa-guest-converted-at";
-const GUEST_ROTATED_STORAGE_KEY = "mesa-guest-rotated-at";
-
-/**
- * Best-effort clear of guest-analytics-only browser storage after optional
- * analytics is rejected. Does not touch member session / likes / auth keys.
- * HttpOnly `mks_guest` must be expired by the consent API response.
- */
-export function clearGuestAnalyticsBrowserStorage() {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem(GUEST_VISITOR_STORAGE_KEY);
-    localStorage.removeItem(GUEST_ROTATED_STORAGE_KEY);
-    localStorage.removeItem(GUEST_CONVERTED_STORAGE_KEY);
-  } catch {
-    // ignore
-  }
-  try {
-    sessionStorage.removeItem(GUEST_CONNECTION_STORAGE_KEY);
-  } catch {
-    // ignore
-  }
-}
 
 export function normalizeGuestVisitorKey(value: unknown) {
   const key = typeof value === "string" ? value.trim() : "";
@@ -177,6 +154,8 @@ export function rememberSharedGuestVisitorKey(visitorKey: string) {
 }
 
 const GUEST_AUTH_CHANNEL = "mesa-guest-auth";
+const GUEST_CONVERTED_STORAGE_KEY = "mesa-guest-converted-at";
+const GUEST_ROTATED_STORAGE_KEY = "mesa-guest-rotated-at";
 
 /** Tell sibling tabs a deleted visitor identity was replaced with a fresh key. */
 export function broadcastGuestVisitorRotated(visitorKey: string) {

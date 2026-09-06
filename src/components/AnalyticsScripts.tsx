@@ -1,13 +1,7 @@
-"use client";
-
 import Script from "next/script";
-import { usePrivacyConsentOptional } from "@/components/PrivacyConsentProvider";
 
-/** Optional third-party analytics tags — only when analytics consent is granted. */
+/** Optional third-party analytics tags driven by env (no-op when unset). */
 export function AnalyticsScripts() {
-  const consent = usePrivacyConsentOptional();
-  if (!consent?.ready || !consent.analyticsAllowed) return null;
-
   const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN?.trim();
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
 

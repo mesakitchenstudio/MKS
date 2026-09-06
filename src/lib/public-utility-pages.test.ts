@@ -43,8 +43,6 @@ describe("public utility pages polish", () => {
     assert.match(privacy, /first-party visitor analytics/i);
     assert.match(privacy, /Google account/);
     assert.match(privacy, /Third-party services/);
-    assert.match(privacy, /Cookies &amp; preferences/);
-    assert.match(privacy, /Privacy preferences/);
     const thirdPartyIdx = privacy.indexOf("Third-party services");
     const youtubeIdx = privacy.indexOf(
       "Embedded YouTube videos are loaded from YouTube when you play them",

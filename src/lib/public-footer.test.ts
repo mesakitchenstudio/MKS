@@ -21,7 +21,6 @@ describe("public footer polish", () => {
     assert.match(footer, /Contact/);
     assert.match(footer, /Privacy/);
     assert.match(footer, /Disclosures/);
-    assert.match(footer, /PrivacyPreferencesFooterLink/);
 
     const about = footer.indexOf('href: "/about"');
     const videos = footer.indexOf('href: "/videos"');

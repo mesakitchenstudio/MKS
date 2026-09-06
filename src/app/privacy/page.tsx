@@ -112,36 +112,12 @@ export default function PrivacyPage() {
               We use first-party visitor analytics to understand which pages are useful.
               That may include a guest cookie, page views, and approximate location from
               the hosting provider. Guest network details such as IP addresses are reduced
-              over time according to our retention process. Optional analytics only runs
-              when you allow it in Privacy preferences.
+              over time according to our retention process.
             </p>
             <p>
               Recipe pages include structured data so search engines can show cook times
               and ingredients. Our hosting provider may also keep operational request logs
               needed to run and secure the site.
-            </p>
-          </div>
-        </section>
-
-        <section className={sectionClass} aria-labelledby="privacy-cookies">
-          <h2 id="privacy-cookies" className={headingClass}>
-            Cookies &amp; preferences
-          </h2>
-          <div className={bodyClass}>
-            <p>
-              Essential cookies support security and authentication so you can sign in and
-              use the site. They are always on.
-            </p>
-            <p>
-              Optional analytics — including a guest preference cookie and related browser
-              storage used only for anonymous visit measurement — runs only when you allow
-              it. Automatic Google One Tap prompts are also optional; you can still use
-              explicit Google sign-in when that enhancement is off.
-            </p>
-            <p>
-              You can change these choices anytime through Privacy preferences in the site
-              footer. Embedded YouTube videos load from YouTube when you press Play.
-              Advertising is not currently active on Mesa.
             </p>
           </div>
         </section>

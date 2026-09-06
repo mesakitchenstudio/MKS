@@ -6,8 +6,6 @@ import { AnalyticsScripts } from "@/components/AnalyticsScripts";
 import { AdSensePathLoader } from "@/components/ads/AdSensePathLoader";
 import { FunnelAnalyticsBridge } from "@/components/FunnelAnalyticsBridge";
 import { JsonLd } from "@/components/JsonLd";
-import { PrivacyConsentProvider } from "@/components/PrivacyConsentProvider";
-import { PrivacyConsentUi } from "@/components/PrivacyConsentUi";
 import { PublicChrome } from "@/components/PublicChrome";
 import {
   PAGE_TITLE_DEFAULT,
@@ -149,32 +147,29 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           Skip to main content
         </a>
         {privateMode ? null : <JsonLd data={siteGraphJsonLd()} />}
-        <PrivacyConsentProvider>
-          <AnalyticsScripts />
-          <AdSensePathLoader sitePrivate={sitePrivate} />
-          <AnalyticsBridge />
-          <AuthSessionProvider
-            googleOneTapEnabled={!sitePrivate && Boolean(googleClientId)}
-            googleClientId={googleClientId}
+        <AnalyticsScripts />
+        <AdSensePathLoader sitePrivate={sitePrivate} />
+        <AnalyticsBridge />
+        <AuthSessionProvider
+          googleOneTapEnabled={!sitePrivate && Boolean(googleClientId)}
+          googleClientId={googleClientId}
+        >
+          <FunnelAnalyticsBridge />
+          <PublicChrome
+            hideTools={privateMode}
+            showChrome={!privateMode}
+            recipes={recipes}
+            newsletterSubscribed={newsletterSubscribed}
           >
-            <FunnelAnalyticsBridge />
-            <PublicChrome
-              hideTools={privateMode}
-              showChrome={!privateMode}
-              recipes={recipes}
-              newsletterSubscribed={newsletterSubscribed}
+            <main
+              id="main-content"
+              className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}
+              tabIndex={-1}
             >
-              <main
-                id="main-content"
-                className={privateMode ? "flex min-h-full flex-1 flex-col" : "flex-1"}
-                tabIndex={-1}
-              >
-                {children}
-              </main>
-            </PublicChrome>
-            <PrivacyConsentUi />
-          </AuthSessionProvider>
-        </PrivacyConsentProvider>
+              {children}
+            </main>
+          </PublicChrome>
+        </AuthSessionProvider>
       </body>
     </html>
   );
