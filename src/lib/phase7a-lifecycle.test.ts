@@ -202,7 +202,7 @@ describe("phase 7A — wiring / separation / security", () => {
     const vercel = readFileSync(path.join(srcRoot, "..", "vercel.json"), "utf8");
     assert.match(vercel, /\/api\/cron\/search-console/);
     assert.match(vercel, /0 8 \* \* \*/);
-    assert.match(vercel, /\/api\/cron\/recipe-publish/);
+    assert.doesNotMatch(vercel, /\/api\/cron\/recipe-publish/);
 
     const sync = read("lib/search-console/sync.ts");
     assert.match(sync, /upsert/);

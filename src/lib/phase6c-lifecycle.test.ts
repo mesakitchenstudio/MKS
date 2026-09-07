@@ -160,14 +160,16 @@ describe("phase 6C — wiring", () => {
     const page = read("app/admin/(app)/notifications/page.tsx");
     const schema = readFileSync(path.join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const vercel = readFileSync(path.join(process.cwd(), "vercel.json"), "utf8");
-    assert.match(cron, /authorizeCronRequest/);
+    assert.match(cron, /authorizeRecipePublishCronRequest/);
     assert.match(cron, /runScheduledRecipePublishLifecycle/);
     assert.match(server, /getRecipePublishingReadiness/);
     assert.doesNotMatch(server, /YouTubeRelease|release-planner/);
     assert.match(page, /requireAccess\("content"\)/);
     assert.match(schema, /scheduledPublishAt/);
     assert.match(schema, /model AdminNotification/);
-    assert.match(vercel, /recipe-publish/);
+    // Hobby: recipe-publish is external every 10m, not a Vercel cron.
+    assert.doesNotMatch(vercel, /recipe-publish/);
+    assert.doesNotMatch(vercel, /\*\/10/);
   });
 
   it("keeps Activity audit separate from notification inbox", () => {

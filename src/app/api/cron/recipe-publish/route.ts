@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeRecipePublishCronRequest } from "@/lib/cron-auth";
 import { runScheduledRecipePublishLifecycle } from "@/lib/recipe-schedule-server";
 
 export const runtime = "nodejs";
@@ -7,10 +7,12 @@ export const dynamic = "force-dynamic";
 
 /**
  * Publish due scheduled recipes.
- * Auth: Authorization: Bearer CRON_SECRET only.
+ * Auth: Authorization Bearer RECIPE_PUBLISH_CRON_SECRET (preferred)
+ * or CRON_SECRET (compat / manual). No query-string secret.
+ * Triggered externally every 10 minutes (not a Vercel Hobby cron).
  */
 export async function GET(request: Request) {
-  const auth = authorizeCronRequest(request);
+  const auth = authorizeRecipePublishCronRequest(request);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

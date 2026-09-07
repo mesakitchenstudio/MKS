@@ -457,15 +457,15 @@ describe("phase 7D — Calendar / sitemap / robots / cron ownership", () => {
     assert.ok(disallow.some((rule) => rule.startsWith("/profile")));
   });
 
-  it("cron routes use shared Bearer CRON_SECRET auth", () => {
+  it("cron routes use Bearer auth; recipe-publish uses dedicated secret", () => {
     for (const route of [
-      "app/api/cron/recipe-publish/route.ts",
       "app/api/cron/search-console/route.ts",
       "app/api/cron/youtube-sync/route.ts",
       "app/api/cron/guest-retention/route.ts",
     ]) {
       assert.match(read(route), /authorizeCronRequest/);
     }
+    assert.match(read("app/api/cron/recipe-publish/route.ts"), /authorizeRecipePublishCronRequest/);
     const env = { CRON_SECRET: "test-secret" };
     assert.equal(
       authorizeCronRequest(new Request("https://x", { headers: { authorization: "Bearer test-secret" } }), env)

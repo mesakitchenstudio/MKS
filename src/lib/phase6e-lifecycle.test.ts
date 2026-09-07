@@ -447,8 +447,11 @@ describe("phase 6E — Series / redirect / identity cross checks", () => {
 
   it("documents cron cadence and hardening ownership", () => {
     const vercel = readFileSync(path.join(srcRoot, "..", "vercel.json"), "utf8");
-    assert.match(vercel, /\/api\/cron\/recipe-publish/);
-    assert.match(vercel, /\*\/10 \* \* \* \*/);
+    // Recipe publish is externally scheduled (Hobby); not registered on Vercel.
+    assert.doesNotMatch(vercel, /\/api\/cron\/recipe-publish/);
+    assert.doesNotMatch(vercel, /\*\/10 \* \* \* \*/);
+    assert.match(read("app/api/cron/recipe-publish/route.ts"), /authorizeRecipePublishCronRequest/);
+    assert.match(read("lib/cron-auth.ts"), /RECIPE_PUBLISH_CRON_SECRET/);
     assert.match(read("lib/phase6c-hardening.test.ts"), /claimScheduledRecipePublish/);
     assert.match(read("lib/phase6c-hardening.test.ts"), /AdminNotificationReceipt/);
   });
