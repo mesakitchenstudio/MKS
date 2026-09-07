@@ -54,16 +54,16 @@ describe("Recipes admin index UI contracts", () => {
     assert.match(index, /recipe\.title\.toLowerCase\(\)\.includes\(q\)/);
     assert.doesNotMatch(index, /recipe\.slug\.toLowerCase/);
     assert.match(index, /recipe\.type\.id !== typeId/);
-    assert.match(index, /normalizeStatus\(recipe\.status\) !== status/);
-    assert.match(index, /StatusFilter = "all" \| "published" \| "draft"/);
+    assert.match(index, /StatusFilter = "all" \| "published" \| "draft" \| "scheduled"/);
   });
 
-  it("uses quiet inline status controls without inventing states", () => {
+  it("uses quiet inline status controls without inventing unrelated states", () => {
     assert.match(index, /aria-label="Filter by status"/);
     assert.match(index, /\["all", "All"\]/);
     assert.match(index, /\["published", "Published"\]/);
+    assert.match(index, /\["scheduled", "Scheduled"\]/);
     assert.match(index, /\["draft", "Draft"\]/);
-    assert.doesNotMatch(index, /archived|scheduled|pending/);
+    assert.doesNotMatch(index, /archived|pending/);
     assert.doesNotMatch(index, /id="recipe-status-filter"/);
   });
 
@@ -98,6 +98,8 @@ describe("Recipes admin index UI contracts", () => {
   it("uses text-only status without decorative dots", () => {
     assert.match(index, /Published/);
     assert.match(index, /Draft/);
+    assert.match(index, /Scheduled/);
+    assert.match(index, /recipePublicationLabel/);
     assert.match(index, /text-olive/);
     assert.match(index, /text-terracotta/);
     assert.doesNotMatch(index, /rounded-full[\s\S]*bg-olive/);

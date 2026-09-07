@@ -19,16 +19,26 @@ describe("admin mobile drawer navigation", () => {
     assert.deepEqual(funnelNav, channelNav);
     assert.deepEqual(channelNav, [
       "Recipes",
+      "Content Calendar",
+      "Content Health",
+      "Site Health",
+      "Notifications",
       "Studio",
+      "Media",
       "Categories",
       "Series",
       "Recipe types",
+      "Redirects",
       "Reviews",
       "Members",
       "Newsletter",
+      "Content Performance",
       "Visitors",
+      "Search",
+      "Search Console",
       "YouTube",
       "Team access",
+      "Activity",
     ]);
     assert.deepEqual(
       buildAdminNavSections("owner").map((section) => section.label),
@@ -45,11 +55,20 @@ describe("admin mobile drawer navigation", () => {
     );
     assert.deepEqual(labels, [
       "Recipes",
+      "Content Calendar",
+      "Content Health",
+      "Site Health",
+      "Notifications",
       "Studio",
+      "Media",
       "Categories",
       "Series",
       "Recipe types",
+      "Redirects",
       "Reviews",
+      "Content Performance",
+      "Search",
+      "Search Console",
       "YouTube",
     ]);
     assert.equal(labels.includes("Members"), false);

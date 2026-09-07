@@ -49,6 +49,7 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
       youtubeTitle: "Baguettes",
       durationDisplay: "7:39",
       watchUrl: "https://www.youtube.com/watch?v=vid1",
+      watchExternal: true,
       typeName: "Bread",
       categorySlugs: ["breads"],
     },
@@ -67,6 +68,7 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
         youtubeTitle: "Baguettes",
         durationDisplay: "7:39",
         watchUrl: "https://www.youtube.com/watch?v=vid1",
+        watchExternal: true,
         typeName: "Bread",
         categorySlugs: ["breads"],
       },
@@ -84,6 +86,7 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
         youtubeTitle: null,
         durationDisplay: "",
         watchUrl: null,
+        watchExternal: false,
         typeName: "Bread",
         categorySlugs: ["breads"],
       },
@@ -152,6 +155,7 @@ describe("Series public Phase 2 presentation contracts", () => {
   it("preserves per-item recipe and watch CTA combinations without a Featured CTA cluster", () => {
     assert.match(page, /item\.recipeSlug \? \([\s\S]*Read recipe/);
     assert.match(page, /item\.watchUrl \? \([\s\S]*Watch video/);
+    assert.match(page, /external=\{item\.watchExternal\}/);
     assert.match(page, /event="series_item_click"/);
     assert.match(page, /event="series_watch_click"/);
     assert.equal((page.match(/event="series_item_click"/g) || []).length, 1);
@@ -197,7 +201,8 @@ describe("Series public Phase 2 presentation contracts", () => {
   });
 
   it("keeps hero and top hierarchy intact with a capped large-desktop height", () => {
-    assert.match(page, /Cooking Series/);
+    assert.match(page, /Collections/);
+    assert.doesNotMatch(page, /Cooking Series/);
     assert.match(page, /series\.heroImage/);
     assert.match(page, /aspect-video/);
     assert.match(page, /xl:aspect-auto xl:h-\[30rem\]/);

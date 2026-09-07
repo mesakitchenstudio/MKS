@@ -10,6 +10,8 @@ export const FUNNEL_EVENT_NAMES = [
   "series_item_click",
   "series_watch_click",
   "series_watch_playlist_on_youtube_click",
+  /** Video discovery → Recipe conversion (distinct from Recipe → Video). */
+  "video_to_recipe",
 ] as const;
 
 export type FunnelEventName = (typeof FUNNEL_EVENT_NAMES)[number];
@@ -30,6 +32,9 @@ export type FunnelPlacement =
   | "recipe_end_subscribe"
   | "end_of_recipe"
   | "series_page"
+  | "videos_featured"
+  | "videos_card"
+  | "videos_watch"
   | "other";
 
 const FUNNEL_NAME_SET = new Set<string>(FUNNEL_EVENT_NAMES);
@@ -47,6 +52,8 @@ const CLIENT_EVENT_TO_FUNNEL: Record<string, FunnelEventName> = {
   series_item_click: "series_item_click",
   series_watch_click: "series_watch_click",
   series_watch_playlist_on_youtube_click: "series_watch_playlist_on_youtube_click",
+  /** Existing videos_* client event — single owner for Video → Recipe clicks. */
+  videos_recipe_click: "video_to_recipe",
 };
 
 const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
@@ -78,6 +85,11 @@ const SOURCE_TO_PLACEMENT: Record<string, FunnelPlacement> = {
   /** Homepage Featured Series bridge — maps to other (no separate funnel placement). */
   homepage: "other",
   homepage_series: "other",
+  /** Public video hub / watch Recipe conversion surfaces. */
+  featured: "videos_featured",
+  full_grid: "videos_card",
+  shorts_grid: "videos_card",
+  watch_page: "videos_watch",
 };
 
 const BLOCKED_META_KEYS = new Set([
@@ -166,7 +178,8 @@ export function funnelPayloadFromAnalyticsDetail(
     youtubeVideoId: youtubeVideoId || undefined,
     targetRecipeId: String(detail.target_recipe_id || "").trim() || undefined,
     targetVideoId: targetVideoId || undefined,
-    placement: mapSourceToPlacement(detail.source),
+    // Prefer explicit placement (videos_*) when present; fall back to source.
+    placement: mapSourceToPlacement(detail.placement || detail.source),
     chapterLabel: chapterLabel || undefined,
     chapterTimeSeconds: chapterTime,
     chapterIndex,
@@ -175,6 +188,7 @@ export function funnelPayloadFromAnalyticsDetail(
       recipe_title: detail.recipe_title,
       client_event: clientEvent,
       source: detail.source,
+      placement: detail.placement,
       target_recipe_slug: detail.target_recipe_slug,
       destination_recipe_slug: detail.destination_recipe_slug,
       series_id: detail.series_id,

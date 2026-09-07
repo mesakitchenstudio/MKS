@@ -26,6 +26,7 @@ type ShellIdentity = {
 
 type AdminShellProps = ShellIdentity & {
   deployInfo: AdminDeployInfo;
+  notificationUnreadCount?: number;
   children: React.ReactNode;
 };
 
@@ -35,6 +36,7 @@ export function AdminShell({
   roleLabel,
   sections,
   deployInfo,
+  notificationUnreadCount = 0,
   children,
 }: AdminShellProps) {
   const pathname = usePathname();
@@ -182,6 +184,15 @@ export function AdminShell({
             {formatAdminDeployLine(deployInfo)}
           </p>
         </div>
+        {notificationUnreadCount > 0 ? (
+          <Link
+            href="/admin/notifications"
+            className={`${adminFocusRing} rounded-sm px-2 py-1 text-xs font-semibold text-terracotta`}
+            aria-label={`${notificationUnreadCount} unread notifications`}
+          >
+            {notificationUnreadCount > 99 ? "99+" : notificationUnreadCount}
+          </Link>
+        ) : null}
         <Link
           href={identity.homeHref}
           className={`shrink-0 font-serif text-lg text-ink ${adminFocusRing}`}

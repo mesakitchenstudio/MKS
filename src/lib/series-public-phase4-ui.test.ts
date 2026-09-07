@@ -78,7 +78,9 @@ describe("Series public Phase 4 visual/conversion polish", () => {
     assert.match(page, />\s*Read recipe\s*</);
     assert.match(page, />\s*Watch video/);
     assert.match(page, /ariaLabel=\{`Read recipe: \$\{item\.title\}`\}/);
-    assert.match(page, /ariaLabel=\{`Watch video: \$\{item\.title\} \(opens in a new tab\)`\}/);
+    assert.match(page, /external=\{item\.watchExternal\}/);
+    assert.match(page, /item\.watchExternal/);
+    assert.match(page, /opens in a new tab/);
     assert.match(page, /min-h-11/);
     assert.match(page, /gap-x-5 gap-y-3/);
   });

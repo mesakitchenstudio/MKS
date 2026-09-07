@@ -2,11 +2,25 @@ import type { Recipe } from "@/data/types";
 import type { RecipeWithExtras } from "@/lib/recipe-timing";
 import { publicRestMinutes } from "@/lib/recipe-timing";
 
-export function filterRecipes(recipes: Recipe[], query: string): Recipe[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return recipes;
+/**
+ * Shared search text normalization for catalogue + SearchOverlay.
+ * Conservative: lowercase, trim, collapse whitespace, light punctuation —
+ * no aggressive stemming.
+ */
+export function normalizeSearchText(input: string): string {
+  return String(input ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/[^\p{L}\p{N}\s'+.-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  return recipes.filter((recipe) => recipeSearchHaystack(recipe).includes(needle));
+export function filterRecipes(recipes: Recipe[], query: string): Recipe[] {
+  return searchRecipesByText(recipes, query).map((row) => row.recipe);
 }
 
 /** Same fields as /recipes search — used by SearchOverlay and discovery. */
@@ -18,6 +32,7 @@ export function recipeSearchHaystack(recipe: {
   method: string;
   holiday?: string;
   dishName?: string;
+  typeName?: string;
   tags: string[];
   categories: string[];
   difficulty?: string;
@@ -25,22 +40,176 @@ export function recipeSearchHaystack(recipe: {
   ingredients: { items: { item: string }[] }[];
 }) {
   const categoryTokens = recipe.categories.flatMap((slug) => [slug, slug.replace(/-/g, " ")]);
-  return [
-    recipe.title,
-    recipe.dishName || "",
-    recipe.excerpt,
-    recipe.course,
-    recipe.cuisine,
-    recipe.method,
-    recipe.holiday || "",
-    ...recipe.tags,
-    ...categoryTokens,
-    recipe.difficulty || "",
-    ...(recipe.utensils || []),
-    ...recipe.ingredients.flatMap((group) => group.items.map((item) => item.item)),
-  ]
-    .join(" ")
-    .toLowerCase();
+  return normalizeSearchText(
+    [
+      recipe.title,
+      recipe.dishName || "",
+      recipe.typeName || "",
+      recipe.excerpt,
+      recipe.course,
+      recipe.cuisine,
+      recipe.method,
+      recipe.holiday || "",
+      ...recipe.tags,
+      ...categoryTokens,
+      recipe.difficulty || "",
+      ...(recipe.utensils || []),
+      ...recipe.ingredients.flatMap((group) => group.items.map((item) => item.item)),
+    ].join(" "),
+  );
+}
+
+function fieldPrefixOrToken(haystack: string, needle: string) {
+  const text = normalizeSearchText(haystack);
+  if (!needle || !text) return false;
+  if (text.startsWith(needle) || text.includes(` ${needle}`)) return true;
+  return text.split(" ").some((token) => token.startsWith(needle));
+}
+
+/**
+ * Deterministic relevance for free-text discovery.
+ * Higher = better. Zero means no match.
+ */
+export function scoreRecipeTextMatch(
+  recipe: Parameters<typeof recipeSearchHaystack>[0],
+  query: string,
+): number {
+  const needle = normalizeSearchText(query);
+  if (!needle) return 0;
+
+  const title = normalizeSearchText(recipe.title);
+  const dish = normalizeSearchText(recipe.dishName || "");
+  const typeName = normalizeSearchText(recipe.typeName || "");
+  const course = normalizeSearchText(recipe.course || "");
+  const cuisine = normalizeSearchText(recipe.cuisine || "");
+  const method = normalizeSearchText(recipe.method || "");
+  const difficulty = normalizeSearchText(recipe.difficulty || "");
+  const excerpt = normalizeSearchText(recipe.excerpt || "");
+  const tags = (recipe.tags || []).map((tag) => normalizeSearchText(tag));
+  const categories = (recipe.categories || []).flatMap((slug) => [
+    normalizeSearchText(slug),
+    normalizeSearchText(slug.replace(/-/g, " ")),
+  ]);
+  const ingredients = recipe.ingredients.flatMap((group) =>
+    group.items.map((item) => normalizeSearchText(item.item)),
+  );
+  const utensils = (recipe.utensils || []).map((item) => normalizeSearchText(item));
+
+  let score = 0;
+
+  if (title === needle) score = Math.max(score, 1000);
+  else if (title.startsWith(needle)) score = Math.max(score, 920);
+  else if (fieldPrefixOrToken(recipe.title, needle)) score = Math.max(score, 860);
+  else if (title.includes(needle)) score = Math.max(score, 800);
+
+  if (dish === needle) score = Math.max(score, 980);
+  else if (dish.startsWith(needle)) score = Math.max(score, 900);
+  else if (dish && fieldPrefixOrToken(recipe.dishName || "", needle)) score = Math.max(score, 840);
+  else if (dish.includes(needle)) score = Math.max(score, 780);
+
+  if (categories.some((value) => value === needle || value.includes(needle))) {
+    score = Math.max(score, 640);
+  }
+  if (typeName && (typeName === needle || typeName.includes(needle))) {
+    score = Math.max(score, 620);
+  }
+  if (course && (course === needle || course.includes(needle))) {
+    score = Math.max(score, 600);
+  }
+
+  if (
+    ingredients.some(
+      (value) => value === needle || value.startsWith(needle) || value.includes(needle),
+    )
+  ) {
+    score = Math.max(score, 520);
+  }
+
+  if (
+    tags.some((value) => value === needle || value.includes(needle)) ||
+    (cuisine && (cuisine === needle || cuisine.includes(needle))) ||
+    (method && (method === needle || method.includes(needle))) ||
+    (difficulty && difficulty.includes(needle)) ||
+    utensils.some((value) => value.includes(needle))
+  ) {
+    score = Math.max(score, 420);
+  }
+
+  if (excerpt.includes(needle)) score = Math.max(score, 280);
+
+  if (score === 0 && recipeSearchHaystack(recipe).includes(needle)) {
+    score = 120;
+  }
+
+  if (title.includes(needle)) {
+    score += Math.max(0, 40 - Math.min(40, title.indexOf(needle)));
+  }
+
+  return score;
+}
+
+/**
+ * Lightweight overlay ranking using title + precomputed haystack.
+ * Title tiers match `scoreRecipeTextMatch`; haystack-only hits stay below title/dish.
+ */
+export function scoreOverlayRecipeMatch(
+  recipe: { title: string; searchHaystack?: string },
+  query: string,
+): number {
+  const needle = normalizeSearchText(query);
+  if (!needle) return 0;
+
+  const title = normalizeSearchText(recipe.title);
+  let score = 0;
+  if (title === needle) score = 1000;
+  else if (title.startsWith(needle)) score = 920;
+  else if (fieldPrefixOrToken(recipe.title, needle)) score = 860;
+  else if (title.includes(needle)) score = 800;
+
+  const haystack = recipe.searchHaystack || title;
+  if (score === 0 && haystack.includes(needle)) {
+    score = 120;
+  }
+
+  if (title.includes(needle)) {
+    score += Math.max(0, 40 - Math.min(40, title.indexOf(needle)));
+  }
+
+  return score;
+}
+
+export function searchOverlayRecipesByText<T extends { title: string; searchHaystack?: string }>(
+  recipes: T[],
+  query: string,
+): T[] {
+  const needle = normalizeSearchText(query);
+  if (!needle) return recipes;
+  return recipes
+    .map((recipe) => ({ recipe, score: scoreOverlayRecipeMatch(recipe, needle) }))
+    .filter((row) => row.score > 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score || a.recipe.title.localeCompare(b.recipe.title),
+    )
+    .map((row) => row.recipe);
+}
+
+export function searchRecipesByText<T extends Parameters<typeof recipeSearchHaystack>[0]>(
+  recipes: T[],
+  query: string,
+): Array<{ recipe: T; score: number }> {
+  const needle = normalizeSearchText(query);
+  if (!needle) {
+    return recipes.map((recipe) => ({ recipe, score: 0 }));
+  }
+
+  return recipes
+    .map((recipe) => ({ recipe, score: scoreRecipeTextMatch(recipe, needle) }))
+    .filter((row) => row.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.recipe.title.localeCompare(b.recipe.title);
+    });
 }
 
 export function ovenBakeMinutes(recipe: Recipe) {

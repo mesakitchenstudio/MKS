@@ -5,6 +5,7 @@ import { CORE_VALUE_KEYS } from "@/lib/fields";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 
 export type DbRecipeRecord = {
+  id?: string;
   slug: string;
   title: string;
   excerpt: string;
@@ -12,6 +13,8 @@ export type DbRecipeRecord = {
   seasonal: boolean;
   publishedAt: Date | null;
   updatedAt: Date;
+  publicUpdateNote?: string | null;
+  publicUpdatedAt?: Date | null;
   values: string | Record<string, unknown>;
   categories: { category: { slug: string } }[];
   type?: {
@@ -105,6 +108,7 @@ export function toPublicRecipe(record: DbRecipeRecord): Recipe & { extras: Extra
     .filter((field) => fieldValueHasContent(field.value, field.kind));
 
   return {
+    id: record.id || undefined,
     slug: record.slug,
     title: record.title,
     excerpt: record.excerpt,
@@ -120,6 +124,10 @@ export function toPublicRecipe(record: DbRecipeRecord): Recipe & { extras: Extra
     youtube: parseRecipeYoutubeBlob(values.youtube) ?? undefined,
     publishedAt: (record.publishedAt || record.updatedAt).toISOString().slice(0, 10),
     updatedAt: record.updatedAt.toISOString().slice(0, 10),
+    publicUpdateNote: record.publicUpdateNote?.trim() || null,
+    publicUpdatedAt: record.publicUpdatedAt
+      ? record.publicUpdatedAt.toISOString()
+      : null,
     prepMinutes: asNumber(values.prepMinutes),
     cookMinutes: asNumber(values.cookMinutes),
     bakeMinutes: asNumber(values.bakeMinutes),

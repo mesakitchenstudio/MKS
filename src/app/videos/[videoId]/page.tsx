@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
+import { PublicWatchRecipeCta } from "@/components/youtube/PublicWatchRecipeCta";
+import { PublicVideoCard } from "@/components/youtube/PublicVideoCard";
 import { PublicWatchPlayer } from "@/components/youtube/PublicWatchPlayer";
 import { VideosYoutubeOutboundLink } from "@/components/youtube/VideosYoutubeOutboundLink";
 import { site } from "@/data/site";
 import { youtubeEmbedUrl } from "@/lib/youtube";
-import { loadPublicVideoWatch } from "@/lib/public-videos/load";
+import { loadPublicVideoWatch, loadPublicVideoWatchPage } from "@/lib/public-videos/load";
 
 function iso8601Duration(seconds: number): string | undefined {
   if (!Number.isFinite(seconds) || seconds <= 0) return undefined;
@@ -32,9 +34,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: "Video", robots: { index: false } };
   }
 
-  const description = video.recipeTitle
-    ? `Watch “${video.title}” from ${site.name}. Cook along with ${video.recipeTitle}.`
-    : `Watch “${video.title}” from ${site.name}.`;
+  const description =
+    video.excerpt ||
+    (video.recipeTitle
+      ? `Watch “${video.title}” from ${site.name}. Cook along with ${video.recipeTitle}.`
+      : `Watch “${video.title}” from ${site.name}.`);
 
   return {
     title: video.title,
@@ -59,11 +63,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PublicVideoWatchPage({ params }: Props) {
   const { videoId } = await params;
-  const video = await loadPublicVideoWatch(videoId);
-  if (!video) notFound();
+  const page = await loadPublicVideoWatchPage(videoId);
+  if (!page) notFound();
+  const { video, moreFromMesa } = page;
 
   const formatLabel =
     video.format === "SHORT" ? "Short" : video.format === "LONG" ? "Full video" : "Video";
+  const isShort = video.format === "SHORT";
   const focusRing =
     "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
@@ -73,6 +79,7 @@ export default async function PublicVideoWatchPage({ params }: Props) {
           "@context": "https://schema.org",
           "@type": "VideoObject",
           name: video.title,
+          description: video.excerpt || undefined,
           thumbnailUrl: video.thumbnailUrl,
           uploadDate: video.publishedAt,
           duration: iso8601Duration(video.durationSeconds),
@@ -84,7 +91,11 @@ export default async function PublicVideoWatchPage({ params }: Props) {
       : null;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 pb-16 md:px-6 md:pb-20">
+    <div
+      className={`mx-auto px-4 py-10 pb-16 md:px-6 md:pb-20 ${
+        isShort ? "max-w-3xl" : "max-w-4xl"
+      }`}
+    >
       {videoObject ? <JsonLd data={videoObject} /> : null}
       <p className="text-sm text-muted">
         <Link href="/videos" className={`hover:text-terracotta ${focusRing}`}>
@@ -104,7 +115,7 @@ export default async function PublicVideoWatchPage({ params }: Props) {
         {formatLabel}
       </p>
 
-      <div className="mt-6">
+      <div className={`mt-6 ${isShort ? "md:mt-8" : ""}`}>
         <PublicWatchPlayer
           videoId={video.videoId}
           title={video.title}
@@ -112,29 +123,54 @@ export default async function PublicVideoWatchPage({ params }: Props) {
           duration={video.durationDisplay}
           embeddable={video.embeddable}
           youtubeWatchUrl={video.youtubeWatchUrl}
+          portrait={isShort}
         />
       </div>
 
+      {video.excerpt ? (
+        <p className="mt-6 max-w-2xl text-base leading-7 text-muted">{video.excerpt}</p>
+      ) : null}
+
       {video.recipeSlug && video.recipeTitle ? (
-        <section className="mt-8 border-t border-line pt-6" aria-labelledby="cook-recipe-heading">
-          <p
-            id="cook-recipe-heading"
-            className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive"
+        <PublicWatchRecipeCta
+          recipeSlug={video.recipeSlug}
+          recipeTitle={video.recipeTitle}
+          videoId={video.videoId}
+          videoTitle={video.title}
+          videoFormat={video.format}
+        />
+      ) : null}
+
+      {moreFromMesa.length > 0 ? (
+        <section
+          className="mt-14 border-t border-line pt-10"
+          aria-labelledby="more-from-mesa-heading"
+        >
+          <h2
+            id="more-from-mesa-heading"
+            className="font-serif text-[1.65rem] text-ink md:text-[1.75rem]"
           >
-            Cook this recipe
-          </p>
-          <p className="mt-2">
-            <Link
-              href={`/recipes/${video.recipeSlug}`}
-              className={`font-serif text-xl text-ink underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
-            >
-              {video.recipeTitle} →
-            </Link>
-          </p>
+            More from Mesa
+          </h2>
+          <div
+            className={`mt-8 grid items-stretch gap-8 ${
+              isShort
+                ? "sm:grid-cols-2 lg:grid-cols-4"
+                : "sm:grid-cols-2 lg:grid-cols-3"
+            }`}
+          >
+            {moreFromMesa.map((card) => (
+              <PublicVideoCard
+                key={card.videoId}
+                video={card}
+                portrait={card.format === "SHORT"}
+              />
+            ))}
+          </div>
         </section>
       ) : null}
 
-      <p className="mt-8 text-sm text-muted">
+      <p className="mt-10 text-sm text-muted">
         <VideosYoutubeOutboundLink
           href={video.youtubeWatchUrl}
           placement="watch_page"

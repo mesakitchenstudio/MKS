@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Recipe } from "@/data/types";
 import { RecipeGridCard } from "@/components/RecipeGridCard";
+import {
+  SavedRecipeCollectionPicker,
+  UnsaveWithCollectionsConfirm,
+} from "@/components/SavedRecipeCollectionPicker";
+import { countSavedRecipeCollectionMembershipsAction } from "@/app/profile/collection-actions";
 import { MemberSessionExpiredError } from "@/lib/auth-client";
 import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
 import { removeLike } from "@/lib/likes";
@@ -15,11 +20,23 @@ export function ProfileFavorites({
   extras = [],
 }: {
   recipes: Recipe[];
-  extras?: { slug: string; title: string }[];
+  extras?: { slug: string; title: string; id?: string }[];
 }) {
   const router = useRouter();
   const browseRef = useRef<HTMLAnchorElement>(null);
   const [hidden, setHidden] = useState<string[]>([]);
+  const [organizeRecipe, setOrganizeRecipe] = useState<{
+    recipeId?: string;
+    recipeSlug: string;
+    recipeTitle: string;
+  } | null>(null);
+  const [unsaveTarget, setUnsaveTarget] = useState<{
+    slug: string;
+    title: string;
+    id?: string;
+    count: number;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
   const visible = recipes.filter((recipe) => !hidden.includes(recipe.slug));
   const visibleExtras = extras.filter((item) => !hidden.includes(item.slug));
   const remaining = visible.length + visibleExtras.length;
@@ -33,7 +50,25 @@ export function ProfileFavorites({
     }
   }, [remaining, startedWithFavorites]);
 
-  async function remove(slug: string, title: string) {
+  async function requestRemove(slug: string, title: string, id?: string) {
+    setBusy(true);
+    try {
+      const result = await countSavedRecipeCollectionMembershipsAction({
+        recipeId: id,
+        recipeSlug: slug,
+      });
+      setBusy(false);
+      if (result.ok && result.data.count > 0) {
+        setUnsaveTarget({ slug, title, id, count: result.data.count });
+        return;
+      }
+    } catch {
+      setBusy(false);
+    }
+    await performRemove(slug, title);
+  }
+
+  async function performRemove(slug: string, title: string) {
     setHidden((current) => [...current, slug]);
     try {
       await removeLike({ slug, title });
@@ -69,14 +104,34 @@ export function ProfileFavorites({
                     recipe={recipe}
                     compact
                     mediaOverlay={
-                      <button
-                        type="button"
-                        aria-label={`Remove ${dishLabel} from favorites`}
-                        onClick={() => void remove(recipe.slug, recipe.title)}
-                        className={`group/heart flex h-11 w-11 items-center justify-center rounded-full bg-paper/95 shadow-sm transition-colors hover:bg-terracotta ${authFocusRing}`}
-                      >
-                        <HeartIcon />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label={`Organize ${dishLabel} in collections`}
+                          disabled={busy}
+                          onClick={() =>
+                            setOrganizeRecipe({
+                              recipeId: recipe.id,
+                              recipeSlug: recipe.slug,
+                              recipeTitle: recipe.title,
+                            })
+                          }
+                          className={`flex h-11 items-center justify-center rounded-full bg-paper/95 px-3 text-xs font-semibold text-ink shadow-sm hover:bg-cream ${authFocusRing}`}
+                        >
+                          Organize
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${dishLabel} from saved recipes`}
+                          disabled={busy}
+                          onClick={() =>
+                            void requestRemove(recipe.slug, recipe.title, recipe.id)
+                          }
+                          className={`group/heart flex h-11 w-11 items-center justify-center rounded-full bg-paper/95 shadow-sm transition-colors hover:bg-terracotta ${authFocusRing}`}
+                        >
+                          <HeartIcon />
+                        </button>
+                      </div>
                     }
                   />
                 );
@@ -93,20 +148,63 @@ export function ProfileFavorites({
                   >
                     {save.title}
                   </Link>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${save.title} from favorites`}
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-sand ${authFocusRing}`}
-                    onClick={() => void remove(save.slug, save.title)}
-                  >
-                    <HeartIcon />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={`Organize ${save.title} in collections`}
+                      disabled={busy}
+                      className={`rounded-sm px-2 py-2 text-xs font-semibold text-muted hover:text-ink ${authFocusRing}`}
+                      onClick={() =>
+                        setOrganizeRecipe({
+                          recipeId: save.id,
+                          recipeSlug: save.slug,
+                          recipeTitle: save.title,
+                        })
+                      }
+                    >
+                      Organize
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${save.title} from saved recipes`}
+                      disabled={busy}
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-sand ${authFocusRing}`}
+                      onClick={() => void requestRemove(save.slug, save.title, save.id)}
+                    >
+                      <HeartIcon />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           ) : null}
         </>
       )}
+
+      {organizeRecipe ? (
+        <SavedRecipeCollectionPicker
+          key={`${organizeRecipe.recipeId ?? ""}:${organizeRecipe.recipeSlug}`}
+          recipe={organizeRecipe}
+          onClose={() => setOrganizeRecipe(null)}
+          onUnauthorized={() => {
+            setOrganizeRecipe(null);
+            window.dispatchEvent(new Event("mesa-open-auth"));
+          }}
+          onSaved={() => router.refresh()}
+        />
+      ) : null}
+
+      {unsaveTarget ? (
+        <UnsaveWithCollectionsConfirm
+          membershipCount={unsaveTarget.count}
+          onCancel={() => setUnsaveTarget(null)}
+          onConfirm={() => {
+            const target = unsaveTarget;
+            setUnsaveTarget(null);
+            void performRemove(target.slug, target.title);
+          }}
+        />
+      ) : null}
     </>
   );
 }

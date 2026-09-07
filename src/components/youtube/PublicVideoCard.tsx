@@ -92,16 +92,13 @@ export function PublicVideoCard({
 
       {video.recipeSlug && video.recipeTitle ? (
         <p className="mt-auto pt-2 text-sm leading-6 text-muted">
-          <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-olive">
-            Recipe
-          </span>
-          <br />
           <Link
             href={`/recipes/${video.recipeSlug}`}
             onClick={trackRecipeClick}
-            className={`text-ink underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
+            className={`underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
           >
-            {video.recipeTitle} →
+            View recipe
+            <span className="sr-only">: {video.recipeTitle}</span>
           </Link>
         </p>
       ) : null}

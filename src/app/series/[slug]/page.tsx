@@ -84,7 +84,7 @@ export default async function SeriesDetailPage({ params }: Props) {
       <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
           <Link href="/series" className="hover:text-terracotta">
-            Cooking Series
+            Collections
           </Link>
         </p>
         <h1 className="mt-2 font-serif text-5xl leading-tight text-ink">{series.title}</h1>
@@ -199,7 +199,7 @@ export default async function SeriesDetailPage({ params }: Props) {
                       {item.watchUrl ? (
                         <SeriesItemTrackLink
                           href={item.watchUrl}
-                          external
+                          external={item.watchExternal}
                           className="inline-flex min-h-11 items-center text-sm font-semibold text-olive hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
                           event="series_watch_click"
                           seriesId={series.id}
@@ -207,10 +207,16 @@ export default async function SeriesDetailPage({ params }: Props) {
                           itemPosition={item.position}
                           destinationRecipeSlug={item.recipeSlug || undefined}
                           destinationVideoId={item.youtubeVideoId || undefined}
-                          ariaLabel={`Watch video: ${item.title} (opens in a new tab)`}
+                          ariaLabel={
+                            item.watchExternal
+                              ? `Watch video: ${item.title} (opens in a new tab)`
+                              : `Watch video: ${item.title}`
+                          }
                         >
                           Watch video
-                          <span className="sr-only"> (opens in a new tab)</span>
+                          {item.watchExternal ? (
+                            <span className="sr-only"> (opens in a new tab)</span>
+                          ) : null}
                         </SeriesItemTrackLink>
                       ) : null}
                     </div>

@@ -51,7 +51,7 @@ describe("page title system", () => {
     assert.match(readApp("disclosures/page.tsx"), /title:\s*"Disclosures"/);
     assert.match(readApp("profile/page.tsx"), /title:\s*"Profile"/);
     assert.match(readApp("studio/page.tsx"), /title:\s*"Studio"/);
-    assert.match(readApp("series/page.tsx"), /title:\s*"Series"/);
+    assert.match(readApp("series/page.tsx"), /title:\s*PHASE3C_PUBLIC_COLLECTIONS_LABEL/);
 
     const recipes = readApp("recipes/page.tsx");
     assert.match(recipes, /pageTitleSegment/);
@@ -76,6 +76,9 @@ describe("page title system", () => {
     assert.match(readApp("admin/(app)/youtube/page.tsx"), /title:\s*"YouTube"/);
     assert.match(readApp("admin/(app)/staff/page.tsx"), /title:\s*"Team Access"/);
     assert.match(readApp("admin/(app)/categories/page.tsx"), /title:\s*"Categories"/);
+    assert.match(readApp("admin/(app)/redirects/page.tsx"), /title:\s*"Redirects"/);
+    assert.match(readApp("admin/(app)/activity/page.tsx"), /title:\s*"Activity"/);
+    assert.match(readApp("admin/(app)/recipes/[id]/history/page.tsx"), /History/);
     assert.match(readApp("admin/(app)/series/page.tsx"), /title:\s*"Series"/);
     assert.match(readApp("admin/(app)/studio/page.tsx"), /title:\s*"Studio"/);
     assert.match(readApp("admin/(app)/profile/page.tsx"), /title:\s*"Profile"/);

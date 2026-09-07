@@ -1,5 +1,6 @@
 import type { Nutrition } from "@/data/types";
 import { formatTime } from "@/lib/recipe-utils";
+import { instructionStepText } from "@/lib/instruction-step";
 import { youtubeMetadataEditorHasContent } from "@/lib/youtube-metadata-editor";
 
 /** Field kinds that store a duration in minutes (see `minutes` in FIELD_KINDS). */
@@ -91,8 +92,10 @@ export function fieldValueHasContent(value: unknown, kind: string): boolean {
       );
     }
     case "instructions": {
-      const groups = Array.isArray(value) ? (value as { steps: string[] }[]) : [];
-      return groups.some((group) => group.steps.some((step) => step.trim().length > 0));
+      const groups = Array.isArray(value) ? (value as { steps: unknown[] }[]) : [];
+      return groups.some((group) =>
+        (group.steps ?? []).some((step) => instructionStepText(step).trim().length > 0),
+      );
     }
     case "nutrition":
       return nutritionHasPublicContent(value);

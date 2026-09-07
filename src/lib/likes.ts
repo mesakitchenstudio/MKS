@@ -1,6 +1,8 @@
 export type LikedRecipe = {
   slug: string;
   title: string;
+  /** Stable Recipe.id when known (preferred for collection membership). */
+  id?: string;
 };
 
 import {

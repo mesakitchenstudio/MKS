@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { CollectionRow } from "@/components/CollectionRow";
@@ -30,9 +30,11 @@ import { fieldValueHasContent, formatPublicExtraFieldValue } from "@/lib/field-c
 import { publicExtrasForPage, readerExtraLabel } from "@/lib/recipe-timing";
 import { getContinuedViewingRecipeSlug, getRankedRelatedRecipes } from "@/lib/recipe-related";
 import { RELATED_RECIPE_SHELF_LIMIT } from "@/lib/recipe-related-shelf";
+import { parseRelatedRecipeIds } from "@/lib/recipe-related-overrides";
+import { dbAvailable, getDb } from "@/lib/db";
 import { recipeJsonLd } from "@/lib/schema";
-import { formatAdminDate } from "@/lib/datetime";
-import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
+import { recipePublicPath, resolveActiveRedirect } from "@/lib/redirects";
+import { getAllRecipes, getRecipeBySlug, publicRecipeId } from "@/lib/recipes";
 import { getWatchNextRecommendation } from "@/lib/youtube-data/watch-next";
 import { getSeriesLinksForRecipeSlug, getSeriesPeerRecipeSlugs } from "@/lib/series";
 import { getRelatedLessonsForRecipeSlug } from "@/lib/studio-recipe-links";
@@ -49,9 +51,17 @@ export async function generateStaticParams() {
   return recipes.map((recipe) => ({ slug: recipe.slug }));
 }
 
+async function loadRecipeOrRedirect(slug: string) {
+  const recipe = await getRecipeBySlug(slug);
+  if (recipe) return recipe;
+  const target = await resolveActiveRedirect(recipePublicPath(slug));
+  if (target) permanentRedirect(target);
+  return null;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const recipe = await getRecipeBySlug(slug);
+  const recipe = await loadRecipeOrRedirect(slug);
   if (!recipe) return { title: "Recipe" };
 
   return {
@@ -81,7 +91,7 @@ export default async function RecipePage({ params, searchParams }: Props) {
   const targetReviewId = Array.isArray(reviewParam)
     ? reviewParam[0]?.trim() || null
     : reviewParam?.trim() || null;
-  const recipe = await getRecipeBySlug(slug);
+  const recipe = await loadRecipeOrRedirect(slug);
   if (!recipe) notFound();
 
   const [seriesLinks, seriesPeerSlugs, session, admin] = await Promise.all([
@@ -108,7 +118,6 @@ export default async function RecipePage({ params, searchParams }: Props) {
   const visibleExtrasList = publicExtrasForPage(recipe).filter((field) =>
     fieldValueHasContent(field.value, field.kind),
   );
-  const updated = formatAdminDate(recipe.updatedAt);
   const studioLessons = await getRelatedLessonsForRecipeSlug(recipe.slug);
   const hasLearn =
     Boolean(recipe.whyItWorks.trim()) ||
@@ -131,10 +140,20 @@ export default async function RecipePage({ params, searchParams }: Props) {
     : null;
 
   const continuedSlug = getContinuedViewingRecipeSlug(watchNext, seriesLinks);
+  let manualRelatedIds: string[] = [];
+  const recipeDbId = recipe.id?.trim();
+  if (recipeDbId && (await dbAvailable())) {
+    const relatedRow = await getDb().recipe.findUnique({
+      where: { id: recipeDbId },
+      select: { relatedRecipeIds: true },
+    });
+    manualRelatedIds = parseRelatedRecipeIds(relatedRow?.relatedRecipeIds);
+  }
   const related = await getRankedRelatedRecipes(recipe, {
     seriesPeerSlugs,
     limit: RELATED_RECIPE_SHELF_LIMIT,
     excludeSlugs: continuedSlug ? [continuedSlug] : [],
+    manualRelatedIds,
   });
   const initialStageVideoHelp = youtube
     ? selectStageVideoHelp(
@@ -151,7 +170,6 @@ export default async function RecipePage({ params, searchParams }: Props) {
       <RecipePageHero
         recipe={recipe}
         seriesLinks={seriesLinks}
-        updated={updated}
         reviewData={reviewData}
         videoDuration={youtube?.duration}
       />
@@ -264,7 +282,13 @@ export default async function RecipePage({ params, searchParams }: Props) {
 
   return (
     <article className="min-w-0">
-      <SetCurrentRecipe slug={recipe.slug} title={recipe.title} />
+      <SetCurrentRecipe
+        slug={recipe.slug}
+        title={recipe.title}
+        id={publicRecipeId(recipe)}
+        image={recipe.image}
+        imageAlt={recipe.imageAlt}
+      />
       <JsonLd data={recipeJsonLd(recipe, reviewData.stats)} />
       {youtube ? (
         <RecipeVideoExperience

@@ -10,6 +10,8 @@ export type PublicVideoCard = {
   publishedAt: string | null;
   embeddable: boolean;
   format: YouTubeVideoFormat;
+  /** Concise plain-text supporting copy from synced description when reliable. */
+  excerpt?: string;
   recipeSlug?: string;
   recipeTitle?: string;
 };

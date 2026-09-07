@@ -10,6 +10,7 @@ import {
   type AiTargetedFillApplyPayload,
 } from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
+import { RecipeEditorSubnav } from "@/components/admin/RecipeEditorSubnav";
 import { EditorIssueNavigator } from "@/components/admin/EditorIssueNavigator";
 import { EditorDragHandle, EditorRowActions } from "@/components/admin/EditorRowActions";
 import { EditorStickyActionBar } from "@/components/admin/EditorStickyActionBar";
@@ -31,6 +32,11 @@ import {
   fillEmptyHeroImageFromYoutubeThumbnail,
   markHeroImageManual,
 } from "@/lib/youtube-data/recipe-link";
+import {
+  applyMediaAssetToRecipeValues,
+  clearRecipeHeroMediaAssetId,
+} from "@/lib/media-asset";
+import { MediaAssetPickerButton } from "@/components/admin/MediaAssetPicker";
 import {
   RecipeEditorSectionNav,
   type RecipeEditorSectionLink,
@@ -58,9 +64,24 @@ import {
   listReviewableFields,
   missingRequiredForSection,
   sectionForFieldKey,
-  validateRecipeForPublish,
 } from "@/lib/recipe-editor-completeness";
-import { listPublishContentWarnings } from "@/lib/recipe-catalog-integrity";
+import {
+  getRecipePublishingReadiness,
+  validateRecipeForPublish,
+} from "@/lib/recipe-publishing-readiness";
+import {
+  PUBLIC_UPDATE_NOTE_MAX_CHARS,
+  publicUpdateDateInputValue,
+} from "@/lib/recipe-public-update";
+import {
+  formatIstanbulDateTimeLocal,
+  formatRecipeScheduleLabel,
+  isRecipeScheduled,
+  recipePublicationLabel,
+} from "@/lib/recipe-schedule";
+import { PublishingReadinessPanel } from "@/components/admin/PublishingReadinessPanel";
+import { RelatedRecipePinsEditor, type RelatedRecipePinCandidate } from "@/components/admin/RelatedRecipePinsEditor";
+import { parseRelatedRecipeIds } from "@/lib/recipe-related-overrides";
 import {
   listMissingAiFillableFields,
 } from "@/lib/ai-recipe/missing-fields";
@@ -289,13 +310,21 @@ function editorFormSnapshot(payload: {
   featured: boolean;
   seasonal: boolean;
   categoryIds: string[];
+  relatedRecipeIds?: string[];
   values: Record<string, unknown>;
   aiMeta?: RecipeAiMeta | null;
+  publicUpdateEnabled?: boolean;
+  publicUpdateNote?: string;
+  publicUpdatedAt?: string;
 }) {
   return JSON.stringify({
     ...payload,
     categoryIds: [...payload.categoryIds].sort(),
+    relatedRecipeIds: [...(payload.relatedRecipeIds ?? [])],
     aiMeta: payload.aiMeta ?? null,
+    publicUpdateEnabled: Boolean(payload.publicUpdateEnabled),
+    publicUpdateNote: payload.publicUpdateNote ?? "",
+    publicUpdatedAt: payload.publicUpdatedAt ?? "",
   });
 }
 
@@ -469,16 +498,21 @@ export function RecipeEditor({
   typeId: initialTypeId,
   typeName: initialTypeName,
   recipeTypes = [],
+  relatedCandidates = [],
   initial,
   fields,
   categories,
   saved,
+  restored,
   aiNotice,
+  serverError,
+  scheduledNotice,
 }: {
   recipeId?: string;
   typeId: string;
   typeName: string;
   recipeTypes?: { id: string; name: string }[];
+  relatedCandidates?: RelatedRecipePinCandidate[];
   initial: {
     title: string;
     slug: string;
@@ -487,16 +521,25 @@ export function RecipeEditor({
     featured: boolean;
     seasonal: boolean;
     categoryIds: string[];
+    relatedRecipeIds?: string[];
     values: Record<string, unknown>;
     aiMeta?: RecipeAiMeta | null;
+    publicUpdateNote?: string | null;
+    publicUpdatedAt?: string | Date | null;
+    scheduledPublishAt?: string | Date | null;
   };
   fields: Field[];
   categories: CategoryOption[];
   saved?: boolean;
+  restored?: boolean;
   aiNotice?: string;
+  serverError?: string;
+  scheduledNotice?: "scheduled" | "cleared";
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
+  const scheduleIntentRef = useRef<HTMLInputElement>(null);
+  const scheduleLocalRef = useRef<HTMLInputElement>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const sectionNavRef = useRef<HTMLElement>(null);
   const headerSentinelRef = useRef<HTMLDivElement>(null);
@@ -532,9 +575,22 @@ export function RecipeEditor({
   const [excerpt, setExcerpt] = useState(initial.excerpt);
   const [typeId, setTypeId] = useState(initialTypeId);
   const [status, setStatus] = useState(initial.status);
+  const [scheduleLocal, setScheduleLocal] = useState(() =>
+    formatIstanbulDateTimeLocal(initial.scheduledPublishAt ?? null),
+  );
   const [featured, setFeatured] = useState(initial.featured);
   const [seasonal, setSeasonal] = useState(initial.seasonal);
   const [categoryIds, setCategoryIds] = useState(initial.categoryIds);
+  const [relatedRecipeIds, setRelatedRecipeIds] = useState(() =>
+    parseRelatedRecipeIds(initial.relatedRecipeIds),
+  );
+  const initialPublicNote = String(initial.publicUpdateNote ?? "").trim();
+  const initialPublicDate = publicUpdateDateInputValue(initial.publicUpdatedAt);
+  const [publicUpdateEnabled, setPublicUpdateEnabled] = useState(
+    Boolean(initialPublicNote && initialPublicDate),
+  );
+  const [publicUpdateNote, setPublicUpdateNote] = useState(initialPublicNote);
+  const [publicUpdatedAt, setPublicUpdatedAt] = useState(initialPublicDate);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pulsingFieldKey, setPulsingFieldKey] = useState<string | null>(null);
   const [pulsingPath, setPulsingPath] = useState<string | null>(null);
@@ -563,10 +619,14 @@ export function RecipeEditor({
         featured: initial.featured,
         seasonal: initial.seasonal,
         categoryIds: initial.categoryIds,
+        relatedRecipeIds: parseRelatedRecipeIds(initial.relatedRecipeIds),
         values: hydrateEditorValues(fields, initial.values),
         aiMeta: initial.aiMeta ?? null,
+        publicUpdateEnabled: Boolean(initialPublicNote && initialPublicDate),
+        publicUpdateNote: initialPublicNote,
+        publicUpdatedAt: initialPublicDate,
       }),
-    [fields, initial, initialTypeId],
+    [fields, initial, initialPublicDate, initialPublicNote, initialTypeId],
   );
 
   const detailFields = pickFieldsOrdered(fields, DETAILS_KEYS);
@@ -780,10 +840,25 @@ export function RecipeEditor({
   ]);
 
   const isPublished = normalizeStatus(status) === "published";
+  const isScheduled = isRecipeScheduled({
+    status,
+    scheduledPublishAt: initial.scheduledPublishAt,
+  }) && !isPublished;
 
-  const publishContentWarnings = useMemo(
-    () => listPublishContentWarnings({ values }),
-    [values],
+  const publishingReadiness = useMemo(
+    () =>
+      getRecipePublishingReadiness({
+        title,
+        slug,
+        excerpt,
+        typeId,
+        fields,
+        values,
+        categoryIds,
+        aiMeta,
+        resolveSection: resolveEditorSection,
+      }),
+    [aiMeta, categoryIds, excerpt, fields, resolveEditorSection, slug, title, typeId, values],
   );
 
   const isDirty = useMemo(
@@ -796,10 +871,29 @@ export function RecipeEditor({
         featured,
         seasonal,
         categoryIds,
+        relatedRecipeIds,
         values,
         aiMeta,
+        publicUpdateEnabled,
+        publicUpdateNote,
+        publicUpdatedAt,
       }) !== baselineSnapshot,
-    [aiMeta, baselineSnapshot, categoryIds, excerpt, featured, seasonal, title, slug, typeId, values],
+    [
+      aiMeta,
+      baselineSnapshot,
+      categoryIds,
+      relatedRecipeIds,
+      excerpt,
+      featured,
+      publicUpdateEnabled,
+      publicUpdateNote,
+      publicUpdatedAt,
+      seasonal,
+      title,
+      slug,
+      typeId,
+      values,
+    ],
   );
 
   const draftActionLabel = isPublished ? "Move to draft" : "Save draft";
@@ -1262,11 +1356,31 @@ export function RecipeEditor({
           const noted = noteHumanEditorChange(meta, `values.${key}`, value);
           return markHeroImageManual(noted, String(value ?? ""));
         });
+        // Manual URL / non-library change drops library linkage.
+        return clearRecipeHeroMediaAssetId({ ...current, [key]: value });
       } else {
         setAiMeta((meta) => noteHumanEditorChange(meta, `values.${key}`, value));
       }
       return { ...current, [key]: value };
     });
+  }
+
+  function applyHeroMediaAsset(asset: { id: string; url: string; altText: string }) {
+    setValues((current) => {
+      const next = applyMediaAssetToRecipeValues(current, asset, { fillEmptyAltOnly: true });
+      setAiMeta((meta) => {
+        const noted = noteHumanEditorChange(meta, "values.image", next.image);
+        return markHeroImageManual(noted, String(next.image ?? ""));
+      });
+      return next;
+    });
+    if (fieldErrors.image) {
+      setFieldErrors((current) => {
+        const next = { ...current };
+        delete next.image;
+        return next;
+      });
+    }
   }
 
   function updateTitle(next: string) {
@@ -1912,6 +2026,7 @@ export function RecipeEditor({
   function submitWithStatus(nextStatus: string) {
     setStatus(nextStatus);
     if (statusRef.current) statusRef.current.value = nextStatus;
+    if (scheduleIntentRef.current) scheduleIntentRef.current.value = "";
     formRef.current?.requestSubmit();
   }
 
@@ -1938,7 +2053,17 @@ export function RecipeEditor({
   }
 
   function attemptPublish() {
-    const errors = validateRecipeForPublish({ title, fields, values });
+    const errors = validateRecipeForPublish({
+      title,
+      slug,
+      excerpt,
+      typeId,
+      fields,
+      values,
+      categoryIds,
+      aiMeta,
+      resolveSection: resolveEditorSection,
+    });
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const count = Object.keys(errors).length;
@@ -1967,7 +2092,50 @@ export function RecipeEditor({
 
   function proceedPublishAnyway() {
     setPublishAiWarningOpen(false);
+    if (scheduleIntentRef.current) scheduleIntentRef.current.value = "";
     submitWithStatus("published");
+  }
+
+  function attemptSchedulePublish() {
+    const errors = validateRecipeForPublish({
+      title,
+      slug,
+      excerpt,
+      typeId,
+      fields,
+      values,
+      categoryIds,
+      aiMeta,
+      resolveSection: resolveEditorSection,
+    });
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setPublishAlert(
+        "Fix publishing readiness before scheduling.",
+      );
+      const firstKey = errors.title ? "title" : Object.keys(errors)[0];
+      scrollToField(firstKey, { pulse: true, updateHash: true });
+      return;
+    }
+    if (!scheduleLocal.trim()) {
+      setPublishAlert("Choose an Istanbul date and time to schedule.");
+      return;
+    }
+    setFieldErrors({});
+    setPublishAlert("");
+    setStatus("draft");
+    if (statusRef.current) statusRef.current.value = "draft";
+    if (scheduleIntentRef.current) scheduleIntentRef.current.value = "set";
+    if (scheduleLocalRef.current) scheduleLocalRef.current.value = scheduleLocal;
+    formRef.current?.requestSubmit();
+  }
+
+  function attemptCancelSchedule() {
+    setStatus("draft");
+    if (statusRef.current) statusRef.current.value = "draft";
+    if (scheduleIntentRef.current) scheduleIntentRef.current.value = "clear";
+    if (scheduleLocalRef.current) scheduleLocalRef.current.value = "";
+    formRef.current?.requestSubmit();
   }
 
   function renderField(
@@ -2212,6 +2380,14 @@ export function RecipeEditor({
               setField(field.key, value);
               clearFieldError();
             }}
+            onApplyHeroMediaAsset={
+              field.key === "image"
+                ? (asset) => {
+                    applyHeroMediaAsset(asset);
+                    clearFieldError();
+                  }
+                : undefined
+            }
             compact={compact}
             emphasis={emphasis}
             invalid={Boolean(fieldErrors[field.key])}
@@ -2291,9 +2467,12 @@ export function RecipeEditor({
     );
   }
 
-  const documentStateLabel = isDirty && !saved ? "Unsaved" : "Saved";
-  const documentStateIsUnsaved = isDirty && !saved;
-  const publicationLabel = isPublished ? "Published" : "Draft";
+  const documentStateLabel = isDirty && !saved && !restored ? "Unsaved" : "Saved";
+  const documentStateIsUnsaved = isDirty && !saved && !restored;
+  const publicationLabel = recipePublicationLabel({
+    status,
+    scheduledPublishAt: isScheduled ? initial.scheduledPublishAt : null,
+  });
   const reviewStateLabel =
     aiMeta?.generatedByAI && aiMeta.verificationStatus === "verified"
       ? "Staff verified"
@@ -2349,6 +2528,11 @@ export function RecipeEditor({
                   </>
                 ) : null}
               </p>
+              {recipeId ? (
+                <div className="mt-3">
+                  <RecipeEditorSubnav recipeId={recipeId} active="recipe" />
+                </div>
+              ) : null}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
               {previewHref ? (
@@ -2416,6 +2600,16 @@ export function RecipeEditor({
                       </button>
                     ) : null}
                     {recipeId ? (
+                      <Link
+                        href={`/admin/recipes/${recipeId}/history`}
+                        role="menuitem"
+                        className={`flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-muted hover:bg-cream hover:text-terracotta ${adminFocusRing}`}
+                        onClick={() => setMoreMenuOpen(false)}
+                      >
+                        Revision history
+                      </Link>
+                    ) : null}
+                    {recipeId ? (
                       <div role="none" className="border-t border-line px-3 py-2">
                         <DeleteRecipeButton recipeId={recipeId} recipeTitle={pageTitle} />
                       </div>
@@ -2467,6 +2661,13 @@ export function RecipeEditor({
       >
         <input type="hidden" name="id" value={recipeId || ""} />
         <input ref={statusRef} type="hidden" name="status" value={status} />
+        <input ref={scheduleIntentRef} type="hidden" name="scheduleIntent" defaultValue="" />
+        <input
+          ref={scheduleLocalRef}
+          type="hidden"
+          name="scheduledPublishAtLocal"
+          defaultValue={scheduleLocal}
+        />
         <input type="hidden" name="aiMeta" value={serializeRecipeAiMeta(aiMeta)} />
         {/* typeId is submitted via the Discovery select */}
         {!typeOptions.some((type) => type.id === typeId) ? (
@@ -2488,6 +2689,29 @@ export function RecipeEditor({
             role="status"
           >
             {aiNotice}
+          </p>
+        ) : null}
+        {serverError ? (
+          <p
+            className="rounded-sm border border-terracotta/30 bg-terracotta/5 px-3 py-2 text-sm font-semibold text-terracotta"
+            role="alert"
+          >
+            {serverError}
+          </p>
+        ) : null}
+        {restored ? (
+          <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
+            Recipe content restored. Public URL and publication status were not changed.
+          </p>
+        ) : null}
+        {scheduledNotice === "scheduled" ? (
+          <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">
+            Publish scheduled for {formatRecipeScheduleLabel(initial.scheduledPublishAt)}.
+          </p>
+        ) : null}
+        {scheduledNotice === "cleared" ? (
+          <p className="rounded-sm border border-line bg-cream/50 px-3 py-2 text-sm text-muted" role="status">
+            Schedule cancelled. Recipe remains a draft.
           </p>
         ) : null}
 
@@ -2541,19 +2765,60 @@ export function RecipeEditor({
           </div>
         ) : null}
 
-        {publishContentWarnings.length > 0 ? (
-          <div
-            className="rounded-sm border border-olive/30 bg-olive/5 px-4 py-3"
-            role="status"
-            aria-live="polite"
-          >
-            <p className="text-sm font-semibold text-olive">Public catalog completeness</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
-              {publishContentWarnings.map((warning) => (
-                <li key={warning}>{warning}</li>
-              ))}
-            </ul>
-          </div>
+        <PublishingReadinessPanel
+          readiness={publishingReadiness}
+          onJumpToField={(fieldKey) => {
+            const advancedKeys = new Set([
+              ...ADVANCED_KEYS,
+              ...specialistFields.map((field) => field.key),
+            ]);
+            if (advancedKeys.has(fieldKey)) setAdvancedOpen(true);
+            scrollToField(fieldKey, { pulse: true, updateHash: true });
+          }}
+        />
+
+        {!isPublished ? (
+          <section className="rounded-sm border border-line p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+              Schedule publish
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Keep as draft until the chosen Istanbul time. Cron publishes only when
+              Publishing Readiness allows it. YouTube Release Planner is separate.
+            </p>
+            {isScheduled ? (
+              <p className="mt-2 text-sm font-semibold text-olive" role="status">
+                Scheduled for {formatRecipeScheduleLabel(initial.scheduledPublishAt)}
+              </p>
+            ) : null}
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <label className="grid gap-1.5 text-sm">
+                <span className="text-xs font-semibold text-muted">Date & time (Istanbul)</span>
+                <input
+                  type="datetime-local"
+                  value={scheduleLocal}
+                  onChange={(event) => setScheduleLocal(event.target.value)}
+                  className={adminInputClass}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={attemptSchedulePublish}
+                className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+              >
+                {isScheduled ? "Update schedule" : "Schedule publish"}
+              </button>
+              {isScheduled ? (
+                <button
+                  type="button"
+                  onClick={attemptCancelSchedule}
+                  className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+                >
+                  Cancel schedule
+                </button>
+              ) : null}
+            </div>
+          </section>
         ) : null}
 
         <RecipeEditorSectionNav
@@ -2891,6 +3156,11 @@ export function RecipeEditor({
                   Seasonal
                 </label>
               </div>
+              <RelatedRecipePinsEditor
+                value={relatedRecipeIds}
+                onChange={setRelatedRecipeIds}
+                candidates={relatedCandidates}
+              />
               <div className="mt-5 min-w-0 max-w-full">
                 <div className="mb-2 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <p className="min-w-0 text-sm font-semibold text-ink">Categories</p>
@@ -3025,6 +3295,68 @@ export function RecipeEditor({
                   </p>
                 ) : null}
               </div>
+            </div>
+
+            <div className="border-t border-line/70 pt-5">
+              <h3 className="text-sm font-semibold text-ink">Public update note</h3>
+              <p className="mt-1 max-w-xl text-xs text-muted">
+                Optional. Tell readers when this recipe was meaningfully retested or improved.
+                Leave off for most recipes. Not the same as Admin revision history.
+              </p>
+              <label className="mt-4 flex min-h-9 items-center gap-2 text-sm font-semibold text-ink">
+                <input
+                  type="checkbox"
+                  name="publicUpdateEnabled"
+                  checked={publicUpdateEnabled}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setPublicUpdateEnabled(next);
+                    if (!next) {
+                      setPublicUpdateNote("");
+                      setPublicUpdatedAt("");
+                    } else if (!publicUpdatedAt) {
+                      setPublicUpdatedAt(publicUpdateDateInputValue(new Date()));
+                    }
+                  }}
+                  className="rounded-sm border-line"
+                />
+                Show an update note on the recipe
+              </label>
+              {publicUpdateEnabled ? (
+                <div className="mt-4 grid max-w-xl gap-4">
+                  <label className="grid max-w-xs gap-1.5">
+                    <span className="text-sm font-semibold text-ink">Update date</span>
+                    <input
+                      type="date"
+                      name="publicUpdatedAt"
+                      value={publicUpdatedAt}
+                      onChange={(event) => setPublicUpdatedAt(event.target.value)}
+                      className={compactInputClass}
+                      required={publicUpdateEnabled}
+                    />
+                    <span className="text-xs text-muted">
+                      Shown publicly as month and year (for example, Updated September 2026).
+                    </span>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className="text-sm font-semibold text-ink">Note</span>
+                    <textarea
+                      name="publicUpdateNote"
+                      value={publicUpdateNote}
+                      onChange={(event) => setPublicUpdateNote(event.target.value)}
+                      rows={3}
+                      maxLength={PUBLIC_UPDATE_NOTE_MAX_CHARS}
+                      className={`${compactInputClass} min-h-[5.5rem] resize-y`}
+                      placeholder="We retested this recipe and adjusted the baking time for more consistent results."
+                      required={publicUpdateEnabled}
+                    />
+                    <span className="text-xs text-muted">
+                      Plain text, {PUBLIC_UPDATE_NOTE_MAX_CHARS} characters max. Write only what
+                      readers need to know.
+                    </span>
+                  </label>
+                </div>
+              ) : null}
             </div>
           </div>
         </EditorSection>
@@ -3384,6 +3716,7 @@ function KindInput({
   options,
   value,
   onChange,
+  onApplyHeroMediaAsset,
   compact = false,
   emphasis = false,
   invalid = false,
@@ -3416,6 +3749,7 @@ function KindInput({
   options: string[];
   value: unknown;
   onChange: (value: unknown) => void;
+  onApplyHeroMediaAsset?: (asset: { id: string; url: string; altText: string }) => void;
   compact?: boolean;
   emphasis?: boolean;
   invalid?: boolean;
@@ -3508,12 +3842,16 @@ function KindInput({
     );
   }
   if (kind === "image") {
+    const isHero = fieldKey === "image";
     return (
       <ImageField
         value={String(value || "")}
         onChange={onChange}
         invalid={invalid}
-        helpText={fieldKey === "image" ? RECIPE_HERO_IMAGE_HELP : ADMIN_IMAGE_FORMAT_HELP}
+        helpText={isHero ? RECIPE_HERO_IMAGE_HELP : ADMIN_IMAGE_FORMAT_HELP}
+        enableLibrary={isHero && Boolean(onApplyHeroMediaAsset)}
+        registerMediaOnUpload={isHero}
+        onApplyMediaAsset={onApplyHeroMediaAsset}
       />
     );
   }
@@ -4052,12 +4390,18 @@ function ImageField({
   buttonLabel = "Upload image",
   invalid = false,
   helpText = RECIPE_HERO_IMAGE_HELP,
+  enableLibrary = false,
+  registerMediaOnUpload = false,
+  onApplyMediaAsset,
 }: {
   value: string;
   onChange: (value: string) => void;
   buttonLabel?: string;
   invalid?: boolean;
   helpText?: string;
+  enableLibrary?: boolean;
+  registerMediaOnUpload?: boolean;
+  onApplyMediaAsset?: (asset: { id: string; url: string; altText: string }) => void;
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -4072,31 +4416,51 @@ function ImageField({
     const body = new FormData();
     body.set("file", file);
     body.set("folder", "recipes");
+    if (registerMediaOnUpload) body.set("registerMedia", "1");
     const response = await fetch("/api/admin/upload", { method: "POST", body });
-    const data = (await response.json()) as { url?: string; error?: string };
+    const data = (await response.json()) as {
+      url?: string;
+      mediaAssetId?: string;
+      error?: string;
+    };
     setBusy(false);
-    if (data.url) onChange(data.url);
+    if (!data.url) {
+      if (data.error) window.alert(data.error);
+      return;
+    }
+    if (registerMediaOnUpload && data.mediaAssetId && onApplyMediaAsset) {
+      onApplyMediaAsset({
+        id: data.mediaAssetId,
+        url: data.url,
+        altText: "",
+      });
+      return;
+    }
+    onChange(data.url);
   }
 
   return (
     <div className="grid gap-3">
       <p className="text-xs text-muted">{helpText}</p>
-      <label className="cursor-pointer">
-        <span
-          className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
-        >
-          {busy ? "Uploading…" : buttonLabel}
-        </span>
-        <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void onFile(file);
-          }}
-        />
-      </label>
+      <div className="flex flex-wrap gap-2">
+        <label className="cursor-pointer">
+          <span className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+            {busy ? "Uploading…" : buttonLabel}
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void onFile(file);
+            }}
+          />
+        </label>
+        {enableLibrary && onApplyMediaAsset ? (
+          <MediaAssetPickerButton onSelect={onApplyMediaAsset} />
+        ) : null}
+      </div>
       <div className="grid gap-1.5">
         <span className="text-xs text-muted">Or use image URL</span>
         <input

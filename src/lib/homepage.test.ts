@@ -231,10 +231,12 @@ describe("homepage Phase 1 discovery UI", () => {
 
     const body = page.slice(page.indexOf("return ("));
     const latestIdx = body.indexOf("<HomepageLatestSection");
+    const recentIdx = body.indexOf("<HomepageRecentlyViewed");
     const seriesIdx = body.indexOf("<HomepageFeaturedSeries");
     const browseIdx = body.indexOf("<HomepageBrowseCategories");
     const kitchenIdx = body.indexOf("<HomepageFromKitchenSection");
-    assert.ok(latestIdx >= 0 && seriesIdx > latestIdx);
+    assert.ok(latestIdx >= 0 && recentIdx > latestIdx);
+    assert.ok(seriesIdx > recentIdx);
     assert.ok(browseIdx > seriesIdx);
     assert.ok(kitchenIdx > browseIdx);
   });
@@ -283,11 +285,13 @@ describe("homepage Phase 1 discovery UI", () => {
     const body = page.slice(page.indexOf("return ("));
     const heroIdx = body.indexOf('bg-ink text-cream');
     const latestIdx = body.indexOf("<HomepageLatestSection");
+    const recentIdx = body.indexOf("<HomepageRecentlyViewed");
     const seriesIdx = body.indexOf("<HomepageFeaturedSeries");
     const browseIdx = body.indexOf("<HomepageBrowseCategories");
     const studioIdx = body.indexOf("A small kitchen, tested recipes");
     assert.ok(heroIdx >= 0 && latestIdx > heroIdx);
-    assert.ok(seriesIdx > latestIdx);
+    assert.ok(recentIdx > latestIdx);
+    assert.ok(seriesIdx > recentIdx);
     assert.ok(browseIdx > seriesIdx);
     assert.ok(studioIdx > browseIdx);
   });
@@ -438,17 +442,19 @@ describe("homepage Phase 4 editorial interactions", () => {
     assert.match(kitchen, /\[lead, supportA, supportB\]/);
   });
 
-  it("keeps homepage hierarchy Hero → Latest → Series → Browse → kitchen → Studio", () => {
+  it("keeps homepage hierarchy Hero → Latest → Recently viewed → Series → Browse → kitchen → Studio", () => {
     const page = read("src/app/page.tsx");
     const body = page.slice(page.indexOf("return ("));
     const heroIdx = body.indexOf("bg-ink text-cream");
     const latestIdx = body.indexOf("<HomepageLatestSection");
+    const recentIdx = body.indexOf("<HomepageRecentlyViewed");
     const seriesIdx = body.indexOf("<HomepageFeaturedSeries");
     const browseIdx = body.indexOf("<HomepageBrowseCategories");
     const kitchenIdx = body.indexOf("<HomepageFromKitchenSection");
     const studioIdx = body.indexOf('aria-labelledby="studio-heading"');
     assert.ok(heroIdx >= 0 && latestIdx > heroIdx);
-    assert.ok(seriesIdx > latestIdx);
+    assert.ok(recentIdx > latestIdx);
+    assert.ok(seriesIdx > recentIdx);
     assert.ok(browseIdx > seriesIdx);
     assert.ok(kitchenIdx > browseIdx);
     assert.ok(studioIdx > kitchenIdx);

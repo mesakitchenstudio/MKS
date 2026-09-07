@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/guest-retention",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/recipe-publish",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/search-console",
+      "schedule": "0 8 * * *"
     }
   ]
 }

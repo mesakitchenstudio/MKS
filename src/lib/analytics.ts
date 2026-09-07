@@ -26,6 +26,7 @@ export type AnalyticsEvent =
   | "recipe_jump_to_recipe"
   | "recipe_start_cooking_click"
   | "recipe_cook_mode_start"
+  | "recipe_cook_mode_complete"
   | "recipe_print"
   | "recipe_share"
   | "recipe_copy_link"

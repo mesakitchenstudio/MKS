@@ -7,7 +7,9 @@ import {
   buildPublicVideoCatalogue,
   excludeFeaturedFromGrid,
   selectFeaturedPublicVideo,
+  selectMoreFromMesa,
 } from "./catalogue.ts";
+import { summarizePublicVideoDescription } from "./description.ts";
 import {
   isFullPublicVideo,
   isPublicCatalogueEligible,
@@ -150,6 +152,53 @@ describe("public video eligibility", () => {
     assert.equal(isShortPublicVideo("SHORT"), true);
     assert.equal(isShortPublicVideo("UNKNOWN"), false);
   });
+
+  it("maps explicit recipe links and keeps unlinked cards clean", () => {
+    const linked = toPublicVideoCard(
+      row({
+        videoId: "linked000001",
+        recipeSlug: "soft-stovetop-flatbread",
+        recipeTitle: "Soft Stovetop Flatbread",
+      }),
+    );
+    const unlinked = toPublicVideoCard(row({ videoId: "unlinked00002" }));
+    assert.equal(linked?.recipeSlug, "soft-stovetop-flatbread");
+    assert.equal(unlinked?.recipeSlug, undefined);
+    assert.equal(unlinked?.recipeTitle, undefined);
+  });
+});
+
+describe("public video description excerpt", () => {
+  it("returns a concise plain-text excerpt and drops noisy YouTube fluff", () => {
+    const excerpt = summarizePublicVideoDescription(
+      [
+        "A simple stovetop flatbread with a soft, flexible crumb.",
+        "",
+        "0:00 Intro",
+        "1:20 Mix the dough",
+        "https://www.youtube.com/watch?v=abcdefghijk",
+        "#shorts #flatbread #mesa",
+      ].join("\n"),
+    );
+    assert.equal(excerpt, "A simple stovetop flatbread with a soft, flexible crumb.");
+  });
+
+  it("returns undefined when description is unreliable", () => {
+    assert.equal(summarizePublicVideoDescription("#shorts #tips"), undefined);
+    assert.equal(summarizePublicVideoDescription("https://youtu.be/abcdefghijk"), undefined);
+    assert.equal(summarizePublicVideoDescription(""), undefined);
+  });
+
+  it("attaches excerpt onto public cards when reliable", () => {
+    const card = toPublicVideoCard(
+      row({
+        videoId: "excerptLONG1",
+        description:
+          "Soft, stretchy dough and a quiet stovetop cook — this flatbread is weeknight-friendly.\n\nSubscribe for more.",
+      }),
+    );
+    assert.match(card?.excerpt || "", /Soft, stretchy dough/);
+  });
 });
 
 describe("public video catalogue", () => {
@@ -160,6 +209,7 @@ describe("public video catalogue", () => {
     durationSeconds: 380,
     recipeSlug: "homemade-chicken-caesar-salad",
     recipeTitle: "Homemade Chicken Caesar Salad with Garlic Croutons",
+    description: "A creamy Caesar dressing built from scratch in the Mesa kitchen.",
   });
   const longB = row({
     videoId: "longBBBBBBB",
@@ -228,6 +278,7 @@ describe("public video catalogue", () => {
     );
     assert.equal(catalogue.featured?.recipeTitle, "Homemade Chicken Caesar Salad with Garlic Croutons");
     assert.equal(catalogue.featured?.recipeSlug, "homemade-chicken-caesar-salad");
+    assert.match(catalogue.featured?.excerpt || "", /creamy Caesar/);
   });
 
   it("omits recipe relationship when unlinked", () => {
@@ -284,6 +335,34 @@ describe("public video catalogue", () => {
     const cards = [longA, longB].map((r) => toPublicVideoCard(r)!);
     assert.equal(selectFeaturedPublicVideo(cards)?.videoId, "longAAAAAAA");
   });
+
+  it("excludes UNKNOWN from Long and Short grids without inventing a third section", () => {
+    const unknownRow = row({
+      videoId: "unknownVID01",
+      title: "Studio lighting check",
+      description: "Camera test",
+      durationSeconds: 120,
+      durationDisplay: "2:00",
+      publishedAt: new Date("2026-07-01T00:00:00.000Z"),
+    });
+    assert.equal(classifyYouTubeVideoFormat(unknownRow), "UNKNOWN");
+    const catalogue = buildPublicVideoCatalogue([longA, unknownRow, shortVideo]);
+    assert.ok(catalogue.videos.every((video) => video.videoId !== "unknownVID01"));
+    assert.ok(catalogue.shorts.every((video) => video.videoId !== "unknownVID01"));
+    const card = toPublicVideoCard(unknownRow);
+    assert.equal(card?.format, "UNKNOWN");
+    assert.ok(card);
+  });
+
+  it("builds a small same-format-first More from Mesa shelf", () => {
+    const cards = [longA, longB, shortVideo, unmarkedShort]
+      .map((r) => toPublicVideoCard(r)!)
+      .filter(Boolean);
+    const more = selectMoreFromMesa(cards, "longAAAAAAA", "LONG", 4);
+    assert.ok(more.every((video) => video.videoId !== "longAAAAAAA"));
+    assert.equal(more[0]?.format, "LONG");
+    assert.ok(more.length >= 2);
+  });
 });
 
 describe("recipe link editorial identity", () => {
@@ -309,6 +388,8 @@ describe("recipe link editorial identity", () => {
     assert.match(matching, /resolveRecipeCardTitle/);
     assert.match(matching, /readEditorialDishName/);
     assert.match(matching, /recipeTitle: recipe\.displayTitle/);
+    assert.match(matching, /includeDrafts/);
+    assert.match(matching, /status: "published"/);
   });
 });
 
@@ -318,8 +399,10 @@ describe("public videos UI wiring", () => {
     const catalogue = read("components/youtube/PublicVideosCatalogue.tsx");
     assert.match(featured, /Featured video/);
     assert.doesNotMatch(featured, /From the kitchen/);
-    assert.match(featured, /Watch video →/);
-    assert.match(catalogue, /sectionHeading = format === "shorts" \? "Shorts" : "Full videos"/);
+    assert.match(featured, /Watch video/);
+    assert.match(featured, /View recipe/);
+    assert.match(catalogue, /Full videos/);
+    assert.match(catalogue, /shorts-heading/);
     assert.doesNotMatch(catalogue, /All videos/);
   });
 
@@ -327,8 +410,10 @@ describe("public videos UI wiring", () => {
     const featured = read("components/youtube/PublicFeaturedVideo.tsx");
     const card = read("components/youtube/PublicVideoCard.tsx");
     assert.match(featured, /md:text-\[1\.95rem\]/);
+    assert.match(featured, /video\.excerpt/);
     assert.match(card, /line-clamp-3/);
     assert.match(card, /md:text-\[1\.15rem\]/);
+    assert.match(card, /View recipe/);
   });
 
   it("treats Shorts as a portrait shelf without changing Full videos cards", () => {
@@ -341,7 +426,7 @@ describe("public videos UI wiring", () => {
     assert.match(card, /placement: portrait \? "shorts_grid" : "full_grid"/);
     assert.match(card, /source: video\.format/);
     assert.match(catalogue, /lg:grid-cols-4/);
-    assert.match(catalogue, /format === "shorts"[\s\S]*mt-10 border-t/);
+    assert.match(catalogue, /showLongSections && shorts\.length > 0/);
     assert.match(thumb, /playSize/);
     assert.match(thumb, /objectPositionClassName/);
   });
@@ -375,6 +460,54 @@ describe("public videos UI wiring", () => {
       watch,
       /video\.format === "SHORT" \? "Short" : video\.format === "LONG" \? "Full video" : "Video"/,
     );
+  });
+
+  it("hub remains poster-first with no iframe instantiation", () => {
+    const featured = read("components/youtube/PublicFeaturedVideo.tsx");
+    const card = read("components/youtube/PublicVideoCard.tsx");
+    const catalogue = read("components/youtube/PublicVideosCatalogue.tsx");
+    const hub = read("app/videos/page.tsx");
+    for (const source of [featured, card, catalogue, hub]) {
+      assert.doesNotMatch(source, /iframe/i);
+      assert.doesNotMatch(source, /YouTubeEmbedFacade/);
+      assert.doesNotMatch(source, /PublicWatchPlayer/);
+    }
+  });
+
+  it("hub metadata stays canonical to /videos and noindexes filter variants", () => {
+    const hub = read("app/videos/page.tsx");
+    assert.match(hub, /canonical: "\/videos"/);
+    assert.match(hub, /index: false/);
+    assert.match(hub, /openGraph/);
+    assert.match(hub, /Watch Mesa recipes come together/);
+  });
+
+  it("watch page deepens Recipe CTA, Short layout, and More from Mesa", () => {
+    const watch = read("app/videos/[videoId]/page.tsx");
+    const player = read("components/youtube/PublicWatchPlayer.tsx");
+    const watchCta = read("components/youtube/PublicWatchRecipeCta.tsx");
+    assert.match(watch, /PublicWatchRecipeCta/);
+    assert.match(watchCta, /Cook this recipe/);
+    assert.match(watchCta, /View recipe/);
+    assert.match(watchCta, /Get the full ingredients/);
+    assert.match(watchCta, /videos_recipe_click/);
+    assert.match(watch, /More from Mesa/);
+    assert.match(watch, /loadPublicVideoWatchPage/);
+    assert.match(watch, /portrait=\{isShort\}/);
+    assert.match(player, /data-watch-layout/);
+    assert.match(player, /YouTubeEmbedFacade/);
+    assert.doesNotMatch(watch, /Start Cooking/);
+  });
+
+  it("does not reintroduce legacy video data modules on live routes", () => {
+    const hub = read("app/videos/page.tsx");
+    const watch = read("app/videos/[videoId]/page.tsx");
+    assert.doesNotMatch(hub, /videos-page/);
+    assert.doesNotMatch(hub, /data\/videos/);
+    assert.doesNotMatch(watch, /videos-page/);
+    assert.doesNotMatch(watch, /data\/videos/);
+    assert.match(hub, /loadPublicVideoCatalogue/);
+    assert.match(watch, /loadPublicVideoWatch/);
   });
 });
 

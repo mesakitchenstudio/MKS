@@ -3,6 +3,7 @@ import {
   classifyYouTubeVideoFormat,
   type YouTubeVideoFormat,
 } from "@/lib/youtube-data/video-format";
+import { summarizePublicVideoDescription } from "@/lib/public-videos/description";
 import type { PublicVideoCard, PublicVideoSourceRow } from "@/lib/public-videos/types";
 
 /** Minimum Shorts count before showing a Full videos | Shorts control. */
@@ -82,6 +83,8 @@ export function toPublicVideoCard(row: PublicVideoSourceRow): PublicVideoCard | 
       ? `${Math.floor(row.durationSeconds / 60)}:${String(row.durationSeconds % 60).padStart(2, "0")}`
       : "");
 
+  const excerpt = summarizePublicVideoDescription(row.description);
+
   return {
     videoId: row.videoId,
     title: String(row.title).trim(),
@@ -91,6 +94,7 @@ export function toPublicVideoCard(row: PublicVideoSourceRow): PublicVideoCard | 
     publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
     embeddable: row.embeddable !== false,
     format,
+    excerpt,
     recipeSlug: row.recipeSlug,
     recipeTitle: row.recipeTitle,
   };

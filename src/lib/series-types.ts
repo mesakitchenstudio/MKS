@@ -37,7 +37,10 @@ export type PublicSeriesItem = {
   youtubeVideoId: string | null;
   youtubeTitle: string | null;
   durationDisplay: string;
+  /** Mesa `/videos/[id]` when catalogue-eligible; otherwise external YouTube when intentional. */
   watchUrl: string | null;
+  /** True when watchUrl is an external (YouTube) destination. */
+  watchExternal: boolean;
   typeName: string;
   categorySlugs: string[];
 };
@@ -108,7 +111,11 @@ export function seriesItemListJsonLd(series: PublicSeriesDetail) {
       name: item.title,
       url: item.recipeSlug
         ? `${site.url}/recipes/${item.recipeSlug}`
-        : item.watchUrl || undefined,
+        : item.watchUrl
+          ? item.watchUrl.startsWith("/")
+            ? `${site.url}${item.watchUrl}`
+            : item.watchUrl
+          : undefined,
     })),
   };
 }

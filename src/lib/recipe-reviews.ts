@@ -2,6 +2,10 @@ import { getStaffByEmail } from "@/lib/accounts";
 import { canAccess, type AccessLevel } from "@/lib/admin-access";
 import { getDb } from "@/lib/db";
 import { site } from "@/data/site";
+import {
+  resolvePublishedRecipeBySlug,
+  resolveRecipeBySlug,
+} from "@/lib/recipe-identity";
 import { sanitizePlainText, validateReviewInput } from "@/lib/user-content";
 
 /** Owner/Editor may reply to any recipe review conversation. */
@@ -126,8 +130,13 @@ export async function getRecipeReviewData(
 ): Promise<RecipeReviewData> {
   try {
     const db = getDb();
+    const recipe = await resolveRecipeBySlug(recipeSlug);
     const reviews = await db.recipeReview.findMany({
-      where: { recipeSlug },
+      where: recipe
+        ? {
+            OR: [{ recipeId: recipe.id }, { recipeId: null, recipeSlug: recipe.slug }],
+          }
+        : { recipeSlug },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -194,11 +203,8 @@ export async function submitRecipeReview(input: {
   }
 
   try {
-    const recipe = await db.recipe.findUnique({
-      where: { slug: input.recipeSlug },
-      select: { slug: true, status: true },
-    });
-    if (!recipe || recipe.status !== "published") {
+    const recipe = await resolvePublishedRecipeBySlug(input.recipeSlug);
+    if (!recipe) {
       throw new Error("Recipe not found.");
     }
 
@@ -211,30 +217,41 @@ export async function submitRecipeReview(input: {
       userId = user?.id ?? null;
     }
 
-    await db.recipeReview.upsert({
+    const existing = await db.recipeReview.findFirst({
       where: {
-        recipeSlug_authorEmail: {
-          recipeSlug: input.recipeSlug,
-          authorEmail,
-        },
-      },
-      create: {
-        recipeSlug: input.recipeSlug,
-        authorName,
         authorEmail,
-        rating: input.rating,
-        body,
-        userId,
+        OR: [{ recipeId: recipe.id }, { recipeSlug: recipe.slug }],
       },
-      update: {
-        authorName,
-        rating: input.rating,
-        body,
-        userId,
-      },
+      select: { id: true },
     });
 
-    return getRecipeReviewData(input.recipeSlug);
+    if (existing) {
+      await db.recipeReview.update({
+        where: { id: existing.id },
+        data: {
+          recipeId: recipe.id,
+          recipeSlug: recipe.slug,
+          authorName,
+          rating: input.rating,
+          body,
+          userId,
+        },
+      });
+    } else {
+      await db.recipeReview.create({
+        data: {
+          recipeId: recipe.id,
+          recipeSlug: recipe.slug,
+          authorName,
+          authorEmail,
+          rating: input.rating,
+          body,
+          userId,
+        },
+      });
+    }
+
+    return getRecipeReviewData(recipe.slug);
   } catch (error) {
     console.error("Recipe review submit failed", error);
     if (error instanceof Error && !/prisma|datasource|invocation/i.test(error.message)) {
@@ -267,10 +284,13 @@ export async function submitAdminRecipeReviewReply(input: {
   const db = getDb();
   const review = await db.recipeReview.findUnique({
     where: { id: input.reviewId },
-    select: { id: true, recipeSlug: true },
+    select: { id: true, recipeSlug: true, recipeId: true, recipe: { select: { slug: true } } },
   });
   if (!review) return null;
-  if (input.recipeSlug && review.recipeSlug !== input.recipeSlug) return null;
+  const currentSlug = review.recipe?.slug || review.recipeSlug;
+  if (input.recipeSlug && input.recipeSlug !== currentSlug && input.recipeSlug !== review.recipeSlug) {
+    return null;
+  }
 
   const staff = await getStaffByEmail(input.admin.email);
   const authorName = sanitizePlainText(staff?.name || input.admin.name || "Staff", 80);
@@ -295,7 +315,7 @@ export async function submitAdminRecipeReviewReply(input: {
     },
   });
 
-  return review.recipeSlug;
+  return currentSlug;
 }
 
 /**
@@ -321,10 +341,20 @@ export async function submitMemberRecipeReviewReply(input: {
   const db = getDb();
   const review = await db.recipeReview.findUnique({
     where: { id: input.reviewId },
-    select: { id: true, recipeSlug: true, userId: true, authorEmail: true },
+    select: {
+      id: true,
+      recipeSlug: true,
+      recipeId: true,
+      userId: true,
+      authorEmail: true,
+      recipe: { select: { slug: true } },
+    },
   });
   if (!review) return null;
-  if (input.recipeSlug && review.recipeSlug !== input.recipeSlug) return null;
+  const currentSlug = review.recipe?.slug || review.recipeSlug;
+  if (input.recipeSlug && input.recipeSlug !== currentSlug && input.recipeSlug !== review.recipeSlug) {
+    return null;
+  }
 
   if (
     !isRecipeReviewAuthor(review, {
@@ -355,7 +385,7 @@ export async function submitMemberRecipeReviewReply(input: {
     },
   });
 
-  return review.recipeSlug;
+  return currentSlug;
 }
 
 /** @deprecated Use staff/member authorized submit helpers instead. */
@@ -419,6 +449,7 @@ const adminReviewReplySelect = {
 
 const adminReviewRowSelect = {
   id: true,
+  recipeId: true,
   recipeSlug: true,
   userId: true,
   authorName: true,
@@ -444,6 +475,7 @@ function humanizeRecipeSlug(slug: string) {
 function mapAdminReviewRow(
   row: {
     id: string;
+    recipeId?: string | null;
     recipeSlug: string;
     userId: string | null;
     authorName: string;
@@ -454,18 +486,19 @@ function mapAdminReviewRow(
     _count: { replies: number };
     replies: AdminReviewListItem["replies"];
   },
-  recipe: { id: string; title: string; status: string } | undefined,
+  recipe: { id: string; slug: string; title: string; status: string } | undefined,
   staffEmails?: Set<string>,
 ): AdminReviewListItem {
   const authorEmail = row.authorEmail;
   const isStaffReviewer = Boolean(
     staffEmails?.has(normalizeReviewerEmail(authorEmail)),
   );
+  const currentSlug = recipe?.slug || row.recipeSlug;
   return {
     id: row.id,
-    recipeSlug: row.recipeSlug,
+    recipeSlug: currentSlug,
     recipeTitle: recipe?.title?.trim() || humanizeRecipeSlug(row.recipeSlug),
-    recipeId: recipe?.id ?? null,
+    recipeId: recipe?.id ?? row.recipeId ?? null,
     recipeStatus: recipe?.status ?? null,
     userId: row.userId,
     isStaffReviewer,
@@ -674,13 +707,23 @@ export async function listReviewsForAdmin(options?: {
       select: adminReviewRowSelect,
     });
 
+    const recipeIds = [
+      ...new Set(rows.map((row) => row.recipeId).filter((id): id is string => Boolean(id))),
+    ];
     const slugs = [...new Set(rows.map((row) => row.recipeSlug))];
-    const recipes = slugs.length
-      ? await db.recipe.findMany({
-          where: { slug: { in: slugs } },
-          select: { id: true, slug: true, title: true, status: true },
-        })
-      : [];
+    const recipes =
+      recipeIds.length || slugs.length
+        ? await db.recipe.findMany({
+            where: {
+              OR: [
+                ...(recipeIds.length ? [{ id: { in: recipeIds } }] : []),
+                ...(slugs.length ? [{ slug: { in: slugs } }] : []),
+              ],
+            },
+            select: { id: true, slug: true, title: true, status: true },
+          })
+        : [];
+    const recipeById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
     const recipeBySlug = new Map(recipes.map((recipe) => [recipe.slug, recipe]));
     const staffEmails = await resolveStaffReviewerEmails(rows.map((row) => row.authorEmail));
 
@@ -690,7 +733,11 @@ export async function listReviewsForAdmin(options?: {
       pageSize,
       totalPages,
       reviews: rows.map((row) =>
-        mapAdminReviewRow(row, recipeBySlug.get(row.recipeSlug), staffEmails),
+        mapAdminReviewRow(
+          row,
+          (row.recipeId && recipeById.get(row.recipeId)) || recipeBySlug.get(row.recipeSlug),
+          staffEmails,
+        ),
       ),
     };
   } catch (error) {
@@ -712,10 +759,15 @@ export async function getReviewForAdmin(id: string): Promise<AdminReviewListItem
     });
     if (!row) return null;
 
-    const recipe = await db.recipe.findFirst({
-      where: { slug: row.recipeSlug },
-      select: { id: true, slug: true, title: true, status: true },
-    });
+    const recipe = row.recipeId
+      ? await db.recipe.findUnique({
+          where: { id: row.recipeId },
+          select: { id: true, slug: true, title: true, status: true },
+        })
+      : await db.recipe.findFirst({
+          where: { slug: row.recipeSlug },
+          select: { id: true, slug: true, title: true, status: true },
+        });
     const staffEmails = await resolveStaffReviewerEmails([row.authorEmail]);
 
     return mapAdminReviewRow(row, recipe ?? undefined, staffEmails);
@@ -727,10 +779,13 @@ export async function getReviewForAdmin(id: string): Promise<AdminReviewListItem
 
 export async function deleteReviewById(id: string) {
   const db = getDb();
-  const review = await db.recipeReview.findUnique({ where: { id }, select: { recipeSlug: true } });
+  const review = await db.recipeReview.findUnique({
+    where: { id },
+    select: { recipeSlug: true, recipeId: true, recipe: { select: { slug: true } } },
+  });
   if (!review) return null;
   await db.recipeReview.delete({ where: { id } });
-  return review.recipeSlug;
+  return review.recipe?.slug || review.recipeSlug;
 }
 
 /** Deduplicate and drop empty review IDs for bulk admin deletion. */
@@ -757,13 +812,15 @@ export async function deleteReviewsByIds(ids: string[]) {
   const db = getDb();
   const rows = await db.recipeReview.findMany({
     where: { id: { in: unique } },
-    select: { id: true, recipeSlug: true },
+    select: { id: true, recipeSlug: true, recipe: { select: { slug: true } } },
   });
   if (!rows.length) return { deletedCount: 0, recipeSlugs: [] as string[] };
 
   const existingIds = rows.map((row) => row.id);
   await db.recipeReview.deleteMany({ where: { id: { in: existingIds } } });
-  const recipeSlugs = [...new Set(rows.map((row) => row.recipeSlug).filter(Boolean))];
+  const recipeSlugs = [
+    ...new Set(rows.map((row) => row.recipe?.slug || row.recipeSlug).filter(Boolean)),
+  ];
   return { deletedCount: rows.length, recipeSlugs };
 }
 

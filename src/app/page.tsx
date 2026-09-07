@@ -6,6 +6,7 @@ import { HomepageFeaturedSeries } from "@/components/HomepageFeaturedSeries";
 import { HomepageFromKitchenSection } from "@/components/HomepageFromKitchenSection";
 import { HomepageHero } from "@/components/HomepageHero";
 import { HomepageLatestSection } from "@/components/HomepageLatestSection";
+import { HomepageRecentlyViewed } from "@/components/HomepageRecentlyViewed";
 import { AccountDeletedNotice } from "@/components/AccountDeletedNotice";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { site } from "@/data/site";
@@ -93,6 +94,8 @@ export default async function Home() {
           recipes={homepage.latest}
         />
       ) : null}
+
+      <HomepageRecentlyViewed recipes={recipes} />
 
       {featuredSeries ? <HomepageFeaturedSeries series={featuredSeries} /> : null}
 

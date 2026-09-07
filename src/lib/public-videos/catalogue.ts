@@ -98,3 +98,27 @@ export function excludeFeaturedFromGrid(
   if (!featuredVideoId) return videos;
   return videos.filter((video) => video.videoId !== featuredVideoId);
 }
+
+/**
+ * Small deterministic “More from Mesa” shelf for the watch page.
+ * Prefer same format, then newest remaining catalogue cards. No AI / similarity.
+ */
+export function selectMoreFromMesa(
+  cards: PublicVideoCard[],
+  currentVideoId: string,
+  currentFormat: PublicVideoCard["format"],
+  limit = 4,
+): PublicVideoCard[] {
+  const seen = new Set<string>();
+  const pool: PublicVideoCard[] = [];
+  for (const card of cards) {
+    if (!card.videoId || card.videoId === currentVideoId) continue;
+    if (seen.has(card.videoId)) continue;
+    seen.add(card.videoId);
+    pool.push(card);
+  }
+
+  const same = pool.filter((card) => card.format === currentFormat);
+  const other = pool.filter((card) => card.format !== currentFormat);
+  return [...same, ...other].slice(0, Math.max(0, limit));
+}

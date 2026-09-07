@@ -33,8 +33,9 @@ export function isLikelyExternalStockImageUrl(url: string): boolean {
 }
 
 /**
- * Non-blocking publish warnings — does not replace validateRecipeForPublish.
- * Drafts may omit media; published recipes already require hero image + alt.
+ * Non-blocking publish warnings for homepage / catalog soft signals.
+ * Editor publish gating uses getRecipePublishingReadiness (canonical).
+ * Drafts may omit media; published recipes already require hero image + alt via type fields.
  */
 export function listPublishContentWarnings(input: {
   values: Record<string, unknown>;

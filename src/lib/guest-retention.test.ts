@@ -140,7 +140,7 @@ describe("Phase 2E retention eligibility rules", () => {
 });
 
 describe("Phase 2E retention schema + permissions contracts", () => {
-  it("18–19. pageviews and funnel events cascade with GuestVisitor", () => {
+  it("18–19. pageviews, funnel events, and search events cascade with GuestVisitor", () => {
     const schema = readFileSync(new URL("../../prisma/schema.prisma", import.meta.url), "utf8");
     assert.match(
       schema,
@@ -149,6 +149,10 @@ describe("Phase 2E retention schema + permissions contracts", () => {
     assert.match(
       schema,
       /model FunnelEvent[\s\S]*onDelete: Cascade/,
+    );
+    assert.match(
+      schema,
+      /model SearchEvent[\s\S]*onDelete: Cascade/,
     );
   });
 

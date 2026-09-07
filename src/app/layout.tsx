@@ -18,8 +18,9 @@ import { auth } from "@/auth";
 import { getAdminSession } from "@/lib/auth";
 import { isSitePrivate } from "@/lib/flags";
 import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
-import { getAllRecipes } from "@/lib/recipes";
+import { getAllRecipes, publicRecipeId } from "@/lib/recipes";
 import { recipeSearchHaystack } from "@/lib/recipe-utils";
+import { hasRecipeYoutube } from "@/lib/recipe-youtube";
 import { siteGraphJsonLd } from "@/lib/schema";
 import "./globals.css";
 
@@ -129,11 +130,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const recipes = privateMode
     ? []
     : (await getAllRecipes()).map((recipe) => ({
+        id: publicRecipeId(recipe),
         slug: recipe.slug,
         title: recipe.title,
         image: recipe.image,
         imageAlt: recipe.imageAlt,
         searchHaystack: recipeSearchHaystack(recipe),
+        hasVideo: hasRecipeYoutube(recipe),
       }));
 
   return (

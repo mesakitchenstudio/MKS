@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { actorFromAdminSession, recordAdminAuditEvent } from "@/lib/admin-audit";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import {
@@ -72,9 +73,10 @@ export async function createYoutubeReleaseAction(input: {
   releaseAt?: string | Date | null;
   notes?: string;
   youtubeVideoId?: string | null;
+  recipeId?: string | null;
   slotKey?: string;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  await requireAccess("youtube");
+  const admin = await requireAccess("youtube");
   const db = getDb();
 
   const status = parseStatus(input.status) ?? "BACKLOG";
@@ -83,6 +85,7 @@ export async function createYoutubeReleaseAction(input: {
   const notes = String(input.notes || "").trim();
   const slotKey = String(input.slotKey || "").trim();
   const youtubeVideoId = String(input.youtubeVideoId || "").trim() || null;
+  const recipeId = String(input.recipeId || "").trim() || null;
   let releaseAt = parseOptionalDate(input.releaseAt ?? null);
 
   if (slotKey && !releaseAt) {
@@ -94,6 +97,11 @@ export async function createYoutubeReleaseAction(input: {
     if (!video) return { ok: false, error: "YouTube video not found." };
   }
 
+  if (recipeId) {
+    const recipe = await db.recipe.findUnique({ where: { id: recipeId }, select: { id: true } });
+    if (!recipe) return { ok: false, error: "Recipe not found." };
+  }
+
   const row = await db.youTubeRelease.create({
     data: {
       status,
@@ -103,11 +111,24 @@ export async function createYoutubeReleaseAction(input: {
       notes,
       slotKey,
       youtubeVideoId,
+      recipeId,
       timezone: DEFAULT_CADENCE.timezone,
     },
   });
 
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(admin),
+    action: "youtube.release_updated",
+    area: "youtube",
+    entityType: "youtube_release",
+    entityId: row.id,
+    entityLabel: workingTitle || slotKey || "Release",
+    entityPath: "/admin/youtube",
+    metadata: { created: true, status, videoType, slotKey, recipeId },
+  });
+
   revalidateYoutube();
+  revalidatePath("/admin/content-calendar");
   return { ok: true, id: row.id };
 }
 
@@ -120,9 +141,10 @@ export async function updateYoutubeReleaseAction(input: {
   notes?: string;
   skipReason?: string;
   youtubeVideoId?: string | null;
+  recipeId?: string | null;
   slotKey?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireAccess("youtube");
+  const admin = await requireAccess("youtube");
   const db = getDb();
   const id = String(input.id || "").trim();
   if (!id) return { ok: false, error: "Release id is required." };
@@ -138,6 +160,7 @@ export async function updateYoutubeReleaseAction(input: {
     notes?: string;
     skipReason?: string;
     youtubeVideoId?: string | null;
+    recipeId?: string | null;
     slotKey?: string;
   } = {};
 
@@ -162,8 +185,34 @@ export async function updateYoutubeReleaseAction(input: {
     data.youtubeVideoId = youtubeVideoId;
   }
 
+  if (input.recipeId !== undefined) {
+    const recipeId = String(input.recipeId || "").trim() || null;
+    if (recipeId) {
+      const recipe = await db.recipe.findUnique({ where: { id: recipeId }, select: { id: true } });
+      if (!recipe) return { ok: false, error: "Recipe not found." };
+    }
+    data.recipeId = recipeId;
+  }
+
   await db.youTubeRelease.update({ where: { id }, data });
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(admin),
+    action: "youtube.release_updated",
+    area: "youtube",
+    entityType: "youtube_release",
+    entityId: id,
+    entityLabel: data.workingTitle || existing.workingTitle || existing.slotKey || id,
+    entityPath: "/admin/youtube",
+    metadata: {
+      changedFields: Object.keys(data),
+      ...(data.status && data.status !== existing.status
+        ? { oldStatus: existing.status, newStatus: data.status }
+        : {}),
+      ...(data.recipeId !== undefined ? { recipeId: data.recipeId } : {}),
+    },
+  });
   revalidateYoutube();
+  revalidatePath("/admin/content-calendar");
   return { ok: true };
 }
 
@@ -268,6 +317,21 @@ export async function updateYoutubeReleaseCadenceAction(
   }
 
   const cadence = await setReleaseCadence(normalizeReleaseCadence({ ...DEFAULT_CADENCE, ...input }));
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(admin),
+    action: "youtube.settings_updated",
+    area: "youtube",
+    entityType: "youtube_settings",
+    entityId: "release_cadence",
+    entityLabel: "Release cadence",
+    entityPath: "/admin/youtube",
+    metadata: {
+      weekday: cadence.weekday,
+      timeLocal: cadence.timeLocal,
+      videoType: cadence.videoType,
+      timezone: cadence.timezone,
+    },
+  });
   revalidateYoutube();
   return { ok: true, cadence };
 }

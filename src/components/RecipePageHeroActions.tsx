@@ -1,17 +1,23 @@
 "use client";
 
 import type { MouseEvent } from "react";
+import { RecipeCookEntry } from "@/components/cooking/RecipeCookEntry";
 import { useRecipeVideoOptional } from "@/components/youtube/RecipeVideoContext";
 import { trackEvent } from "@/lib/analytics";
+import type { Recipe } from "@/data/types";
 
 export function RecipePageHeroActions({
   slug,
   title,
   videoDuration,
+  recipeId,
+  recipeForCook,
 }: {
   slug: string;
   title: string;
   videoDuration?: string;
+  recipeId: string;
+  recipeForCook: Pick<Recipe, "slug" | "title" | "servings" | "ingredients" | "instructions">;
 }) {
   const video = useRecipeVideoOptional();
 
@@ -50,6 +56,7 @@ export function RecipePageHeroActions({
       >
         Jump to recipe
       </button>
+      <RecipeCookEntry recipe={recipeForCook} recipeId={recipeId} />
       {video ? (
         <button
           type="button"

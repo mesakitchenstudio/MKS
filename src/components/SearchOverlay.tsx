@@ -2,18 +2,33 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { site } from "@/data/site";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { buildRecipesUrl } from "@/lib/recipe-discovery";
+import { trackEvent } from "@/lib/analytics";
 import { readSession } from "@/lib/auth-client";
 import { isLiked, toggleLike } from "@/lib/likes";
+import { emitRecipeSearchAnalytics } from "@/lib/search-analytics-client";
+import {
+  RECENTLY_VIEWED_MAX_DISPLAY,
+  RECENTLY_VIEWED_MIN_DISPLAY,
+  readRecentlyViewed,
+  resolveRecentlyViewedRecipes,
+  subscribeRecentlyViewed,
+} from "@/lib/recently-viewed";
+import { searchOverlayRecipesByText } from "@/lib/recipe-utils";
 
 export type OverlayRecipe = {
+  /** Stable public identity when available. */
+  id?: string;
   slug: string;
   title: string;
   image: string;
   imageAlt: string;
   /** Precomputed multi-field search text (matches /recipes). */
   searchHaystack?: string;
+  /** True when recipe has a resolvable YouTube video. */
+  hasVideo?: boolean;
 };
 
 export function SearchOverlay({
@@ -23,6 +38,7 @@ export function SearchOverlay({
   recipes: OverlayRecipe[];
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [liked, setLiked] = useState<Record<string, boolean>>({});
 
@@ -52,17 +68,52 @@ export function SearchOverlay({
     };
   }, [onClose]);
 
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return recipes;
-    return recipes.filter((recipe) => {
-      const haystack = recipe.searchHaystack || recipe.title.toLowerCase();
-      return haystack.includes(needle);
-    });
-  }, [query, recipes]);
+  const rankedVisible = useMemo(
+    () => searchOverlayRecipesByText(recipes, query),
+    [query, recipes],
+  );
 
-  const latest = visible.slice(0, 8);
-  const videos = visible.slice(0, 7);
+  const recentRaw = useSyncExternalStore(
+    subscribeRecentlyViewed,
+    () => JSON.stringify(readRecentlyViewed()),
+    () => "[]",
+  );
+  const recentRecipes = useMemo(() => {
+    if (query.trim()) return [];
+    let parsed: ReturnType<typeof readRecentlyViewed> = [];
+    try {
+      parsed = JSON.parse(recentRaw) as ReturnType<typeof readRecentlyViewed>;
+    } catch {
+      parsed = [];
+    }
+    return resolveRecentlyViewedRecipes(parsed, recipes, {
+      limit: RECENTLY_VIEWED_MAX_DISPLAY,
+    });
+  }, [query, recentRaw, recipes]);
+
+  const latest = rankedVisible.slice(0, 8);
+  const videos = rankedVisible.filter((recipe) => recipe.hasVideo).slice(0, 7);
+  const catalogueHref = buildRecipesUrl({ q: query.trim() || undefined });
+
+  function commitOverlaySearch() {
+    const q = query.trim();
+    if (!q) return;
+    try {
+      trackEvent("recipe_discovery_search", {
+        search_query: q,
+        placement: "search_overlay",
+        source: "search_overlay",
+        result_count: rankedVisible.length,
+      });
+      emitRecipeSearchAnalytics({
+        searchQuery: q,
+        resultCount: rankedVisible.length,
+        placement: "search_overlay",
+      });
+    } catch {
+      /* never block navigation */
+    }
+  }
 
   async function onLike(recipe: OverlayRecipe) {
     if (!readSession()) {
@@ -93,7 +144,16 @@ export function SearchOverlay({
             autoFocus
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search..."
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              const q = query.trim();
+              if (!q) return;
+              event.preventDefault();
+              commitOverlaySearch();
+              onClose();
+              router.push(buildRecipesUrl({ q }));
+            }}
+            placeholder="Search recipes, ingredients, or techniques..."
             className="w-full rounded-full border border-line bg-cream/40 py-3.5 pl-6 pr-14 text-lg outline-none placeholder:text-muted focus:border-olive"
           />
           <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2">
@@ -101,9 +161,64 @@ export function SearchOverlay({
           </span>
         </label>
 
+        {query.trim() ? (
+          <p className="mx-auto mt-4 max-w-3xl text-sm text-muted">
+            <Link
+              href={catalogueHref}
+              onClick={() => {
+                commitOverlaySearch();
+                onClose();
+              }}
+              className="font-semibold text-terracotta hover:text-terracotta-dark"
+            >
+              View all results on Recipes
+            </Link>
+            {rankedVisible.length ? (
+              <span>
+                {" "}
+                · {rankedVisible.length} match{rankedVisible.length === 1 ? "" : "es"}
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+
+        {!query.trim() && recentRecipes.length >= RECENTLY_VIEWED_MIN_DISPLAY ? (
+          <section className="mt-12">
+            <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">
+              Recently viewed
+            </h2>
+            <div className="mt-4 flex gap-5 overflow-x-auto pb-3">
+              {recentRecipes.map((recipe) => (
+                <article key={`recent-${recipe.slug}`} className="w-40 shrink-0 md:w-44">
+                  <Link
+                    href={`/recipes/${recipe.slug}`}
+                    onClick={onClose}
+                    className="relative block aspect-square overflow-hidden bg-sand"
+                  >
+                    <Image
+                      src={recipe.image}
+                      alt={recipe.imageAlt}
+                      fill
+                      className="object-cover"
+                      sizes="180px"
+                    />
+                  </Link>
+                  <Link
+                    href={`/recipes/${recipe.slug}`}
+                    onClick={onClose}
+                    className="mt-2 block font-serif text-sm leading-snug hover:text-terracotta"
+                  >
+                    {recipe.title}
+                  </Link>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className="mt-12">
           <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">
-            Latest
+            {query.trim() ? "Recipes" : "Latest"}
           </h2>
           {latest.length ? (
             <div className="mt-4 flex gap-5 overflow-x-auto pb-3">
@@ -146,34 +261,47 @@ export function SearchOverlay({
 
         <section className="mt-10">
           <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">
-            Videos
+            With video
           </h2>
-          <div className="mt-4 flex gap-5 overflow-x-auto pb-3">
-            {videos.map((recipe) => (
-              <article key={`video-${recipe.slug}`} className="w-52 shrink-0 md:w-56">
-                <a
-                  href={site.social.youtube}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group relative block aspect-video overflow-hidden bg-sand"
-                >
-                  <Image
-                    src={recipe.image}
-                    alt={recipe.imageAlt}
-                    fill
-                    className="object-cover"
-                    sizes="240px"
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center bg-ink/20">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-paper/90 text-ink">
-                      ▶
+          {videos.length ? (
+            <div className="mt-4 flex gap-5 overflow-x-auto pb-3">
+              {videos.map((recipe) => (
+                <article key={`video-${recipe.slug}`} className="w-52 shrink-0 md:w-56">
+                  <Link
+                    href={`/recipes/${recipe.slug}`}
+                    onClick={onClose}
+                    className="group relative block aspect-video overflow-hidden bg-sand"
+                  >
+                    <Image
+                      src={recipe.image}
+                      alt={recipe.imageAlt}
+                      fill
+                      className="object-cover"
+                      sizes="240px"
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center bg-ink/20">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-paper/90 text-ink">
+                        ▶
+                      </span>
                     </span>
-                  </span>
-                </a>
-                <p className="mt-2 font-serif text-sm leading-snug">{recipe.title}</p>
-              </article>
-            ))}
-          </div>
+                  </Link>
+                  <Link
+                    href={`/recipes/${recipe.slug}`}
+                    onClick={onClose}
+                    className="mt-2 block font-serif text-sm leading-snug hover:text-terracotta"
+                  >
+                    {recipe.title}
+                  </Link>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted">
+              {query.trim()
+                ? "No video recipes match that search."
+                : "No video recipes are available yet."}
+            </p>
+          )}
         </section>
       </div>
     </div>

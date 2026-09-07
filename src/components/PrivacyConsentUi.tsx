@@ -41,6 +41,7 @@ export function PrivacyConsentUi() {
 
   return (
     <>
+      <div className="no-print">
       {displayFirstChoiceBanner ? (
         <PrivacyConsentBanner
           onAccept={() => void acceptOptional()}
@@ -62,6 +63,7 @@ export function PrivacyConsentUi() {
           onSave={(prefs) => void savePreferences(prefs)}
         />
       ) : null}
+      </div>
     </>
   );
 }

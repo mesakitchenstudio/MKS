@@ -6,6 +6,10 @@ import { readEditorialDishName } from "@/lib/recipe-editor-dish-name";
 import { youtubePlaylistUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube";
 import { recipeMainVideoId } from "@/lib/youtube-data/matching";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
+import {
+  isSyncedVideoCatalogueEligible,
+  resolvePublicVideoDiscoveryHref,
+} from "@/lib/public-videos/watch-route";
 import { site } from "@/data/site";
 import {
   pickSeriesPreviewItems,
@@ -84,20 +88,35 @@ function mapSeriesItem(row: {
   if (row.removedFromPlaylist) return null;
   const recipeOk = row.recipe && row.recipe.status === "published" ? row.recipe : null;
   const video = row.youtubeVideo;
-  const videoOk =
+  // Public privacy for display/fallback; catalogue eligibility for Mesa watch routing.
+  const videoPublic =
     video &&
-    video.embeddable !== false &&
     (!video.privacyStatus || video.privacyStatus.toLowerCase() === "public")
       ? video
       : null;
+  const catalogueEligible = videoPublic
+    ? isSyncedVideoCatalogueEligible({
+        videoId: videoPublic.videoId,
+        title: videoPublic.title,
+        thumbnailUrl: videoPublic.thumbnailUrl,
+        privacyStatus: videoPublic.privacyStatus,
+      })
+    : false;
+  const discovery = videoPublic
+    ? resolvePublicVideoDiscoveryHref({
+        videoId: videoPublic.videoId,
+        catalogueEligible,
+        youtubeWatchUrl: youtubeWatchUrl(videoPublic.videoId),
+      })
+    : null;
 
-  if (!recipeOk && !videoOk) return null;
+  if (!recipeOk && !videoPublic) return null;
 
   const recipeImage = recipeOk ? recipeImageFromValues(recipeOk.values) : "";
   const title = itemDisplayTitle({
     customTitle: row.customTitle,
     recipeTitle: recipeOk?.title,
-    youtubeTitle: videoOk?.title,
+    youtubeTitle: videoPublic?.title,
   });
   const description =
     row.customDescription.trim() || recipeOk?.excerpt?.trim() || "";
@@ -110,16 +129,17 @@ function mapSeriesItem(row: {
     featured: row.featured,
     thumbnail: resolveItemThumbnail({
       recipeImage,
-      youtubeThumbnail: videoOk?.thumbnailUrl,
-      youtubeVideoId: videoOk?.videoId,
+      youtubeThumbnail: videoPublic?.thumbnailUrl,
+      youtubeVideoId: videoPublic?.videoId,
     }),
     recipeId: recipeOk?.id ?? null,
     recipeSlug: recipeOk?.slug ?? null,
     recipeTitle: recipeOk?.title ?? null,
-    youtubeVideoId: videoOk?.videoId ?? null,
-    youtubeTitle: videoOk?.title ?? null,
-    durationDisplay: videoOk?.durationDisplay || "",
-    watchUrl: videoOk ? youtubeWatchUrl(videoOk.videoId) : null,
+    youtubeVideoId: videoPublic?.videoId ?? null,
+    youtubeTitle: videoPublic?.title ?? null,
+    durationDisplay: videoPublic?.durationDisplay || "",
+    watchUrl: discovery?.href ?? null,
+    watchExternal: discovery?.external ?? false,
     typeName: recipeOk?.type.name || "",
     categorySlugs: recipeOk?.categories.map((c) => c.category.slug) || [],
   };

@@ -1,8 +1,9 @@
 import { AdminAuthChrome } from "@/components/admin/AdminAuthChrome";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { accessLabel, homeForRole } from "@/lib/admin-access";
+import { accessLabel, canAccess, homeForRole } from "@/lib/admin-access";
 import { getAdminDeployInfo } from "@/lib/admin-deploy";
 import { buildAdminNavSections } from "@/lib/admin-nav";
+import { countUnreadAdminNotificationsForAdmin } from "@/lib/admin-notifications-server";
 import { getAdminSession } from "@/lib/auth";
 
 /** Presentation-only label for the signed-in admin in the shell. */
@@ -21,6 +22,9 @@ export default async function AdminAppLayout({ children }: { children: React.Rea
 
   const sections = buildAdminNavSections(admin.role);
   const deployInfo = getAdminDeployInfo();
+  const notificationUnreadCount = canAccess(admin.role, "content")
+    ? await countUnreadAdminNotificationsForAdmin(admin.id)
+    : 0;
 
   return (
     <div className="min-h-full bg-cream text-ink">
@@ -30,6 +34,7 @@ export default async function AdminAppLayout({ children }: { children: React.Rea
         roleLabel={accessLabel(admin.role)}
         sections={sections}
         deployInfo={deployInfo}
+        notificationUnreadCount={notificationUnreadCount}
       >
         {children}
       </AdminShell>

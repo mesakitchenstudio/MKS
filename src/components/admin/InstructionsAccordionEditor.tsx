@@ -34,6 +34,12 @@ import {
   END_BEFORE_START_MESSAGE,
   validateExplicitEndTimestamp,
 } from "@/lib/instruction-video-workspace";
+import {
+  alignStepTimers,
+  minutesToTimerSeconds,
+  normalizeTimerSeconds,
+  timerSecondsToMinutes,
+} from "@/lib/instruction-step";
 import { recipeGranularAnchorId } from "@/lib/recipe-editor-field-anchor";
 import { adminFocusRing, adminInputClass } from "@/lib/admin-ui";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
@@ -48,6 +54,66 @@ function moveArrayItem<T>(items: T[], from: number, to: number) {
   const [removed] = next.splice(from, 1);
   next.splice(to, 0, removed!);
   return next;
+}
+
+function withMovedStepTimers(
+  group: InstructionGroupWithChapters,
+  from: number,
+  to: number,
+): InstructionGroupWithChapters {
+  const steps = moveArrayItem(group.steps, from, to);
+  const timers = group.stepTimers?.length
+    ? moveArrayItem(
+        (alignStepTimers(group.stepTimers, group.steps.length) ??
+          Array.from({ length: group.steps.length }, () => undefined)) as Array<
+          number | null | undefined
+        >,
+        from,
+        to,
+      )
+    : undefined;
+  return {
+    ...group,
+    steps,
+    stepTimers: alignStepTimers(timers, steps.length),
+  };
+}
+
+function withRemovedStep(
+  group: InstructionGroupWithChapters,
+  stepIndex: number,
+): InstructionGroupWithChapters {
+  const steps = group.steps.filter((_, i) => i !== stepIndex);
+  const nextSteps = steps.length ? steps : [""];
+  const timers = group.stepTimers?.length
+    ? (alignStepTimers(group.stepTimers, group.steps.length) ?? []).filter((_, i) => i !== stepIndex)
+    : undefined;
+  return {
+    ...group,
+    steps: nextSteps,
+    stepTimers: alignStepTimers(timers, nextSteps.length),
+  };
+}
+
+function withStepTimerMinutes(
+  group: InstructionGroupWithChapters,
+  stepIndex: number,
+  minutesRaw: string,
+): InstructionGroupWithChapters {
+  const timers =
+    alignStepTimers(group.stepTimers, group.steps.length) ??
+    Array.from({ length: group.steps.length }, () => undefined);
+  const trimmed = minutesRaw.trim();
+  if (!trimmed) {
+    timers[stepIndex] = undefined;
+  } else {
+    const seconds = minutesToTimerSeconds(trimmed);
+    timers[stepIndex] = seconds ?? undefined;
+  }
+  return {
+    ...group,
+    stepTimers: alignStepTimers(timers, group.steps.length),
+  };
 }
 
 function GranularFieldAiSlot({
@@ -829,6 +895,32 @@ export function InstructionsAccordionEditor({
                           }}
                           className={`${adminInputClass} h-auto min-h-[2.75rem] flex-1 resize-y`}
                         />
+                        <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                          <span className="font-semibold uppercase tracking-[0.08em]">Timer</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={1440}
+                            inputMode="numeric"
+                            placeholder="—"
+                            aria-label={`Optional timer minutes for step ${stepNumber}`}
+                            data-testid={`instruction-step-timer-${groupIndex}-${stepIndex}`}
+                            value={timerSecondsToMinutes(
+                              normalizeTimerSeconds(group.stepTimers?.[stepIndex]),
+                            )}
+                            onChange={(event) => {
+                              const next = [...groups];
+                              next[groupIndex] = withStepTimerMinutes(
+                                group,
+                                stepIndex,
+                                event.target.value,
+                              );
+                              onChange(next);
+                            }}
+                            className={`${adminInputClass} w-20`}
+                          />
+                          <span>minutes (optional)</span>
+                        </label>
                         {onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
                           <GranularFieldAiSlot
                             path={stepPath}
@@ -851,24 +943,17 @@ export function InstructionsAccordionEditor({
                         downDisabled={stepIndex === group.steps.length - 1}
                         onMoveUp={() => {
                           const next = [...groups];
-                          next[groupIndex] = {
-                            ...group,
-                            steps: moveArrayItem(group.steps, stepIndex, stepIndex - 1),
-                          };
+                          next[groupIndex] = withMovedStepTimers(group, stepIndex, stepIndex - 1);
                           onChange(next);
                         }}
                         onMoveDown={() => {
                           const next = [...groups];
-                          next[groupIndex] = {
-                            ...group,
-                            steps: moveArrayItem(group.steps, stepIndex, stepIndex + 1),
-                          };
+                          next[groupIndex] = withMovedStepTimers(group, stepIndex, stepIndex + 1);
                           onChange(next);
                         }}
                         onRemove={() => {
                           const next = [...groups];
-                          const steps = group.steps.filter((_, i) => i !== stepIndex);
-                          next[groupIndex] = { ...group, steps: steps.length ? steps : [""] };
+                          next[groupIndex] = withRemovedStep(group, stepIndex);
                           onChange(next);
                         }}
                       />
@@ -881,7 +966,12 @@ export function InstructionsAccordionEditor({
                   className={`${editorTextAction} mt-2`}
                   onClick={() => {
                     const next = [...groups];
-                    next[groupIndex] = { ...group, steps: [...group.steps, ""] };
+                    const nextSteps = [...group.steps, ""];
+                    next[groupIndex] = {
+                      ...group,
+                      steps: nextSteps,
+                      stepTimers: alignStepTimers(group.stepTimers, nextSteps.length),
+                    };
                     onChange(next);
                   }}
                 >

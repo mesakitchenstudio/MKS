@@ -6,7 +6,15 @@ import { ensureRecipeTypeCorrections } from "@/lib/ensure-recipe-type-correction
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
 import { toPublicCategory, toPublicRecipe } from "@/lib/recipe-map";
 
-export type PublicRecipe = Recipe & { extras?: { key: string; label: string; kind: string; value: unknown }[] };
+export type PublicRecipe = Recipe & {
+  id?: string;
+  extras?: { key: string; label: string; kind: string; value: unknown }[];
+};
+
+/** Stable public identity for cooking sessions and analytics. */
+export function publicRecipeId(recipe: Pick<Recipe, "id" | "slug">): string {
+  return recipe.id?.trim() || recipe.slug;
+}
 
 function sortRecipes(list: PublicRecipe[]) {
   return [...list].sort(

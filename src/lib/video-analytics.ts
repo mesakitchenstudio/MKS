@@ -22,7 +22,8 @@ export type VideoAnalyticsSource =
   | "subscribe"
   | "end_of_recipe"
   | "post_video_subscribe"
-  | "series_page";
+  | "series_page"
+  | "cooking_mode_full";
 
 export type VideoAnalyticsPayload = {
   recipeSlug?: string;

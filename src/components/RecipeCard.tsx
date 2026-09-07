@@ -5,7 +5,9 @@ import type { Recipe } from "@/data/types";
 import type { RecipeYoutubeTimestamp, ResolvedRecipeYoutube } from "@/data/youtube-types";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
 import { recipeContentShellClass } from "@/components/RecipeContentShell";
-import { scaleAmount } from "@/lib/culinary-format";
+import { clampRecipeServings, scaleAmount } from "@/lib/culinary-format";
+import { writeRecipeServingsBridge } from "@/lib/recipe-servings-bridge";
+import { RecipePrintSheet } from "@/components/RecipePrintSheet";
 import { formatPublicNutritionSummary } from "@/lib/field-content";
 import { planCookingContext } from "@/lib/recipe-cooking-context";
 import {
@@ -219,7 +221,11 @@ function RecipeCookingWorkspaceInner({
   initialStageVideoHelp?: Record<string, StageVideoHelp>;
 }) {
   const [servings, setServings] = useState(recipe.servings);
-  const factor = servings / recipe.servings;
+  const factor = servings / Math.max(1, recipe.servings);
+
+  useEffect(() => {
+    writeRecipeServingsBridge(recipe.slug, servings);
+  }, [recipe.slug, servings]);
   const stages = useMemo(() => recipeInstructionStages(recipe), [recipe]);
   const stepCount = totalInstructionSteps(stages);
   const cookingContext = useMemo(() => planCookingContext(recipe, stages), [recipe, stages]);
@@ -245,7 +251,7 @@ function RecipeCookingWorkspaceInner({
         recipe.instructions,
         youtube?.duration ? parseTimestampInput(youtube.duration) ?? undefined : undefined,
       ),
-    [stages, chapters, youtube?.stageAlignments, youtube?.duration, recipe.instructions],
+    [stages, chapters, youtube, recipe.instructions],
   );
   const stageVideoHelp =
     youtube?.stageAlignments?.length && Object.keys(clientStageVideoHelp).length
@@ -295,7 +301,7 @@ function RecipeCookingWorkspaceInner({
       id="recipe-cooking"
       className="recipe-cooking-workspace scroll-mt-28 bg-paper py-6 md:py-7"
     >
-      <div className={recipeContentShellClass}>
+      <div className={`${recipeContentShellClass} recipe-screen-only`}>
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line/80 pb-4">
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-olive">
@@ -344,7 +350,7 @@ function RecipeCookingWorkspaceInner({
               <button
                 type="button"
                 aria-label="Decrease servings"
-                onClick={() => setServings((value) => Math.max(1, value - 1))}
+                onClick={() => setServings((value) => clampRecipeServings(value - 1))}
                 className="no-print inline-flex h-7 w-7 items-center justify-center rounded-full border border-line"
               >
                 −
@@ -355,7 +361,7 @@ function RecipeCookingWorkspaceInner({
               <button
                 type="button"
                 aria-label="Increase servings"
-                onClick={() => setServings((value) => value + 1)}
+                onClick={() => setServings((value) => clampRecipeServings(value + 1))}
                 className="no-print inline-flex h-7 w-7 items-center justify-center rounded-full border border-line"
               >
                 +
@@ -428,6 +434,8 @@ function RecipeCookingWorkspaceInner({
           </div>
         ) : null}
       </div>
+
+      <RecipePrintSheet recipe={recipe} servings={servings} />
     </section>
   );
 }

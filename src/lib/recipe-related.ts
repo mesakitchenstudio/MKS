@@ -69,6 +69,33 @@ export function scoreRelatedRecipe(
   return score;
 }
 
+/** Resolve optional editorial pins (Recipe.id order). Drops missing/unpublished/self. */
+export function resolveManualRelatedRecipes(
+  pool: Recipe[],
+  manualRelatedIds: string[] | undefined,
+  options: { excludeSlugs?: string[]; currentSlug?: string } = {},
+): Recipe[] {
+  if (!manualRelatedIds?.length) return [];
+  const byId = new Map<string, Recipe>();
+  for (const item of pool) {
+    const id = item.id?.trim();
+    if (id) byId.set(id, item);
+  }
+  const excluded = new Set([
+    ...(options.currentSlug ? [options.currentSlug] : []),
+    ...(options.excludeSlugs ?? []),
+  ]);
+  const resolved: Recipe[] = [];
+  const seen = new Set<string>();
+  for (const id of manualRelatedIds) {
+    const item = byId.get(id.trim());
+    if (!item || excluded.has(item.slug) || seen.has(item.slug)) continue;
+    seen.add(item.slug);
+    resolved.push(item);
+  }
+  return resolved;
+}
+
 export function rankRelatedRecipesFromPool(
   recipe: Recipe,
   pool: Recipe[],
@@ -76,6 +103,8 @@ export function rankRelatedRecipesFromPool(
     limit?: number;
     seriesPeerSlugs?: string[];
     excludeSlugs?: string[];
+    /** Optional ordered Recipe.id pins — shown first, then automatic fill. */
+    manualRelatedIds?: string[];
   } = {},
 ): Recipe[] {
   const limit = options.limit ?? 3;
@@ -83,8 +112,17 @@ export function rankRelatedRecipesFromPool(
   const excluded = new Set([recipe.slug, ...(options.excludeSlugs ?? [])]);
   const all = pool;
 
+  const manual = resolveManualRelatedRecipes(all, options.manualRelatedIds, {
+    excludeSlugs: options.excludeSlugs,
+    currentSlug: recipe.slug,
+  }).slice(0, limit);
+  if (manual.length >= limit) return manual;
+
+  const picked = new Set(manual.map((item) => item.slug));
+  const remaining = limit - manual.length;
+
   const scored = all
-    .filter((item) => !excluded.has(item.slug))
+    .filter((item) => !excluded.has(item.slug) && !picked.has(item.slug))
     .map((item) => ({
       item,
       score: scoreRelatedRecipe(recipe, item, seriesPeers),
@@ -98,11 +136,11 @@ export function rankRelatedRecipesFromPool(
         a.item.title.localeCompare(b.item.title),
     );
 
-  if (scored.length >= limit) {
-    return scored.slice(0, limit).map((entry) => entry.item);
+  if (scored.length >= remaining) {
+    return [...manual, ...scored.slice(0, remaining).map((entry) => entry.item)];
   }
 
-  const picked = new Set(scored.map((entry) => entry.item.slug));
+  scored.forEach((entry) => picked.add(entry.item.slug));
   const course = recipe.course.trim().toLowerCase();
   const categories = new Set(recipe.categories.map((item) => item.toLowerCase()));
   const method = recipe.method.trim().toLowerCase();
@@ -122,11 +160,11 @@ export function rankRelatedRecipesFromPool(
       }
       return item.categories.some((category) => categories.has(category.toLowerCase()));
     })
-    .slice(0, limit - scored.length);
+    .slice(0, remaining - scored.length);
 
   softFallback.forEach((item) => picked.add(item.slug));
 
-  const related = [...scored.map((entry) => entry.item), ...softFallback];
+  const related = [...manual, ...scored.map((entry) => entry.item), ...softFallback];
 
   if (related.length >= limit) {
     return related.slice(0, limit);
@@ -153,6 +191,7 @@ export async function getRankedRelatedRecipes(
     limit?: number;
     seriesPeerSlugs?: string[];
     excludeSlugs?: string[];
+    manualRelatedIds?: string[];
   } = {},
 ): Promise<PublicRecipe[]> {
   const all = await getAllRecipes();

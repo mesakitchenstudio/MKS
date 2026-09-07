@@ -44,7 +44,11 @@ export type HomepageConfig = {
   hero: HomepageHeroConfig;
   latest: HomepageLatestConfig;
   fromKitchen: HomepageFromKitchenConfig;
-  /** Legacy collection definitions for /recipes ?collection= URLs — not rendered on homepage */
+  /**
+   * Legacy curated slug lists for `/recipes?collection=` bookmarks only.
+   * Not Series/Collections (`/series`). Not rendered on the homepage.
+   * All modules stay `enabled: false` — discovery filter remains for URL compatibility.
+   */
   collections: HomepageCollectionConfig[];
 };
 

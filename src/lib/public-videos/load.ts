@@ -3,9 +3,13 @@ import "server-only";
 import { getDb } from "@/lib/db";
 import { buildRecipeVideoIndex } from "@/lib/youtube-data/matching";
 import { youtubeWatchUrl } from "@/lib/youtube";
-import { buildPublicVideoCatalogue } from "@/lib/public-videos/catalogue";
+import {
+  buildPublicVideoCatalogue,
+  selectMoreFromMesa,
+} from "@/lib/public-videos/catalogue";
 import { isPublicCatalogueEligible, toPublicVideoCard } from "@/lib/public-videos/eligibility";
 import type {
+  PublicVideoCard,
   PublicVideoCatalogueResult,
   PublicVideoSourceRow,
   PublicVideoWatch,
@@ -109,6 +113,39 @@ export async function loadPublicVideoWatch(videoId: string): Promise<PublicVideo
       ...card,
       youtubeWatchUrl:
         youtubeWatchUrl(card.videoId) || `https://www.youtube.com/watch?v=${card.videoId}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Watch page payload: current video + optional “More from Mesa” shelf.
+ * One catalogue pass (videos + published recipe index) — no live YouTube API.
+ */
+export async function loadPublicVideoWatchPage(videoId: string): Promise<{
+  video: PublicVideoWatch;
+  moreFromMesa: PublicVideoCard[];
+} | null> {
+  const id = String(videoId ?? "").trim();
+  if (!id || !/^[a-zA-Z0-9_-]{11}$/.test(id)) return null;
+
+  try {
+    const rows = await loadPublicVideoSourceRows();
+    const cards = rows
+      .map((row) => toPublicVideoCard(row))
+      .filter((card): card is PublicVideoCard => Boolean(card));
+    const card = cards.find((entry) => entry.videoId === id);
+    if (!card) return null;
+
+    const more = selectMoreFromMesa(cards, id, card.format, 4);
+    return {
+      video: {
+        ...card,
+        youtubeWatchUrl:
+          youtubeWatchUrl(card.videoId) || `https://www.youtube.com/watch?v=${card.videoId}`,
+      },
+      moreFromMesa: more.length >= 2 ? more : [],
     };
   } catch {
     return null;

@@ -16,7 +16,10 @@ describe("profile favorites launch QA", () => {
     const profile = read("app/profile/page.tsx");
 
     assert.match(favorites, /resolveRecipeCardTitle/);
-    assert.match(favorites, /Remove \$\{dishLabel\} from favorites/);
+    assert.match(favorites, /Remove \$\{dishLabel\} from saved recipes/);
+    assert.match(favorites, /Organize \$\{dishLabel\} in collections/);
+    assert.match(favorites, /SavedRecipeCollectionPicker/);
+    assert.match(favorites, /UnsaveWithCollectionsConfirm/);
     assert.match(favorites, /h-11 w-11/);
     assert.doesNotMatch(favorites, /h-10 w-10/);
     assert.match(favorites, /browseRef\.current\?\.focus/);
@@ -24,6 +27,8 @@ describe("profile favorites launch QA", () => {
 
     assert.match(profile, /break-words font-serif text-4xl/);
     assert.match(profile, /<ProfileFavorites/);
+    assert.match(profile, /Saved recipes/);
+    assert.match(profile, /ProfileSavedCollections/);
     assert.doesNotMatch(profile, /FavoritesEmptyState/);
     assert.match(profile, /const session = await auth\(\)/);
     assert.match(profile, /const email = session\?\.user\?\.email/);

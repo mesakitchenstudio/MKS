@@ -3,17 +3,44 @@ import { PublicVideosCatalogue } from "@/components/youtube/PublicVideosCatalogu
 import { site } from "@/data/site";
 import { loadPublicVideoCatalogue } from "@/lib/public-videos/load";
 
-export const metadata: Metadata = {
-  title: "Videos",
-  description: `Step-by-step recipes and kitchen techniques from ${site.name}. Watch the method, then cook from the written recipe when there is one.`,
-  alternates: { canonical: "/videos" },
-};
+const VIDEOS_DESCRIPTION =
+  "Watch Mesa recipes come together in the studio, then open the full tested recipe when you’re ready to cook.";
 
 export const revalidate = 300;
 
 function parseFormat(raw: string | string[] | undefined): "long" | "shorts" {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value === "shorts" ? "shorts" : "long";
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const format = parseFormat(params.format);
+  const isShortsFilter = format === "shorts";
+
+  return {
+    title: "Videos",
+    description: VIDEOS_DESCRIPTION,
+    alternates: { canonical: "/videos" },
+    // Filter variants share the same canonical; do not create a second indexable URL.
+    robots: isShortsFilter ? { index: false, follow: true } : undefined,
+    openGraph: {
+      title: `Videos | ${site.name}`,
+      description: VIDEOS_DESCRIPTION,
+      url: `${site.url}/videos`,
+      siteName: site.name,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `Videos | ${site.name}`,
+      description: VIDEOS_DESCRIPTION,
+    },
+  };
 }
 
 export default async function VideosPage({
@@ -33,10 +60,7 @@ export default async function VideosPage({
         From the kitchen
       </p>
       <h1 className="mt-2 font-serif text-4xl text-ink md:text-5xl">Videos</h1>
-      <p className="mt-4 max-w-2xl text-base leading-7 text-muted md:mt-5">
-        Step-by-step recipes and kitchen techniques from the Mesa kitchen. Watch the method, then
-        cook from the written recipe when there is one.
-      </p>
+      <p className="mt-4 max-w-2xl text-base leading-7 text-muted md:mt-5">{VIDEOS_DESCRIPTION}</p>
 
       {result.ok ? (
         <PublicVideosCatalogue

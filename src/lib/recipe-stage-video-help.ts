@@ -7,6 +7,7 @@ import {
   normalizeInstructionGroups,
   resolveInstructionChapter,
 } from "@/lib/instruction-chapters";
+import { instructionStepText } from "@/lib/instruction-step";
 
 export type StageVideoHelp = {
   time: number;
@@ -28,7 +29,7 @@ export function selectStageVideoHelp(
 ): Record<string, StageVideoHelp> {
   const normalizedInstructions = instructions
     ? normalizeInstructionGroups(instructions).filter((group) =>
-        group.steps.some((step) => step.trim()),
+        group.steps.some((step) => instructionStepText(step).trim()),
       )
     : [];
 

@@ -92,5 +92,6 @@ export function isBlockedApiWhilePrivate(
   if (isPublicApiWhilePrivate(pathname)) return false;
   if (pathname.startsWith("/api/analytics/guest")) return false;
   if (pathname.startsWith("/api/analytics/events")) return false;
+  if (pathname.startsWith("/api/analytics/search")) return false;
   return pathname.startsWith("/api/recipes");
 }

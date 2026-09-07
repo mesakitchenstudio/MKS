@@ -103,7 +103,9 @@ export default async function AdminSeriesPage({
         <div className="min-w-0">
           <h1 className="font-serif text-3xl text-ink">Series</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Import YouTube playlists as Mesa Series, or build custom Mesa-only collections.
+            Editorial collections for the public site (routes stay{" "}
+            <span className="font-mono text-ink/80">/series</span>). Import YouTube playlists or
+            build custom Mesa-only collections.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

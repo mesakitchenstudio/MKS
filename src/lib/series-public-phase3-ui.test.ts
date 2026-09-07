@@ -43,6 +43,7 @@ function item(
     youtubeTitle: null,
     durationDisplay: "",
     watchUrl: null,
+    watchExternal: false,
     typeName: "",
     categorySlugs: [],
     ...partial,
@@ -147,7 +148,9 @@ describe("Series public Phase 3 conversion + metadata", () => {
     assert.doesNotMatch(page, />\s*View recipe\s*</);
     assert.doesNotMatch(page, />\s*Watch\s*</);
     assert.match(page, /ariaLabel=\{`Read recipe: \$\{item\.title\}`\}/);
-    assert.match(page, /ariaLabel=\{`Watch video: \$\{item\.title\} \(opens in a new tab\)`\}/);
+    assert.match(page, /item\.watchExternal/);
+    assert.match(page, /opens in a new tab/);
+    assert.match(page, /external=\{item\.watchExternal\}/);
     assert.match(page, /item\.recipeSlug \?/);
     assert.match(page, /item\.watchUrl \?/);
   });

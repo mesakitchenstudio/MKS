@@ -10,6 +10,7 @@ import {
   adminTableHeadClass,
 } from "@/lib/admin-ui";
 import { formatAdminDateTimeUtc } from "@/lib/datetime";
+import { recipePublicationLabel } from "@/lib/recipe-schedule";
 import { NewRecipeButton } from "./NewRecipeButton";
 
 export type AdminRecipeRow = {
@@ -17,6 +18,7 @@ export type AdminRecipeRow = {
   slug: string;
   title: string;
   status: string;
+  scheduledPublishAt?: string | null;
   updatedAt: string;
   type: { id: string; name: string };
 };
@@ -26,7 +28,7 @@ type RecipeTypeOption = {
   name: string;
 };
 
-type StatusFilter = "all" | "published" | "draft";
+type StatusFilter = "all" | "published" | "draft" | "scheduled";
 
 const editActionClass = `inline-flex min-h-[44px] items-center text-sm font-semibold text-ink no-underline transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`;
 const viewActionClass = `inline-flex min-h-[44px] items-center text-sm font-normal text-muted no-underline transition-colors duration-150 hover:text-olive ${adminFocusRing}`;
@@ -39,15 +41,31 @@ function normalizeStatus(status: string) {
 function recipeCounts(recipes: AdminRecipeRow[]) {
   const total = recipes.length;
   const published = recipes.filter((recipe) => normalizeStatus(recipe.status) === "published").length;
-  return { total, published, drafts: total - published };
+  const scheduled = recipes.filter(
+    (recipe) =>
+      normalizeStatus(recipe.status) !== "published" && Boolean(recipe.scheduledPublishAt),
+  ).length;
+  const drafts = total - published - scheduled;
+  return { total, published, drafts, scheduled };
 }
 
-function RecipeStatus({ status }: { status: string }) {
-  const published = normalizeStatus(status) === "published";
-  const label = published ? "Published" : "Draft";
+function RecipeStatus({
+  status,
+  scheduledPublishAt,
+}: {
+  status: string;
+  scheduledPublishAt?: string | null;
+}) {
+  const label = recipePublicationLabel({ status, scheduledPublishAt });
+  const published = label === "Published";
+  const scheduled = label === "Scheduled";
 
   return (
-    <span className={`text-sm ${published ? "text-olive" : "font-medium text-terracotta"}`}>
+    <span
+      className={`text-sm ${
+        published ? "text-olive" : scheduled ? "font-medium text-olive" : "font-medium text-terracotta"
+      }`}
+    >
       {label}
     </span>
   );
@@ -136,7 +154,20 @@ export function RecipesIndex({
     const q = query.trim().toLowerCase();
     return recipes.filter((recipe) => {
       if (typeId && recipe.type.id !== typeId) return false;
-      if (status !== "all" && normalizeStatus(recipe.status) !== status) return false;
+      if (status === "published" && normalizeStatus(recipe.status) !== "published") return false;
+      if (status === "scheduled") {
+        if (
+          normalizeStatus(recipe.status) === "published" ||
+          !recipe.scheduledPublishAt
+        ) {
+          return false;
+        }
+      }
+      if (status === "draft") {
+        if (normalizeStatus(recipe.status) === "published" || recipe.scheduledPublishAt) {
+          return false;
+        }
+      }
       if (q && !recipe.title.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -161,7 +192,8 @@ export function RecipesIndex({
             {counts.total > 0 ? (
               <p className="mt-2 text-sm text-muted">
                 {counts.total} {counts.total === 1 ? "recipe" : "recipes"} · {counts.published}{" "}
-                published · {counts.drafts} {counts.drafts === 1 ? "draft" : "drafts"}
+                published · {counts.scheduled} scheduled · {counts.drafts}{" "}
+                {counts.drafts === 1 ? "draft" : "drafts"}
               </p>
             ) : null}
           </div>
@@ -213,6 +245,7 @@ export function RecipesIndex({
                 [
                   ["all", "All"],
                   ["published", "Published"],
+                  ["scheduled", "Scheduled"],
                   ["draft", "Draft"],
                 ] as const
               ).map(([value, label]) => {
@@ -308,7 +341,10 @@ export function RecipesIndex({
                       </td>
                       <td className="px-4 py-3.5 align-middle text-ink">{recipe.type.name}</td>
                       <td className="px-4 py-3.5 align-middle">
-                        <RecipeStatus status={recipe.status} />
+                        <RecipeStatus
+                          status={recipe.status}
+                          scheduledPublishAt={recipe.scheduledPublishAt}
+                        />
                       </td>
                       <td className="px-4 py-3.5 align-middle whitespace-nowrap text-sm text-muted">
                         <time dateTime={recipe.updatedAt}>
@@ -338,7 +374,10 @@ export function RecipesIndex({
                     >
                       {recipe.title}
                     </Link>
-                    <RecipeStatus status={recipe.status} />
+                    <RecipeStatus
+                      status={recipe.status}
+                      scheduledPublishAt={recipe.scheduledPublishAt}
+                    />
                   </div>
                   <p className="mt-1 text-sm text-muted">
                     {recipe.type.name} ·{" "}

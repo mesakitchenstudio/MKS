@@ -109,11 +109,12 @@ export default function PrivacyPage() {
           </h2>
           <div className={bodyClass}>
             <p>
-              We use first-party visitor analytics to understand which pages are useful.
-              That may include a guest cookie, page views, and approximate location from
-              the hosting provider. Guest network details such as IP addresses are reduced
-              over time according to our retention process. Optional analytics only runs
-              when you allow it in Privacy preferences.
+              We use first-party visitor analytics to understand which pages are useful and which
+              recipe searches help or miss. That may include a guest cookie, page views, consented
+              search terms (to improve the catalogue), and approximate location from the hosting
+              provider. Guest network details such as IP addresses are reduced over time according
+              to our retention process. Optional analytics only runs when you allow it in Privacy
+              preferences.
             </p>
             <p>
               Recipe pages include structured data so search engines can show cook times

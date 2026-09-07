@@ -55,8 +55,8 @@ describe("Recipe editor Phase 1 presentation contracts", () => {
     assert.match(editor, /"Unsaved"/);
     assert.match(editor, /"Saved"/);
     assert.match(editor, /publicationLabel/);
-    assert.match(editor, /"Published"/);
-    assert.match(editor, /"Draft"/);
+    assert.match(editor, /recipePublicationLabel/);
+    assert.match(editor, /Schedule publish/);
     assert.match(editor, /Staff verified/);
     assert.match(editor, />\s*Preview\s*</);
     assert.match(editor, />\s*Update recipe\s*</);

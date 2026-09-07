@@ -48,6 +48,10 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
     label: "Publishing",
     items: [
       { href: "/admin", label: "Recipes", match: "recipes-index", area: "content" },
+      { href: "/admin/content-calendar", label: "Content Calendar", match: "prefix", area: "content" },
+      { href: "/admin/content-health", label: "Content Health", match: "prefix", area: "content" },
+      { href: "/admin/site-health", label: "Site Health", match: "prefix", area: "content" },
+      { href: "/admin/notifications", label: "Notifications", match: "prefix", area: "content" },
       { href: "/admin/studio", label: "Studio", match: "prefix", area: "content" },
     ],
   },
@@ -55,9 +59,11 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
     id: "library",
     label: "Library",
     items: [
+      { href: "/admin/media", label: "Media", match: "prefix", area: "content" },
       { href: "/admin/categories", label: "Categories", area: "content" },
       { href: "/admin/series", label: "Series", area: "content" },
       { href: "/admin/types", label: "Recipe types", area: "content" },
+      { href: "/admin/redirects", label: "Redirects", area: "content" },
     ],
   },
   {
@@ -73,14 +79,20 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
     id: "analytics",
     label: "Analytics",
     items: [
+      { href: "/admin/content-performance", label: "Content Performance", match: "prefix", area: "content" },
       { href: "/admin/visitors", label: "Visitors", area: "members" },
+      { href: "/admin/search", label: "Search", match: "exact", area: "content" },
+      { href: "/admin/search-console", label: "Search Console", match: "prefix", area: "content" },
       { href: "/admin/youtube", label: "YouTube", area: "youtube" },
     ],
   },
   {
     id: "team",
     label: "Team",
-    items: [{ href: "/admin/staff", label: "Team access", area: "staff" }],
+    items: [
+      { href: "/admin/staff", label: "Team access", area: "staff" },
+      { href: "/admin/activity", label: "Activity", match: "exact", area: "staff" },
+    ],
   },
 ];
 
@@ -106,11 +118,21 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviewsList;
   if (pathname.startsWith("/admin/types")) return adminWorkspaceTypes;
   if (pathname.startsWith("/admin/categories")) return adminWorkspaceCategories;
+  if (pathname.startsWith("/admin/redirects")) return adminWorkspaceCategories;
+  if (pathname.startsWith("/admin/media")) return adminWorkspaceWide;
+  if (pathname.startsWith("/admin/activity")) return adminWorkspaceWide;
   if (pathname.startsWith("/admin/series")) return adminWorkspaceSeries;
   if (pathname === "/admin") return adminWorkspaceRecipes;
   if (
     pathname.startsWith("/admin/recipes") ||
+    pathname.startsWith("/admin/content-calendar") ||
+    pathname.startsWith("/admin/content-health") ||
+    pathname.startsWith("/admin/site-health") ||
+    pathname.startsWith("/admin/notifications") ||
     pathname.startsWith("/admin/visitors") ||
+    pathname.startsWith("/admin/content-performance") ||
+    pathname.startsWith("/admin/search") ||
+    pathname.startsWith("/admin/search-console") ||
     pathname.startsWith("/admin/youtube")
   ) {
     return adminWorkspaceWide;
@@ -128,6 +150,7 @@ export function adminPageTitleForPath(pathname: string, sections: AdminNavSectio
   }
   if (pathname.startsWith("/admin/profile")) return "Profile";
   if (pathname.startsWith("/admin/recipes/new")) return "New recipe";
+  if (/\/admin\/recipes\/[^/]+\/history/.test(pathname)) return "History";
   if (pathname.startsWith("/admin/recipes/")) return "Edit recipe";
   return "Admin";
 }

@@ -55,8 +55,10 @@ describe("funnel-analytics", () => {
       mapClientEventToFunnelName("series_watch_playlist_on_youtube_click"),
       "series_watch_playlist_on_youtube_click",
     );
+    assert.equal(mapClientEventToFunnelName("videos_recipe_click"), "video_to_recipe");
     assert.ok(isFunnelEventName("recipe_youtube_subscribe_click"));
     assert.ok(isFunnelEventName("series_watch_playlist_on_youtube_click"));
+    assert.ok(isFunnelEventName("video_to_recipe"));
   });
 
   it("maps video analytics sources to placements", () => {
@@ -79,6 +81,9 @@ describe("funnel-analytics", () => {
     assert.equal(mapSourceToPlacement("series_page_conclusion"), "series_page");
     assert.equal(mapSourceToPlacement("homepage"), "other");
     assert.equal(mapSourceToPlacement("homepage_series"), "other");
+    assert.equal(mapSourceToPlacement("featured"), "videos_featured");
+    assert.equal(mapSourceToPlacement("full_grid"), "videos_card");
+    assert.equal(mapSourceToPlacement("watch_page"), "videos_watch");
     assert.equal(mapSourceToPlacement("unknown"), "other");
   });
 

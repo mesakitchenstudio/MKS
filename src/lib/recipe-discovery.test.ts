@@ -6,11 +6,14 @@ import { recipes } from "../data/recipes.ts";
 import { homepageCollectionSlugMap } from "../data/homepage.ts";
 import {
   applyDiscoveryFilters,
+  buildDiscoverySuggestions,
   buildRecipesUrl,
   parseDiscoveryParams,
   recipeMatchesDiscoveryCategory,
   sortRecipeList,
 } from "./recipe-discovery.ts";
+import { scoreRecipeTextMatch, searchRecipesByText, totalMinutes } from "./recipe-utils.ts";
+import { hasRecipeYoutube } from "./recipe-youtube.ts";
 import {
   PRIMARY_CATEGORY_SLUGS,
   PRIMARY_PUBLIC_FILTERS,
@@ -250,7 +253,9 @@ describe("public recipes Phase 1 editorial discovery UI", () => {
   it("preserves SEO canonical and filtered noindex", () => {
     const page = read("src/app/recipes/page.tsx");
     assert.match(page, /canonical: "\/recipes"/);
-    assert.match(page, /robots: params\.q \|\| params\.category \|\| params\.collection \? \{ index: false \}/);
+    assert.match(page, /index: false/);
+    assert.match(page, /params\.time/);
+    assert.match(page, /params\.video/);
   });
 
   it("uses editorial search, category index, and 1/2/3 card grid", () => {
@@ -322,7 +327,105 @@ describe("public recipes Phase 1 editorial discovery UI", () => {
       "/recipes?q=chicken&category=main-dishes&sort=alpha",
     );
     const discovery = read("src/components/RecipeDiscovery.tsx");
-    assert.match(discovery, /collectionTitle/);
+    assert.match(discovery, /collectionTitles/);
     assert.match(discovery, /collection: undefined/);
+  });
+});
+
+describe("phase 3A discovery filters and ranking", () => {
+  const collectionMap = homepageCollectionSlugMap();
+  const root = process.cwd();
+  const read = (rel: string) => readFileSync(join(root, rel), "utf8");
+
+  it("parses and builds time / video / cuisine / method URL state", () => {
+    const params = parseDiscoveryParams({
+      time: "60",
+      video: "1",
+      cuisine: "Italian",
+      method: "Oven",
+    });
+    assert.equal(params.time, "60");
+    assert.equal(params.video, true);
+    assert.equal(params.cuisine, "Italian");
+    assert.equal(params.method, "Oven");
+    assert.equal(
+      buildRecipesUrl(params),
+      "/recipes?time=60&video=1&cuisine=Italian&method=Oven",
+    );
+    assert.equal(parseDiscoveryParams({ time: "nope", video: "0" }).time, undefined);
+    assert.equal(parseDiscoveryParams({ video: "0" }).video, undefined);
+  });
+
+  it("filters by totalMinutes time buckets without inventing times", () => {
+    const underHour = applyDiscoveryFilters(recipes, { time: "60" }, collectionMap);
+    assert.ok(underHour.length > 0);
+    assert.ok(underHour.every((recipe) => totalMinutes(recipe) > 0 && totalMinutes(recipe) <= 60));
+
+    const overTwo = applyDiscoveryFilters(recipes, { time: "over" }, collectionMap);
+    assert.ok(overTwo.every((recipe) => totalMinutes(recipe) > 120));
+  });
+
+  it("filters video recipes using hasRecipeYoutube semantics", () => {
+    const withVideo = applyDiscoveryFilters(recipes, { video: true }, collectionMap);
+    assert.ok(withVideo.every((recipe) => hasRecipeYoutube(recipe)));
+  });
+
+  it("ranks title matches above excerpt-only mentions", () => {
+    const baguette = {
+      ...recipes[0]!,
+      slug: "classic-french-baguettes",
+      title: "Classic French Baguettes",
+      dishName: "Baguettes",
+      excerpt: "Crisp crust.",
+      ingredients: [{ items: [{ item: "flour", amount: "500 g" }] }],
+    };
+    const mention = {
+      ...recipes[1]!,
+      slug: "soup-with-croutons",
+      title: "Tomato Soup",
+      dishName: "Tomato Soup",
+      excerpt: "Serve with leftover baguette slices.",
+      ingredients: [{ items: [{ item: "tomatoes", amount: "4" }] }],
+    };
+    const ranked = applyDiscoveryFilters(
+      [mention, baguette],
+      { q: "baguette" },
+      collectionMap,
+    );
+    assert.equal(ranked[0]?.slug, "classic-french-baguettes");
+    assert.ok(scoreRecipeTextMatch(baguette, "baguette") > scoreRecipeTextMatch(mention, "baguette"));
+  });
+
+  it("supports prefix partial matches without distant fuzzy noise", () => {
+    const ranked = searchRecipesByText(recipes, "focac");
+    assert.ok(ranked.some((row) => row.recipe.slug === "herb-focaccia"));
+    assert.equal(searchRecipesByText(recipes, "zzzznotarecipe").length, 0);
+  });
+
+  it("builds autocomplete suggestions for recipes and categories", () => {
+    const suggestions = buildDiscoverySuggestions({ query: "bre", recipes, limit: 8 });
+    assert.ok(suggestions.some((item) => item.kind === "category" && item.id === "breads"));
+    assert.ok(suggestions.some((item) => item.kind === "recipe"));
+  });
+
+  it("keeps SearchOverlay on the shared haystack and video-aware results", () => {
+    const overlay = read("src/components/SearchOverlay.tsx");
+    assert.match(overlay, /hasVideo/);
+    assert.match(overlay, /View all results on Recipes/);
+    assert.match(overlay, /buildRecipesUrl/);
+    assert.match(overlay, /With video/);
+    assert.match(overlay, /searchOverlayRecipesByText/);
+    assert.doesNotMatch(overlay, /site\.social\.youtube/);
+    const layout = read("src/app/layout.tsx");
+    assert.match(layout, /hasVideo: hasRecipeYoutube\(recipe\)/);
+  });
+
+  it("exposes restrained refine controls without difficulty facet", () => {
+    const discovery = read("src/components/RecipeDiscovery.tsx");
+    assert.match(discovery, /Refine/);
+    assert.match(discovery, /DISCOVERY_TIME_OPTIONS/);
+    assert.match(discovery, /Has video/);
+    assert.match(discovery, /buildDiscoverySuggestions/);
+    assert.doesNotMatch(discovery, /Difficulty/);
   });
 });

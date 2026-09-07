@@ -11,6 +11,35 @@ import { VideosYoutubeOutboundLink } from "@/components/youtube/VideosYoutubeOut
 const focusRing =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
+function VideoGrid({
+  videos,
+  portrait,
+  featured,
+}: {
+  videos: PublicVideoCardType[];
+  portrait: boolean;
+  featured: boolean;
+}) {
+  return (
+    <div
+      className={
+        portrait
+          ? "mt-8 grid items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-4"
+          : "mt-8 grid items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3"
+      }
+    >
+      {videos.map((video, index) => (
+        <PublicVideoCard
+          key={video.videoId}
+          video={video}
+          priority={featured ? false : index < 3}
+          portrait={portrait}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function PublicVideosCatalogue({
   featured,
   videos,
@@ -26,9 +55,7 @@ export function PublicVideosCatalogue({
   format: "long" | "shorts";
   loadFailed?: boolean;
 }) {
-  const gridVideos = format === "shorts" ? shorts : videos;
   const isEmpty = !featured && videos.length === 0 && shorts.length === 0;
-  const sectionHeading = format === "shorts" ? "Shorts" : "Full videos";
 
   function trackFormatChange(next: "long" | "shorts") {
     if (next === format) return;
@@ -38,6 +65,36 @@ export function PublicVideosCatalogue({
       sort: format,
     });
   }
+
+  const formatFilter =
+    showFormatFilter ? (
+      <div className="flex gap-1 text-sm" role="group" aria-label="Video format">
+        <Link
+          href="/videos"
+          onClick={() => trackFormatChange("long")}
+          className={`px-3 py-1.5 ${focusRing} ${
+            format === "long"
+              ? "border-b-2 border-terracotta font-semibold text-ink"
+              : "text-muted hover:text-terracotta"
+          }`}
+          aria-current={format === "long" ? "page" : undefined}
+        >
+          Full videos
+        </Link>
+        <Link
+          href="/videos?format=shorts"
+          onClick={() => trackFormatChange("shorts")}
+          className={`px-3 py-1.5 ${focusRing} ${
+            format === "shorts"
+              ? "border-b-2 border-terracotta font-semibold text-ink"
+              : "text-muted hover:text-terracotta"
+          }`}
+          aria-current={format === "shorts" ? "page" : undefined}
+        >
+          Shorts
+        </Link>
+      </div>
+    ) : null;
 
   if (loadFailed) {
     return (
@@ -73,77 +130,67 @@ export function PublicVideosCatalogue({
     );
   }
 
+  const showLongSections = format === "long";
+  const showShortsOnly = format === "shorts";
+
   return (
     <>
-      {featured && format === "long" ? <PublicFeaturedVideo video={featured} /> : null}
+      {featured && showLongSections ? <PublicFeaturedVideo video={featured} /> : null}
 
-      <section
-        className={
-          format === "shorts"
-            ? "mt-10 border-t border-line pt-8 md:mt-12 md:pt-10"
-            : "mt-12 border-t border-line pt-10 md:mt-16 md:pt-12"
-        }
-        aria-labelledby="all-videos-heading"
-      >
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 id="all-videos-heading" className="font-serif text-[1.75rem] text-ink md:text-[1.85rem]">
-            {sectionHeading}
-          </h2>
-          {showFormatFilter ? (
-            <div className="flex gap-1 text-sm" role="group" aria-label="Video format">
-              <Link
-                href="/videos"
-                onClick={() => trackFormatChange("long")}
-                className={`px-3 py-1.5 ${focusRing} ${
-                  format === "long"
-                    ? "border-b-2 border-terracotta font-semibold text-ink"
-                    : "text-muted hover:text-terracotta"
-                }`}
-                aria-current={format === "long" ? "page" : undefined}
-              >
-                Full videos
-              </Link>
-              <Link
-                href="/videos?format=shorts"
-                onClick={() => trackFormatChange("shorts")}
-                className={`px-3 py-1.5 ${focusRing} ${
-                  format === "shorts"
-                    ? "border-b-2 border-terracotta font-semibold text-ink"
-                    : "text-muted hover:text-terracotta"
-                }`}
-                aria-current={format === "shorts" ? "page" : undefined}
-              >
-                Shorts
-              </Link>
-            </div>
-          ) : null}
-        </div>
-
-        {gridVideos.length === 0 ? (
-          <p className="mt-8 text-muted">
-            {format === "shorts"
-              ? "No Shorts in the catalogue right now."
-              : "No full-length videos to show yet."}
-          </p>
-        ) : (
-          <div
-            className={
-              format === "shorts"
-                ? "mt-8 grid items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-4"
-                : "mt-8 grid items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3"
-            }
-          >
-            {gridVideos.map((video, index) => (
-              <PublicVideoCard
-                key={video.videoId}
-                video={video}
-                priority={!featured && index < 3}
-                portrait={format === "shorts"}
-              />
-            ))}
+      {showLongSections ? (
+        <section
+          className="mt-12 border-t border-line pt-10 md:mt-16 md:pt-12"
+          aria-labelledby="full-videos-heading"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <h2 id="full-videos-heading" className="font-serif text-[1.75rem] text-ink md:text-[1.85rem]">
+              Full videos
+            </h2>
+            {formatFilter}
           </div>
-        )}
-      </section>
+
+          {videos.length === 0 ? (
+            <p className="mt-8 text-muted">No full-length videos to show yet.</p>
+          ) : (
+            <VideoGrid videos={videos} portrait={false} featured={Boolean(featured)} />
+          )}
+        </section>
+      ) : null}
+
+      {(showShortsOnly || (showLongSections && shorts.length > 0)) && (
+        <section
+          className={
+            showShortsOnly
+              ? "mt-10 border-t border-line pt-8 md:mt-12 md:pt-10"
+              : "mt-14 border-t border-line pt-10 md:mt-16 md:pt-12"
+          }
+          aria-labelledby="shorts-heading"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 id="shorts-heading" className="font-serif text-[1.75rem] text-ink md:text-[1.85rem]">
+                Shorts
+              </h2>
+              {showLongSections ? (
+                <p className="mt-2 max-w-lg text-sm leading-6 text-muted">
+                  Quick clips from the kitchen — tap to watch, then open the recipe when there is one.
+                </p>
+              ) : null}
+            </div>
+            {showShortsOnly ? formatFilter : null}
+          </div>
+
+          {shorts.length === 0 ? (
+            <p className="mt-8 text-muted">No Shorts in the catalogue right now.</p>
+          ) : (
+            <VideoGrid
+              videos={shorts}
+              portrait
+              featured={Boolean(featured) && showLongSections}
+            />
+          )}
+        </section>
+      )}
 
       <section
         className="mt-16 max-w-xl border-t border-line pt-10 md:mt-20 md:pt-12"

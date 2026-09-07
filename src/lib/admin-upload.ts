@@ -44,7 +44,7 @@ export type AdminImageUploadPolicy = {
 
 export function resolveAdminImageUploadPolicy(folder: string): AdminImageUploadPolicy {
   const normalized = folder.trim().toLowerCase();
-  if (normalized === "recipes" || normalized === "series") {
+  if (normalized === "recipes" || normalized === "series" || normalized === "media") {
     return {
       maxBytes: RECIPE_HERO_IMAGE_MAX_BYTES,
       sizeError: RECIPE_HERO_IMAGE_SIZE_ERROR,

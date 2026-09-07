@@ -45,6 +45,16 @@ export function canManageYoutubeAnalytics(role: string) {
   return role === "owner";
 }
 
+/** Connect / disconnect / select Search Console property / manual sync — owner-only. */
+export function canManageSearchConsole(role: string) {
+  return role === "owner";
+}
+
+/** View Search Console performance dashboard — content-authorized staff. */
+export function canViewSearchConsole(role: string) {
+  return canAccess(role, "content");
+}
+
 /**
  * Direct "Open on YouTube" / Studio links from the YouTube Schedule experience.
  * Owner only — Editors may view Schedule and open details, but not jump to Studio.
@@ -74,6 +84,14 @@ export function canDeleteGuestVisitors(role: string) {
  * Owner only — Audience may view Members without remove controls.
  */
 export function canDeleteMembers(role: string) {
+  return role === "owner";
+}
+
+/**
+ * Global Admin Activity log — Owner only (full cross-area operational history).
+ * Editors and Audience do not get global activity access in this phase.
+ */
+export function canViewAdminActivity(role: string) {
   return role === "owner";
 }
 

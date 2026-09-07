@@ -10,7 +10,9 @@ import { memberIdentityLines, resolveMemberDisplayName } from "@/lib/auth-client
 import { EmailUpdatesPreference } from "@/components/EmailUpdatesPreference";
 import { DeleteAccountSection } from "@/components/DeleteAccountSection";
 import { ProfileFavorites } from "@/components/ProfileFavorites";
+import { ProfileSavedCollections } from "@/components/ProfileSavedCollections";
 import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
+import { getMemberSavedCollections } from "@/lib/saved-recipe-collections-server";
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -86,6 +88,7 @@ export default async function ProfilePage() {
     .filter((recipe): recipe is NonNullable<typeof recipe> => Boolean(recipe));
   const missing = saves.filter((save) => !recipes.some((recipe) => recipe.slug === save.slug));
   const photoUrl = (user.photoUrl || session.user?.image || "").trim();
+  const collections = await getMemberSavedCollections(user.id, recipes);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-12">
@@ -125,8 +128,20 @@ export default async function ProfilePage() {
       </header>
 
       <section className="mt-7 border-t border-line pt-7 md:mt-8 md:pt-8">
-        <h2 className="font-serif text-3xl text-ink">Favorite recipes</h2>
-        <ProfileFavorites recipes={savedRecipes} extras={missing} />
+        <h2 className="font-serif text-3xl text-ink">Saved recipes</h2>
+        <p className="mt-1.5 text-sm text-muted">
+          All Saved is everything you&apos;ve hearted. Collections are optional folders on top.
+        </p>
+        <div className="mt-6 space-y-8 lg:grid lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] lg:items-start lg:gap-10 lg:space-y-0">
+          <ProfileSavedCollections
+            collections={collections}
+            allSavedCount={savedRecipes.length}
+          />
+          <div className="min-w-0 border-t border-line pt-8 lg:border-t-0 lg:pt-0">
+            <h3 className="font-serif text-2xl text-ink">All Saved</h3>
+            <ProfileFavorites recipes={savedRecipes} extras={missing} />
+          </div>
+        </div>
       </section>
 
       <EmailUpdatesPreference initialNotify={newsletterSubscribed} />

@@ -25,7 +25,16 @@ export async function generateMetadata({
     description:
       "Tested recipes for everyday cooking, baking, drinks, sides, and the table.",
     alternates: { canonical: "/recipes" },
-    robots: params.q || params.category || params.collection ? { index: false } : undefined,
+    robots:
+      params.q ||
+      params.category ||
+      params.collection ||
+      params.time ||
+      params.video ||
+      params.cuisine ||
+      params.method
+        ? { index: false }
+        : undefined,
   };
 }
 
@@ -52,6 +61,7 @@ export default async function RecipesPage({
       <section className="mt-8 border-t border-line pt-7 md:mt-9 md:pt-8" aria-label="Recipe discovery">
         <RecipeDiscovery
           recipes={filtered}
+          allRecipes={recipes}
           params={params}
           collectionTitles={homepageCollectionTitles()}
         />

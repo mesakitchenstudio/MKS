@@ -78,33 +78,30 @@ export function PublicFeaturedVideo({ video }: { video: PublicVideoCardType }) {
             >
               {video.title}
             </h2>
+            {video.excerpt ? (
+              <p className="mt-3 max-w-md text-base leading-7 text-muted">{video.excerpt}</p>
+            ) : null}
           </div>
 
-          <p className="relative z-20 mt-4">
+          <div className="relative z-20 mt-5 flex flex-wrap items-center gap-3">
             <Link
               href={watchHref}
               onClick={trackFeaturedClick}
-              className={`text-base text-terracotta underline-offset-2 transition hover:text-terracotta-dark hover:underline ${focusRing}`}
+              className={`inline-flex items-center border border-terracotta bg-terracotta px-4 py-2.5 text-sm font-semibold text-paper transition hover:border-terracotta-dark hover:bg-terracotta-dark ${focusRing}`}
             >
-              Watch video →
+              Watch video
             </Link>
-          </p>
-
-          {video.recipeSlug && video.recipeTitle ? (
-            <p className="relative z-20 mt-5 text-sm leading-6 text-muted">
-              <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-olive">
-                Recipe
-              </span>
-              <br />
+            {video.recipeSlug && video.recipeTitle ? (
               <Link
                 href={`/recipes/${video.recipeSlug}`}
                 onClick={trackRecipeClick}
-                className={`mt-1 inline-block text-base text-ink underline-offset-2 transition hover:text-terracotta hover:underline ${focusRing}`}
+                className={`inline-flex items-center border border-line bg-paper px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-terracotta hover:text-terracotta ${focusRing}`}
               >
-                {video.recipeTitle} →
+                View recipe
+                <span className="sr-only">: {video.recipeTitle}</span>
               </Link>
-            </p>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
     </section>

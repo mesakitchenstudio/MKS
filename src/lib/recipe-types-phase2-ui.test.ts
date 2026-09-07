@@ -160,7 +160,7 @@ describe("Recipe Types Phase 2 visual section grouping", () => {
     assert.match(typeFieldsManager, /continued=\{!isFirstSectionOccurrence\}/);
     assert.match(typeFieldsManager, /\{label\} · Continued/);
     assert.match(typeFieldsManager, /TYPE_FIELD_SECTION_DESCRIPTIONS\[section\]/);
-    assert.match(typeFieldsManager, /continued \? \(/);
+    assert.match(typeFieldsManager, /if \(continued\)/);
     assert.equal(TYPE_FIELD_SECTION_LABELS.details, "Details");
     assert.match(TYPE_FIELD_SECTION_DESCRIPTIONS.media, /Hero image/);
   });

@@ -1,6 +1,8 @@
 import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
 import { publicNutritionJsonLdFields } from "@/lib/field-content";
+import { instructionStepText } from "@/lib/instruction-step";
+import { recipeDateModifiedIso } from "@/lib/recipe-public-update";
 import { countedHeatMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
 import type { RecipeReviewStats } from "@/lib/recipe-reviews";
 import { isSchemaVideoId } from "@/lib/recipe-youtube";
@@ -87,7 +89,7 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
       },
     },
     datePublished: recipe.publishedAt,
-    dateModified: recipe.updatedAt,
+    dateModified: recipeDateModifiedIso(recipe),
     prepTime: isoDuration(recipe.prepMinutes),
     cookTime: isoDuration(countedHeatMinutes(recipe)),
     totalTime: isoDuration(totalMinutes(recipe)),
@@ -106,7 +108,7 @@ export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
       group.steps.map((step, index) => ({
         "@type": "HowToStep",
         name: group.name ? `${group.name} ${index + 1}` : `Step ${index + 1}`,
-        text: step,
+        text: instructionStepText(step),
       })),
     ),
   };

@@ -15,6 +15,11 @@ export type IngredientGroup = {
 export type InstructionGroup = {
   name?: string;
   steps: string[];
+  /**
+   * Optional per-step timer durations in seconds, index-aligned with `steps`.
+   * Sparse; missing/null entries mean no timer. Stored in Recipe.values JSON.
+   */
+  stepTimers?: Array<number | null | undefined>;
   /** Optional shorter video-facing chapter title; falls back to `name`. */
   chapterLabel?: string;
   /** Video chapter start in seconds. */
@@ -38,6 +43,8 @@ export type Faq = {
 };
 
 export type Recipe = {
+  /** Stable DB identity when loaded from Prisma; slug fallback for static recipes. */
+  id?: string;
   slug: string;
   title: string;
   excerpt: string;
@@ -53,6 +60,10 @@ export type Recipe = {
   youtube?: RecipeYoutube;
   publishedAt: string;
   updatedAt: string;
+  /** Optional editorial public update note (reader-facing). */
+  publicUpdateNote?: string | null;
+  /** ISO date for the public update note (not Prisma updatedAt). */
+  publicUpdatedAt?: string | null;
   prepMinutes: number;
   cookMinutes: number;
   bakeMinutes?: number;

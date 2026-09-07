@@ -74,12 +74,23 @@ async function writeEvent(
 ) {
   const db = getDb();
   const meta = sanitizeFunnelMeta(input.meta);
+  let recipeId = clip(input.recipeId);
+  const recipeSlug = clip(input.recipeSlug);
+  if (!recipeId && recipeSlug) {
+    try {
+      const { resolveRecipeBySlug } = await import("@/lib/recipe-identity");
+      const recipe = await resolveRecipeBySlug(recipeSlug);
+      if (recipe) recipeId = recipe.id;
+    } catch {
+      // Keep historical slug-only events when lookup fails.
+    }
+  }
   await db.funnelEvent.create({
     data: {
       visitorId,
       name,
-      recipeId: clip(input.recipeId),
-      recipeSlug: clip(input.recipeSlug),
+      recipeId,
+      recipeSlug,
       youtubeVideoId: clip(input.youtubeVideoId, 40),
       targetRecipeId: clip(input.targetRecipeId),
       targetVideoId: clip(input.targetVideoId, 40),

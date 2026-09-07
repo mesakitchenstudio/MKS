@@ -8,9 +8,30 @@ import { signOut } from "@/auth";
 import { homeForRole, isAccessLevel, canManageYoutubeSync, canManageYoutubeAnalytics, canDeleteGuestVisitors, canDeleteMembers } from "@/lib/admin-access";
 
 import { clearAdminLoginFailures, isAdminLoginBlocked, recordAdminLoginFailure } from "@/lib/admin-login-guard";
+import {
+  actorFromAdminSession,
+  recordAdminAuditEvent,
+  recordRecipeSaveAudit,
+  summarizeRecipeAuditChanges,
+} from "@/lib/admin-audit";
 import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
+import { setRedirectActive, upsertRecipeSlugChangeRedirect } from "@/lib/redirects";
+import { syncDenormalizedRecipeIdentity } from "@/lib/recipe-identity";
+import {
+  buildRecipeRevisionSnapshot,
+  createRecipeRevisionIfChanged,
+  restoreRecipeRevisionContent,
+} from "@/lib/recipe-revisions";
+import { getRecipePublishingReadiness } from "@/lib/recipe-publishing-readiness";
+import { normalizePublicUpdateFields } from "@/lib/recipe-public-update";
+import { serializeRelatedRecipeIds } from "@/lib/recipe-related-overrides";
+import {
+  parseIstanbulDateTimeLocal,
+  validateScheduledPublishAt,
+} from "@/lib/recipe-schedule";
+import { createAdminNotification } from "@/lib/admin-notifications-server";
 import { coerceStringList, isPlainStringListKind } from "@/lib/coerce-string-list";
 import { normalizeIngredientGroups } from "@/lib/ingredient-groups";
 import { mergeDishNameIntoValues } from "@/lib/recipe-editor-dish-name";
@@ -56,7 +77,7 @@ import { applyServerStaffVerification } from "@/lib/recipe-staff-verify";
 import type { RecipeTypeConfidence } from "@/lib/ai-recipe/classify-recipe-type";
 
 async function requireEditor() {
-  await requireAccess("content");
+  return requireAccess("content");
 }
 
 function isNextRedirect(error: unknown): boolean {
@@ -102,7 +123,7 @@ export async function logoutAction() {
 }
 
 export async function saveCategoryAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
@@ -139,6 +160,16 @@ export async function saveCategoryAction(formData: FormData) {
       }
       throw error;
     }
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "category.updated",
+      area: "content",
+      entityType: "category",
+      entityId: id,
+      entityLabel: name,
+      entityPath: "/admin/categories",
+      metadata: { slug: existing.slug, group },
+    });
     revalidatePath("/admin/categories");
     revalidatePath("/");
     revalidatePath(`/category/${existing.slug}`);
@@ -152,6 +183,16 @@ export async function saveCategoryAction(formData: FormData) {
 
   try {
     const created = await db.category.create({ data: { name, slug, description, group } });
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "category.created",
+      area: "content",
+      entityType: "category",
+      entityId: created.id,
+      entityLabel: name,
+      entityPath: "/admin/categories",
+      metadata: { slug, group },
+    });
     revalidatePath("/admin/categories");
     revalidatePath("/");
     redirect(`/admin/categories?saved=category&categoryId=${created.id}#category-${created.id}`);
@@ -164,12 +205,22 @@ export async function saveCategoryAction(formData: FormData) {
 }
 
 export async function deleteCategoryAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "");
   const category = await db.category.findUnique({ where: { id } });
   if (!category) redirect("/admin/categories");
   await db.category.delete({ where: { id } });
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "category.deleted",
+    area: "content",
+    entityType: "category",
+    entityId: id,
+    entityLabel: category.name,
+    entityPath: "/admin/categories",
+    metadata: { slug: category.slug, group: category.group },
+  });
   revalidatePath("/admin/categories");
   revalidatePath("/");
   revalidatePath(`/category/${category.slug}`);
@@ -177,7 +228,7 @@ export async function deleteCategoryAction(formData: FormData) {
 }
 
 export async function saveTypeAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
@@ -202,6 +253,16 @@ export async function saveTypeAction(formData: FormData) {
       }
       throw error;
     }
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "type.updated",
+      area: "content",
+      entityType: "recipe_type",
+      entityId: id,
+      entityLabel: name,
+      entityPath: `/admin/types/${id}`,
+      metadata: { slug },
+    });
     revalidatePath(`/admin/types/${id}`);
     redirect(`/admin/types/${id}?saved=type`);
   }
@@ -225,6 +286,16 @@ export async function saveTypeAction(formData: FormData) {
         },
       },
     });
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "type.created",
+      area: "content",
+      entityType: "recipe_type",
+      entityId: created.id,
+      entityLabel: name,
+      entityPath: `/admin/types/${created.id}`,
+      metadata: { slug },
+    });
     revalidatePath("/admin/types");
     redirect(`/admin/types/${created.id}`);
   } catch (error) {
@@ -236,11 +307,28 @@ export async function saveTypeAction(formData: FormData) {
 }
 
 export async function deleteTypeAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const id = String(formData.get("id") || "");
-  const used = await getDb().recipe.count({ where: { typeId: id } });
+  const db = getDb();
+  const existing = await db.recipeType.findUnique({
+    where: { id },
+    select: { id: true, name: true, slug: true },
+  });
+  const used = await db.recipe.count({ where: { typeId: id } });
   if (used > 0) redirect("/admin/types?error=inuse");
-  await getDb().recipeType.delete({ where: { id } });
+  await db.recipeType.delete({ where: { id } });
+  if (existing) {
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "type.deleted",
+      area: "content",
+      entityType: "recipe_type",
+      entityId: existing.id,
+      entityLabel: existing.name,
+      entityPath: "/admin/types",
+      metadata: { slug: existing.slug },
+    });
+  }
   revalidatePath("/admin/types");
   redirect("/admin/types");
 }
@@ -416,7 +504,7 @@ function readDynamicValues(formData: FormData, fields: { key: string; kind: stri
 }
 
 export async function saveRecipeAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "");
   const typeId = String(formData.get("typeId") || "");
@@ -426,7 +514,28 @@ export async function saveRecipeAction(formData: FormData) {
   const status = String(formData.get("status") || "draft");
   const featured = formData.get("featured") === "on";
   const seasonal = formData.get("seasonal") === "on";
+  const scheduleIntent = String(formData.get("scheduleIntent") || "").trim(); // set | clear | ""
+  const scheduledLocal = String(formData.get("scheduledPublishAtLocal") || "").trim();
   const categoryIds = formData.getAll("categoryIds").map(String);
+  const relatedRecipeIds = serializeRelatedRecipeIds(
+    formData.getAll("relatedRecipeIds").map(String),
+  );
+  const publicUpdateEnabled = formData.get("publicUpdateEnabled") === "on";
+  const publicUpdateNormalized = normalizePublicUpdateFields({
+    enabled: publicUpdateEnabled,
+    note: formData.get("publicUpdateNote"),
+    date: formData.get("publicUpdatedAt"),
+  });
+  if (!publicUpdateNormalized.ok) {
+    const detail = encodeURIComponent(publicUpdateNormalized.error);
+    redirect(
+      id
+        ? `/admin/recipes/${id}?error=public-update&detail=${detail}`
+        : `/admin/recipes/new?type=${typeId}&error=public-update&detail=${detail}`,
+    );
+  }
+  const publicUpdateNote = publicUpdateNormalized.value.note;
+  const publicUpdatedAt = publicUpdateNormalized.value.updatedAt;
 
   if (!title || !slug || !typeId) {
     redirect(id ? `/admin/recipes/${id}?error=missing` : `/admin/recipes/new?type=${typeId}&error=missing`);
@@ -450,6 +559,14 @@ export async function saveRecipeAction(formData: FormData) {
   mergeDishNameIntoValues(values, formData.get("field:dishName"));
 
   const existing = id ? await db.recipe.findUnique({ where: { id } }) : null;
+  const existingCategoryIds = existing
+    ? (
+        await db.recipeCategory.findMany({
+          where: { recipeId: existing.id },
+          select: { categoryId: true },
+        })
+      ).map((row) => row.categoryId)
+    : [];
   // When Recipe Type changes, keep prior values for fields the new type has but the form
   // did not submit (type-specific keys). Do not invent Course/Category sync.
   if (existing && existing.typeId !== typeId) {
@@ -500,7 +617,6 @@ export async function saveRecipeAction(formData: FormData) {
     aiMeta = existing?.aiMeta || "{}";
   }
 
-  const actor = await getAdminSession();
   const staffIdentity = actor?.email || actor?.name || actor?.id || "unknown";
   const schemaFields = fields.map(
     (field): import("@/lib/ai-recipe/schema-version").SchemaField => ({
@@ -524,44 +640,395 @@ export async function saveRecipeAction(formData: FormData) {
   });
   aiMeta = staffVerifyResult.aiMeta;
 
+  if (status === "published") {
+    const readiness = getRecipePublishingReadiness({
+      title,
+      slug,
+      excerpt,
+      typeId,
+      fields: fields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        kind: field.kind,
+        required: field.required,
+      })),
+      values,
+      categoryIds,
+      typeFields: schemaFields,
+    });
+    if (readiness.status === "not_ready") {
+      const first = readiness.required.find((check) => !check.passed);
+      const detail = encodeURIComponent(first?.message || "Publishing readiness checks failed.");
+      redirect(
+        id
+          ? `/admin/recipes/${id}?error=publish-readiness&detail=${detail}`
+          : `/admin/recipes/new?type=${typeId}&error=publish-readiness&detail=${detail}`,
+      );
+    }
+  }
+
+  let scheduledPublishAt: Date | null = existing?.scheduledPublishAt ?? null;
+  if (status === "published" || scheduleIntent === "clear") {
+    scheduledPublishAt = null;
+  } else if (scheduleIntent === "set") {
+    const parsed = parseIstanbulDateTimeLocal(scheduledLocal);
+    if (!parsed) {
+      redirect(
+        id
+          ? `/admin/recipes/${id}?error=schedule&detail=${encodeURIComponent("Choose a valid Istanbul publish time.")}`
+          : `/admin/recipes/new?type=${typeId}&error=schedule&detail=${encodeURIComponent("Choose a valid Istanbul publish time.")}`,
+      );
+    }
+    const whenOk = validateScheduledPublishAt(parsed);
+    if (!whenOk.ok) {
+      redirect(
+        id
+          ? `/admin/recipes/${id}?error=schedule&detail=${encodeURIComponent(whenOk.error)}`
+          : `/admin/recipes/new?type=${typeId}&error=schedule&detail=${encodeURIComponent(whenOk.error)}`,
+      );
+    }
+    const readiness = getRecipePublishingReadiness({
+      title,
+      slug,
+      excerpt,
+      typeId,
+      fields: fields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        kind: field.kind,
+        required: field.required,
+      })),
+      values,
+      categoryIds,
+      typeFields: schemaFields,
+    });
+    if (readiness.status === "not_ready") {
+      const first = readiness.required.find((check) => !check.passed);
+      const detail = encodeURIComponent(
+        first?.message || "Fix publishing readiness before scheduling.",
+      );
+      redirect(
+        id
+          ? `/admin/recipes/${id}?error=publish-readiness&detail=${detail}`
+          : `/admin/recipes/new?type=${typeId}&error=publish-readiness&detail=${detail}`,
+      );
+    }
+    scheduledPublishAt = parsed;
+  }
+
   const data = {
     title,
     slug,
     excerpt,
     typeId,
-    status,
+    status: status === "published" ? "published" : "draft",
     featured,
     seasonal,
     publishedAt:
       status === "published" ? (existing?.publishedAt ?? new Date()) : null,
+    scheduledPublishAt,
+    publicUpdateNote,
+    publicUpdatedAt,
+    relatedRecipeIds,
     values: JSON.stringify(values),
     aiMeta,
   };
 
-  const recipe = id
-    ? await db.recipe.update({ where: { id }, data })
-    : await db.recipe.create({ data });
+  const previousSlug = existing?.slug ?? null;
+  const wasPublished = existing?.status === "published";
 
-  await db.recipeCategory.deleteMany({ where: { recipeId: recipe.id } });
-  if (categoryIds.length) {
-    await db.recipeCategory.createMany({
-      data: categoryIds.map((categoryId) => ({ recipeId: recipe.id, categoryId })),
+  const previousRevisionSnapshot = existing
+    ? buildRecipeRevisionSnapshot({
+        title: existing.title,
+        excerpt: existing.excerpt,
+        featured: existing.featured,
+        seasonal: existing.seasonal,
+        typeId: existing.typeId,
+        categoryIds: existingCategoryIds,
+        values: existing.values,
+        slug: existing.slug,
+        status: existing.status,
+        publishedAt: existing.publishedAt,
+        publicUpdateNote: existing.publicUpdateNote,
+        publicUpdatedAt: existing.publicUpdatedAt,
+      })
+    : null;
+
+  const nextRevisionSnapshot = buildRecipeRevisionSnapshot({
+    title,
+    excerpt,
+    featured,
+    seasonal,
+    typeId,
+    categoryIds,
+    values,
+    slug,
+    status: data.status,
+    publishedAt: data.publishedAt,
+    publicUpdateNote,
+    publicUpdatedAt,
+  });
+
+  const recipe = await db.$transaction(async (tx) => {
+    const row = id
+      ? await tx.recipe.update({ where: { id }, data })
+      : await tx.recipe.create({ data });
+
+    await tx.recipeCategory.deleteMany({ where: { recipeId: row.id } });
+    if (categoryIds.length) {
+      await tx.recipeCategory.createMany({
+        data: categoryIds.map((categoryId) => ({ recipeId: row.id, categoryId })),
+      });
+    }
+
+    await createRecipeRevisionIfChanged(tx, {
+      recipeId: row.id,
+      actor: actorFromAdminSession(actor),
+      snapshot: nextRevisionSnapshot,
+      isCreate: !existing,
+      oldStatus: existing?.status ?? null,
+      newStatus: data.status,
+      previousSnapshot: previousRevisionSnapshot,
+    });
+
+    return row;
+  });
+
+  let redirectCreated = false;
+  if (previousSlug && previousSlug !== slug) {
+    const redirectRow = await upsertRecipeSlugChangeRedirect({
+      previousSlug,
+      nextSlug: slug,
+      wasPublished: Boolean(wasPublished),
+    });
+    redirectCreated = Boolean(redirectRow && redirectRow.ok);
+    revalidatePath(`/recipes/${previousSlug}`);
+  }
+
+  await syncDenormalizedRecipeIdentity({
+    recipeId: recipe.id,
+    slug,
+    title,
+  });
+
+  const changedFields = [
+    ...summarizeRecipeAuditChanges({
+    before: existing
+      ? {
+          title: existing.title,
+          slug: existing.slug,
+          excerpt: existing.excerpt,
+          status: existing.status,
+          featured: existing.featured,
+          seasonal: existing.seasonal,
+          typeId: existing.typeId,
+          categoryIds: existingCategoryIds,
+          values: existing.values,
+          publicUpdateNote: existing.publicUpdateNote,
+          publicUpdatedAt: existing.publicUpdatedAt,
+        }
+      : null,
+    after: {
+      title,
+      slug,
+      excerpt,
+      status: data.status,
+      featured,
+      seasonal,
+      typeId,
+      categoryIds,
+      values,
+      publicUpdateNote,
+      publicUpdatedAt,
+    },
+  }),
+  ];
+  if (
+    scheduleIntent === "set" ||
+    scheduleIntent === "clear" ||
+    Boolean(existing?.scheduledPublishAt) !== Boolean(scheduledPublishAt)
+  ) {
+    if (!changedFields.includes("scheduledPublishAt")) {
+      changedFields.push("scheduledPublishAt");
+    }
+  }
+
+  await recordRecipeSaveAudit({
+    actor: actorFromAdminSession(actor),
+    isCreate: !existing,
+    recipeId: recipe.id,
+    title,
+    slug,
+    previousSlug,
+    oldStatus: existing?.status ?? null,
+    newStatus: data.status,
+    changedFields,
+    redirectCreated,
+  });
+
+  if (scheduleIntent === "set" && scheduledPublishAt) {
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "recipe.scheduled",
+      area: "content",
+      entityType: "recipe",
+      entityId: recipe.id,
+      entityLabel: title,
+      entityPath: `/admin/recipes/${recipe.id}`,
+      metadata: { scheduledPublishAt: scheduledPublishAt.toISOString() },
+    });
+  } else if (scheduleIntent === "clear" && existing?.scheduledPublishAt) {
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "recipe.schedule_cancelled",
+      area: "content",
+      entityType: "recipe",
+      entityId: recipe.id,
+      entityLabel: title,
+      entityPath: `/admin/recipes/${recipe.id}`,
+    });
+    await createAdminNotification({
+      type: "recipe.schedule.cancelled",
+      severity: "info",
+      title: `Schedule cancelled for “${title}”`,
+      body: "This recipe will stay a draft until published or rescheduled.",
+      entityType: "recipe",
+      entityId: recipe.id,
+      entityLabel: title,
+      entityPath: `/admin/recipes/${recipe.id}`,
     });
   }
 
   revalidatePath("/admin");
+  revalidatePath("/admin/redirects");
+  revalidatePath("/admin/notifications");
+  revalidatePath(`/admin/recipes/${recipe.id}/history`);
   revalidatePath("/");
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${slug}`);
+  if (scheduleIntent === "set") {
+    redirect(`/admin/recipes/${recipe.id}?scheduled=1`);
+  }
+  if (scheduleIntent === "clear") {
+    redirect(`/admin/recipes/${recipe.id}?schedule-cleared=1`);
+  }
   redirect(`/admin/recipes/${recipe.id}?saved=1`);
 }
 
+export async function setRedirectActiveAction(formData: FormData) {
+  const actor = await requireAccess("content");
+  const id = String(formData.get("id") || "").trim();
+  const next = String(formData.get("isActive") || "") === "1";
+  if (!id) {
+    redirect("/admin/redirects?error=missing");
+  }
+  const existing = await getDb().redirect.findUnique({
+    where: { id },
+    select: { id: true, fromPath: true, toPath: true, isActive: true },
+  });
+  if (!existing) {
+    redirect("/admin/redirects?error=missing");
+  }
+  try {
+    await setRedirectActive(id, next);
+  } catch {
+    redirect("/admin/redirects?error=missing");
+  }
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: next ? "redirect.activated" : "redirect.deactivated",
+    area: "content",
+    entityType: "redirect",
+    entityId: existing.id,
+    entityLabel: existing.fromPath,
+    entityPath: "/admin/redirects",
+    metadata: { fromPath: existing.fromPath, toPath: existing.toPath },
+  });
+  revalidatePath("/admin/redirects");
+  revalidatePath("/");
+  revalidatePath("/recipes");
+  redirect(next ? "/admin/redirects?activated=1" : "/admin/redirects?deactivated=1");
+}
+
 export async function deleteRecipeAction(formData: FormData) {
-  await requireEditor();
-  await getDb().recipe.delete({ where: { id: String(formData.get("id") || "") } });
+  const actor = await requireEditor();
+  const id = String(formData.get("id") || "");
+  const existing = await getDb().recipe.findUnique({
+    where: { id },
+    select: { id: true, title: true, slug: true, status: true },
+  });
+  await getDb().recipe.delete({ where: { id } });
+  if (existing) {
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "recipe.deleted",
+      area: "content",
+      entityType: "recipe",
+      entityId: existing.id,
+      entityLabel: existing.title,
+      entityPath: "/admin",
+      metadata: { slug: existing.slug, status: existing.status },
+    });
+  }
   revalidatePath("/admin");
   revalidatePath("/");
   redirect("/admin");
+}
+
+/**
+ * Restore recoverable recipe content from a revision.
+ * Preserves current slug and publication state (Redirect Manager / SEO safe).
+ */
+export async function restoreRecipeRevisionAction(formData: FormData) {
+  const actor = await requireEditor();
+  const recipeId = String(formData.get("recipeId") || "").trim();
+  const revisionId = String(formData.get("revisionId") || "").trim();
+  if (!recipeId || !revisionId) {
+    redirect("/admin");
+  }
+
+  const result = await restoreRecipeRevisionContent({
+    recipeId,
+    revisionId,
+    actor: actorFromAdminSession(actor),
+  });
+
+  if (!result.ok) {
+    redirect(`/admin/recipes/${recipeId}/history/${revisionId}?error=${result.error}`);
+  }
+
+  await syncDenormalizedRecipeIdentity({
+    recipeId,
+    // Slug unchanged — still refresh title on saves/reviews denormalized fields.
+    slug: (
+      await getDb().recipe.findUnique({
+        where: { id: recipeId },
+        select: { slug: true },
+      })
+    )?.slug || "",
+    title: result.title,
+  });
+
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "recipe.restored",
+    area: "content",
+    entityType: "recipe",
+    entityId: recipeId,
+    entityLabel: result.title,
+    entityPath: `/admin/recipes/${recipeId}`,
+    metadata: {
+      restoredFromRevisionId: revisionId,
+      newRevisionId: result.revisionId,
+      changedFields: result.changedFields,
+    },
+  });
+
+  revalidatePath(`/admin/recipes/${recipeId}`);
+  revalidatePath(`/admin/recipes/${recipeId}/history`);
+  revalidatePath("/admin");
+  revalidatePath("/recipes");
+  redirect(`/admin/recipes/${recipeId}?restored=1`);
 }
 
 export async function saveAdminAction(formData: FormData) {
@@ -624,12 +1091,13 @@ export async function saveAdminAction(formData: FormData) {
     }
 
     const passwordChanging = Boolean(password && shouldUpdateAdminPassword(password));
+    const nextRole = roleCheck.ok ? roleCheck.role : existing!.role;
     await db.admin.update({
       where: { id },
       data: {
         name,
         email,
-        role: roleCheck.ok ? roleCheck.role : existing!.role,
+        role: nextRole,
         photoUrl,
         ...(passwordChanging
           ? {
@@ -649,6 +1117,22 @@ export async function saveAdminAction(formData: FormData) {
       await deleteOwnedAdminImage(existing!.photoUrl || "");
     }
 
+    const roleChanged = existing!.role !== nextRole;
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: roleChanged ? "staff.role_changed" : "staff.updated",
+      area: "staff",
+      entityType: "admin",
+      entityId: id,
+      entityLabel: name,
+      entityPath: `/admin/staff`,
+      metadata: {
+        email,
+        ...(roleChanged ? { oldRole: existing!.role, newRole: nextRole } : {}),
+        passwordChanged: passwordChanging,
+      },
+    });
+
     await removeMemberByEmail(email);
     revalidatePath("/admin/members");
     revalidatePath("/admin/staff");
@@ -656,7 +1140,7 @@ export async function saveAdminAction(formData: FormData) {
     staffRedirect(`saved=1&admin=${encodeURIComponent(id)}`);
   }
 
-  await db.admin.create({
+  const created = await db.admin.create({
     data: {
       name,
       email,
@@ -664,6 +1148,17 @@ export async function saveAdminAction(formData: FormData) {
       photoUrl,
       passwordHash: hashPassword(password),
     },
+  });
+
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "staff.created",
+    area: "staff",
+    entityType: "admin",
+    entityId: created.id,
+    entityLabel: name,
+    entityPath: "/admin/staff",
+    metadata: { email, role: roleRaw },
   });
 
   await removeMemberByEmail(email);
@@ -680,11 +1175,24 @@ export async function deleteMemberAction(formData: FormData) {
   }
   const id = String(formData.get("id") || "");
   if (!id) redirect("/admin/members");
+  const existing = await getDb().user.findUnique({
+    where: { id },
+    select: { id: true, name: true, email: true },
+  });
   try {
     await getDb().user.delete({ where: { id } });
   } catch {
     redirect("/admin/members");
   }
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(admin),
+    action: "member.deleted",
+    area: "members",
+    entityType: "member",
+    entityId: id,
+    entityLabel: existing?.name || existing?.email || id,
+    entityPath: "/admin/members",
+  });
   revalidatePath("/admin/members");
   revalidatePath(`/admin/members/${id}`);
   revalidatePath("/profile");
@@ -731,6 +1239,16 @@ export async function deleteMembersAction(
       return result.count;
     });
     if (deletedCount === 0) return { ok: false, error: "not-found" };
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(admin),
+      action: "member.deleted",
+      area: "members",
+      entityType: "member",
+      entityId: ids.length === 1 ? ids[0] : "",
+      entityLabel: ids.length === 1 ? ids[0] : `${deletedCount} members`,
+      entityPath: "/admin/members",
+      metadata: { deletedCount, memberIds: ids.slice(0, 40) },
+    });
     revalidatePath("/admin/members");
     for (const id of ids) {
       revalidatePath(`/admin/members/${id}`);
@@ -805,6 +1323,16 @@ export async function deleteAdminAction(formData: FormData) {
   }
 
   await db.admin.delete({ where: { id } });
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "staff.deleted",
+    area: "staff",
+    entityType: "admin",
+    entityId: existing.id,
+    entityLabel: existing.name,
+    entityPath: "/admin/staff",
+    metadata: { email: existing.email, role: existing.role },
+  });
   revalidatePath("/admin/staff");
   revalidatePath("/admin", "layout");
   redirect("/admin/staff?removed=1");
@@ -913,12 +1441,30 @@ export async function saveOwnAdminProfileAction(formData: FormData) {
 }
 
 export async function deleteReviewAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const id = String(formData.get("id") || "");
   if (!id) redirect("/admin/reviews");
   const { deleteReviewById } = await import("@/lib/recipe-reviews");
+  const before = await getDb().recipeReview.findUnique({
+    where: { id },
+    select: { id: true, recipeId: true, recipeSlug: true, authorName: true },
+  });
   const slug = await deleteReviewById(id);
   if (!slug) redirect("/admin/reviews?error=missing");
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "review.deleted",
+    area: "content",
+    entityType: "review",
+    entityId: id,
+    entityLabel: before?.recipeSlug || slug,
+    entityPath: "/admin/reviews",
+    metadata: {
+      recipeId: before?.recipeId || "",
+      recipeSlug: slug,
+      authorName: before?.authorName || "",
+    },
+  });
   revalidatePath(`/recipes/${slug}`);
   revalidatePath("/admin/reviews");
   redirect("/admin/reviews?removed=1");
@@ -930,7 +1476,7 @@ export type DeleteReviewsBulkResult =
 
 /** Bulk review delete — same auth as deleteReviewAction (content: Owner + Editor). */
 export async function deleteReviewsAction(reviewIds: string[]): Promise<DeleteReviewsBulkResult> {
-  await requireEditor();
+  const actor = await requireEditor();
   const { deleteReviewsByIds, normalizeReviewIds } = await import("@/lib/recipe-reviews");
   const ids = normalizeReviewIds(reviewIds);
   if (!ids.length) return { ok: false, error: "missing" };
@@ -938,6 +1484,15 @@ export async function deleteReviewsAction(reviewIds: string[]): Promise<DeleteRe
   try {
     const { deletedCount, recipeSlugs } = await deleteReviewsByIds(ids);
     if (deletedCount === 0) return { ok: false, error: "not-found" };
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "review.deleted",
+      area: "content",
+      entityType: "review",
+      entityLabel: `${deletedCount} reviews`,
+      entityPath: "/admin/reviews",
+      metadata: { deletedCount, reviewIds: ids.slice(0, 40) },
+    });
     revalidatePath("/admin/reviews");
     for (const slug of recipeSlugs) {
       revalidatePath(`/recipes/${slug}`);
@@ -993,6 +1548,16 @@ export async function replyToReviewAction(formData: FormData) {
       if (returnToIndex) indexRedirect({ error: "missing" });
       redirect(`/admin/reviews/${reviewId}?error=missing`);
     }
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(admin),
+      action: "review.replied",
+      area: "content",
+      entityType: "review",
+      entityId: reviewId,
+      entityLabel: slug,
+      entityPath: `/admin/reviews/${reviewId}`,
+      metadata: { recipeSlug: slug },
+    });
     revalidatePath(`/recipes/${slug}`);
     revalidatePath("/admin/reviews");
     revalidatePath(`/admin/reviews/${reviewId}`);
@@ -1027,6 +1592,20 @@ export async function syncYoutubeAction() {
     }
 
     const result = await syncYoutubeChannel({ forceSnapshot: true });
+    if (result.ok) {
+      await recordAdminAuditEvent({
+        actor: actorFromAdminSession(admin),
+        action: "youtube.sync_triggered",
+        area: "youtube",
+        entityType: "youtube_channel",
+        entityLabel: "YouTube sync",
+        entityPath: "/admin/youtube",
+        metadata: {
+          videosSynced: result.videosSynced,
+          snapshotCreated: result.snapshotCreated,
+        },
+      });
+    }
     revalidatePath("/admin/youtube");
     return result;
   } catch (error) {
@@ -1090,7 +1669,7 @@ export async function clearRecipeYoutubeLinkAction(recipeId: string) {
 }
 
 export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const typeId = String(formData.get("typeId") || "").trim();
   const videoId = String(formData.get("videoId") || "").trim();
   const typeSourceRaw = String(formData.get("typeSource") || "manual").trim();
@@ -1114,6 +1693,46 @@ export async function createRecipeFromYoutubeVideoAction(formData: FormData) {
 
   if (!result.ok) {
     redirect(`/admin/youtube/videos/${videoId}?error=${encodeURIComponent(result.code)}`);
+  }
+
+  if (!("alreadyExisted" in result && result.alreadyExisted)) {
+    const createdRecipe = await getDb().recipe.findUnique({
+      where: { id: result.recipeId },
+      include: { categories: { select: { categoryId: true } } },
+    });
+    if (createdRecipe) {
+      await createRecipeRevisionIfChanged(getDb(), {
+        recipeId: createdRecipe.id,
+        actor: actorFromAdminSession(actor),
+        snapshot: buildRecipeRevisionSnapshot({
+          title: createdRecipe.title,
+          excerpt: createdRecipe.excerpt,
+          featured: createdRecipe.featured,
+          seasonal: createdRecipe.seasonal,
+          typeId: createdRecipe.typeId,
+          categoryIds: createdRecipe.categories.map((c) => c.categoryId),
+          values: createdRecipe.values,
+          slug: createdRecipe.slug,
+          status: createdRecipe.status,
+          publishedAt: createdRecipe.publishedAt,
+          publicUpdateNote: createdRecipe.publicUpdateNote,
+          publicUpdatedAt: createdRecipe.publicUpdatedAt,
+        }),
+        reason: "created",
+        isCreate: true,
+        force: true,
+      });
+    }
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "recipe.created",
+      area: "content",
+      entityType: "recipe",
+      entityId: result.recipeId,
+      entityLabel: ("recipeTitle" in result && result.recipeTitle) || "Recipe from YouTube",
+      entityPath: `/admin/recipes/${result.recipeId}`,
+      metadata: { source: "youtube", videoId, typeId },
+    });
   }
 
   revalidatePath("/admin");
@@ -1164,7 +1783,7 @@ function parseSeriesItemsJson(raw: string): SeriesItemPayload[] {
 }
 
 export async function saveSeriesAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "").trim();
   const title = String(formData.get("title") || "").trim();
@@ -1294,6 +1913,27 @@ export async function saveSeriesAction(formData: FormData) {
         },
       });
     });
+    const publishedChanged = existing.isPublished !== isPublished;
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: publishedChanged
+        ? isPublished
+          ? "series.published"
+          : "series.unpublished"
+        : "series.updated",
+      area: "content",
+      entityType: "series",
+      entityId: id,
+      entityLabel: title,
+      entityPath: `/admin/series/${id}`,
+      metadata: {
+        slug: existing.slug,
+        itemCount: validItems.length,
+        ...(publishedChanged
+          ? { oldPublished: existing.isPublished, newPublished: isPublished }
+          : {}),
+      },
+    });
     revalidatePath("/admin/series");
     revalidatePath(`/admin/series/${id}`);
     revalidatePath("/series");
@@ -1333,6 +1973,20 @@ export async function saveSeriesAction(formData: FormData) {
         },
       },
     });
+    await recordAdminAuditEvent({
+      actor: actorFromAdminSession(actor),
+      action: "series.created",
+      area: "content",
+      entityType: "series",
+      entityId: created.id,
+      entityLabel: title,
+      entityPath: `/admin/series/${created.id}`,
+      metadata: {
+        slug: created.slug,
+        isPublished,
+        itemCount: validItems.length,
+      },
+    });
     revalidatePath("/admin/series");
     revalidatePath("/series");
     if (isPublished) revalidatePath(`/series/${created.slug}`);
@@ -1346,13 +2000,26 @@ export async function saveSeriesAction(formData: FormData) {
 }
 
 export async function deleteSeriesAction(formData: FormData) {
-  await requireEditor();
+  const actor = await requireEditor();
   const db = getDb();
   const id = String(formData.get("id") || "").trim();
   if (!id) redirect("/admin/series");
-  const existing = await db.series.findUnique({ where: { id }, select: { slug: true } });
+  const existing = await db.series.findUnique({
+    where: { id },
+    select: { slug: true, title: true },
+  });
   if (!existing) redirect("/admin/series");
   await db.series.delete({ where: { id } });
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "series.deleted",
+    area: "content",
+    entityType: "series",
+    entityId: id,
+    entityLabel: existing.title,
+    entityPath: "/admin/series",
+    metadata: { slug: existing.slug },
+  });
   revalidatePath("/admin/series");
   revalidatePath("/series");
   revalidatePath(`/series/${existing.slug}`);
@@ -1469,11 +2136,21 @@ export async function removeSeriesItemAction(formData: FormData) {
 }
 
 export async function saveStudioLessonLinksAction(formData: FormData) {
-  await requireAccess("content");
+  const actor = await requireAccess("content");
   const lessonSlug = String(formData.get("lessonSlug") || "").trim();
   const recipeIds = formData.getAll("recipeIds").map((value) => String(value).trim()).filter(Boolean);
   const { replaceStudioLessonRecipeLinks } = await import("@/lib/studio-recipe-links");
   await replaceStudioLessonRecipeLinks({ lessonSlug, recipeIds });
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "studio.links_updated",
+    area: "content",
+    entityType: "studio_lesson",
+    entityId: lessonSlug,
+    entityLabel: lessonSlug,
+    entityPath: "/admin/studio",
+    metadata: { recipeCount: recipeIds.length, recipeIds: recipeIds.slice(0, 40) },
+  });
   revalidatePath("/admin/studio");
   revalidatePath("/studio");
   revalidatePath(`/studio/${lessonSlug}`);
@@ -1482,7 +2159,7 @@ export async function saveStudioLessonLinksAction(formData: FormData) {
 }
 
 export async function saveHomepageCurationAction(formData: FormData) {
-  await requireAccess("content");
+  const actor = await requireAccess("content");
   const clear = String(formData.get("clear") || "") === "1";
   const {
     setSiteSetting,
@@ -1514,6 +2191,22 @@ export async function saveHomepageCurationAction(formData: FormData) {
       serializeHomepageFromKitchenSlugs(uniqueKitchen),
     );
   }
+
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "site_setting.updated",
+    area: "content",
+    entityType: "site_setting",
+    entityId: "homepage_curation",
+    entityLabel: "Homepage curation",
+    entityPath: "/admin/studio",
+    metadata: {
+      cleared: clear,
+      featuredRecipeSlug: clear
+        ? ""
+        : String(formData.get("featuredRecipeSlug") || "").trim(),
+    },
+  });
 
   revalidatePath("/");
   revalidatePath("/admin/studio");

@@ -51,6 +51,14 @@ model Recipe {
   featured    Boolean          @default(false)
   seasonal    Boolean          @default(false)
   publishedAt DateTime?
+  /// Optional reader-facing retest/improvement note (not Admin Revision History).
+  publicUpdateNote String?
+  /// Editorial date for the public update note (not Prisma @updatedAt).
+  publicUpdatedAt DateTime?
+  /// When set on a draft, cron publishes at/after this UTC instant if readiness allows.
+  scheduledPublishAt DateTime?
+  /// Optional ordered Recipe.id pins for “More from the studio” (JSON string array). Empty = automatic only.
+  relatedRecipeIds String           @default("[]")
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   values      String           @default("{}")
@@ -59,6 +67,14 @@ model Recipe {
   categories  RecipeCategory[]
   seriesItems SeriesItem[]
   studioLessonLinks StudioLessonRecipeLink[]
+  saves       RecipeSave[]
+  reviews     RecipeReview[]
+  /// Optional relation for live recipes only — see RecipeRevision.recipeId delete policy.
+  revisions   RecipeRevision[]
+  youtubeReleases YouTubeRelease[]
+
+  @@index([scheduledPublishAt, status])
+  @@index([publishedAt])
 }
 
 model AiRecipeGenerationCache {
@@ -84,6 +100,43 @@ model RecipeCategory {
   @@id([recipeId, categoryId])
 }
 
+/**
+ * Recoverable recipe content snapshots (not Admin Audit).
+ *
+ * Delete policy: recipeId uses onDelete SetNull so permanent recipe deletion does
+ * not erase recovery history. `stableRecipeId` always retains Recipe.id for lookup.
+ * Slug/status in the snapshot are historical context only — restore preserves current
+ * public URL and publication state.
+ */
+model RecipeRevision {
+  id                     String   @id @default(cuid())
+  createdAt              DateTime @default(now())
+  /// Live FK while the recipe exists; null after recipe hard-delete.
+  recipeId               String?
+  recipe                 Recipe?  @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  /// Immutable Recipe.id at revision time — survives recipe deletion.
+  stableRecipeId         String
+  adminId                String?
+  admin                  Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  actorName              String   @default("")
+  actorRole              String   @default("")
+  /// created | saved | published | moved_to_draft | restored | baseline
+  reason                 String   @default("saved")
+  /// Canonical JSON from buildRecipeRevisionSnapshot.
+  snapshot               String   @default("{}")
+  /// Hash of recoverable content only (excludes slug/status/publishedAt).
+  contentHash            String   @default("")
+  /// Coarse section names JSON array, e.g. ["ingredients","instructions"].
+  changedFields          String   @default("[]")
+  restoredFromRevisionId String?
+  note                   String   @default("")
+
+  @@index([recipeId, createdAt])
+  @@index([stableRecipeId, createdAt])
+  @@index([contentHash])
+  @@index([adminId, createdAt])
+}
+
 model User {
   id           String           @id @default(cuid())
   email        String           @unique
@@ -96,6 +149,7 @@ model User {
   updatedAt    DateTime         @updatedAt
   lastSeenAt   DateTime         @default(now())
   saves        RecipeSave[]
+  savedRecipeCollections SavedRecipeCollection[]
   connections  UserConnection[]
   reviews      RecipeReview[]
   presenceSessions MemberPresenceSession[]
@@ -119,15 +173,62 @@ model RecipeSave {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Stable recipe identity. Nullable until legacy rows are backfilled / orphaned.
+  recipeId  String?
+  recipe    Recipe?  @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  /// Legacy / denormalized public URL slug (kept for display + migration safety).
   slug      String
+  /// Denormalized title for profile lists when recipe is missing.
   title     String
   createdAt DateTime @default(now())
+  /// Private member collection memberships (Phase 4). Cascade when RecipeSave is removed.
+  collectionItems SavedRecipeCollectionItem[]
 
   @@unique([userId, slug])
+  @@unique([userId, recipeId])
+  @@index([recipeId])
+}
+
+/**
+ * Private member organization of RecipeSave rows.
+ * Distinct from public editorial Collections (Series / SeriesItem).
+ * "All Saved" is virtual — never stored as a row.
+ */
+model SavedRecipeCollection {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  /// Lowercased trimmed name for per-member uniqueness.
+  nameNorm  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items     SavedRecipeCollectionItem[]
+
+  @@unique([userId, nameNorm])
+  @@index([userId, updatedAt])
+}
+
+/** Membership: organizes an existing RecipeSave; never duplicates save state. */
+model SavedRecipeCollectionItem {
+  id           String                @id @default(cuid())
+  collectionId String
+  collection   SavedRecipeCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  recipeSaveId String
+  recipeSave   RecipeSave            @relation(fields: [recipeSaveId], references: [id], onDelete: Cascade)
+  createdAt    DateTime              @default(now())
+
+  @@unique([collectionId, recipeSaveId])
+  @@index([recipeSaveId])
+  @@index([collectionId, createdAt])
 }
 
 model RecipeReview {
   id          String              @id @default(cuid())
+  /// Stable recipe identity. Nullable until legacy rows are backfilled / orphaned.
+  recipeId    String?
+  recipe      Recipe?             @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  /// Legacy / denormalized slug at write time (kept for migration + Admin fallback).
   recipeSlug  String
   userId      String?
   user        User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -141,6 +242,10 @@ model RecipeReview {
 
   @@unique([recipeSlug, authorEmail])
   @@index([recipeSlug, createdAt])
+  @@index([recipeId])
+  @@index([recipeId, createdAt])
+  /// Canonical unique(recipeId, authorEmail) deferred until production conflicts are cleared
+  /// (see backfillRecipeIdentity reviewConflictDetails). App writes already key by recipeId.
 }
 
 model RecipeReviewReply {
@@ -186,6 +291,11 @@ model Admin {
   updatedAt      DateTime       @updatedAt
   lastSeenAt     DateTime       @default(now())
   sessions       AdminSession[]
+  auditEvents    AdminAuditEvent[]
+  recipeRevisions RecipeRevision[]
+  mediaAssets    MediaAsset[]
+  notifications  AdminNotification[]
+  notificationReceipts AdminNotificationReceipt[]
 }
 
 /**
@@ -260,6 +370,7 @@ model GuestVisitor {
   pageViews   GuestPageView[]
   presenceSessions GuestPresenceSession[]
   funnelEvents FunnelEvent[]
+  searchEvents SearchEvent[]
 
   @@index([lastSeenAt])
   @@index([ipUpdatedAt])
@@ -324,6 +435,32 @@ model FunnelEvent {
   @@index([youtubeVideoId, createdAt])
   @@index([visitorId, createdAt])
   @@index([name, visitorId, recipeSlug, createdAt])
+}
+
+/**
+ * First-party recipe search / discovery intelligence (consent-gated).
+ * Aggregated for popular + zero-result terms — not a per-user profile.
+ */
+model SearchEvent {
+  id          String       @id @default(cuid())
+  visitorId   String
+  visitor     GuestVisitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  /// Normalized query for aggregation (lowercase, collapsed whitespace).
+  queryNorm   String       @default("")
+  /// Trimmed original query for admin display (clipped).
+  queryRaw    String       @default("")
+  resultCount Int          @default(0)
+  zeroResult  Boolean      @default(false)
+  /// search_overlay | recipes_catalog
+  placement   String       @default("")
+  /// Optional discovery filter context JSON (no PII).
+  filters     String       @default("{}")
+  createdAt   DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([queryNorm, createdAt])
+  @@index([zeroResult, createdAt])
+  @@index([visitorId, createdAt])
 }
 
 model NewsletterSubscriber {
@@ -422,6 +559,9 @@ model YouTubeRelease {
   timezone       String    @default("Europe/Istanbul")
   youtubeVideoId String?
   youtubeVideo   YouTubeVideo? @relation(fields: [youtubeVideoId], references: [videoId], onDelete: SetNull)
+  /// Optional stable Recipe link for planning before/without a synced YouTubeVideo.
+  recipeId       String?
+  recipe         Recipe?   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
   notes          String    @default("")
   skipReason     String    @default("")
   /// Stable Istanbul date key for skipped/assigned cadence slots (e.g. "2026-09-25").
@@ -432,6 +572,7 @@ model YouTubeRelease {
   @@index([releaseAt])
   @@index([status])
   @@index([youtubeVideoId])
+  @@index([recipeId])
   @@index([slotKey])
 }
 
@@ -605,6 +746,158 @@ model YouTubeAnalyticsTrafficDay {
   @@index([videoId, date, dimension])
 }
 
+/** Permanent URL redirects (e.g. published recipe slug changes). */
+model Redirect {
+  id         String   @id @default(cuid())
+  /** Normalized public pathname, e.g. "/recipes/classic-baguettes". */
+  fromPath   String   @unique
+  /** Destination pathname (usually another public recipe path). */
+  toPath     String
+  statusCode Int      @default(301)
+  isActive   Boolean  @default(true)
+  /** recipe_slug_change | manual */
+  source     String   @default("manual")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isActive, fromPath])
+  @@index([toPath])
+}
+
+/**
+ * Global Admin operational audit log (not recipe revision history).
+ * Survives Admin account deletion via SetNull on adminId.
+ */
+model AdminAuditEvent {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  /// FK when actor is a Team Access Admin row; null for System Owner ("env") or system.
+  adminId      String?
+  admin        Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  actorType    String   @default("admin")
+  actorName    String   @default("")
+  actorEmail   String   @default("")
+  actorRole    String   @default("")
+  /// Machine-readable action, e.g. recipe.published
+  action       String
+  /// Aligns with AdminArea where practical: content | members | staff | youtube
+  area         String   @default("content")
+  entityType   String   @default("")
+  entityId     String   @default("")
+  entityLabel  String   @default("")
+  entityPath   String   @default("")
+  /// Curated JSON summary — never passwords/tokens/full recipe.values.
+  metadata     String   @default("{}")
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([area, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([adminId, createdAt])
+  @@index([actorEmail, createdAt])
+}
+
+/**
+ * Staff inbox (Phase 6C). Not AdminAuditEvent — operational alerts editors act on.
+ * Viewing does not create audit noise.
+ *
+ * Read/dismiss state is per Admin via AdminNotificationReceipt — never shared
+ * globally on this row.
+ */
+model AdminNotification {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Machine type, e.g. recipe.schedule.succeeded
+  type      String
+  title     String
+  body      String   @default("")
+  /// info | success | attention
+  severity  String   @default("info")
+
+  entityType  String @default("")
+  entityId    String @default("")
+  entityLabel String @default("")
+  entityPath  String @default("")
+
+  /// null = visible to all content-capable staff
+  recipientAdminId String?
+  recipientAdmin   Admin?  @relation(fields: [recipientAdminId], references: [id], onDelete: SetNull)
+
+  /// Curated JSON — never secrets or full recipe.values
+  metadata String @default("{}")
+
+  receipts AdminNotificationReceipt[]
+
+  @@index([createdAt])
+  @@index([type, createdAt])
+  @@index([recipientAdminId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([type, entityId, createdAt])
+}
+
+/**
+ * Per-Admin read/dismiss state for a shared AdminNotification.
+ * adminKey is Admin.id or "env" for System Owner.
+ */
+model AdminNotificationReceipt {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  notificationId String
+  notification   AdminNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  adminKey       String
+  adminId        String?
+  admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  readAt         DateTime?
+  dismissedAt    DateTime?
+
+  @@unique([notificationId, adminKey])
+  @@index([adminKey, dismissedAt, readAt, createdAt])
+  @@index([adminId, createdAt])
+}
+
+/**
+ * Editorial media catalogue (Phase 6B).
+ *
+ * Storage (Blob / local uploads) owns bytes. MediaAsset owns identity, metadata,
+ * reuse, and Admin library management. Recipe.values.image remains the public
+ * delivery URL; optional values.heroMediaAssetId links back to this row.
+ */
+model MediaAsset {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Public delivery URL (owned upload or registered external).
+  url       String
+  /// Editorial browse title (not a Recipe title).
+  title     String   @default("")
+  /// Default alt text editors may reuse on attach.
+  altText   String   @default("")
+  credit    String   @default("")
+  notes     String   @default("")
+
+  mimeType  String   @default("")
+  byteSize  Int?
+
+  /// upload | external_url | youtube_thumbnail | imported
+  source    String   @default("upload")
+  /// image | recipe_hero | series_hero | general
+  kind      String   @default("image")
+  /// Soft-retire from pickers without deleting storage bytes.
+  isActive  Boolean  @default(true)
+
+  createdByAdminId String?
+  createdByAdmin   Admin?  @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([url])
+  @@index([isActive, updatedAt])
+  @@index([kind, isActive])
+  @@index([createdByAdminId])
+}
+
 /** Key-value site settings (e.g. homepage featured recipe slug). */
 model SiteSetting {
   key       String   @id
@@ -622,4 +915,84 @@ model StudioLessonRecipeLink {
   @@id([lessonSlug, recipeId])
   @@index([lessonSlug, sortOrder])
   @@index([recipeId])
+}
+
+/**
+ * Owner OAuth connection for Google Search Console (Phase 7A).
+ * Separate from YouTubeAnalyticsConnection — different scopes and sync domain.
+ * Historical page/query metrics are retained across disconnect.
+ */
+model SearchConsoleConnection {
+  id                 String   @id @default(cuid())
+  googleAccountEmail String   @default("")
+  /// AES-256-GCM sealed refresh token (base64 ciphertext). Keyed mesa-gsc:.
+  refreshTokenEnc    String   @default("")
+  tokenIv            String   @default("")
+  tokenAuthTag       String   @default("")
+  scopes             String   @default("")
+  status             String   @default("disconnected")
+  /// Exact Search Console siteUrl / property identifier from Google.
+  selectedProperty   String   @default("")
+  /// DOMAIN | URL_PREFIX | "" when unset
+  selectedPropertyType String @default("")
+  connectedAt        DateTime?
+  connectedByAdminId String   @default("")
+  lastRefreshAt      DateTime?
+  lastSyncStartedAt  DateTime?
+  lastSyncCompletedAt DateTime?
+  lastSuccessfulSyncAt DateTime?
+  /// Latest calendar date (UTC midnight) present in synced metrics.
+  lastDataDate       DateTime?
+  lastErrorCode      String   @default("")
+  lastErrorMessage   String   @default("")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  pageMetrics  SearchConsolePageMetric[]
+  queryMetrics SearchConsoleQueryMetric[]
+}
+
+/// Daily page performance from Search Console Search Analytics.
+model SearchConsolePageMetric {
+  id           String   @id @default(cuid())
+  connectionId String
+  connection   SearchConsoleConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  /// Google reporting calendar date (UTC midnight).
+  date         DateTime
+  /// Original page URL as reported by Search Console (historical truth).
+  pageUrl      String
+  /// Mesa pathname helper when URL matches canonical hosts; else "".
+  normalizedPath String @default("")
+  clicks       Float    @default(0)
+  impressions  Float    @default(0)
+  /// Click-through ratio (0–1), not percentage text.
+  ctr          Float    @default(0)
+  /// Average position for this page/date.
+  position     Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([connectionId, date, pageUrl])
+  @@index([connectionId, date])
+  @@index([connectionId, pageUrl, date])
+  @@index([connectionId, normalizedPath, date])
+}
+
+/// Daily site-level Google search query performance (not Mesa SearchEvent).
+model SearchConsoleQueryMetric {
+  id           String   @id @default(cuid())
+  connectionId String
+  connection   SearchConsoleConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  date         DateTime
+  query        String
+  clicks       Float    @default(0)
+  impressions  Float    @default(0)
+  ctr          Float    @default(0)
+  position     Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([connectionId, date, query])
+  @@index([connectionId, date])
+  @@index([connectionId, query, date])
 }

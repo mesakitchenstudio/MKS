@@ -8,6 +8,7 @@ import { RecipeSeriesContext } from "@/components/series/RecipeSeriesContext";
 import { ShareButtons } from "@/components/ShareButtons";
 import { RecipeAtAGlanceFacts } from "@/components/RecipeAtAGlanceFacts";
 import { RecipePageHeroActions } from "@/components/RecipePageHeroActions";
+import { RecipePublicUpdateNote } from "@/components/RecipePublicUpdateNote";
 import { recipeContentShellClass } from "@/components/RecipeContentShell";
 import {
   resolvePublicRecipeH1,
@@ -17,17 +18,16 @@ import { recipePrimaryCategoryDisplayLabel } from "@/lib/recipe-primary-taxonomy
 import { heroSeriesLinks } from "@/lib/recipe-hero-series";
 import type { Recipe } from "@/data/types";
 import type { ExtraField } from "@/lib/recipe-map";
+import { publicRecipeId } from "@/lib/recipes";
 
 export function RecipePageHero({
   recipe,
   seriesLinks,
-  updated,
   reviewData,
   videoDuration,
 }: {
   recipe: Recipe & { extras?: ExtraField[] };
   seriesLinks: RecipeSeriesLink[];
-  updated: string;
   reviewData: RecipeReviewData;
   videoDuration?: string;
 }) {
@@ -50,7 +50,7 @@ export function RecipePageHero({
   );
 
   return (
-    <header className={`${recipeContentShellClass} py-5 md:pt-6 md:pb-3 lg:pt-5 lg:pb-2`}>
+    <header className={`${recipeContentShellClass} recipe-screen-only py-5 md:pt-6 md:pb-3 lg:pt-5 lg:pb-2`}>
       <p className="recipe-print-brand mb-2 hidden text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-ink print:block">
         Mesa Kitchen Studio
       </p>
@@ -92,8 +92,13 @@ export function RecipePageHero({
             <RecipeRatingSummary slug={recipe.slug} initial={reviewData.stats} />
           </div>
 
-          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted">Updated {updated}</p>
+          <RecipePublicUpdateNote
+            note={recipe.publicUpdateNote}
+            updatedAt={recipe.publicUpdatedAt}
+            className="no-print mt-3 max-w-2xl"
+          />
+
+          <div className="mt-2.5 flex flex-wrap items-center justify-end gap-3">
             <ShareButtons title={recipe.title} slug={recipe.slug} />
           </div>
 
@@ -102,6 +107,14 @@ export function RecipePageHero({
             slug={recipe.slug}
             title={recipe.title}
             videoDuration={videoDuration}
+            recipeId={publicRecipeId(recipe)}
+            recipeForCook={{
+              slug: recipe.slug,
+              title: recipe.title,
+              servings: recipe.servings,
+              ingredients: recipe.ingredients,
+              instructions: recipe.instructions,
+            }}
           />
         </div>
 

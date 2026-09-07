@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { isAccessLevel, type AccessLevel } from "@/lib/admin-access";
 import { MEMBER_PRESENCE_STALE_MS, MEMBER_PRESENCE_WRITE_THROTTLE_MS, normalizePresenceSessionKey, presenceLastSeenForGraceDisconnect } from "@/lib/member-presence";
 import { hashPassword, verifyPassword } from "@/lib/passwords";
+import { resolveRecipeBySlug } from "@/lib/recipe-identity";
 import { connectionMeta, type ConnectionMeta } from "@/lib/request-meta";
 import type { Prisma } from "@prisma/client";
 
@@ -624,22 +625,47 @@ export async function getUserForAdmin(id: string) {
 export async function listSaves(email: string): Promise<SavedRecipe[]> {
   const user = await getDb().user.findUnique({
     where: { email: emailKey(email) },
-    include: { saves: { orderBy: { createdAt: "desc" } } },
+    include: {
+      saves: {
+        orderBy: { createdAt: "desc" },
+        include: { recipe: { select: { slug: true, title: true } } },
+      },
+    },
   });
-  return (user?.saves ?? []).map((save) => ({ slug: save.slug, title: save.title }));
+  return (user?.saves ?? []).map((save) => ({
+    slug: save.recipe?.slug || save.slug,
+    title: save.recipe?.title || save.title,
+  }));
 }
 
 export async function toggleSave(email: string, recipe: SavedRecipe) {
   const db = getDb();
   const user = await requireActiveMember(email);
-  const existing = await db.recipeSave.findUnique({
-    where: { userId_slug: { userId: user.id, slug: recipe.slug } },
-  });
+  const resolved = await resolveRecipeBySlug(recipe.slug);
+  const title = resolved?.title || recipe.title;
+  const slug = resolved?.slug || recipe.slug;
+
+  const existing = resolved
+    ? await db.recipeSave.findFirst({
+        where: {
+          userId: user.id,
+          OR: [{ recipeId: resolved.id }, { slug }],
+        },
+      })
+    : await db.recipeSave.findUnique({
+        where: { userId_slug: { userId: user.id, slug } },
+      });
+
   if (existing) {
     await db.recipeSave.delete({ where: { id: existing.id } });
   } else {
     await db.recipeSave.create({
-      data: { userId: user.id, slug: recipe.slug, title: recipe.title },
+      data: {
+        userId: user.id,
+        recipeId: resolved?.id ?? null,
+        slug,
+        title,
+      },
     });
   }
   return {
@@ -651,7 +677,17 @@ export async function toggleSave(email: string, recipe: SavedRecipe) {
 export async function removeSave(email: string, slug: string) {
   const db = getDb();
   const user = await requireActiveMember(email);
-  await db.recipeSave.deleteMany({ where: { userId: user.id, slug } });
+  const resolved = await resolveRecipeBySlug(slug);
+  if (resolved) {
+    await db.recipeSave.deleteMany({
+      where: {
+        userId: user.id,
+        OR: [{ recipeId: resolved.id }, { slug: resolved.slug }, { slug }],
+      },
+    });
+  } else {
+    await db.recipeSave.deleteMany({ where: { userId: user.id, slug } });
+  }
   return listSaves(email);
 }
 
@@ -660,11 +696,33 @@ export async function importSaves(email: string, recipes: SavedRecipe[]) {
   const user = await requireActiveMember(email);
   if (recipes.length === 0) return listSaves(email);
   for (const recipe of recipes) {
-    await db.recipeSave.upsert({
-      where: { userId_slug: { userId: user.id, slug: recipe.slug } },
-      update: { title: recipe.title },
-      create: { userId: user.id, slug: recipe.slug, title: recipe.title },
-    });
+    const resolved = await resolveRecipeBySlug(recipe.slug);
+    const slug = resolved?.slug || recipe.slug;
+    const title = resolved?.title || recipe.title;
+    if (resolved) {
+      const existing = await db.recipeSave.findFirst({
+        where: {
+          userId: user.id,
+          OR: [{ recipeId: resolved.id }, { slug }],
+        },
+      });
+      if (existing) {
+        await db.recipeSave.update({
+          where: { id: existing.id },
+          data: { recipeId: resolved.id, slug, title },
+        });
+      } else {
+        await db.recipeSave.create({
+          data: { userId: user.id, recipeId: resolved.id, slug, title },
+        });
+      }
+    } else {
+      await db.recipeSave.upsert({
+        where: { userId_slug: { userId: user.id, slug } },
+        update: { title },
+        create: { userId: user.id, recipeId: null, slug, title },
+      });
+    }
   }
   return listSaves(email);
 }

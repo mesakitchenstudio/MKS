@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { site } from "@/data/site";
 import { isSitePrivate } from "@/lib/flags";
+import { publicRobotsDisallow, ROBOTS_PRIVATE_ALLOW } from "@/lib/robots-policy";
 import { isStudioPublicLaunchEnabled } from "@/lib/studio-public";
 
 export default function robots(): MetadataRoute.Robots {
@@ -10,7 +11,7 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         // Keep brand icons crawlable so YouTube/Google can show the site favicon
         // while the rest of the site stays gated.
-        allow: ["/favicon.ico", "/favicon.png", "/icon.png", "/apple-icon.png", "/icon.svg"],
+        allow: [...ROBOTS_PRIVATE_ALLOW],
         disallow: "/",
       },
     };
@@ -21,15 +22,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: [
-          "/admin",
-          "/admin/",
-          "/api/",
-          "/profile",
-          "/auth/",
-          "/coming-soon",
-          ...(isStudioPublicLaunchEnabled() ? [] : ["/studio", "/studio/"]),
-        ],
+        disallow: publicRobotsDisallow(isStudioPublicLaunchEnabled()),
       },
     ],
     sitemap: `${site.url}/sitemap.xml`,

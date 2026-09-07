@@ -3,11 +3,6 @@ import { hasPublishableIngredients } from "@/lib/ingredient-groups";
 import { evaluateRecipeFields } from "@/lib/recipe-editor-field-state";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
-import { youtubeVideoId } from "@/lib/youtube";
-import {
-  validateYoutubeMetadataEditorState,
-  type YoutubeMetadataEditorState,
-} from "@/lib/youtube-metadata-editor";
 
 export type EditorSectionId = "basics" | "details" | "content" | "media" | "advanced";
 
@@ -252,38 +247,23 @@ export function countReviewableBySection(reviewable: ReviewableField[]) {
   return counts;
 }
 
-/** Shared publish validator — tab completeness uses the same required-field rules. */
+/** @deprecated Import validateRecipeForPublish from recipe-publishing-readiness. */
 export function validateRecipeForPublish(input: {
   title: string;
   fields: EditorFieldShape[];
   values: Record<string, unknown>;
+  excerpt?: string;
+  typeId?: string;
+  slug?: string;
+  categoryIds?: string[];
+  aiMeta?: RecipeAiMeta | null;
+  resolveSection?: (key: string) => EditorSectionId;
+  typeFields?: SchemaField[];
 }): Record<string, string> {
-  const errors: Record<string, string> = {};
-
-  for (const row of listMissingRequiredFields(input)) {
-    if (row.key === "title") {
-      errors.title = "Title is required before publishing.";
-    } else if (row.key === "ingredients") {
-      errors.ingredients = "Add at least one ingredient before publishing.";
-    } else {
-      errors[row.key] = `${row.label} is required before publishing.`;
-    }
-  }
-
-  const youtubeUrl = String(input.values.youtubeUrl ?? "").trim();
-  if (youtubeUrl && !youtubeVideoId(youtubeUrl)) {
-    errors.youtubeUrl = "Enter a valid YouTube watch or youtu.be URL.";
-  }
-
-  const youtubeState = input.values.youtube as YoutubeMetadataEditorState | undefined;
-  if (youtubeState && typeof youtubeState === "object") {
-    const youtubeIssues = validateYoutubeMetadataEditorState(youtubeState);
-    if (youtubeIssues.length) {
-      errors.youtube = youtubeIssues[0]?.message ?? "Fix YouTube metadata before publishing.";
-    }
-  }
-
-  return errors;
+  // Lazy require avoids circular init with recipe-publishing-readiness.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const readiness = require("@/lib/recipe-publishing-readiness") as typeof import("@/lib/recipe-publishing-readiness");
+  return readiness.publishErrorsFromReadiness(readiness.getRecipePublishingReadiness(input));
 }
 
 /** Map publish error keys to the same missing-required list for test parity. */

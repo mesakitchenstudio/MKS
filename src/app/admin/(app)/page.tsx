@@ -28,6 +28,7 @@ export default async function AdminHomePage() {
         slug: recipe.slug,
         title: recipe.title,
         status: recipe.status,
+        scheduledPublishAt: recipe.scheduledPublishAt?.toISOString() ?? null,
         updatedAt: recipe.updatedAt.toISOString(),
         type: { id: recipe.type.id, name: recipe.type.name },
       }))}

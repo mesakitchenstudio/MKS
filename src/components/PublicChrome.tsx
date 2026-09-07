@@ -31,8 +31,10 @@ export function PublicChrome({
   // Standalone newsletter unsubscribe — brand lives in the page; keep chrome off
   // so Coming Soon / private mode and a distraction-free utility surface stay consistent.
   const onNewsletterUnsubscribe = pathname.startsWith("/newsletter/unsubscribe");
-  const showPublicChrome = showChrome && !onNewsletterUnsubscribe;
-  const showFloatTools = !hideTools && !onNewsletterUnsubscribe;
+  // Cooking Mode has its own minimal header; hide public chrome for focus.
+  const onCookingMode = /^\/recipes\/[^/]+\/cook\/?$/.test(pathname);
+  const showPublicChrome = showChrome && !onNewsletterUnsubscribe && !onCookingMode;
+  const showFloatTools = !hideTools && !onNewsletterUnsubscribe && !onCookingMode;
 
   return (
     <>

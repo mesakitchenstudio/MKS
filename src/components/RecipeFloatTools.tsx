@@ -9,13 +9,45 @@ import { trackEvent } from "@/lib/analytics";
 import { shouldShowFloatingRecipeSearch } from "@/lib/public-search-ui";
 import { isLiked, readLikes, toggleLike, hydrateLikesFromProfile, type LikedRecipe } from "@/lib/likes";
 import { MemberSessionExpiredError } from "@/lib/auth-client";
+import { recordRecentlyViewed } from "@/lib/recently-viewed";
+import { countSavedRecipeCollectionMembershipsAction } from "@/app/profile/collection-actions";
+import {
+  SavedRecipeCollectionPicker,
+  UnsaveWithCollectionsConfirm,
+} from "@/components/SavedRecipeCollectionPicker";
 import { AuthModal } from "./AuthModal";
 import { SearchOverlay, type OverlayRecipe } from "./SearchOverlay";
 
-export function SetCurrentRecipe({ slug, title }: { slug: string; title: string }) {
+export function SetCurrentRecipe({
+  slug,
+  title,
+  id,
+  image,
+  imageAlt,
+}: {
+  slug: string;
+  title: string;
+  /** Stable public recipe id when available. */
+  id?: string;
+  image?: string;
+  imageAlt?: string;
+}) {
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("mesa-current-recipe", { detail: { slug, title } }));
-  }, [slug, title]);
+    window.dispatchEvent(
+      new CustomEvent("mesa-current-recipe", {
+        detail: { slug, title, id: id?.trim() || undefined },
+      }),
+    );
+    const imageUrl = image?.trim();
+    if (!imageUrl) return;
+    recordRecentlyViewed({
+      id: id?.trim() || slug,
+      slug,
+      title,
+      image: imageUrl,
+      imageAlt: imageAlt?.trim() || title,
+    });
+  }, [slug, title, id, image, imageAlt]);
   return null;
 }
 
@@ -23,6 +55,15 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
   const pathname = usePathname();
   const isRecipeDetail = /^\/recipes\/[^/]+$/.test(pathname);
   const [showFloatingSearch, setShowFloatingSearch] = useState(false);
+  const [current, setCurrent] = useState<LikedRecipe | null>(null);
+  const [liked, setLiked] = useState(false);
+  const [likes, setLikes] = useState<LikedRecipe[]>([]);
+  const [panel, setPanel] = useState<"search" | "likes" | "auth" | null>(null);
+  const [pendingLike, setPendingLike] = useState(false);
+  const [sessionTick, setSessionTick] = useState(0);
+  const [organizeOpen, setOrganizeOpen] = useState(false);
+  const [unsaveCount, setUnsaveCount] = useState<number | null>(null);
+  const [unsaveBusy, setUnsaveBusy] = useState(false);
 
   useEffect(() => {
     function update() {
@@ -36,12 +77,6 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, [isRecipeDetail]);
-  const [current, setCurrent] = useState<LikedRecipe | null>(null);
-  const [liked, setLiked] = useState(false);
-  const [likes, setLikes] = useState<LikedRecipe[]>([]);
-  const [panel, setPanel] = useState<"search" | "likes" | "auth" | null>(null);
-  const [pendingLike, setPendingLike] = useState(false);
-  const [sessionTick, setSessionTick] = useState(0);
 
   useEffect(() => {
     function onCurrent(event: Event) {
@@ -93,16 +128,24 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
 
   useEffect(() => {
     const match = pathname.match(/^\/recipes\/([^/]+)$/);
+    /* eslint-disable react-hooks/set-state-in-effect -- route-driven float tools state */
     if (match) {
       const slug = decodeURIComponent(match[1]);
       const recipe = recipes.find((item) => item.slug === slug);
-      setCurrent({ slug, title: recipe?.title ?? slug });
+      setCurrent((prev) => ({
+        slug,
+        title: recipe?.title ?? prev?.title ?? slug,
+        id: prev?.id,
+      }));
       setLiked(isLiked(slug));
     } else {
       setCurrent(null);
       setLiked(false);
+      setOrganizeOpen(false);
+      setUnsaveCount(null);
     }
     setLikes(readLikes());
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [pathname, recipes]);
 
   useEffect(() => {
@@ -110,6 +153,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
     if (sessionStorage.getItem("mesa-pending-like") !== "1") return;
     sessionStorage.removeItem("mesa-pending-like");
     void applyLike();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume pending save once per session tick
   }, [current, pathname, sessionTick]);
 
   async function applyLike() {
@@ -123,7 +167,8 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
         source: nextLiked ? "add" : "remove",
       });
       setLikes(readLikes());
-      setPanel("likes");
+      if (nextLiked) setPanel("likes");
+      else setPanel(null);
     } catch (error) {
       setLiked(isLiked(current.slug));
       setLikes(readLikes());
@@ -135,20 +180,46 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
     }
   }
 
-  function onHeart() {
+  async function onHeart() {
     if (!current) return;
     if (!readSession()) {
       setPendingLike(true);
       setPanel("auth");
       return;
     }
+    if (liked) {
+      setUnsaveBusy(true);
+      try {
+        const result = await countSavedRecipeCollectionMembershipsAction({
+          recipeId: current.id,
+          recipeSlug: current.slug,
+        });
+        setUnsaveBusy(false);
+        if (result.ok && result.data.count > 0) {
+          setUnsaveCount(result.data.count);
+          return;
+        }
+      } catch {
+        setUnsaveBusy(false);
+      }
+    }
     void applyLike();
+  }
+
+  function onOrganize() {
+    if (!current) return;
+    if (!readSession()) {
+      setPanel("auth");
+      return;
+    }
+    setOrganizeOpen(true);
   }
 
   function onSignedIn() {
     setPanel(null);
     void hydrateLikesFromProfile().then(() => {
       setLikes(readLikes());
+      setSessionTick((value) => value + 1);
       if (pendingLike) {
         setPendingLike(false);
         void applyLike();
@@ -156,41 +227,51 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
     });
   }
 
-  // Only a recipe-detail page sets `current` (pathname + SetCurrentRecipe).
-  // Do not render a global Favorite control when there is nothing to save.
   const showFavorite = Boolean(current?.slug);
+  const showOrganize = showFavorite && liked && Boolean(readSession());
   const showFloatingTools = showFavorite || showFloatingSearch;
 
   return (
     <div className="no-print">
       {showFloatingTools ? (
-      <div className="fixed right-4 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3 md:right-6">
-        {showFavorite ? (
-        <button
-          type="button"
-          aria-label={liked ? "Remove from saved recipes" : "Save recipe"}
-          aria-pressed={liked}
-          onClick={onHeart}
-          className={`flex h-12 w-12 items-center justify-center rounded-full border shadow-md transition-colors ${
-            liked
-              ? "border-terracotta bg-terracotta"
-              : "border-line bg-paper hover:border-terracotta"
-          }`}
-        >
-          <HeartIcon filled={liked} />
-        </button>
-        ) : null}
-        {showFloatingSearch ? (
-        <button
-          type="button"
-          aria-label="Search recipes"
-          onClick={() => setPanel((value) => (value === "search" ? null : "search"))}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-olive shadow-md hover:bg-olive-dark"
-        >
-          <SearchIcon />
-        </button>
-        ) : null}
-      </div>
+        <div className="fixed right-4 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3 md:right-6">
+          {showFavorite ? (
+            <button
+              type="button"
+              aria-label={liked ? "Remove from saved recipes" : "Save recipe"}
+              aria-pressed={liked}
+              disabled={unsaveBusy}
+              onClick={() => void onHeart()}
+              className={`flex h-12 w-12 items-center justify-center rounded-full border shadow-md transition-colors ${
+                liked
+                  ? "border-terracotta bg-terracotta"
+                  : "border-line bg-paper hover:border-terracotta"
+              }`}
+            >
+              <HeartIcon filled={liked} />
+            </button>
+          ) : null}
+          {showOrganize ? (
+            <button
+              type="button"
+              aria-label="Organize in collections"
+              onClick={onOrganize}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper shadow-md hover:border-terracotta"
+            >
+              <OrganizeIcon />
+            </button>
+          ) : null}
+          {showFloatingSearch ? (
+            <button
+              type="button"
+              aria-label="Search recipes"
+              onClick={() => setPanel((value) => (value === "search" ? null : "search"))}
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-olive shadow-md hover:bg-olive-dark"
+            >
+              <SearchIcon />
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {panel === "auth" ? (
@@ -236,6 +317,7 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
                         await signOutGoogle({ redirect: false });
                         setLiked(false);
                         setLikes([]);
+                        setSessionTick((value) => value + 1);
                         setPanel(null);
                       })();
                     }}
@@ -264,8 +346,45 @@ export function RecipeFloatTools({ recipes = [] }: { recipes?: OverlayRecipe[] }
                 Open a recipe and tap the heart to save it here.
               </p>
             )}
+            {liked && current ? (
+              <button
+                type="button"
+                className="mt-4 text-sm font-semibold text-terracotta"
+                onClick={() => {
+                  setPanel(null);
+                  setOrganizeOpen(true);
+                }}
+              >
+                Organize in collections
+              </button>
+            ) : null}
           </div>
         </div>
+      ) : null}
+
+      {organizeOpen && current ? (
+        <SavedRecipeCollectionPicker
+          key={`${current.id ?? ""}:${current.slug}`}
+          recipe={{
+            recipeId: current.id,
+            recipeSlug: current.slug,
+            recipeTitle: current.title,
+          }}
+          onClose={() => setOrganizeOpen(false)}
+          onUnauthorized={() => setPanel("auth")}
+        />
+      ) : null}
+
+      {unsaveCount != null ? (
+        <UnsaveWithCollectionsConfirm
+          membershipCount={unsaveCount}
+          busy={unsaveBusy}
+          onCancel={() => setUnsaveCount(null)}
+          onConfirm={() => {
+            setUnsaveCount(null);
+            void applyLike();
+          }}
+        />
       ) : null}
     </div>
   );
@@ -280,6 +399,20 @@ function HeartIcon({ filled }: { filled: boolean }) {
         stroke={filled ? "#FFFCF7" : "#C45C3E"}
         strokeWidth="1.8"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function OrganizeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
+      <path
+        d="M4 6.5h16M4 12h16M4 17.5h10"
+        fill="none"
+        stroke="#C45C3E"
+        strokeWidth="1.8"
+        strokeLinecap="round"
       />
     </svg>
   );

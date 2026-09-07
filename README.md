@@ -75,4 +75,36 @@ Optional: set `GOOGLE_SITE_VERIFICATION` in Vercel to the HTML-tag verification 
 
 ## Production database
 
-Local development uses SQLite (`DATABASE_URL=file:./prisma/dev.db`). Vercel uses Neon Postgres from `DATABASE_URL`. The production build creates tables with `prisma db push`. Also set `ADMIN_PASSWORD` and `ADMIN_SECRET`.
+Local development uses SQLite (`DATABASE_URL=file:./prisma/dev.db`) via `npm run db:push` / `db:setup`.
+
+Vercel uses Neon Postgres from `DATABASE_URL` (+ `DATABASE_URL_UNPOOLED` for Prisma). The production `build` script runs:
+
+1. `prisma/prepare-production.mjs` (SQLite → Postgres schema)
+2. `prisma generate`
+3. guest `navId` dedupe helper
+4. **`node prisma/migrate-on-build.mjs`** — runs `prisma migrate deploy` **only when** `VERCEL_ENV=production` (or `PRISMA_MIGRATE_ON_BUILD=1`). Preview/Development builds skip migrations so a shared Preview `DATABASE_URL` cannot mutate production schema. Still isolate Preview DB credentials for runtime safety.
+5. optional empty-db seed
+6. `next build`
+
+**Existing Neon databases** (historical `db push`) use a two-step migration chain:
+
+1. `20260908000000_baseline_existing_production` — schema Production already had
+2. `20260908001000_roadmap_additive_delta` — additive roadmap tables/columns/indexes/FKs only
+
+First Production cutover (manual; do this before relying on build-time migrate):
+
+```bash
+node prisma/prepare-production.mjs
+# mark only the legacy baseline as already applied (schema already present)
+npx prisma migrate resolve --applied 20260908000000_baseline_existing_production --schema=prisma/schema.production.prisma
+# apply only the additive roadmap delta
+npx prisma migrate deploy --schema=prisma/schema.production.prisma
+```
+
+Fresh Postgres databases apply both migrations in order via `migrate deploy`.
+
+Preview builds skip migrations (`migrate-on-build.mjs`). Preview DB isolation is required so Preview never shares Production credentials.
+
+Do not run `prisma db push --accept-data-loss` against production. Prefer `npx next build` for compile verification without schema mutation.
+
+Also set `ADMIN_PASSWORD` and `ADMIN_SECRET`.

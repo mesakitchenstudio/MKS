@@ -11,7 +11,7 @@ const STATIC_TITLES: Record<string, string> = {
   "/contact": "Contact",
   "/disclosures": "Disclosures",
   "/search": "Search",
-  "/series": "Cooking Series",
+  "/series": "Collections",
   "/auth/error": "Error",
 };
 
