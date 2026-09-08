@@ -611,3 +611,39 @@ describe("recipe review live thread", () => {
     assert.notEqual(empty, one);
   });
 });
+
+describe("recipe reviews — SITE_PRIVATE API contract", () => {
+  it("reviews route uses live-staff-aware gate (not cookie-only block)", () => {
+    const reviewsRoute = readFileSync(
+      path.join(root, "../app/api/recipes/[slug]/reviews/route.ts"),
+      "utf8",
+    );
+    const repliesRoute = readFileSync(
+      path.join(root, "../app/api/recipes/[slug]/reviews/[reviewId]/replies/route.ts"),
+      "utf8",
+    );
+    assert.match(reviewsRoute, /isRecipeApiBlockedForRequest/);
+    assert.match(repliesRoute, /isRecipeApiBlockedForRequest/);
+    assert.doesNotMatch(reviewsRoute, /isBlockedApiWhilePrivate\(/);
+    assert.doesNotMatch(repliesRoute, /isBlockedApiWhilePrivate\(/);
+  });
+
+  it("client fetch throws on non-OK but RecipeReviews poll catches 404", () => {
+    const client = readFileSync(path.join(root, "recipe-reviews-client.ts"), "utf8");
+    const ui = readFileSync(path.join(root, "../components/RecipeReviews.tsx"), "utf8");
+    assert.match(client, /if \(!response\.ok\)[\s\S]*throw new Error/);
+    assert.match(ui, /fetchRecipeReviewData\(slug\)[\s\S]*catch \{/);
+    assert.match(ui, /Keep the visible thread/);
+  });
+
+  it("Admin Recipe editor does not call public reviews API", () => {
+    const editor = readFileSync(path.join(root, "../components/admin/RecipeEditor.tsx"), "utf8");
+    const editPage = readFileSync(
+      path.join(root, "../app/admin/(app)/recipes/[id]/page.tsx"),
+      "utf8",
+    );
+    assert.doesNotMatch(editor, /\/api\/recipes\/.*\/reviews/);
+    assert.doesNotMatch(editPage, /\/api\/recipes\/.*\/reviews/);
+    assert.doesNotMatch(editor, /fetchRecipeReviewData/);
+  });
+});

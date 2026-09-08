@@ -3,6 +3,7 @@ import { afterEach, describe, it } from "node:test";
 import { createSessionToken, ADMIN_COOKIE } from "./admin-session-token.ts";
 import {
   isBlockedApiWhilePrivate,
+  isRecipeApiBlockedForRequest,
   isStaffPublicPreview,
   shouldGatePublicRequest,
 } from "./site-gate.ts";
@@ -66,5 +67,33 @@ describe("site-gate", () => {
     assert.equal(isStaffPublicPreview(cookie), false);
     assert.equal(shouldGatePublicRequest(cookie), true);
     assert.equal(isBlockedApiWhilePrivate("/api/recipes/bread/reviews", cookie), true);
+  });
+
+  it("route helper blocks anonymous recipe APIs while private (empty reviews still 404)", async () => {
+    process.env.SITE_PRIVATE = "true";
+    const blocked = await isRecipeApiBlockedForRequest({
+      url: "https://www.mesakitchenstudio.com/api/recipes/why-everyone-is-obsessed-with-these-banana-oatmeal-cookies/reviews",
+      headers: { get: () => null },
+    });
+    assert.equal(blocked, true);
+  });
+
+  it("route helper does not treat crypto-only cookie as live staff without DB session", async () => {
+    process.env.SITE_PRIVATE = "true";
+    process.env.ADMIN_SECRET = "test-admin-secret-for-gate";
+    const token = createSessionToken({
+      id: "env",
+      email: "owner@example.com",
+      name: "Owner",
+      role: "owner",
+      sv: 0,
+      sid: "crypto-only-sid",
+    });
+    const blocked = await isRecipeApiBlockedForRequest({
+      url: "https://www.mesakitchenstudio.com/api/recipes/bread/reviews",
+      headers: { get: (name) => (name.toLowerCase() === "cookie" ? `${ADMIN_COOKIE}=${token}` : null) },
+    });
+    // No live AdminSession row → still blocked (same as proxy).
+    assert.equal(blocked, true);
   });
 });

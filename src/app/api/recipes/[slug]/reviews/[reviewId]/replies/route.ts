@@ -8,7 +8,7 @@ import {
   type RecipeReviewViewer,
 } from "@/lib/recipe-reviews";
 import { getAdminSession } from "@/lib/auth";
-import { isBlockedApiWhilePrivate } from "@/lib/site-gate";
+import { isRecipeApiBlockedForRequest } from "@/lib/site-gate";
 
 type RouteContext = {
   params: Promise<{ slug: string; reviewId: string }>;
@@ -34,7 +34,7 @@ async function resolveReplyViewer(): Promise<RecipeReviewViewer> {
  * Client-supplied identity fields are ignored.
  */
 export async function POST(request: Request, context: RouteContext) {
-  if (isBlockedApiWhilePrivate(new URL(request.url).pathname, request.headers.get("cookie"))) {
+  if (await isRecipeApiBlockedForRequest(request)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canManageRecipeReviewReplies, getRecipeReviewData, submitRecipeReview } from "@/lib/recipe-reviews";
 import { getAdminSession } from "@/lib/auth";
-import { isBlockedApiWhilePrivate } from "@/lib/site-gate";
+import { isRecipeApiBlockedForRequest } from "@/lib/site-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ async function resolveViewer() {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  if (isBlockedApiWhilePrivate(new URL(request.url).pathname, request.headers.get("cookie"))) {
+  if (await isRecipeApiBlockedForRequest(request)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const { slug } = await context.params;
@@ -33,7 +33,7 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  if (isBlockedApiWhilePrivate(new URL(request.url).pathname, request.headers.get("cookie"))) {
+  if (await isRecipeApiBlockedForRequest(request)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const { slug } = await context.params;

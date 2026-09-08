@@ -95,3 +95,21 @@ export function isBlockedApiWhilePrivate(
   if (pathname.startsWith("/api/analytics/search")) return false;
   return pathname.startsWith("/api/recipes");
 }
+
+/**
+ * Route-handler helper: honor the same live-staff preview rule as proxy.
+ * Callers that only pass the Cookie header (liveStaffPreview defaults false)
+ * incorrectly 404 authenticated staff while SITE_PRIVATE is on.
+ */
+export async function isRecipeApiBlockedForRequest(request: {
+  url: string;
+  headers: { get: (name: string) => string | null };
+}): Promise<boolean> {
+  const pathname = new URL(request.url).pathname;
+  const cookieHeader = request.headers.get("cookie");
+  const liveStaffPreview = await hasLiveAdminSessionFromRequest({
+    cookies: { get: () => undefined },
+    headers: request.headers,
+  });
+  return isBlockedApiWhilePrivate(pathname, cookieHeader, liveStaffPreview);
+}
