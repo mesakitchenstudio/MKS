@@ -44,6 +44,29 @@ describe("RecipeCookEntry React #185 snapshot stability", () => {
     assert.equal(countUpdatesUntilStable(getSnapshot), 0);
   });
 
+  it("serialized snapshot still changes when label/href semantics change", () => {
+    let current: RecipeCookEntrySnapshot = {
+      label: "Start Cooking",
+      href: "/recipes/demo/cook",
+    };
+    const getSnapshot = () => serializeCookEntrySnapshot(current);
+
+    const steady = getSnapshot();
+    assert.equal(getSnapshot(), steady);
+    assert.equal(countUpdatesUntilStable(getSnapshot), 0);
+
+    current = {
+      label: "Continue Cooking",
+      href: "/recipes/demo/cook?servings=6",
+    };
+    const afterStoreUpdate = getSnapshot();
+    assert.notEqual(afterStoreUpdate, steady);
+    assert.match(afterStoreUpdate, /Continue Cooking/);
+    assert.match(afterStoreUpdate, /servings=6/);
+    assert.equal(getSnapshot(), afterStoreUpdate);
+    assert.equal(countUpdatesUntilStable(getSnapshot), 0);
+  });
+
   it("RecipeCookEntry serializes snapshots for useSyncExternalStore", () => {
     const entry = read("components/cooking/RecipeCookEntry.tsx");
     assert.match(entry, /useSyncExternalStore/);
