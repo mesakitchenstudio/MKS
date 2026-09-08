@@ -81,4 +81,50 @@ describe("youtube-metadata-editor", () => {
     state.hook = "Hello";
     assert.equal(youtubeMetadataEditorHasContent(state), true);
   });
+
+  it("does not throw on production public youtube blobs (time/label, missing timestamps)", () => {
+    // Production recipes store RecipeYoutube ({ time, label }), not editor rows ({ timeInput }).
+    const publicBlob = {
+      hook: "Watch the video",
+      duration: "10:00",
+      timestamps: [
+        { time: 45, label: "Prep" },
+        { time: 180, label: "Cook" },
+      ],
+      relatedVideos: [],
+    };
+    const incomplete = {
+      hook: "Legacy cookie recipe",
+      // timestamps omitted / non-array — previously crashed forEach
+    };
+    const timeInputWithoutTimestamps = {
+      hook: "Partial editor save",
+      duration: "05:00",
+      timeInput: "00:45",
+      // timestamps missing — confirmed Production defect shape
+    };
+    const rawEditorLike = {
+      hook: "Partial",
+      timestamps: [{ time: 10, label: "Start" }], // no timeInput
+      relatedVideos: undefined,
+    } as unknown as ReturnType<typeof emptyYoutubeMetadataEditorState>;
+
+    assert.doesNotThrow(() => validateYoutubeMetadataEditorState(rawEditorLike));
+    assert.doesNotThrow(() => {
+      const state = youtubeMetadataToEditorState(publicBlob);
+      validateYoutubeMetadataEditorState(state);
+    });
+    assert.doesNotThrow(() => {
+      const state = youtubeMetadataToEditorState(incomplete);
+      validateYoutubeMetadataEditorState(state);
+    });
+    assert.doesNotThrow(() => {
+      const state = youtubeMetadataToEditorState(timeInputWithoutTimestamps);
+      const issues = validateYoutubeMetadataEditorState(state);
+      assert.equal(issues.length, 0);
+    });
+    const normalized = youtubeMetadataToEditorState(publicBlob);
+    assert.equal(normalized.timestamps[0]?.timeInput, "00:45");
+    assert.equal(validateYoutubeMetadataEditorState(normalized).length, 0);
+  });
 });

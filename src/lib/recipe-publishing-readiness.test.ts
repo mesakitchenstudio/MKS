@@ -131,4 +131,81 @@ describe("recipe publishing readiness", () => {
       false,
     );
   });
+
+  it("normalizes production public youtube blobs instead of crashing Content Health", () => {
+    // Reproduces production Recipe.values.youtube shape that crashed validateYoutubeMetadataEditorState
+    // via undefined timeInput.trim() / missing timestamps.forEach.
+    assert.doesNotThrow(() => {
+      const readiness = getRecipePublishingReadiness({
+        title: "Chocolate Chunk Cookies",
+        slug: "chocolate-chunk-cookies",
+        excerpt: "Chewy cookies.",
+        typeId: "t1",
+        fields: requiredFields,
+        values: {
+          ...completeValues,
+          youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          youtube: {
+            hook: "Bake along",
+            // timestamps omitted (non-array) — previously TypeError on forEach
+          },
+        },
+      });
+      assert.ok(readiness.status === "ready" || readiness.status === "ready_with_recommendations" || readiness.status === "not_ready");
+    });
+
+    assert.doesNotThrow(() => {
+      const readiness = getRecipePublishingReadiness({
+        title: "Egg Toast",
+        slug: "egg-toast",
+        excerpt: "Two ways.",
+        typeId: "t1",
+        fields: requiredFields,
+        values: {
+          ...completeValues,
+          youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          youtube: {
+            hook: "Watch",
+            duration: "08:00",
+            timestamps: [
+              { time: 30, label: "Prep" },
+              { time: 120, label: "Cook" },
+            ],
+          },
+        },
+      });
+      assert.equal(
+        readiness.required.some((check) => check.id === "recipe.youtube_metadata" && !check.passed),
+        false,
+      );
+    });
+  });
+
+  it("handles timeInput present with timestamps missing without throwing", () => {
+    // Confirmed production-shaped defect: editor-ish fields without timestamps array.
+    const readiness = getRecipePublishingReadiness({
+      title: "Legacy Youtube Shape",
+      slug: "legacy-youtube-shape",
+      excerpt: "Excerpt.",
+      typeId: "t1",
+      fields: requiredFields,
+      values: {
+        ...completeValues,
+        youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        youtube: {
+          hook: "Watch along",
+          duration: "05:00",
+          timeInput: "00:45",
+          // timestamps intentionally absent
+        },
+      },
+    });
+    assert.equal(
+      readiness.required.some((check) => check.id === "recipe.youtube_metadata" && !check.passed),
+      false,
+    );
+    assert.ok(
+      readiness.status === "ready" || readiness.status === "ready_with_recommendations",
+    );
+  });
 });

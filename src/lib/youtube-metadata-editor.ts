@@ -1,5 +1,4 @@
 import type {
-  RecipeYoutube,
   RecipeYoutubeRelatedVideo,
   RecipeYoutubeTimestamp,
 } from "@/data/youtube-types";
@@ -168,29 +167,37 @@ export function youtubeMetadataToEditorState(value: unknown): YoutubeMetadataEdi
 }
 
 export function youtubeMetadataEditorHasContent(state: YoutubeMetadataEditorState): boolean {
-  if (
-    state.hook.trim() ||
-    state.duration.trim() ||
-    state.playlistUrl.trim() ||
-    state.playlistLabel.trim()
-  ) {
+  const hook = String(state.hook ?? "").trim();
+  const duration = String(state.duration ?? "").trim();
+  const playlistUrl = String(state.playlistUrl ?? "").trim();
+  const playlistLabel = String(state.playlistLabel ?? "").trim();
+  if (hook || duration || playlistUrl || playlistLabel) {
     return true;
   }
+  const timestamps = Array.isArray(state.timestamps) ? state.timestamps : [];
   if (
-    state.timestamps.some(
-      (row) => row.label.trim() || row.timeInput.trim() || row.stepIndex != null,
+    timestamps.some(
+      (row) =>
+        String(row?.label ?? "").trim() ||
+        String(row?.timeInput ?? "").trim() ||
+        row?.stepIndex != null,
     )
   ) {
     return true;
   }
+  const relatedVideos = Array.isArray(state.relatedVideos) ? state.relatedVideos : [];
   if (
-    state.relatedVideos.some(
-      (row) => row.url.trim() || row.title.trim() || row.duration.trim() || row.label.trim(),
+    relatedVideos.some(
+      (row) =>
+        String(row?.url ?? "").trim() ||
+        String(row?.title ?? "").trim() ||
+        String(row?.duration ?? "").trim() ||
+        String(row?.label ?? "").trim(),
     )
   ) {
     return true;
   }
-  return Object.keys(state.preserved).length > 0;
+  return Object.keys(state.preserved ?? {}).length > 0;
 }
 
 export type YoutubeMetadataValidationIssue = {
@@ -202,17 +209,22 @@ export function validateYoutubeMetadataEditorState(
   state: YoutubeMetadataEditorState,
 ): YoutubeMetadataValidationIssue[] {
   const issues: YoutubeMetadataValidationIssue[] = [];
+  // Defensive: callers may pass raw RecipeYoutube or incomplete editor rows.
+  const timestamps = Array.isArray(state?.timestamps) ? state.timestamps : [];
+  const relatedVideos = Array.isArray(state?.relatedVideos) ? state.relatedVideos : [];
+  const playlistUrlRaw = String(state?.playlistUrl ?? "").trim();
+  const durationRaw = String(state?.duration ?? "").trim();
 
-  state.timestamps.forEach((row, index) => {
-    const hasLabel = row.label.trim().length > 0;
-    const hasTime = row.timeInput.trim().length > 0;
+  timestamps.forEach((row, index) => {
+    const hasLabel = String(row?.label ?? "").trim().length > 0;
+    const hasTime = String(row?.timeInput ?? "").trim().length > 0;
     if (!hasLabel && !hasTime) return;
     if (!hasLabel) {
       issues.push({ path: `timestamps.${index}.label`, message: "Chapter label is required." });
     }
     if (!hasTime) {
       issues.push({ path: `timestamps.${index}.time`, message: "Chapter time is required." });
-    } else if (parseTimestampInput(row.timeInput) == null) {
+    } else if (parseTimestampInput(String(row.timeInput ?? "")) == null) {
       issues.push({
         path: `timestamps.${index}.time`,
         message: "Use MM:SS, H:MM:SS, or seconds (e.g. 45).",
@@ -220,8 +232,8 @@ export function validateYoutubeMetadataEditorState(
     }
   });
 
-  state.relatedVideos.forEach((row, index) => {
-    const url = row.url.trim();
+  relatedVideos.forEach((row, index) => {
+    const url = String(row?.url ?? "").trim();
     if (!url) return;
     if (!youtubeVideoId(url)) {
       issues.push({
@@ -231,16 +243,15 @@ export function validateYoutubeMetadataEditorState(
     }
   });
 
-  const playlistUrl = state.playlistUrl.trim();
-  if (playlistUrl && !/^https?:\/\//i.test(playlistUrl)) {
+  if (playlistUrlRaw && !/^https?:\/\//i.test(playlistUrlRaw)) {
     issues.push({
       path: "playlistUrl",
       message: "Playlist URL must start with http:// or https://.",
     });
   }
 
-  const durationSeconds = state.duration.trim() ? parseTimestampInput(state.duration.trim()) : null;
-  if (state.duration.trim() && durationSeconds == null) {
+  const durationSeconds = durationRaw ? parseTimestampInput(durationRaw) : null;
+  if (durationRaw && durationSeconds == null) {
     issues.push({
       path: "duration",
       message: "Use MM:SS, H:MM:SS, or seconds for video duration.",
@@ -248,11 +259,12 @@ export function validateYoutubeMetadataEditorState(
   }
 
   const parsedChapters: { index: number; seconds: number }[] = [];
-  state.timestamps.forEach((row, index) => {
-    const hasLabel = row.label.trim().length > 0;
-    const hasTime = row.timeInput.trim().length > 0;
+  timestamps.forEach((row, index) => {
+    const hasLabel = String(row?.label ?? "").trim().length > 0;
+    const timeInput = String(row?.timeInput ?? "").trim();
+    const hasTime = timeInput.length > 0;
     if (!hasLabel && !hasTime) return;
-    const seconds = hasTime ? parseTimestampInput(row.timeInput) : null;
+    const seconds = hasTime ? parseTimestampInput(timeInput) : null;
     if (seconds == null || !hasLabel) return;
     parsedChapters.push({ index, seconds });
     if (durationSeconds != null && seconds > durationSeconds) {

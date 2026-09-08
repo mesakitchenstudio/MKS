@@ -14,7 +14,7 @@ import { normalizeRecipeImageSrc } from "@/lib/recipe-images";
 import { youtubeVideoId } from "@/lib/youtube";
 import {
   validateYoutubeMetadataEditorState,
-  type YoutubeMetadataEditorState,
+  youtubeMetadataToEditorState,
 } from "@/lib/youtube-metadata-editor";
 
 export type RecipePublishingStatus =
@@ -216,8 +216,11 @@ export function getRecipePublishingReadiness(
     });
   }
 
-  const youtubeState = input.values.youtube as YoutubeMetadataEditorState | undefined;
-  if (youtubeState && typeof youtubeState === "object") {
+  // Production stores public RecipeYoutube blobs ({ time, label }), not editor rows
+  // ({ timeInput, label }). Normalize before validate so legacy shapes are findings, not crashes.
+  const youtubeRaw = input.values.youtube;
+  if (youtubeRaw != null && typeof youtubeRaw === "object" && !Array.isArray(youtubeRaw)) {
+    const youtubeState = youtubeMetadataToEditorState(youtubeRaw);
     const youtubeIssues = validateYoutubeMetadataEditorState(youtubeState);
     if (youtubeIssues.length) {
       required.push({

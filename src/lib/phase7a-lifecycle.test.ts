@@ -270,4 +270,25 @@ describe("phase 7A — wiring / separation / security", () => {
     assert.doesNotMatch(connection, /searchConsolePageMetric\.deleteMany/);
     assert.doesNotMatch(connection, /searchConsoleQueryMetric\.deleteMany/);
   });
+
+  it("pins Production Search Console OAuth redirect_uri to www canonical host", () => {
+    const oauth = read("lib/search-console/oauth.ts");
+    assert.match(
+      oauth,
+      /return `\$\{base\}\/api\/admin\/search-console\/oauth\/callback`/,
+    );
+
+    const start = read("app/api/admin/search-console/oauth/start/route.ts");
+    const callback = read("app/api/admin/search-console/oauth/callback/route.ts");
+    assert.match(start, /https:\/\/www\.mesakitchenstudio\.com/);
+    assert.match(callback, /https:\/\/www\.mesakitchenstudio\.com/);
+
+    // Exact Production redirect_uri sent to Google when VERCEL is set.
+    const origin = "https://www.mesakitchenstudio.com";
+    const redirectUri = `${origin.replace(/\/$/, "")}/api/admin/search-console/oauth/callback`;
+    assert.equal(
+      redirectUri,
+      "https://www.mesakitchenstudio.com/api/admin/search-console/oauth/callback",
+    );
+  });
 });
