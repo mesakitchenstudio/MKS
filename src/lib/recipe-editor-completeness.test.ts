@@ -4,9 +4,9 @@ import {
   listMissingRequiredFields,
   missingRequiredKeys,
   publishErrorKeys,
-  validateRecipeForPublish,
 } from "./recipe-editor-completeness";
 import type { EditorFieldShape } from "./recipe-editor-completeness";
+import { validateRecipeForPublish } from "./recipe-publishing-readiness";
 
 const fields: EditorFieldShape[] = [
   { key: "intro", label: "Introduction", kind: "textarea", required: true },

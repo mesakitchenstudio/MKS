@@ -247,34 +247,22 @@ export function countReviewableBySection(reviewable: ReviewableField[]) {
   return counts;
 }
 
-/** @deprecated Import validateRecipeForPublish from recipe-publishing-readiness. */
-export function validateRecipeForPublish(input: {
-  title: string;
-  fields: EditorFieldShape[];
-  values: Record<string, unknown>;
-  excerpt?: string;
-  typeId?: string;
-  slug?: string;
-  categoryIds?: string[];
-  aiMeta?: RecipeAiMeta | null;
-  resolveSection?: (key: string) => EditorSectionId;
-  typeFields?: SchemaField[];
-}): Record<string, string> {
-  // Lazy require avoids circular init with recipe-publishing-readiness.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const readiness = require("@/lib/recipe-publishing-readiness") as typeof import("@/lib/recipe-publishing-readiness");
-  return readiness.publishErrorsFromReadiness(readiness.getRecipePublishingReadiness(input));
-}
-
-/** Map publish error keys to the same missing-required list for test parity. */
+/**
+ * Map publish error keys to the same missing-required list for test parity.
+ * Must not import the publishing-readiness module — a reverse edge created a client
+ * circular graph that left getRecipePublishingReadiness undefined in RecipeEditor.
+ */
 export function publishErrorKeys(input: {
   title: string;
   fields: EditorFieldShape[];
   values: Record<string, unknown>;
+  excerpt?: string;
+  categoryIds?: string[];
+  aiMeta?: RecipeAiMeta | null;
+  resolveSection?: (key: string) => EditorSectionId;
+  typeFields?: SchemaField[];
 }): string[] {
-  return Object.keys(validateRecipeForPublish(input)).filter(
-    (key) => key !== "youtube" && key !== "youtubeUrl",
-  );
+  return missingRequiredKeys(listMissingRequiredFields(input));
 }
 
 export function missingRequiredKeys(missing: MissingRequiredField[]): string[] {
