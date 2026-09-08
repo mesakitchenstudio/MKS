@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
   cookingContentVersion,
   hasMeaningfulCookingProgress,
@@ -14,6 +14,8 @@ import {
 } from "@/lib/recipe-servings-bridge";
 import type { Recipe } from "@/data/types";
 
+export type RecipeCookEntrySnapshot = { label: string; href: string };
+
 function cookHref(slug: string, servings: number, baseServings: number): string {
   const params = new URLSearchParams();
   if (servings !== baseServings) params.set("servings", String(servings));
@@ -21,11 +23,11 @@ function cookHref(slug: string, servings: number, baseServings: number): string 
   return `/recipes/${slug}/cook${qs ? `?${qs}` : ""}`;
 }
 
-function readEntrySnapshot(
+export function readEntrySnapshot(
   recipeId: string,
   contentVersion: string,
   recipe: Pick<Recipe, "slug" | "servings">,
-): { label: string; href: string } {
+): RecipeCookEntrySnapshot {
   const stored = readCookingSession(recipeId);
   const resolved = resolveCookingSession({ recipeId, contentVersion, stored });
   const continuing =
@@ -42,6 +44,32 @@ function readEntrySnapshot(
 }
 
 /**
+ * Serialize for useSyncExternalStore.
+ * Returning a fresh object from getSnapshot() is Object.is-unstable and triggers
+ * React #185 (Maximum update depth exceeded). Identical JSON strings are stable.
+ */
+export function serializeCookEntrySnapshot(snapshot: RecipeCookEntrySnapshot): string {
+  return JSON.stringify(snapshot);
+}
+
+export function parseCookEntrySnapshot(raw: string): RecipeCookEntrySnapshot {
+  try {
+    const parsed = JSON.parse(raw) as Partial<RecipeCookEntrySnapshot>;
+    if (
+      typeof parsed?.label === "string" &&
+      typeof parsed?.href === "string" &&
+      parsed.label &&
+      parsed.href
+    ) {
+      return { label: parsed.label, href: parsed.href };
+    }
+  } catch {
+    // fall through
+  }
+  return { label: "Start Cooking", href: "/recipes" };
+}
+
+/**
  * Lightweight entry CTA — does not load Cooking Mode UI.
  * Reads local/session storage via useSyncExternalStore (no Cooking Mode bundle).
  */
@@ -53,15 +81,28 @@ export function RecipeCookEntry({
   recipeId: string;
 }) {
   const contentVersion = cookingContentVersion(recipe);
+
   const getSnapshot = useCallback(
-    () => readEntrySnapshot(recipeId, contentVersion, recipe),
-    [recipeId, contentVersion, recipe],
+    () => serializeCookEntrySnapshot(readEntrySnapshot(recipeId, contentVersion, recipe)),
+    [contentVersion, recipe, recipeId],
   );
-  const snapshot = useSyncExternalStore(
+
+  const serverSnapshot = useMemo(
+    () =>
+      serializeCookEntrySnapshot({
+        label: "Start Cooking",
+        href: `/recipes/${recipe.slug}/cook`,
+      }),
+    [recipe.slug],
+  );
+
+  const raw = useSyncExternalStore(
     subscribeRecipeServingsBridge,
     getSnapshot,
-    () => ({ label: "Start Cooking", href: `/recipes/${recipe.slug}/cook` }),
+    () => serverSnapshot,
   );
+
+  const snapshot = useMemo(() => parseCookEntrySnapshot(raw), [raw]);
 
   return (
     <Link
