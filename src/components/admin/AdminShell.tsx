@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { AdminSidebarNav, adminMobileNavTriggerClass } from "@/components/admin/AdminSidebarNav";
 import { Logo } from "@/components/Logo";
 import type { AdminNavSection } from "@/lib/admin-nav";
@@ -10,10 +19,21 @@ import { adminPageTitleForPath, adminWorkspaceWidthForPath } from "@/lib/admin-n
 import type { AdminDeployInfo } from "@/lib/admin-deploy";
 import { formatAdminDeployLine } from "@/lib/admin-deploy";
 import {
+  ADMIN_SIDEBAR_DEFAULT_WIDTH_PX,
+  ADMIN_SIDEBAR_MAX_WIDTH_PX,
+  ADMIN_SIDEBAR_MIN_WIDTH_PX,
+  adminSidebarWidthFromKeyboard,
+  adminSidebarWidthFromPointerDelta,
+  getAdminSidebarWidthServerSnapshot,
+  getAdminSidebarWidthSnapshot,
+  subscribeAdminSidebarWidth,
+  writeAdminSidebarWidthToStorage,
+} from "@/lib/admin-sidebar-width";
+import {
   adminFocusRing,
   adminMobileDrawerWidthClass,
   adminMobileDrawerZClass,
-  adminSidebarWidthClass,
+  adminSidebarFocusRing,
   adminWorkspacePaddingClass,
 } from "@/lib/admin-ui";
 
@@ -41,28 +61,49 @@ export function AdminShell({
 }: AdminShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [identity, setIdentity] = useState<ShellIdentity>({
-    homeHref,
-    displayName,
-    roleLabel,
-    sections,
-  });
+  const propsIdentity: ShellIdentity = { homeHref, displayName, roleLabel, sections };
+  const [fetchedIdentity, setFetchedIdentity] = useState<ShellIdentity | null>(null);
+  const [propsSnapshot, setPropsSnapshot] = useState(propsIdentity);
+  if (
+    propsSnapshot.homeHref !== propsIdentity.homeHref ||
+    propsSnapshot.displayName !== propsIdentity.displayName ||
+    propsSnapshot.roleLabel !== propsIdentity.roleLabel ||
+    propsSnapshot.sections !== propsIdentity.sections
+  ) {
+    setPropsSnapshot(propsIdentity);
+    setFetchedIdentity(null);
+  }
+  const identity = fetchedIdentity ?? propsIdentity;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pathSnapshot, setPathSnapshot] = useState(pathname);
+  const storedSidebarWidth = useSyncExternalStore(
+    subscribeAdminSidebarWidth,
+    getAdminSidebarWidthSnapshot,
+    getAdminSidebarWidthServerSnapshot,
+  );
+  const [dragSidebarWidth, setDragSidebarWidth] = useState<number | null>(null);
+  const [sidebarDragging, setSidebarDragging] = useState(false);
+  const sidebarWidth = dragSidebarWidth ?? storedSidebarWidth;
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dragStartXRef = useRef(0);
+  const dragStartWidthRef = useRef(ADMIN_SIDEBAR_DEFAULT_WIDTH_PX);
+  const liveSidebarWidthRef = useRef(ADMIN_SIDEBAR_DEFAULT_WIDTH_PX);
   const drawerId = useId();
   const pageTitle = adminPageTitleForPath(pathname, identity.sections);
   const workspaceWidth = adminWorkspaceWidthForPath(pathname);
 
-  // Prefer fresh SSR props when the layout actually re-renders.
-  useEffect(() => {
-    setIdentity({ homeHref, displayName, roleLabel, sections });
-  }, [homeHref, displayName, roleLabel, sections]);
+  const commitSidebarWidth = useCallback((next: number) => {
+    const width = writeAdminSidebarWidthToStorage(next);
+    liveSidebarWidthRef.current = width;
+    setDragSidebarWidth(null);
+    return width;
+  }, []);
 
   // Soft navigations can keep a cached layout payload; re-sync identity from the DB.
   useEffect(() => {
     let cancelled = false;
+    const baselineProps: ShellIdentity = { homeHref, displayName, roleLabel, sections };
 
     async function syncIdentity() {
       try {
@@ -81,12 +122,13 @@ export function AdminShell({
           roleLabel: data.roleLabel,
           sections: data.sections,
         };
-        setIdentity((current) => {
+        setFetchedIdentity((current) => {
+          const baseline = current ?? baselineProps;
           const changed =
-            current.roleLabel !== next.roleLabel ||
-            current.homeHref !== next.homeHref ||
-            current.displayName !== next.displayName ||
-            JSON.stringify(current.sections) !== JSON.stringify(next.sections);
+            baseline.roleLabel !== next.roleLabel ||
+            baseline.homeHref !== next.homeHref ||
+            baseline.displayName !== next.displayName ||
+            JSON.stringify(baseline.sections) !== JSON.stringify(next.sections);
           if (changed) {
             // Refresh RSC tree so page redirects/nav match the new role.
             router.refresh();
@@ -110,7 +152,7 @@ export function AdminShell({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [pathname, router]);
+  }, [pathname, router, homeHref, displayName, roleLabel, sections]);
 
   if (pathname !== pathSnapshot) {
     setPathSnapshot(pathname);
@@ -142,11 +184,65 @@ export function AdminShell({
     menuButtonRef.current?.focus();
   }
 
+  function onResizePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    dragStartXRef.current = event.clientX;
+    dragStartWidthRef.current = dragSidebarWidth ?? storedSidebarWidth;
+    liveSidebarWidthRef.current = dragStartWidthRef.current;
+    setSidebarDragging(true);
+  }
+
+  function onResizePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    const next = adminSidebarWidthFromPointerDelta(
+      dragStartWidthRef.current,
+      dragStartXRef.current,
+      event.clientX,
+    );
+    liveSidebarWidthRef.current = next;
+    setDragSidebarWidth(next);
+  }
+
+  function endResizeDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    setSidebarDragging(false);
+    commitSidebarWidth(liveSidebarWidthRef.current);
+  }
+
+  function onResizeKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const current = dragSidebarWidth ?? storedSidebarWidth;
+    const next = adminSidebarWidthFromKeyboard(current, event.key);
+    if (next == null) return;
+    event.preventDefault();
+    commitSidebarWidth(next);
+  }
+
+  function onResizeDoubleClick() {
+    commitSidebarWidth(ADMIN_SIDEBAR_DEFAULT_WIDTH_PX);
+  }
+
+  useEffect(() => {
+    if (!sidebarDragging) return;
+    const previousUserSelect = document.body.style.userSelect;
+    const previousCursor = document.body.style.cursor;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    return () => {
+      document.body.style.userSelect = previousUserSelect;
+      document.body.style.cursor = previousCursor;
+    };
+  }, [sidebarDragging]);
+
   return (
     <div className="min-h-dvh lg:flex">
       {/* Desktop sidebar */}
       <aside
-        className={`no-print hidden ${adminSidebarWidthClass} shrink-0 flex-col border-r border-line/80 bg-paper/70 lg:sticky lg:top-0 lg:flex lg:h-dvh`}
+        className="no-print relative hidden min-w-0 shrink-0 flex-col overflow-x-hidden border-r border-line/80 bg-paper/70 lg:sticky lg:top-0 lg:flex lg:h-dvh"
+        style={{ width: sidebarWidth }}
       >
         <div className="border-b border-line/80 px-4 py-4">
           <Logo href={identity.homeHref} aside="Admin" className="scale-[0.92] origin-left" />
@@ -156,6 +252,24 @@ export function AdminShell({
           displayName={identity.displayName}
           roleLabel={identity.roleLabel}
           deployInfo={deployInfo}
+        />
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-valuemin={ADMIN_SIDEBAR_MIN_WIDTH_PX}
+          aria-valuemax={ADMIN_SIDEBAR_MAX_WIDTH_PX}
+          aria-valuenow={sidebarWidth}
+          aria-label="Resize navigation sidebar"
+          tabIndex={0}
+          className={`absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none lg:block ${adminSidebarFocusRing} ${
+            sidebarDragging ? "bg-olive/25" : "bg-transparent hover:bg-olive/15"
+          }`}
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={endResizeDrag}
+          onPointerCancel={endResizeDrag}
+          onKeyDown={onResizeKeyDown}
+          onDoubleClick={onResizeDoubleClick}
         />
       </aside>
 

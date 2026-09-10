@@ -111,7 +111,8 @@ export const adminWorkspacePaddingClass =
 export const adminRecipeEditorStickyBleedClass =
   "-mx-5 px-5 md:-mx-6 md:px-6 lg:-ml-24 lg:-mr-10 lg:pl-24 lg:pr-10 xl:-ml-28 xl:pl-28";
 
-/** Left admin navigation width (~240px) — desktop sidebar only. */
+/** Left admin navigation default width (~240px / 15rem) — desktop sidebar only.
+ *  Runtime width is owned by AdminShell + admin-sidebar-width (resizable). */
 export const adminSidebarWidthClass = "w-[15rem]";
 
 /** Mobile nav drawer — ~82vw with a cap so labels fit without going full-screen. */
