@@ -48,8 +48,8 @@ describe("admin auth session helpers", () => {
   it("formats recent activity", () => {
     const now = new Date("2026-09-06T12:00:00.000Z");
     assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 20_000), now), "Active now");
-    assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 89_999), now), "Active now");
-    assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 90_000), now), "2 minutes ago");
+    assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 59_999), now), "Active now");
+    assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 60_000), now), "1 minute ago");
     assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 120_000), now), "2 minutes ago");
   });
 

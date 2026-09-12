@@ -30,26 +30,26 @@ function read(relFromSrc: string) {
 
 describe("admin session presence timing", () => {
   it("exposes the approved heartbeat / active / poll constants", () => {
-    assert.equal(ADMIN_PRESENCE_HEARTBEAT_MS, 30_000);
-    assert.equal(ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS, 25_000);
-    assert.equal(ADMIN_SESSION_ACTIVE_NOW_MS, 90_000);
-    assert.equal(ADMIN_STAFF_SESSIONS_POLL_MS, 20_000);
+    assert.equal(ADMIN_PRESENCE_HEARTBEAT_MS, 20_000);
+    assert.equal(ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS, 18_000);
+    assert.equal(ADMIN_SESSION_ACTIVE_NOW_MS, 60_000);
+    assert.equal(ADMIN_STAFF_SESSIONS_POLL_MS, 10_000);
     assert.equal(ADMIN_SESSION_LAST_SEEN_THROTTLE_MS, 5 * 60 * 1000);
   });
 
-  it("Active now uses the shared 90s threshold", () => {
+  it("Active now uses the shared 60s threshold", () => {
     const now = new Date("2026-09-12T12:00:00.000Z");
     assert.equal(
       formatAdminSessionActivity(new Date(now.getTime() - 20_000), now),
       "Active now",
     );
     assert.equal(
-      formatAdminSessionActivity(new Date(now.getTime() - 89_999), now),
+      formatAdminSessionActivity(new Date(now.getTime() - 59_999), now),
       "Active now",
     );
     assert.equal(
-      formatAdminSessionActivity(new Date(now.getTime() - 90_000), now),
-      "2 minutes ago",
+      formatAdminSessionActivity(new Date(now.getTime() - 60_000), now),
+      "1 minute ago",
     );
     assert.equal(
       formatAdminSessionActivity(new Date(now.getTime() - 120_000), now),
