@@ -528,15 +528,23 @@ describe("public recipe review anchors", () => {
       path.join(root, "../app/recipes/[slug]/page.tsx"),
       "utf8",
     );
+    const presentation = readFileSync(
+      path.join(root, "../lib/recipe-detail-presentation.ts"),
+      "utf8",
+    );
+    const detail = readFileSync(
+      path.join(root, "../components/recipe/RecipeDetailView.tsx"),
+      "utf8",
+    );
     assert.match(publicReviews, /id=\{`review-\$\{review\.id\}`\}/);
     assert.match(publicReviews, /visibleRecipeReviewsForTarget/);
     assert.match(publicReviews, /targetReviewId/);
     assert.match(publicReviews, /scroll-mt-28/);
     assert.match(publicReviews, /\btarget:/);
     assert.match(publicReviews, /#review-/);
-    assert.match(recipePage, /targetReviewId=\{verifiedTargetReviewId\}/);
     assert.match(recipePage, /searchParams/);
-    assert.match(recipePage, /reviewData\.reviews\.some/);
+    assert.match(presentation, /reviewData\.reviews\.some/);
+    assert.match(detail, /targetReviewId=\{verifiedTargetReviewId\}/);
   });
 
   it("keeps review excerpt as inline reply control, not a public navigation link", () => {

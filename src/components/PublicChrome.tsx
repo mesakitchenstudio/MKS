@@ -23,10 +23,10 @@ export function PublicChrome({
 }) {
   const pathname = usePathname() || "";
 
-  // Admin has its own shell — never mount public header/footer/tools there.
-  if (pathname.startsWith("/admin")) {
-    return children;
-  }
+  // Admin has its own shell — never mount public header/footer/tools there,
+  // except authenticated recipe preview which should look like the public site.
+  const isRecipePreview = /^\/admin\/recipes\/[^/]+\/preview\/?$/.test(pathname);
+  if (pathname.startsWith("/admin") && !isRecipePreview) return children;
 
   // Standalone newsletter unsubscribe — brand lives in the page; keep chrome off
   // so Coming Soon / private mode and a distraction-free utility surface stay consistent.
@@ -34,7 +34,9 @@ export function PublicChrome({
   // Cooking Mode has its own minimal header; hide public chrome for focus.
   const onCookingMode = /^\/recipes\/[^/]+\/cook\/?$/.test(pathname);
   const showPublicChrome = showChrome && !onNewsletterUnsubscribe && !onCookingMode;
-  const showFloatTools = !hideTools && !onNewsletterUnsubscribe && !onCookingMode;
+  // Preview: public chrome yes; float favorite/search tools no (avoid member mutations).
+  const showFloatTools =
+    !hideTools && !onNewsletterUnsubscribe && !onCookingMode && !isRecipePreview;
 
   return (
     <>

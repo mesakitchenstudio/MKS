@@ -694,10 +694,14 @@ describe("Phase 1F architecture wiring guards", () => {
 
   it("public recipe page does not load revisions or audit", () => {
     const page = readSrc("app/recipes/[slug]/page.tsx");
+    const detail = readSrc("components/recipe/RecipeDetailView.tsx");
+    const presentation = readSrc("lib/recipe-detail-presentation.ts");
     assert.doesNotMatch(page, /RecipeRevision|listRecipeRevisions|AdminAuditEvent|getRecipePublishingReadiness/);
+    assert.doesNotMatch(detail, /RecipeRevision|listRecipeRevisions|AdminAuditEvent|getRecipePublishingReadiness/);
+    assert.doesNotMatch(presentation, /RecipeRevision|listRecipeRevisions|AdminAuditEvent|getRecipePublishingReadiness/);
     assert.match(page, /resolveActiveRedirect/);
-    assert.match(page, /selectStageVideoHelp/);
-    assert.match(page, /RecipeWatchMethod|RecipeVideoExperience/);
+    assert.match(presentation, /selectStageVideoHelp/);
+    assert.match(detail, /RecipeWatchMethod|RecipeVideoExperience/);
   });
 
   it("saveRecipeAction is the only admin publish path and is readiness-gated", () => {

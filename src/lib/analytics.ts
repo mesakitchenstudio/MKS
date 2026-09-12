@@ -1,3 +1,5 @@
+import { isRecipeEngagementSuppressed } from "@/lib/recipe-engagement-gate";
+
 /** Provider-agnostic analytics — wire to GA/Plausible via window listener or tag manager. */
 
 export type AnalyticsEvent =
@@ -86,6 +88,8 @@ const BLOCKED_KEYS = new Set([
 ]);
 
 export function trackEvent(event: AnalyticsEvent, properties: AnalyticsProperties = {}) {
+  if (isRecipeEngagementSuppressed()) return;
+
   const payload: Record<string, unknown> = { event, at: Date.now() };
   for (const [key, value] of Object.entries(properties)) {
     if (BLOCKED_KEYS.has(key)) continue;

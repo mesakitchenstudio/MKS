@@ -86,9 +86,10 @@ describe("related recipe shelf", () => {
   });
 
   it("wires shelf markup, arrow labels, and analytics on the recipe page", () => {
-    const page = read("app/recipes/[slug]/page.tsx");
-    assert.match(page, /RELATED_RECIPE_SHELF_LIMIT/);
-    assert.match(page, /CollectionRow title="More from the studio"/);
+    const presentation = read("lib/recipe-detail-presentation.ts");
+    const detail = read("components/recipe/RecipeDetailView.tsx");
+    assert.match(presentation, /RELATED_RECIPE_SHELF_LIMIT/);
+    assert.match(detail, /CollectionRow title="More from the studio"/);
 
     const row = read("components/CollectionRow.tsx");
     assert.match(row, /data-related-shelf/);

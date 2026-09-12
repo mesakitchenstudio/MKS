@@ -12,20 +12,25 @@ export function RecipePageHeroActions({
   videoDuration,
   recipeId,
   recipeForCook,
+  preview = false,
 }: {
   slug: string;
   title: string;
   videoDuration?: string;
   recipeId: string;
   recipeForCook: Pick<Recipe, "slug" | "title" | "servings" | "ingredients" | "instructions">;
+  /** Admin preview: hide Cooking Mode (published-only) and skip analytics. */
+  preview?: boolean;
 }) {
   const video = useRecipeVideoOptional();
 
   function jumpToRecipe() {
-    trackEvent("recipe_start_cooking_click", {
-      recipe_slug: slug,
-      recipe_title: title,
-    });
+    if (!preview) {
+      trackEvent("recipe_start_cooking_click", {
+        recipe_slug: slug,
+        recipe_title: title,
+      });
+    }
     const target = document.getElementById("recipe-cooking");
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -56,7 +61,16 @@ export function RecipePageHeroActions({
       >
         Jump to recipe
       </button>
-      <RecipeCookEntry recipe={recipeForCook} recipeId={recipeId} />
+      {preview ? (
+        <span
+          className="no-print rounded-full border border-dashed border-line px-4 py-2.5 text-sm font-semibold text-muted"
+          title="Cooking Mode is available on the live published recipe"
+        >
+          Cooking Mode unavailable in preview
+        </span>
+      ) : (
+        <RecipeCookEntry recipe={recipeForCook} recipeId={recipeId} />
+      )}
       {video ? (
         <button
           type="button"
@@ -74,7 +88,9 @@ export function RecipePageHeroActions({
       <button
         type="button"
         onClick={() => {
-          trackEvent("recipe_print", { recipe_slug: slug, recipe_title: title });
+          if (!preview) {
+            trackEvent("recipe_print", { recipe_slug: slug, recipe_title: title });
+          }
           window.print();
         }}
         className="no-print text-sm font-semibold text-muted underline-offset-2 hover:text-terracotta hover:underline"

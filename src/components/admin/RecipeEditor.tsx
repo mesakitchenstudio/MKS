@@ -2479,7 +2479,9 @@ export function RecipeEditor({
       : aiMeta?.generatedByAI
         ? "AI draft"
         : null;
-  const previewHref = slug.trim() ? `/recipes/${slug.trim()}` : undefined;
+  const previewHref = (recipeId || "").trim()
+    ? `/admin/recipes/${(recipeId || "").trim()}/preview`
+    : undefined;
 
   return (
     <div className="relative isolate min-w-0 max-w-full overflow-x-clip">

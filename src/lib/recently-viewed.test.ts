@@ -191,11 +191,11 @@ describe("recently viewed — data", () => {
 describe("recently viewed — architecture", () => {
   it("records from recipe detail SetCurrentRecipe using local storage only", () => {
     const float = read("components/RecipeFloatTools.tsx");
-    const page = read("app/recipes/[slug]/page.tsx");
+    const detail = read("components/recipe/RecipeDetailView.tsx");
     assert.match(float, /recordRecentlyViewed/);
-    assert.match(page, /publicRecipeId\(recipe\)/);
-    assert.match(page, /image=\{recipe\.image\}/);
-    assert.doesNotMatch(page, /\/cook/);
+    assert.match(detail, /publicRecipeId\(recipe\)/);
+    assert.match(detail, /image=\{recipe\.image\}/);
+    assert.match(detail, /preview \? null : \(\s*<SetCurrentRecipe/);
     const cook = read("app/recipes/[slug]/cook/page.tsx");
     assert.doesNotMatch(cook, /recordRecentlyViewed|SetCurrentRecipe/);
   });

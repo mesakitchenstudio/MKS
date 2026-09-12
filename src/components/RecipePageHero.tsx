@@ -25,11 +25,13 @@ export function RecipePageHero({
   seriesLinks,
   reviewData,
   videoDuration,
+  preview = false,
 }: {
   recipe: Recipe & { extras?: ExtraField[] };
   seriesLinks: RecipeSeriesLink[];
   reviewData: RecipeReviewData;
   videoDuration?: string;
+  preview?: boolean;
 }) {
   const publicH1 = resolvePublicRecipeH1(recipe);
   const secondaryDishLine = resolveRecipeSecondaryDishLine({
@@ -99,7 +101,7 @@ export function RecipePageHero({
           />
 
           <div className="mt-2.5 flex flex-wrap items-center justify-end gap-3">
-            <ShareButtons title={recipe.title} slug={recipe.slug} />
+            {preview ? null : <ShareButtons title={recipe.title} slug={recipe.slug} />}
           </div>
 
           <RecipeAtAGlanceFacts recipe={recipe} className="mt-3 recipe-print-meta" />
@@ -108,6 +110,7 @@ export function RecipePageHero({
             title={recipe.title}
             videoDuration={videoDuration}
             recipeId={publicRecipeId(recipe)}
+            preview={preview}
             recipeForCook={{
               slug: recipe.slug,
               title: recipe.title,

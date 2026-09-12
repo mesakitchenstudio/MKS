@@ -155,11 +155,11 @@ describe("phase 3c — manual related recipe overrides", () => {
   it("wires admin pins and recipe page consumption", () => {
     const editor = read("../components/admin/RecipeEditor.tsx");
     const pins = read("../components/admin/RelatedRecipePinsEditor.tsx");
-    const page = read("../app/recipes/[slug]/page.tsx");
+    const presentation = read("../lib/recipe-detail-presentation.ts");
     const actions = read("../app/admin/actions.ts");
     assert.match(editor, /RelatedRecipePinsEditor/);
     assert.match(pins, /relatedRecipeIds/);
-    assert.match(page, /manualRelatedIds/);
+    assert.match(presentation, /manualRelatedIds/);
     assert.match(actions, /serializeRelatedRecipeIds/);
     assert.match(actions, /relatedRecipeIds/);
   });

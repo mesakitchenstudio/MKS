@@ -150,6 +150,7 @@ export function adminPageTitleForPath(pathname: string, sections: AdminNavSectio
   }
   if (pathname.startsWith("/admin/profile")) return "Profile";
   if (pathname.startsWith("/admin/recipes/new")) return "New recipe";
+  if (/\/admin\/recipes\/[^/]+\/preview\/?$/.test(pathname)) return "Recipe preview";
   if (/\/admin\/recipes\/[^/]+\/history/.test(pathname)) return "History";
   if (pathname.startsWith("/admin/recipes/")) return "Edit recipe";
   return "Admin";

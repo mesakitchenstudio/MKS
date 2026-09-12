@@ -28,6 +28,8 @@ type RecipeReviewsProps = {
   defaultEmail?: string;
   /** From `?review=` — durable deep-link target for admin → public navigation. */
   targetReviewId?: string | null;
+  /** Admin preview: show thread visually; block submit / reply mutations. */
+  interactionDisabled?: boolean;
 };
 
 /** Initial top-level reviews before "Show more comments". */
@@ -332,6 +334,7 @@ export function RecipeReviews({
   defaultName = "",
   defaultEmail = "",
   targetReviewId = null,
+  interactionDisabled = false,
 }: RecipeReviewsProps) {
   const { data: session } = useSession();
   const [data, setData] = useState<RecipeReviewData>({
@@ -345,7 +348,7 @@ export function RecipeReviews({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(interactionDisabled);
   const [showAllComments, setShowAllComments] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -462,6 +465,7 @@ export function RecipeReviews({
   }, [targetInThread, visibleReviews, slug]);
 
   useEffect(() => {
+    if (interactionDisabled) return;
     let cancelled = false;
     let timer = 0;
     let inFlight = false;
@@ -516,7 +520,7 @@ export function RecipeReviews({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [slug]);
+  }, [slug, interactionDisabled]);
 
   function applyReviewData(next: RecipeReviewData) {
     const normalized = {
@@ -530,6 +534,7 @@ export function RecipeReviews({
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (interactionDisabled) return;
     setError("");
     setSubmitting(true);
 
@@ -570,19 +575,23 @@ export function RecipeReviews({
       {!data.reviews.length && !formOpen ? (
         <div className="mt-2">
           <p className="text-sm text-muted">
-            No reviews yet. Be the first to share how it turned out.
+            {interactionDisabled
+              ? "No reviews yet."
+              : "No reviews yet. Be the first to share how it turned out."}
           </p>
-          <button
-            type="button"
-            onClick={() => setFormOpen(true)}
-            className="no-print mt-2 rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-terracotta hover:text-terracotta"
-          >
-            Leave a review
-          </button>
+          {interactionDisabled ? null : (
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className="no-print mt-2 rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-terracotta hover:text-terracotta"
+            >
+              Leave a review
+            </button>
+          )}
         </div>
       ) : null}
 
-      {formOpen ? (
+      {formOpen && !interactionDisabled ? (
         <form onSubmit={onSubmit} id="leave-comment" className="mt-5 space-y-5 pb-8">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-serif text-xl text-ink">Leave a review</h3>
@@ -671,7 +680,7 @@ export function RecipeReviews({
 
       {data.reviews.length ? (
         <div className="mt-6">
-          {!formOpen ? (
+          {!formOpen && !interactionDisabled ? (
             <button
               type="button"
               onClick={() => setFormOpen(true)}
@@ -688,8 +697,8 @@ export function RecipeReviews({
                 key={review.id}
                 review={review}
                 slug={slug}
-                canReply={replyable.has(review.id)}
-                replyOpen={activeReplyId === review.id}
+                canReply={!interactionDisabled && replyable.has(review.id)}
+                replyOpen={!interactionDisabled && activeReplyId === review.id}
                 signedInAs={signedInAs}
                 onToggleReply={() =>
                   setActiveReplyId((current) => (current === review.id ? null : review.id))

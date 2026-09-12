@@ -409,7 +409,13 @@ describe("phase 6D — robots / noindex / canonical wiring", () => {
 
     const recipePage = read("app/recipes/[slug]/page.tsx");
     assert.match(recipePage, /canonical:\s*`\/recipes\/\$\{/);
-    assert.match(recipePage, /recipeJsonLd/);
+    assert.match(recipePage, /RecipeDetailView/);
+    const detailView = read("components/recipe/RecipeDetailView.tsx");
+    assert.match(detailView, /recipeJsonLd/);
+    assert.match(detailView, /mode === "preview"[\s\S]*JsonLd|preview \? null : <JsonLd/);
+    const previewPage = read("app/admin/(preview)/recipes/[id]/preview/page.tsx");
+    assert.match(previewPage, /robots:\s*\{\s*index:\s*false/);
+    assert.doesNotMatch(previewPage, /recipeJsonLd/);
 
     const result = runSiteHealthChecks(baseContext());
     assert.equal(result.checks.find((c) => c.id === "robots.private_surfaces")?.passed, true);

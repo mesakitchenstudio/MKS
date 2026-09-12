@@ -217,7 +217,7 @@ describe("AdSlot and AdSenseLoader while disabled", () => {
 
 describe("ads wiring (source)", () => {
   it("keeps dormant recipe-detail AdSlots at editorial boundaries only", () => {
-    const page = read("app/recipes/[slug]/page.tsx");
+    const page = read("components/recipe/RecipeDetailView.tsx");
     assert.match(page, /placement="recipe_detail_mid"/);
     assert.match(page, /placement="recipe_detail_after_recipe"/);
     assert.doesNotMatch(page, /recipe_catalog_side_rail/);
