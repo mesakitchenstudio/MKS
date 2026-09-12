@@ -48,6 +48,8 @@ describe("admin auth session helpers", () => {
   it("formats recent activity", () => {
     const now = new Date("2026-09-06T12:00:00.000Z");
     assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 20_000), now), "Active now");
+    assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 89_999), now), "Active now");
+    assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 90_000), now), "2 minutes ago");
     assert.equal(formatAdminSessionActivity(new Date(now.getTime() - 120_000), now), "2 minutes ago");
   });
 
@@ -432,6 +434,7 @@ describe("admin auth session registry", () => {
     assert.match(profile, /AdminRevokeAllOtherButton/);
     assert.match(controls, /Revoke all other sessions/);
     assert.match(staff, /team-sessions/);
+    assert.match(staff, /AdminTeamSessionsPanel/);
     assert.match(staff, /revokeStaffAdminSessionAction/);
     assert.match(actions, /requireAccess\("staff"\)/);
     assert.match(actions, /subjectKey !== adminSessionSubjectKey\(actor\.id\)/);

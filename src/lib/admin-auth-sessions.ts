@@ -8,8 +8,20 @@ import { connectionMeta, formatApproxLocation, type ConnectionMeta } from "@/lib
 import { getDb } from "@/lib/db";
 import { isAdminSessionVersionCurrent } from "@/lib/admin-staff";
 import { ADMIN_SESSION_TTL_MS, type AdminSession as AdminCookieSession } from "@/lib/admin-session-token";
+import {
+  ADMIN_SESSION_ACTIVE_NOW_MS,
+  ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS,
+} from "@/lib/admin-session-presence";
 
 export { ADMIN_SESSION_TTL_MS };
+export {
+  ADMIN_PRESENCE_HEARTBEAT_MS,
+  ADMIN_SESSION_ACTIVE_NOW_MS,
+  ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS,
+  ADMIN_STAFF_SESSIONS_POLL_MS,
+  shouldPollAdminStaffSessions,
+  shouldRunAdminPresenceHeartbeat,
+} from "@/lib/admin-session-presence";
 
 /** Avoid writing lastSeenAt on every admin navigation. */
 export const ADMIN_SESSION_LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000;
@@ -242,6 +254,48 @@ export async function bindAdminCookieToRegistry(
   return { sid: created.sessionTokenId, expiresAt: created.expiresAt };
 }
 
+export type TouchAdminSessionPresenceResult =
+  | { ok: true; updated: boolean; lastSeenAt: Date }
+  | { ok: false; reason: "missing" | "revoked" | "expired" };
+
+/**
+ * Presence-only lastSeenAt touch for the caller's registry row.
+ * Does not mint sessions. Uses the short presence throttle, not the 5-minute nav throttle.
+ */
+export async function touchAdminSessionPresence(
+  sessionTokenId: string,
+  now = new Date(),
+): Promise<TouchAdminSessionPresenceResult> {
+  const tokenId = sessionTokenId.trim();
+  if (!tokenId) return { ok: false, reason: "missing" };
+
+  const db = getDb();
+  const row = await db.adminSession.findUnique({
+    where: { sessionTokenId: tokenId },
+    select: {
+      id: true,
+      lastSeenAt: true,
+      revokedAt: true,
+      expiresAt: true,
+    },
+  });
+  if (!row) return { ok: false, reason: "missing" };
+  if (row.revokedAt) return { ok: false, reason: "revoked" };
+  if (row.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "expired" };
+
+  const elapsed = now.getTime() - row.lastSeenAt.getTime();
+  if (elapsed < ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS) {
+    return { ok: true, updated: false, lastSeenAt: row.lastSeenAt };
+  }
+
+  const updated = await db.adminSession.update({
+    where: { id: row.id },
+    data: { lastSeenAt: now },
+    select: { lastSeenAt: true },
+  });
+  return { ok: true, updated: true, lastSeenAt: updated.lastSeenAt };
+}
+
 export async function revokeAdminAuthSessionByTokenId(
   sessionTokenId: string,
   reason: string,
@@ -308,7 +362,7 @@ export function formatAdminSessionActivity(value: Date | string | null | undefin
   if (Number.isNaN(date.getTime())) return "Unknown";
 
   const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 60_000) return "Active now";
+  if (diffMs < ADMIN_SESSION_ACTIVE_NOW_MS) return "Active now";
   if (diffMs < 60 * 60_000) {
     const minutes = Math.max(1, Math.round(diffMs / 60_000));
     return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;

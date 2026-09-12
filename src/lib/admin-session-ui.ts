@@ -5,7 +5,7 @@ import {
   listActiveAdminAuthSessionsForSubject,
   listAllActiveAdminAuthSessions,
 } from "@/lib/admin-auth-sessions";
-import type { AdminSessionRowView } from "@/components/admin/AdminSessionControls";
+import type { AdminSessionRowView, TeamSessionGroup } from "@/components/admin/AdminSessionControls";
 import { accessLabel } from "@/lib/admin-access";
 import { getConfiguredSystemOwnerEmail } from "@/lib/admin-staff";
 
@@ -41,13 +41,7 @@ export async function loadMyAdminSessionRows(actor: { id: string; sid?: string }
   return rows.map((row) => toRowView(row, actor.sid));
 }
 
-export type TeamSessionGroup = {
-  subjectKey: string;
-  name: string;
-  email: string;
-  roleLabel: string;
-  sessions: AdminSessionRowView[];
-};
+export type { TeamSessionGroup };
 
 export async function loadOwnerAdminSessionGroups(actor: { id: string; sid?: string }) {
   const rows = await listAllActiveAdminAuthSessions();

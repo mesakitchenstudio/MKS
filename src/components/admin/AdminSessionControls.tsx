@@ -42,6 +42,14 @@ export type AdminSessionRowView = {
   deviceType: string;
 };
 
+export type TeamSessionGroup = {
+  subjectKey: string;
+  name: string;
+  email: string;
+  roleLabel: string;
+  sessions: AdminSessionRowView[];
+};
+
 function RevokeConfirmDialog({
   open,
   title,

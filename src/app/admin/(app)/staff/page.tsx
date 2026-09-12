@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import {
-  AdminRevokeStaffSessionsButton,
-  AdminSessionList,
-} from "@/components/admin/AdminSessionControls";
+import { AdminTeamSessionsPanel } from "@/components/admin/AdminTeamSessionsPanel";
 import { StaffTeamSection } from "@/components/admin/StaffAddMemberPanel";
 import { StaffTeamList } from "@/components/admin/StaffTeamList";
 import { ACCESS_LEVELS } from "@/lib/admin-access";
@@ -209,36 +206,11 @@ export default async function AdminStaffPage({
           immediately.
         </p>
 
-        {sessionGroups.length === 0 ? (
-          <p className="mt-5 text-sm leading-6 text-muted">No active admin sessions right now.</p>
-        ) : (
-          <div className="mt-6 space-y-10">
-            {sessionGroups.map((group) => (
-              <div key={group.subjectKey} className="max-w-2xl">
-                <div>
-                  <p className="font-medium text-ink">{group.name}</p>
-                  <p className="mt-0.5 text-sm text-muted">
-                    {group.roleLabel}
-                    {group.email ? ` · ${group.email}` : ""}
-                  </p>
-                </div>
-                <AdminSessionList
-                  sessions={group.sessions}
-                  revokeAction={revokeStaffAdminSessionAction}
-                  emptyCopy="No active sessions."
-                />
-                {group.sessions.some((session) => !session.isCurrent) ||
-                group.sessions.length > 0 ? (
-                  <AdminRevokeStaffSessionsButton
-                    subjectKey={group.subjectKey}
-                    staffName={group.name}
-                    action={revokeAllSessionsForStaffAction}
-                  />
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
+        <AdminTeamSessionsPanel
+          initialGroups={sessionGroups}
+          revokeAction={revokeStaffAdminSessionAction}
+          revokeAllAction={revokeAllSessionsForStaffAction}
+        />
       </section>
 
       <section className="mt-12" aria-labelledby="access-levels-heading">

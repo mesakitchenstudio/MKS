@@ -19,6 +19,10 @@ import { adminPageTitleForPath, adminWorkspaceWidthForPath } from "@/lib/admin-n
 import type { AdminDeployInfo } from "@/lib/admin-deploy";
 import { formatAdminDeployLine } from "@/lib/admin-deploy";
 import {
+  ADMIN_PRESENCE_HEARTBEAT_MS,
+  shouldRunAdminPresenceHeartbeat,
+} from "@/lib/admin-session-presence";
+import {
   ADMIN_SIDEBAR_DEFAULT_WIDTH_PX,
   ADMIN_SIDEBAR_MAX_WIDTH_PX,
   ADMIN_SIDEBAR_MIN_WIDTH_PX,
@@ -153,6 +157,61 @@ export function AdminShell({
       window.removeEventListener("focus", onVisible);
     };
   }, [pathname, router, homeHref, displayName, roleLabel, sections]);
+
+  // Dedicated Admin presence heartbeat — keeps AdminSession.lastSeenAt fresh while visible.
+  useEffect(() => {
+    let cancelled = false;
+    let timer = 0;
+    let lastSentAt = 0;
+    const minGapMs = 5_000;
+
+    async function beat(force = false) {
+      if (cancelled) return;
+      if (!shouldRunAdminPresenceHeartbeat(document.visibilityState)) return;
+      const now = Date.now();
+      if (!force && now - lastSentAt < minGapMs) return;
+      lastSentAt = now;
+      try {
+        const response = await fetch("/api/admin/presence", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        if (cancelled) return;
+        if (response.status === 401) {
+          window.location.href = "/admin/login?reason=session-revoked";
+        }
+      } catch {
+        // Next interval retries; do not crash Admin.
+      }
+    }
+
+    function startInterval() {
+      window.clearInterval(timer);
+      timer = window.setInterval(() => void beat(true), ADMIN_PRESENCE_HEARTBEAT_MS);
+    }
+
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      void beat(true);
+      startInterval();
+    }
+
+    function onFocus() {
+      void beat(false);
+    }
+
+    void beat(true);
+    startInterval();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
 
   if (pathname !== pathSnapshot) {
     setPathSnapshot(pathname);
