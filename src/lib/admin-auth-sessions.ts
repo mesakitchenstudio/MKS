@@ -12,6 +12,7 @@ import {
   ADMIN_SESSION_ACTIVE_NOW_MS,
   ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS,
 } from "@/lib/admin-session-presence";
+import { formatAdminTime, MESA_ADMIN_TIME_ZONE } from "@/lib/datetime";
 
 export { ADMIN_SESSION_TTL_MS };
 export {
@@ -419,24 +420,22 @@ export function formatAdminSessionActivity(value: Date | string | null | undefin
     return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
   }
 
-  const sameUtcDay =
-    date.getUTCFullYear() === now.getUTCFullYear() &&
-    date.getUTCMonth() === now.getUTCMonth() &&
-    date.getUTCDate() === now.getUTCDate();
+  const time = formatAdminTime(date);
+  const dayKey = (instant: Date) =>
+    instant.toLocaleString("en-US", {
+      timeZone: MESA_ADMIN_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
 
-  const time = date.toLocaleString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: "UTC",
-  });
+  if (dayKey(date) === dayKey(now)) return `Today at ${time}`;
 
-  if (sameUtcDay) return `Today at ${time}`;
-
-  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
-  const day = date.getUTCDate();
-  const year = date.getUTCFullYear();
-  if (year === now.getUTCFullYear()) {
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: MESA_ADMIN_TIME_ZONE });
+  const day = Number(date.toLocaleString("en-US", { day: "numeric", timeZone: MESA_ADMIN_TIME_ZONE }));
+  const year = Number(date.toLocaleString("en-US", { year: "numeric", timeZone: MESA_ADMIN_TIME_ZONE }));
+  const nowYear = Number(now.toLocaleString("en-US", { year: "numeric", timeZone: MESA_ADMIN_TIME_ZONE }));
+  if (year === nowYear) {
     return `${month} ${day} at ${time}`;
   }
   return `${month} ${day}, ${year} at ${time}`;

@@ -82,7 +82,7 @@ export function YoutubeFunnelPanel({
         <div className="max-w-2xl space-y-1.5">
           <p className="text-sm text-muted">{FUNNEL_METHODOLOGY.intro}</p>
           <p className="text-xs text-muted">
-            {funnel.startDate} → {funnel.endDate} UTC (includes today)
+            {funnel.startDate} → {funnel.endDate} (calendar dates · includes today)
           </p>
         </div>
         <div

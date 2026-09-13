@@ -1089,7 +1089,7 @@ function FreshnessStrip({
       ? formatAdminShortDateTime(analytics.connection.lastSyncAt)
       : "Never refreshed"
     : "Not connected";
-  const youtubeLabel = channel?.lastSyncedAt ? channel.lastSyncedAt.replace(" GMT", "") : "Not synced";
+  const youtubeLabel = channel?.lastSyncedAt || "Not synced";
 
   const stripText = `Analytics updated ${analyticsLabel} · Public YouTube ${youtubeLabel} · Catalog live`;
 

@@ -449,7 +449,7 @@ test("password change invalidates cookies with a stale session version", () => {
 });
 
 test("last login uses shared admin datetime formatter", () => {
-  assert.equal(formatAdminDateTime(new Date("2026-08-26T22:41:00Z")), "Aug 26, 2026 · 10:41 PM GMT");
+  assert.equal(formatAdminDateTime(new Date("2026-08-26T22:41:00Z")), "Aug 27, 2026 · 1:41 AM TRT");
 });
 
 test("admin image uploads reject bad types and oversized files", () => {

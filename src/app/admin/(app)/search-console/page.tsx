@@ -24,7 +24,7 @@ import {
   parseSearchConsoleRangeDays,
 } from "@/lib/search-console/dashboard";
 import { ANALYTICS_RANGE_DAYS } from "@/lib/youtube-analytics/ranges";
-import { formatAdminDateTimeUtc } from "@/lib/datetime";
+import { formatAdminDateTime } from "@/lib/datetime";
 
 export const metadata: Metadata = {
   title: "Search Console",
@@ -106,7 +106,7 @@ export default async function AdminSearchConsolePage({
               Credentials are disconnected. Historical Search Console metrics below are retained and
               are not current
               {connection.lastSuccessfulSyncAt
-                ? ` — last synchronized ${formatAdminDateTimeUtc(connection.lastSuccessfulSyncAt)}`
+                ? ` — last synchronized ${formatAdminDateTime(connection.lastSuccessfulSyncAt)}`
                 : ""}
               {connection.lastDataDate ? ` · data through ${connection.lastDataDate}` : ""}.
             </p>
@@ -182,7 +182,7 @@ export default async function AdminSearchConsolePage({
               <span className="font-semibold text-ink">Last synced</span>
               <br />
               {connection.lastSuccessfulSyncAt
-                ? formatAdminDateTimeUtc(connection.lastSuccessfulSyncAt)
+                ? formatAdminDateTime(connection.lastSuccessfulSyncAt)
                 : "Never"}
             </p>
             <p>

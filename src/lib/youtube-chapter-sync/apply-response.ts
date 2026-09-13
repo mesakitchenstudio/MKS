@@ -1,3 +1,5 @@
+import { formatAdminDateTime } from "@/lib/datetime";
+
 export type ChapterSyncApplySuccess = {
   ok: true;
   status: "synced" | "already_in_sync";
@@ -146,7 +148,7 @@ export function chapterSyncApplyUiSuccess(input: {
   const syncedAt = new Date(input.lastSyncedAt);
   const formatted = Number.isNaN(syncedAt.getTime())
     ? input.lastSyncedAt
-    : syncedAt.toLocaleString();
+    : formatAdminDateTime(syncedAt);
   return {
     confirmOpen: false,
     applying: false,

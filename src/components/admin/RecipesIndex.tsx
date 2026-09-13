@@ -359,7 +359,7 @@ export function RecipesIndex({
                 })}
               </tbody>
             </table>
-            <p className="mt-3 text-xs text-muted">Times in GMT</p>
+            <p className="mt-3 text-xs text-muted">Times in TRT</p>
           </div>
 
           <ul className="divide-y divide-line/70 border-y border-line/70 xl:hidden">
@@ -390,7 +390,7 @@ export function RecipesIndex({
               );
             })}
           </ul>
-          <p className="mt-3 text-xs text-muted xl:hidden">Times in GMT</p>
+          <p className="mt-3 text-xs text-muted xl:hidden">Times in TRT</p>
         </>
       ) : null}
     </div>

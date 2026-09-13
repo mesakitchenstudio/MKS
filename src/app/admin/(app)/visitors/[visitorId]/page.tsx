@@ -162,7 +162,7 @@ export default async function AdminVisitorDetailPage({
           Last seen{" "}
           {formatAdminShortDateTime(guest.lastSeenAt, new Date(), { includeYear: true })}
         </p>
-        <p className="mt-1 text-xs text-muted">Times in GMT</p>
+        <p className="mt-1 text-xs text-muted">Times in TRT</p>
       </header>
 
       <section className="mt-8 border border-line bg-paper p-5 md:p-6" aria-labelledby="how-arrived">

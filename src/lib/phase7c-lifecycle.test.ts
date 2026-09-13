@@ -172,7 +172,7 @@ describe("phase 7C — wiring / ownership / boundaries", () => {
     const page = read("app/admin/(app)/content-calendar/page.tsx");
     assert.match(page, /Content Calendar/);
     assert.match(page, /Jump to Today/);
-    assert.match(page, /Europe\/Istanbul/);
+    assert.match(page, /Times shown in TRT/);
     assert.match(page, /Website|YouTube/);
     assert.match(page, /Needs attention/);
     assert.doesNotMatch(page, /drag|onDrop|Opportunity|forecast|viral|SEO score/i);

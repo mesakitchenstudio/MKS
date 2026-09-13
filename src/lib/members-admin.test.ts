@@ -46,22 +46,22 @@ const removeMember = readFileSync(
 );
 
 test("formatAdminDate omits time", () => {
-  assert.equal(formatAdminDate("2026-08-24T22:50:00.000Z"), "Aug 24, 2026");
+  assert.equal(formatAdminDate("2026-08-24T22:50:00.000Z"), "Aug 25, 2026");
 });
 
 test("formatAdminRelativeDateTime uses today/yesterday labels", () => {
   const now = new Date("2026-08-27T12:00:00.000Z");
   assert.equal(
     formatAdminRelativeDateTime("2026-08-27T07:58:00.000Z", now),
-    "Today, 7:58 AM",
+    "Today, 10:58 AM",
   );
   assert.equal(
     formatAdminRelativeDateTime("2026-08-26T16:12:00.000Z", now),
-    "Yesterday, 4:12 PM",
+    "Yesterday, 7:12 PM",
   );
   assert.equal(
     formatAdminRelativeDateTime("2026-08-24T21:30:00.000Z", now),
-    "Aug 24, 9:30 PM",
+    "Aug 25, 12:30 AM",
   );
 });
 
@@ -83,7 +83,7 @@ describe("admin Members list contracts", () => {
     assert.match(membersPage, />\s*Members\s*</);
     assert.match(membersPage, /People with Mesa accounts\./);
     assert.doesNotMatch(membersPage, /Registered members and their recent activity/);
-    assert.match(membersTable, /online · Sorted by last seen · Times in GMT/);
+    assert.match(membersTable, /online · Sorted by last seen · Times in TRT/);
     assert.doesNotMatch(membersTable, /Updates automatically/);
     assert.doesNotMatch(membersTable, /border border-line bg-paper px-4 py-3/);
     assert.match(membersPage, /member removed\./i);
@@ -101,7 +101,7 @@ describe("admin Members list contracts", () => {
       membersTable,
       /flex flex-wrap items-center gap-3[\s\S]{0,500}Select members/,
     );
-    const meta = membersTable.indexOf("online · Sorted by last seen · Times in GMT");
+    const meta = membersTable.indexOf("online · Sorted by last seen · Times in TRT");
     const select = membersTable.indexOf("Select members");
     const table = membersTable.indexOf('scope="col"');
     assert.ok(meta >= 0 && select > meta);
@@ -319,7 +319,7 @@ describe("admin Member detail contracts", () => {
     assert.doesNotMatch(memberDetail, /First event/);
     assert.doesNotMatch(memberDetail, /Connections recorded/);
     assert.doesNotMatch(memberDetail, />\s*Member\s*</);
-    assert.doesNotMatch(memberDetail, /Times in GMT/);
+    assert.doesNotMatch(memberDetail, /Times in TRT/);
     assert.doesNotMatch(memberDetail, /Technical details/);
     assert.doesNotMatch(memberDetail, /Latest referrer/);
     assert.doesNotMatch(memberDetail, /User agent/);
@@ -333,7 +333,7 @@ describe("admin Member detail contracts", () => {
     assert.match(connectionHistory, /aria-expanded/);
     assert.match(connectionHistory, /Signup/);
     assert.match(connectionHistory, /Sign-in/);
-    assert.match(connectionHistory, /Newest first · Times in GMT/);
+    assert.match(connectionHistory, /Newest first · Times in TRT/);
     assert.match(connectionHistory, /divide-y/);
     assert.match(memberDetail, /Member context/);
     assert.match(memberDetail, /Last device/);

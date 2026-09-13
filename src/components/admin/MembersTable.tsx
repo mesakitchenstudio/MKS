@@ -223,7 +223,7 @@ export function MembersTable({
   return (
     <div className="mt-6">
       <p className="text-sm text-muted">
-        {onlineCount} online · Sorted by last seen · Times in GMT
+        {onlineCount} online · Sorted by last seen · Times in TRT
       </p>
 
       {/* Same left-aligned bulk-selection entry as Reviews / Visitors (not metadata far-right). */}

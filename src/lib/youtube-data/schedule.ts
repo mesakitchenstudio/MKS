@@ -127,7 +127,7 @@ function toValidDate(value: Date | string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** Split UTC scheduled time for editorial layout (GMT + Europe/Istanbul). */
+/** Split scheduled time for editorial layout (TRT primary + Istanbul label). */
 export function formatScheduledPublishParts(
   value: Date | string | null | undefined,
 ): {
@@ -142,22 +142,16 @@ export function formatScheduledPublishParts(
     return {
       dateLabel: "—",
       timeLabel: "—",
-      timezoneLabel: "GMT",
+      timezoneLabel: "TRT",
       localTimeLabel: "—",
       localTimezoneLabel: "Istanbul",
     };
   }
 
-  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
-  const day = date.getUTCDate();
-  const year = date.getUTCFullYear();
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "Europe/Istanbul" });
+  const day = Number(date.toLocaleString("en-US", { day: "numeric", timeZone: "Europe/Istanbul" }));
+  const year = Number(date.toLocaleString("en-US", { year: "numeric", timeZone: "Europe/Istanbul" }));
   const time = date.toLocaleString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: "UTC",
-  });
-  const localTime = date.toLocaleString("en-US", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -167,8 +161,8 @@ export function formatScheduledPublishParts(
   return {
     dateLabel: `${month} ${day}, ${year}`,
     timeLabel: time,
-    timezoneLabel: "GMT",
-    localTimeLabel: localTime,
+    timezoneLabel: "TRT",
+    localTimeLabel: time,
     localTimezoneLabel: "Istanbul",
   };
 }

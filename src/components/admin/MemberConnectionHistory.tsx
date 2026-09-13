@@ -64,7 +64,7 @@ export function MemberConnectionHistory({
 
       {open && connections.length ? (
         <div id={panelId} className="mt-4">
-          <p className="text-xs text-muted">Newest first · Times in GMT</p>
+          <p className="text-xs text-muted">Newest first · Times in TRT</p>
           <ul className="mt-3 divide-y divide-line/80 border-t border-line/80">
             {connections.map((connection) => {
               const eventLabel = connection.event === "signup" ? "Signup" : "Sign-in";

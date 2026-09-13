@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { formatAdminDateTime } from "@/lib/datetime";
 import {
   deleteSeriesAction,
   keepRemovedSeriesItemAction,
@@ -83,11 +84,7 @@ function validateSeriesForPublish(title: string, slug: string, isNew: boolean): 
 
 function formatSyncedAt(iso: string | null) {
   if (!iso) return "Never";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
+  return formatAdminDateTime(iso);
 }
 
 function itemStatusLabel(status: AdminSeriesItemStatus) {

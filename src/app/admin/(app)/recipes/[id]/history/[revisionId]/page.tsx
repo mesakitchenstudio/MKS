@@ -9,7 +9,7 @@ import {
   adminWorkspaceWide,
 } from "@/lib/admin-ui";
 import { requireAccess } from "@/lib/auth";
-import { formatAdminDateTimeUtc } from "@/lib/datetime";
+import { formatAdminDateTime } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
 import {
   buildRecipeRevisionSnapshot,
@@ -163,7 +163,7 @@ export default async function RecipeRevisionDetailPage({
           {humanizeRecipeRevisionReason(revision.reason)}
         </p>
         <p className="mt-1 text-sm text-muted">
-          {formatAdminDateTimeUtc(revision.createdAt)} GMT
+          {formatAdminDateTime(revision.createdAt)}
         </p>
         {revision.note ? <p className="mt-2 text-sm text-muted">{revision.note}</p> : null}
         {changedFields.length ? (

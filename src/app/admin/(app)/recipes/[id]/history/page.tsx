@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 import { RecipeEditorSubnav } from "@/components/admin/RecipeEditorSubnav";
 import { adminSecondaryButtonClass, adminWorkspaceWide } from "@/lib/admin-ui";
 import { requireAccess } from "@/lib/auth";
-import { formatAdminShortDateTime } from "@/lib/datetime";
+import {
+  formatAdminDayHeading,
+  formatAdminShortDateTime,
+  formatAdminTime,
+  MESA_ADMIN_TIME_ZONE,
+} from "@/lib/datetime";
 import { getDb } from "@/lib/db";
 import {
   humanizeRecipeRevisionReason,
@@ -26,30 +31,11 @@ export async function generateMetadata({
 }
 
 function dayKey(date: Date) {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
-}
-
-function dayHeading(date: Date, now = new Date()) {
-  const key = dayKey(date);
-  const today = dayKey(now);
-  const yesterday = new Date(now);
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  if (key === today) return "Today";
-  if (key === dayKey(yesterday)) return "Yesterday";
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
+  return date.toLocaleString("en-CA", {
+    timeZone: MESA_ADMIN_TIME_ZONE,
     year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-function timeLabel(date: Date) {
-  return date.toLocaleString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
+    month: "2-digit",
+    day: "2-digit",
   });
 }
 
@@ -93,7 +79,7 @@ export default async function RecipeHistoryPage({
     const key = dayKey(revision.createdAt);
     const last = groups[groups.length - 1];
     if (last && last.key === key) last.items.push(revision);
-    else groups.push({ key, label: dayHeading(revision.createdAt), items: [revision] });
+    else groups.push({ key, label: formatAdminDayHeading(revision.createdAt), items: [revision] });
   }
 
   return (
@@ -109,7 +95,7 @@ export default async function RecipeHistoryPage({
         <p className="mt-4 max-w-2xl text-sm leading-6 text-muted">
           Meaningful saved versions of this recipe. Restoring a version brings back content
           (ingredients, instructions, and related fields) but keeps the current public URL and
-          publication status. Times in GMT.
+          publication status. Times in TRT.
         </p>
       </header>
 
@@ -141,7 +127,7 @@ export default async function RecipeHistoryPage({
                         dateTime={revision.createdAt.toISOString()}
                         title={formatAdminShortDateTime(revision.createdAt)}
                       >
-                        {timeLabel(revision.createdAt)}
+                        {formatAdminTime(revision.createdAt)}
                       </time>
                       <div className="min-w-0">
                         <p className="text-sm text-ink">

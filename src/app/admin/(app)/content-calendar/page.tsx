@@ -88,7 +88,7 @@ export default async function AdminContentCalendarPage({
             keeps its own schedule — Calendar coordinates, it does not own either system.
           </p>
           <p className="mt-2 text-sm text-muted">
-            Times shown in Europe/Istanbul · Today is {dashboard.todayDateKey}
+            Times shown in TRT · Today is {dashboard.todayDateKey}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

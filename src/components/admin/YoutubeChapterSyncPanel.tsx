@@ -7,6 +7,7 @@ import {
   normalizeInstructionGroups,
 } from "@/lib/instruction-chapters";
 import { listChapterLabelOverrides } from "@/lib/instruction-chapter-labels";
+import { formatAdminDateTime } from "@/lib/datetime";
 import { formatYoutubeChapterExportLine } from "@/lib/youtube-chapter-sync/export";
 import { diffChapterBlockLines } from "@/lib/youtube-chapter-sync/description-patch";
 import {
@@ -75,9 +76,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 function formatSyncedAt(value: string | null | undefined): string | null {
   if (!value?.trim()) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  const formatted = formatAdminDateTime(value);
+  return formatted === "—" ? value : formatted;
 }
 
 export function YoutubeChapterSyncPanel({ recipeId, values, isDirty }: Props) {

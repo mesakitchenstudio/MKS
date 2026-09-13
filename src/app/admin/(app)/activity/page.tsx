@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin-audit";
 import { adminInputClass, adminSecondaryButtonClass, adminWorkspaceWide } from "@/lib/admin-ui";
 import { requireAccess } from "@/lib/auth";
+import { formatAdminDayHeading, formatAdminTime, MESA_ADMIN_TIME_ZONE } from "@/lib/datetime";
 
 export const metadata: Metadata = {
   title: "Activity",
@@ -23,31 +24,11 @@ const AREA_OPTIONS = [
 ] as const;
 
 function dayKey(date: Date) {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
-}
-
-function dayHeading(date: Date, now = new Date()) {
-  const key = dayKey(date);
-  const today = dayKey(now);
-  const yesterdayDate = new Date(now);
-  yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
-  if (key === today) return "Today";
-  if (key === dayKey(yesterdayDate)) return "Yesterday";
-  return date.toLocaleString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
+  return date.toLocaleString("en-CA", {
+    timeZone: MESA_ADMIN_TIME_ZONE,
     year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-function timeLabel(date: Date) {
-  return date.toLocaleString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
+    month: "2-digit",
+    day: "2-digit",
   });
 }
 
@@ -81,7 +62,7 @@ function groupByDay(events: AdminAuditEventRow[]) {
     if (last && last.key === key) {
       last.events.push(event);
     } else {
-      groups.push({ key, label: dayHeading(event.createdAt), events: [event] });
+      groups.push({ key, label: formatAdminDayHeading(event.createdAt), events: [event] });
     }
   }
   return groups;
@@ -132,7 +113,7 @@ export default async function AdminActivityPage({
       <header className="mb-6">
         <h1 className="font-serif text-3xl text-ink">Activity</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Track important changes made by the Mesa team. Times in GMT.
+          Track important changes made by the Mesa team. Times in TRT.
         </p>
       </header>
 
@@ -206,7 +187,7 @@ export default async function AdminActivityPage({
                         className="font-mono text-xs text-muted"
                         dateTime={event.createdAt.toISOString()}
                       >
-                        {timeLabel(event.createdAt)}
+                        {formatAdminTime(event.createdAt)}
                       </time>
                       <div className="min-w-0">
                         <p className="text-sm text-ink">

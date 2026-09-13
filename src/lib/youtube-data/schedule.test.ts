@@ -50,11 +50,11 @@ describe("youtube schedule helpers", () => {
     assert.equal(isFutureScheduledPublishAt(null, now), false);
   });
 
-  it("K: formats scheduled publish parts in GMT and Europe/Istanbul", () => {
+  it("K: formats scheduled publish parts in TRT / Istanbul", () => {
     const parts = formatScheduledPublishParts(new Date("2026-09-08T12:00:00.000Z"));
     assert.equal(parts.dateLabel, "Sep 8, 2026");
-    assert.equal(parts.timeLabel, "12:00 PM");
-    assert.equal(parts.timezoneLabel, "GMT");
+    assert.equal(parts.timeLabel, "3:00 PM");
+    assert.equal(parts.timezoneLabel, "TRT");
     assert.equal(parts.localTimeLabel, "3:00 PM");
     assert.equal(parts.localTimezoneLabel, "Istanbul");
   });
@@ -258,7 +258,7 @@ describe("youtube schedule access and wiring", () => {
     assert.match(panel, /YouTube Schedule/);
     assert.match(panel, /View Mesa&apos;s YouTube publishing schedule/);
     assert.match(panel, /Up Next/);
-    assert.match(panel, /Times in Istanbul \(UTC\+3\)/);
+    assert.match(panel, /Times in TRT/);
     assert.match(panel, /Refresh YouTube/);
     assert.match(panel, /month-\$\{month\.monthKey\}/);
     assert.match(panel, /syncYoutubeAction/);

@@ -801,7 +801,7 @@ export function YoutubeSchedulePanel({
           <p className="text-sm leading-6 text-muted">
             View Mesa&apos;s YouTube publishing schedule.
           </p>
-          <p className="text-xs leading-5 text-muted">Times in Istanbul (UTC+3)</p>
+          <p className="text-xs leading-5 text-muted">Times in TRT</p>
           <p className="text-xs leading-5 text-muted/80">
             Last synced {planner.lastSyncedLabel}
           </p>

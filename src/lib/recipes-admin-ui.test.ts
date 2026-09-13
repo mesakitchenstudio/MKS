@@ -106,17 +106,17 @@ describe("Recipes admin index UI contracts", () => {
     assert.doesNotMatch(index, /aria-hidden[\s\S]*h-1\.5 w-1\.5/);
   });
 
-  it("shows UTC times without per-row GMT and notes Times in GMT once per layout", () => {
+  it("shows TRT times without per-row suffix and notes Times in TRT once per layout", () => {
     assert.match(index, /formatAdminDateTimeUtc/);
     assert.doesNotMatch(index, /formatAdminDateTime\(/);
-    assert.match(index, /Times in GMT/);
+    assert.match(index, /Times in TRT/);
     assert.equal(
       formatAdminDateTimeUtc("2026-09-02T18:20:00.000Z"),
-      "Sep 2, 2026 · 6:20 PM",
+      "Sep 2, 2026 · 9:20 PM",
     );
     assert.equal(
       formatAdminDateTime("2026-09-02T18:20:00.000Z"),
-      "Sep 2, 2026 · 6:20 PM GMT",
+      "Sep 2, 2026 · 9:20 PM TRT",
     );
   });
 
