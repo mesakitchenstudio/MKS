@@ -215,10 +215,11 @@ describe("Admin documentation Phase 4 UI contracts", () => {
     );
   });
 
-  it("keeps Documentation Center navigation on normal Admin page headers", () => {
-    const header = read("components/admin/AdminPageHeader.tsx");
-    assert.match(header, /AdminDocumentationButton topicId=\{documentationTopicId\}/);
-    assert.doesNotMatch(header, /allowDocumentationCenterNavigation=\{false\}/);
+  it("uses About this page as the shared contextual button label", () => {
+    const button = read("components/admin/AdminDocumentationButton.tsx");
+    assert.match(button, /label = "About this page"/);
+    assert.match(button, /quiet \? "\?" : label/);
+    assert.doesNotMatch(button, /label = "Documentation"/);
     assert.match(
       read("components/admin/RecipesIndex.tsx"),
       /documentationTopicId="recipes"/,
@@ -230,6 +231,19 @@ describe("Admin documentation Phase 4 UI contracts", () => {
     assert.match(
       read("components/admin/CategoriesManager.tsx"),
       /documentationTopicId="categories"/,
+    );
+    assert.match(read("app/admin/(app)/staff/page.tsx"), /documentationTopicId="team-access"/);
+    assert.match(read("components/admin/RecipeEditor.tsx"), /topicId="recipe-editor"/);
+    assert.doesNotMatch(
+      read("components/admin/RecipeEditor.tsx"),
+      /label=["']About this page["']/,
+    );
+    assert.match(read("components/admin/RecipeEditor.tsx"), /quiet/);
+    assert.match(read("components/admin/AdminSidebarNav.tsx"), /label="Documentation"/);
+    assert.match(read("app/admin/(app)/documentation/page.tsx"), />\s*Documentation\s*</);
+    assert.match(
+      read("components/admin/AdminDocumentationDrawer.tsx"),
+      /Open Documentation Center/,
     );
   });
 

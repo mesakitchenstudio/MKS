@@ -272,7 +272,7 @@ export function AdminDocumentationCenter({
               team operations. Documentation mirrors the pages you can already open in Admin.
             </p>
             <p className="mt-4 text-sm text-muted">
-              Tip: from any Admin page, use the page Documentation button for contextual help.
+              Tip: from any Admin page, use About this page for contextual help.
             </p>
             <p className="mt-6 text-sm">
               <Link href="/admin/profile" className={`${adminLinkClass} ${adminFocusRing}`}>

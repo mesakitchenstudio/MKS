@@ -15,7 +15,7 @@ export function AdminDocumentationButton({
   className = "",
   initialSectionId,
   quiet = false,
-  label = "Documentation",
+  label = "About this page",
   allowDocumentationCenterNavigation = true,
 }: {
   topicId: string;
@@ -25,6 +25,7 @@ export function AdminDocumentationButton({
   initialSectionId?: string;
   /** Quiet section-help affordance (e.g. “?” next to a Recipe Editor section). */
   quiet?: boolean;
+  /** Visible label for the page-level contextual trigger (not used for quiet `?`). */
   label?: string;
   /**
    * When false, hide “Open Documentation Center” (real navigation).

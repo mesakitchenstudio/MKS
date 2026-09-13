@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 
 /**
- * Thin Admin page header — title, short description, secondary Documentation,
- * and primary/page actions. Pilot pages only in Phase 1.
+ * Thin Admin page header — title, short description, secondary “About this page”
+ * documentation control, and primary/page actions.
  */
 export function AdminPageHeader({
   title,
@@ -16,7 +16,7 @@ export function AdminPageHeader({
 }: {
   title: string;
   description?: string;
-  /** When set, renders the secondary Documentation control. */
+  /** When set, renders the secondary “About this page” documentation control. */
   documentationTopicId?: string;
   actions?: ReactNode;
   /** Optional second muted line (e.g. recipe counts). */

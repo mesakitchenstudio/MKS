@@ -279,13 +279,28 @@ describe("Admin documentation UI contracts", () => {
     assert.match(editor, /initialSectionId="advanced"/);
     assert.match(editor, /quiet/);
     assert.match(editor, /allowDocumentationCenterNavigation=\{false\}/);
+    assert.doesNotMatch(editor, /label=["']About this page["']/);
     const button = read("components/admin/AdminDocumentationButton.tsx");
     assert.match(button, /initialSectionId/);
     assert.match(button, /quiet/);
+    assert.match(button, /label = "About this page"/);
     assert.match(button, /allowDocumentationCenterNavigation/);
     const drawer = read("components/admin/AdminDocumentationDrawer.tsx");
     assert.match(drawer, /openRelatedTopic/);
     assert.match(drawer, /← Back/);
+  });
+
+  it("keeps contextual About this page label centralized for page headers", () => {
+    const button = read("components/admin/AdminDocumentationButton.tsx");
+    assert.match(button, /label = "About this page"/);
+    assert.match(
+      read("components/admin/AdminPageHeader.tsx"),
+      /AdminDocumentationButton topicId=\{documentationTopicId\}/,
+    );
+    assert.doesNotMatch(
+      read("components/admin/AdminPageHeader.tsx"),
+      /allowDocumentationCenterNavigation=\{false\}/,
+    );
   });
 
   it("preserves Content Calendar action hierarchy with Documentation secondary", () => {
