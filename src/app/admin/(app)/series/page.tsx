@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { SeriesIndexRowOverflow } from "@/components/admin/SeriesIndexRowOverflow";
 import { requireAccess } from "@/lib/auth";
 import { listAdminSeries } from "@/lib/series-admin";
@@ -99,27 +100,26 @@ export default async function AdminSeriesPage({
 
   return (
     <div className="min-w-0 space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="font-serif text-3xl text-ink">Series</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            Editorial collections for the public site (routes stay{" "}
-            <span className="font-mono text-ink/80">/series</span>). Import YouTube playlists or
-            build custom Mesa-only collections.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/series/import" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
-            Import YouTube playlist
-          </Link>
-          <Link
-            href="/admin/series/new"
-            className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-          >
-            Create custom Series
-          </Link>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Series"
+        description="Editorial collections for the public site (routes stay /series). Import YouTube playlists or build custom Mesa-only collections."
+        documentationTopicId="series"
+        titleClassName="font-serif text-3xl text-ink"
+        className="mb-0"
+        actions={
+          <>
+            <Link href="/admin/series/import" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+              Import YouTube playlist
+            </Link>
+            <Link
+              href="/admin/series/new"
+              className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+            >
+              Create custom Series
+            </Link>
+          </>
+        }
+      />
 
       {params.deleted ? (
         <p

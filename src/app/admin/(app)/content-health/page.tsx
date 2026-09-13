@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAccess } from "@/lib/auth";
 import { loadRecipeContentHealthCatalogue } from "@/lib/recipe-content-health-server";
 import {
@@ -138,13 +139,13 @@ export default async function AdminContentHealthPage({
   if (summary.totalCount === 0) {
     return (
       <div className="min-w-0 space-y-6">
-        <div>
-          <h1 className="font-serif text-3xl text-ink">Content Health</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            Deterministic publishing readiness across Recipes — not a score, SEO grade, or traffic
-            report.
-          </p>
-        </div>
+        <AdminPageHeader
+          title="Content Health"
+          description="Deterministic publishing readiness across Recipes — not a score, SEO grade, or traffic report."
+          documentationTopicId="content-health"
+          titleClassName="font-serif text-3xl text-ink"
+          className="mb-0"
+        />
         <p className="text-sm text-muted">No recipes yet.</p>
         <p>
           <Link href="/admin/recipes/new" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
@@ -157,13 +158,13 @@ export default async function AdminContentHealthPage({
 
   return (
     <div className="min-w-0 space-y-8">
-      <div>
-        <h1 className="font-serif text-3xl text-ink">Content Health</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          Which Recipes need attention, which drafts are ready, and what to fix — powered by
-          Publishing Readiness.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Content Health"
+        description="Which Recipes need attention, which drafts are ready, and what to fix — powered by Publishing Readiness."
+        documentationTopicId="content-health"
+        titleClassName="font-serif text-3xl text-ink"
+        className="mb-0"
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-sm border border-line bg-paper px-4 py-3">

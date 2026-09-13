@@ -164,6 +164,14 @@ function AccountLinks({ onNavigate }: { onNavigate?: () => void }) {
         </li>
         <li>
           <SidebarLink
+            href="/admin/documentation"
+            label="Documentation"
+            match="prefix"
+            onNavigate={onNavigate}
+          />
+        </li>
+        <li>
+          <SidebarLink
             href="/"
             label="View site"
             match="exact"

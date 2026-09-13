@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAccess } from "@/lib/auth";
 import { loadSearchAnalyticsDashboard } from "@/lib/search-analytics-dashboard";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
@@ -27,28 +28,28 @@ export default async function AdminSearchAnalyticsPage({
 
   return (
     <div className="min-w-0 space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-serif text-3xl text-ink">Search</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            Popular recipe searches and zero-result terms from consented visitors. Not a traffic
-            dashboard and not per-person browsing history.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-sm">
-          {[7, 28, 90].map((days) => (
-            <Link
-              key={days}
-              href={rangeHref(days)}
-              className={`${adminLinkClass} ${adminFocusRing} ${
-                rangeDays === days ? "font-semibold text-ink" : ""
-              }`}
-            >
-              {days}d
-            </Link>
-          ))}
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Search"
+        description="Popular recipe searches and zero-result terms from consented visitors. Not a traffic dashboard and not per-person browsing history."
+        documentationTopicId="search-analytics"
+        titleClassName="font-serif text-3xl text-ink"
+        className="mb-0"
+        actions={
+          <>
+            {[7, 28, 90].map((days) => (
+              <Link
+                key={days}
+                href={rangeHref(days)}
+                className={`${adminLinkClass} ${adminFocusRing} ${
+                  rangeDays === days ? "font-semibold text-ink" : ""
+                }`}
+              >
+                {days}d
+              </Link>
+            ))}
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-sm border border-line bg-paper px-4 py-3">

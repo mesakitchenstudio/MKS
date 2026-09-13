@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { saveTypeAction } from "@/app/admin/actions";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   adminFocusRing,
   adminInputClass,
@@ -196,28 +197,26 @@ export function AddTypeForm({
 
   return (
     <div className="mt-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-        <div className="min-w-0 max-w-2xl">
-          <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-            Recipe types
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Templates define which fields are available when authoring each kind of recipe.
-          </p>
-          <p className="mt-1.5 text-xs leading-5 text-muted">
-            New types begin with Mesa&apos;s core recipe fields and can add type-specific fields.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-          aria-controls={panelId}
-          className={`${adminPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
-        >
-          {open ? "Close" : "New recipe type"}
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Recipe types"
+        description="Templates define which fields are available when authoring each kind of recipe."
+        documentationTopicId="recipe-types"
+        className="mb-0"
+        meta={
+          <>New types begin with Mesa&apos;s core recipe fields and can add type-specific fields.</>
+        }
+        actions={
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+            aria-controls={panelId}
+            className={`${adminPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
+          >
+            {open ? "Close" : "New recipe type"}
+          </button>
+        }
+      />
 
       {open ? (
         <div

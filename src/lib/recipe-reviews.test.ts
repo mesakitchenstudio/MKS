@@ -271,7 +271,8 @@ describe("admin review helpers", () => {
 
 describe("admin Reviews index contracts", () => {
   it("uses restrained header copy without Community or cascade lede", () => {
-    assert.match(reviewsPage, />\s*Reviews\s*</);
+    assert.match(reviewsPage, /title="Reviews"/);
+    assert.match(reviewsPage, /AdminPageHeader/);
     assert.doesNotMatch(reviewsPage, /Community/);
     assert.match(reviewsPage, /Read and respond to member reviews on Mesa recipes\./);
     assert.doesNotMatch(reviewsPage, /Removing a review also removes/);
@@ -371,7 +372,7 @@ describe("admin Reviews index contracts", () => {
     );
     assert.notEqual(adminWorkspaceWidthForPath("/admin/staff"), adminWorkspaceReviewsList);
     assert.equal(adminWorkspaceWidthForPath("/admin/staff"), adminWorkspaceStandard);
-    assert.match(reviewsPage, /max-w-2xl/);
+    assert.match(readFileSync(path.join(root, "../components/admin/AdminPageHeader.tsx"), "utf8"), /max-w-2xl/);
     assert.doesNotMatch(reviewsPage, /max-w-\[42rem\]|max-w-\[58rem\]/);
   });
 

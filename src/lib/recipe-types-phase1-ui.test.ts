@@ -45,6 +45,8 @@ describe("Recipe Types Phase 1 presentation contracts", () => {
 
   it("uses New recipe type disclosure with accessible expand semantics", () => {
     assert.match(addTypeForm, /New recipe type/);
+    assert.match(addTypeForm, /documentationTopicId="recipe-types"/);
+    assert.match(addTypeForm, /AdminPageHeader/);
     assert.match(addTypeForm, /aria-expanded=\{open\}/);
     assert.match(addTypeForm, /aria-controls=\{panelId\}/);
     assert.match(addTypeForm, /action=\{saveTypeAction\}/);

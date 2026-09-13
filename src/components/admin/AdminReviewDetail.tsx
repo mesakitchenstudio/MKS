@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminReviewReplyControls } from "@/components/admin/AdminReviewReplyControls";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { RemoveReviewButton } from "@/components/admin/RemoveReviewButton";
 import { ReviewRepliesSection } from "@/components/admin/ReviewRepliesSection";
 import { adminFocusRing } from "@/lib/admin-ui";
@@ -51,6 +52,7 @@ export function AdminReviewDetail({
           {review.recipeTitle}
         </h1>
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+          <AdminDocumentationButton topicId="review-detail" compact />
           <p className="text-sm tabular-nums text-muted">
             <span aria-hidden>★ {ratingLabel}</span>
             <span className="sr-only">{ratingAccessible}</span>

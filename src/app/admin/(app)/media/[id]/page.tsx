@@ -5,6 +5,7 @@ import {
   saveMediaAssetAction,
   setMediaAssetActiveAction,
 } from "@/app/admin/media-actions";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import {
   adminDangerButtonClass,
   adminFocusRing,
@@ -52,12 +53,17 @@ export default async function AdminMediaAssetPage({
         </Link>
       </p>
       <header className="mb-6">
-        <h1 className="font-serif text-3xl text-ink">{mediaAssetDisplayTitle(asset)}</h1>
-        <p className="mt-2 text-sm text-muted">
-          {asset.isActive ? "Active" : "Inactive"} · {mediaAssetKindLabel(asset.kind)} ·{" "}
-          {mediaAssetSourceLabel(asset.source)} · Updated{" "}
-          {formatAdminDateTimeUtc(asset.updatedAt)}
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-serif text-3xl text-ink">{mediaAssetDisplayTitle(asset)}</h1>
+            <p className="mt-2 text-sm text-muted">
+              {asset.isActive ? "Active" : "Inactive"} · {mediaAssetKindLabel(asset.kind)} ·{" "}
+              {mediaAssetSourceLabel(asset.source)} · Updated{" "}
+              {formatAdminDateTimeUtc(asset.updatedAt)}
+            </p>
+          </div>
+          <AdminDocumentationButton topicId="media-asset" />
+        </div>
       </header>
 
       {query.saved === "1" ? (

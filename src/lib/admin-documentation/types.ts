@@ -6,6 +6,9 @@ export type AdminDocCategory =
   | "team"
   | "account";
 
+/**
+ * Built-in section ids used across topics, plus Recipe Editor section-help anchors.
+ */
 export type AdminDocSectionId =
   | "about"
   | "when-to-use"
@@ -14,7 +17,12 @@ export type AdminDocSectionId =
   | "rules"
   | "best-practices"
   | "permissions"
-  | "related";
+  | "related"
+  | "basics"
+  | "details"
+  | "content"
+  | "media"
+  | "advanced";
 
 export type AdminDocSection = {
   id: AdminDocSectionId;
@@ -39,14 +47,4 @@ export type AdminDocTopic = {
 };
 
 /** Future topic ids allowed in relatedTopicIds before those topics ship. */
-export const APPROVED_FUTURE_DOC_TOPIC_IDS = [
-  "recipe-history",
-  "recipe-types",
-  "content-health",
-  "redirects",
-  "media",
-  "series",
-  "search-analytics",
-  "site-health",
-  "content-performance",
-] as const;
+export const APPROVED_FUTURE_DOC_TOPIC_IDS = [] as const;

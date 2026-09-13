@@ -25,7 +25,8 @@ const addPanelSource = readFileSync(
 
 describe("admin Team Access page structure", () => {
   it("uses Team access H1 without Studio access eyebrow or global owner-rule lede", () => {
-    assert.match(staffPageSource, />\s*Team access\s*</);
+    assert.match(staffPageSource, /title="Team access"/);
+    assert.match(staffPageSource, /AdminPageHeader/);
     assert.doesNotMatch(staffPageSource, /Studio access/i);
     assert.match(staffPageSource, /Who can use Mesa/);
     assert.doesNotMatch(staffPageSource, /Multiple owners are allowed/);

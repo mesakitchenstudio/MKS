@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { MembersTable } from "@/components/admin/MembersTable";
 import {
   AdminFlashStatus,
@@ -33,10 +34,11 @@ export default async function AdminMembersPage({
 
   return (
     <div>
-      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-        Members
-      </h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted">People with Mesa accounts.</p>
+      <AdminPageHeader
+        title="Members"
+        description="People with Mesa accounts."
+        documentationTopicId="members"
+      />
       {removedMessage ? (
         <AdminFlashStatus active clearParams={MEMBER_REMOVED_PARAMS}>
           {removedMessage}

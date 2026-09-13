@@ -1,6 +1,6 @@
 import type { AdminDocCategory } from "./types";
 
-/** Category labels for a future /admin/documentation center. */
+/** Category labels for the Documentation Center and drawer chrome. */
 export const ADMIN_DOC_CATEGORY_LABELS: Record<AdminDocCategory, string> = {
   publishing: "Publishing",
   library: "Library",

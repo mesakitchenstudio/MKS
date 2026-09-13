@@ -340,6 +340,7 @@ function EditorSection({
   description,
   children,
   scrollTargetStyle,
+  documentationSectionId,
 }: {
   id: string;
   title: string;
@@ -347,11 +348,25 @@ function EditorSection({
   children: React.ReactNode;
   emphasis?: boolean;
   scrollTargetStyle?: React.CSSProperties;
+  /** When set, shows quiet section help that opens Recipe Editor docs at this section. */
+  documentationSectionId?: "basics" | "details" | "content" | "media" | "advanced";
 }) {
   return (
     <section id={id} style={scrollTargetStyle} className="pt-1">
       <header className="mb-5 border-b border-line/70 pb-3">
-        <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">{title}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+            {title}
+          </h2>
+          {documentationSectionId ? (
+            <AdminDocumentationButton
+              topicId="recipe-editor"
+              quiet
+              initialSectionId={documentationSectionId}
+              allowDocumentationCenterNavigation={false}
+            />
+          ) : null}
+        </div>
         {description ? <p className="mt-1.5 text-xs leading-relaxed text-muted">{description}</p> : null}
       </header>
       {children}
@@ -2545,7 +2560,12 @@ export function RecipeEditor({
               ) : null}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
-              <AdminDocumentationButton topicId="recipe-editor" compact className="min-h-9" />
+              <AdminDocumentationButton
+                topicId="recipe-editor"
+                compact
+                className="min-h-9"
+                allowDocumentationCenterNavigation={false}
+              />
               {previewHref ? (
                 <Link
                   href={previewHref}
@@ -2646,7 +2666,12 @@ export function RecipeEditor({
             {pageTitle}
           </p>
           {documentStateIsUnsaved ? <span className="sr-only">Unsaved</span> : null}
-          <AdminDocumentationButton topicId="recipe-editor" compact className="min-h-9 px-2.5" />
+          <AdminDocumentationButton
+            topicId="recipe-editor"
+            compact
+            className="min-h-9 px-2.5"
+            allowDocumentationCenterNavigation={false}
+          />
           <button
             type="button"
             onClick={attemptUpdateRecipe}
@@ -2861,6 +2886,7 @@ export function RecipeEditor({
           scrollTargetStyle={scrollTargetStyle}
           title="Basics"
           description="Identity, summary, and discovery settings."
+          documentationSectionId="basics"
         >
           {renderSectionCompletenessBanner("basics")}
           <div className="space-y-6">
@@ -3379,6 +3405,7 @@ export function RecipeEditor({
             scrollTargetStyle={scrollTargetStyle}
             title="Recipe details"
             description="Times, yield, and metadata shown on the public recipe card."
+            documentationSectionId="details"
           >
             {renderSectionCompletenessBanner("details")}
             <div className="grid gap-0">
@@ -3431,6 +3458,7 @@ export function RecipeEditor({
             title="Recipe content"
             description="The story, ingredients, and method — the heart of the recipe."
             emphasis
+            documentationSectionId="content"
           >
             {renderSectionCompletenessBanner("content")}
             <div className="grid gap-8">
@@ -3465,6 +3493,7 @@ export function RecipeEditor({
             scrollTargetStyle={scrollTargetStyle}
             title="Media"
             description="Hero image and Mesa YouTube video connection."
+            documentationSectionId="media"
           >
             {renderSectionCompletenessBanner("media")}
             <RecipeYoutubeConnection
@@ -3490,27 +3519,37 @@ export function RecipeEditor({
             style={scrollTargetStyle}
             className="border-t border-line/70 pt-1"
           >
-            <button
-              type="button"
-              id="recipe-advanced-toggle"
-              onClick={() => setAdvancedOpen((open) => !open)}
-              aria-expanded={advancedOpen}
-              aria-controls="recipe-advanced-panel"
-              className={`block w-full cursor-pointer py-3 text-left ${adminFocusRing}`}
-            >
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
-                  Advanced
-                </h2>
-                <span className="shrink-0 text-base font-semibold leading-none text-muted" aria-hidden>
-                  {advancedOpen ? "−" : "+"}
-                </span>
+            <div className="flex items-start gap-2">
+              <button
+                type="button"
+                id="recipe-advanced-toggle"
+                onClick={() => setAdvancedOpen((open) => !open)}
+                aria-expanded={advancedOpen}
+                aria-controls="recipe-advanced-panel"
+                className={`min-w-0 flex-1 cursor-pointer py-3 text-left ${adminFocusRing}`}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive">
+                    Advanced
+                  </h2>
+                  <span className="shrink-0 text-base font-semibold leading-none text-muted" aria-hidden>
+                    {advancedOpen ? "−" : "+"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  Optional video metadata, nutrition, and type-specific fields.
+                </p>
+                <span className="sr-only">{advancedOpen ? "Collapse advanced fields" : "Expand advanced fields"}</span>
+              </button>
+              <div className="pt-3">
+                <AdminDocumentationButton
+                  topicId="recipe-editor"
+                  quiet
+                  initialSectionId="advanced"
+                  allowDocumentationCenterNavigation={false}
+                />
               </div>
-              <p className="mt-1 text-xs text-muted">
-                Optional video metadata, nutrition, and type-specific fields.
-              </p>
-              <span className="sr-only">{advancedOpen ? "Collapse advanced fields" : "Expand advanced fields"}</span>
-            </button>
+            </div>
             {advancedOpen ? (
               <div
                 id="recipe-advanced-panel"

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { setRedirectActiveAction } from "@/app/admin/actions";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   adminSecondaryButtonClass,
   adminWorkspaceCategories,
@@ -27,14 +28,12 @@ export default async function AdminRedirectsPage({
 
   return (
     <div className={`min-w-0 ${adminWorkspaceCategories}`}>
-      <header className="mb-6">
-        <h1 className="font-serif text-3xl text-ink">Redirects</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Permanent redirects for published recipe URL changes. Renaming a published
-          recipe creates a redirect from the old path automatically. Deactivate a
-          row to stop following it.
-        </p>
-      </header>
+      <AdminPageHeader
+        title="Redirects"
+        description="Permanent redirects for published recipe URL changes. Renaming a published recipe creates a redirect from the old path automatically. Deactivate a row to stop following it."
+        documentationTopicId="redirects"
+        titleClassName="font-serif text-3xl text-ink"
+      />
 
       {query.deactivated === "1" ? (
         <p className="mb-4 text-sm font-semibold text-olive" role="status">

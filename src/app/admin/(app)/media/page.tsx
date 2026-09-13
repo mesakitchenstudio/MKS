@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { registerExternalMediaAssetAction } from "@/app/admin/media-actions";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { MediaLibraryUpload } from "@/components/admin/MediaLibraryUpload";
 import {
   adminFocusRing,
@@ -61,16 +62,13 @@ export default async function AdminMediaPage({
 
   return (
     <div className={`min-w-0 ${adminWorkspaceWide}`}>
-      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl text-ink">Media</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Editorial catalogue of images — identity, alt text, credit, and reuse.
-            Blob and local uploads still own the bytes; this library owns the assets.
-          </p>
-        </div>
-        <p className="text-sm text-muted">{assets.length} shown</p>
-      </header>
+      <AdminPageHeader
+        title="Media"
+        description="Editorial catalogue of images — identity, alt text, credit, and reuse. Blob and local uploads still own the bytes; this library owns the assets."
+        documentationTopicId="media"
+        titleClassName="font-serif text-3xl text-ink"
+        meta={`${assets.length} shown`}
+      />
 
       {query.saved === "1" ? (
         <p className="mb-4 text-sm font-semibold text-olive" role="status">

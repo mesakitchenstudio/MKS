@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   adminFocusRing,
   adminLinkClass,
@@ -108,13 +109,13 @@ export default async function AdminContentPerformancePage({
 
   return (
     <div className="min-w-0 space-y-8">
-      <div>
-        <h1 className="font-serif text-3xl text-ink">Content Performance</h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted">
-          Cross-source performance for Recipes and public pages. Metrics stay labeled by source —
-          website, Google Search, Mesa funnel, and YouTube are never blended into one score.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Content Performance"
+        description="Cross-source performance for Recipes and public pages. Metrics stay labeled by source — website, Google Search, Mesa funnel, and YouTube are never blended into one score."
+        documentationTopicId="content-performance"
+        titleClassName="font-serif text-3xl text-ink"
+        className="mb-0"
+      />
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Date range">
         {ANALYTICS_RANGE_DAYS.map((days) => (

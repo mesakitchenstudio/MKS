@@ -43,6 +43,8 @@ describe("YouTube admin UI redesign contracts", () => {
 
   it("uses one shared H1 YouTube and aria-current on view links", () => {
     assert.match(page, /<h1[\s\S]*>\s*YouTube\s*</);
+    assert.match(page, /AdminDocumentationButton/);
+    assert.match(page, /topicId="youtube"/);
     assert.match(page, /aria-current=\{view === "channel" \? "page" : undefined\}/);
     assert.match(page, /aria-current=\{view === "funnel" \? "page" : undefined\}/);
     assert.match(page, /aria-current=\{view === "schedule" \? "page" : undefined\}/);

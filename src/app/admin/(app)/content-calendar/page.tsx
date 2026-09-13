@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   adminFocusRing,
   adminLinkClass,
@@ -80,39 +81,37 @@ export default async function AdminContentCalendarPage({
 
   return (
     <div className="min-w-0 space-y-8">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl text-ink">Content Calendar</h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted">
-            Editorial planning across website Recipe publication and YouTube releases. Each channel
-            keeps its own schedule — Calendar coordinates, it does not own either system.
-          </p>
-          <p className="mt-2 text-sm text-muted">
-            Times shown in TRT · Today is {dashboard.todayDateKey}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={qs({ year: today.year, month: today.month })}
-            className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-          >
-            Jump to Today
-          </Link>
-          {access.canViewRecipes ? (
-            <Link href="/admin/recipes/new" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
-              + Recipe
-            </Link>
-          ) : null}
-          {access.canViewYoutube ? (
+      <AdminPageHeader
+        title="Content Calendar"
+        description="Editorial planning across website Recipe publication and YouTube releases. Each channel keeps its own schedule — Calendar coordinates, it does not own either system."
+        documentationTopicId="content-calendar"
+        titleClassName="font-serif text-3xl text-ink"
+        className="mb-0"
+        meta={<>Times shown in TRT · Today is {dashboard.todayDateKey}</>}
+        actions={
+          <>
             <Link
-              href="/admin/youtube?view=schedule"
+              href={qs({ year: today.year, month: today.month })}
               className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
             >
-              + YouTube release
+              Jump to Today
             </Link>
-          ) : null}
-        </div>
-      </div>
+            {access.canViewRecipes ? (
+              <Link href="/admin/recipes/new" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+                + Recipe
+              </Link>
+            ) : null}
+            {access.canViewYoutube ? (
+              <Link
+                href="/admin/youtube?view=schedule"
+                className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+              >
+                + YouTube release
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       <section className="flex flex-wrap items-center gap-3" aria-label="Month navigation">
         <Link

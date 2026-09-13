@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import {
   adminFocusRing,
   adminLinkClass,
@@ -75,12 +76,15 @@ export default async function AdminRecipePerformanceDetailPage({
             {recipe.status} · {recipe.publicPath}
           </p>
         </div>
-        <Link
-          href={`/admin/recipes/${recipe.recipeId}`}
-          className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
-        >
-          Edit recipe
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminDocumentationButton topicId="recipe-performance" />
+          <Link
+            href={`/admin/recipes/${recipe.recipeId}`}
+            className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
+          >
+            Edit recipe
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Date range">

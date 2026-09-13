@@ -5,6 +5,7 @@ import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/app/admin/notification-actions";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   adminFocusRing,
   adminLinkClass,
@@ -39,22 +40,21 @@ export default async function AdminNotificationsPage({
 
   return (
     <div className={`min-w-0 ${adminWorkspaceWide}`}>
-      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl text-ink">Notifications</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Operational alerts for scheduled publishing and related Admin work.
-            This is not the Activity audit log.
-          </p>
-        </div>
-        {unread > 0 ? (
-          <form action={markAllNotificationsReadAction}>
-            <button type="submit" className={`${adminSecondaryButtonClass} ${adminFocusRing}`}>
-              Mark all read
-            </button>
-          </form>
-        ) : null}
-      </header>
+      <AdminPageHeader
+        title="Notifications"
+        description="Operational alerts for scheduled publishing and related Admin work. This is not the Activity audit log."
+        documentationTopicId="notifications"
+        titleClassName="font-serif text-3xl text-ink"
+        actions={
+          unread > 0 ? (
+            <form action={markAllNotificationsReadAction}>
+              <button type="submit" className={`${adminSecondaryButtonClass} ${adminFocusRing}`}>
+                Mark all read
+              </button>
+            </form>
+          ) : null
+        }
+      />
 
       {query.read === "all" ? (
         <p className="mb-4 text-sm font-semibold text-olive" role="status">

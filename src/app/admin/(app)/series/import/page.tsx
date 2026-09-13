@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { importYoutubePlaylistAction } from "@/app/admin/actions";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { requireAccess } from "@/lib/auth";
 import { adminFocusRing, adminLinkClass, adminPrimaryButtonClass } from "@/lib/admin-ui";
 import { listImportableChannelPlaylists } from "@/lib/series-playlist";
@@ -47,9 +48,12 @@ export default async function AdminSeriesImportPage({
             matching recipes, and leaves editorial SEO/hero fields for you to enrich.
           </p>
         </div>
-        <Link href="/admin/series/new" className={`${secondaryBtn} ${adminFocusRing}`}>
-          Create custom Series instead
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminDocumentationButton topicId="series-import" />
+          <Link href="/admin/series/new" className={`${secondaryBtn} ${adminFocusRing}`}>
+            Create custom Series instead
+          </Link>
+        </div>
       </div>
 
       {params.error ? (

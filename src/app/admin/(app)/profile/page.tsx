@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminProfilePhotoForm } from "@/components/admin/AdminPhotoField";
 import {
   AdminRevokeAllOtherButton,
@@ -69,11 +70,11 @@ export default async function AdminProfilePage({
 
   return (
     <div className="w-full">
-      <header className="pb-2">
-        <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-          Profile
-        </h1>
-      </header>
+      <AdminPageHeader
+        title="Profile"
+        description="Manage your Admin account details, photo, and signed-in sessions."
+        documentationTopicId="profile"
+      />
 
       {saved ? (
         <AdminFlashStatus

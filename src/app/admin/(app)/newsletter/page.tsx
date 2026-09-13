@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { NewsletterSubscribersIndex } from "@/components/admin/NewsletterSubscribersIndex";
 import { requireAccess } from "@/lib/auth";
 import {
@@ -35,12 +36,11 @@ export default async function AdminNewsletterPage({
 
   return (
     <div>
-      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-        Newsletter
-      </h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted">
-        Subscribers collected from Mesa newsletter signup forms.
-      </p>
+      <AdminPageHeader
+        title="Newsletter"
+        description="Subscribers collected from Mesa newsletter signup forms."
+        documentationTopicId="newsletter"
+      />
 
       <NewsletterSubscribersIndex list={list} counts={counts} />
     </div>

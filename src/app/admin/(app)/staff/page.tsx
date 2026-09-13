@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminTeamSessionsPanel } from "@/components/admin/AdminTeamSessionsPanel";
 import { StaffTeamSection } from "@/components/admin/StaffAddMemberPanel";
 import { StaffTeamList } from "@/components/admin/StaffTeamList";
@@ -125,12 +126,13 @@ export default async function AdminStaffPage({
 
   return (
     <div className="w-full">
-      <header className="border-b border-line pb-6">
-        <h1 className="font-serif text-4xl text-ink">Team access</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Who can use Mesa’s admin, and what they can do.
-        </p>
-      </header>
+      <AdminPageHeader
+        title="Team access"
+        description="Who can use Mesa’s admin, and what they can do."
+        documentationTopicId="team-access"
+        titleClassName="font-serif text-4xl text-ink"
+        className="mb-0 border-b border-line pb-6"
+      />
 
       {removed ? (
         <AdminFlashStatus active clearParams={STAFF_REMOVED_PARAMS}>

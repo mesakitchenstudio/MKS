@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { YoutubeDashboard } from "@/components/admin/YoutubeDashboard";
 import { YoutubeFunnelPanel } from "@/components/admin/YoutubeFunnelPanel";
 import { YoutubeSchedulePanel } from "@/components/admin/YoutubeSchedulePanel";
@@ -130,9 +131,17 @@ export default async function AdminYoutubePage({
       ) : null}
 
       <header className="space-y-4">
-        <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-          YouTube
-        </h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 max-w-2xl">
+            <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+              YouTube
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Manage Mesa’s YouTube channel catalog, website-video funnel, and release schedule.
+            </p>
+          </div>
+          <AdminDocumentationButton topicId="youtube" />
+        </div>
         <nav className="flex flex-wrap gap-5" aria-label="YouTube views">
           <Link
             href={viewHref("channel")}

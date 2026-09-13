@@ -96,7 +96,8 @@ describe("admin profile photo copy", () => {
 
 describe("admin profile page contracts", () => {
   it("uses Profile H1, Account section, and no Your account eyebrow", () => {
-    assert.match(profilePageSource, />\s*Profile\s*</);
+    assert.match(profilePageSource, /title="Profile"/);
+    assert.match(profilePageSource, /AdminPageHeader/);
     assert.doesNotMatch(profilePageSource, /Your account/i);
     assert.doesNotMatch(profilePageSource, /Profile photo<\/h1>/);
     assert.match(profilePageSource, /profile-account-heading/);

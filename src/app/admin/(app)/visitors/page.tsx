@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { VisitorsOverview } from "@/components/admin/VisitorsOverview";
 import { canDeleteGuestVisitors } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
@@ -45,12 +46,11 @@ export default async function AdminVisitorsPage({
 
   return (
     <div>
-      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-        Visitors
-      </h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted">
-        Anonymous website activity. Signed-in members are excluded.
-      </p>
+      <AdminPageHeader
+        title="Visitors"
+        description="Anonymous website activity. Signed-in members are excluded."
+        documentationTopicId="visitors"
+      />
 
       <VisitorsOverview
         summary={summary}

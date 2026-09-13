@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { saveStudioLessonLinksAction } from "@/app/admin/actions";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { HomepageCurationForm } from "@/components/admin/HomepageCurationForm";
 import { lessons } from "@/data/lessons";
 import { requireAccess } from "@/lib/auth";
@@ -51,13 +52,13 @@ export default async function AdminStudioPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-serif text-3xl text-ink">Studio</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          Curate which published recipes connect to each Studio lesson. Links are manual — no
-          automatic matching.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Studio"
+        description="Curate which published recipes connect to each Studio lesson. Links are manual — no automatic matching."
+        documentationTopicId="studio"
+        titleClassName="font-serif text-3xl text-ink"
+        className="mb-0"
+      />
 
       {params.saved ? (
         <p className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive" role="status">

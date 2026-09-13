@@ -5,6 +5,7 @@ import {
   REVIEW_REMOVED_PARAMS,
   REVIEW_REPLIED_PARAMS,
 } from "@/lib/admin-transient-feedback";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminReviewsIndex } from "@/components/admin/AdminReviewsIndex";
 import { requireAccess } from "@/lib/auth";
 import { listReviewsForAdmin } from "@/lib/recipe-reviews";
@@ -36,12 +37,11 @@ export default async function AdminReviewsPage({
 
   return (
     <div>
-      <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-        Reviews
-      </h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted">
-        Read and respond to member reviews on Mesa recipes.
-      </p>
+      <AdminPageHeader
+        title="Reviews"
+        description="Read and respond to member reviews on Mesa recipes."
+        documentationTopicId="reviews"
+      />
 
       <AdminFlashStatus active={Boolean(replied)} clearParams={REVIEW_REPLIED_PARAMS}>
         Reply posted.

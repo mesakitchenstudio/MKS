@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { TypeDetailsForm } from "@/components/admin/TypeDetailsForm";
 import { TypeFieldsManager } from "@/components/admin/TypeFieldsManager";
 import { requireAccess } from "@/lib/auth";
@@ -121,10 +122,15 @@ export default async function AdminTypePage({
       >
         ← Recipe types
       </Link>
-      <h1 className="mt-2 font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-        {type.name}
-      </h1>
-      <p className="mt-2 text-sm text-muted">{headerMeta}</p>
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+            {type.name}
+          </h1>
+          <p className="mt-2 text-sm text-muted">{headerMeta}</p>
+        </div>
+        <AdminDocumentationButton topicId="recipe-type-editor" />
+      </div>
 
       <TypeDetailsForm
         id={type.id}

@@ -555,7 +555,7 @@ describe("phase 6D — admin UI, summary, side effects", () => {
     assert.match(page, /Needs attention/);
     assert.match(page, /Checks passing/);
     assert.doesNotMatch(page, /SEO score|Site health:\s*\d|keyword/i);
-    assert.match(page, /<h1/);
+    assert.match(page, /AdminPageHeader|title="Site Health"/);
 
     const server = read("lib/site-health-server.ts");
     assert.match(server, /server-only/);

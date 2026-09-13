@@ -13,6 +13,7 @@ import {
   saveSeriesAction,
 } from "@/app/admin/actions";
 import { CreateRecipeFromYoutubeVideo } from "@/components/admin/CreateRecipeFromYoutubeVideo";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { EditorStatusBadge } from "@/components/admin/EditorStatusBadge";
 import {
   SeriesAiFieldBadge,
@@ -468,6 +469,7 @@ export function SeriesEditor({
             <EditorStatusBadge published={isPublished} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <AdminDocumentationButton topicId="series-editor" compact className="min-h-11" />
             {!isNew && isPublished ? (
               <Link
                 href={`/series/${series.slug}`}

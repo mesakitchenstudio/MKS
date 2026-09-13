@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { MemberAvatar } from "@/components/admin/MemberPresence";
 import { MemberLiveLastSeen } from "@/components/admin/MemberLivePresence";
 import { MemberConnectionHistory } from "@/components/admin/MemberConnectionHistory";
@@ -64,14 +65,17 @@ export default async function AdminMemberDetailPage({
         ← Members
       </Link>
 
-      <div className="mt-5 flex flex-wrap items-start gap-4">
-        <MemberAvatar name={user.name} photoUrl={user.photoUrl} size="detail" />
-        <div className="min-w-0">
-          <h1 className="break-words font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-            {user.name}
-          </h1>
-          <p className="mt-1 break-all text-sm text-muted">{user.email}</p>
+      <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-wrap items-start gap-4">
+          <MemberAvatar name={user.name} photoUrl={user.photoUrl} size="detail" />
+          <div className="min-w-0">
+            <h1 className="break-words font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
+              {user.name}
+            </h1>
+            <p className="mt-1 break-all text-sm text-muted">{user.email}</p>
+          </div>
         </div>
+        <AdminDocumentationButton topicId="member-detail" />
       </div>
 
       <dl className="mt-8">

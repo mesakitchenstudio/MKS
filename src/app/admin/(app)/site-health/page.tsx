@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAccess } from "@/lib/auth";
 import {
   adminFocusRing,
@@ -119,14 +120,13 @@ export default async function AdminSiteHealthPage() {
 
   return (
     <div className="min-w-0 space-y-8">
-      <div>
-        <h1 className="font-serif text-3xl text-ink">Site Health</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          Technical discoverability for public Mesa routes — redirects, sitemap membership,
-          robots/noindex policy, structured-data builders, and public relationships. Not a
-          ranking score, Search Console, or Content Health.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Site Health"
+        description="Technical discoverability for public Mesa routes — redirects, sitemap membership, robots/noindex policy, structured-data builders, and public relationships. Not a ranking score, Search Console, or Content Health."
+        documentationTopicId="site-health"
+        titleClassName="font-serif text-3xl text-ink"
+        className="mb-0"
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-sm border border-line bg-paper px-4 py-3">

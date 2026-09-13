@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { restoreRecipeRevisionAction } from "@/app/admin/actions";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { RecipeEditorSubnav } from "@/components/admin/RecipeEditorSubnav";
 import {
   adminPrimaryButtonClass,
@@ -142,7 +143,10 @@ export default async function RecipeRevisionDetailPage({
         >
           ← History
         </Link>
-        <h1 className="mt-2 font-serif text-3xl text-ink">{recipe.title}</h1>
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+          <h1 className="font-serif text-3xl text-ink">{recipe.title}</h1>
+          <AdminDocumentationButton topicId="recipe-history" />
+        </div>
         <div className="mt-4">
           <RecipeEditorSubnav recipeId={id} active="history" />
         </div>

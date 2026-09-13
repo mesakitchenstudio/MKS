@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { CreateRecipeFromYoutubeVideo } from "@/components/admin/CreateRecipeFromYoutubeVideo";
 import { adminFocusRing, adminLinkClass, adminTableHeadClass } from "@/lib/admin-ui";
 import { canAccess } from "@/lib/admin-access";
@@ -37,13 +38,16 @@ export default async function AdminYoutubeVideoPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <Link href="/admin/youtube" className={`text-sm ${adminLinkClass}`}>
-          ← YouTube
-        </Link>
-        <h1 className="mt-3 font-serif text-[2rem] leading-tight text-ink md:text-[2.25rem]">
-          {detail.title}
-        </h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link href="/admin/youtube" className={`text-sm ${adminLinkClass}`}>
+            ← YouTube
+          </Link>
+          <h1 className="mt-3 font-serif text-[2rem] leading-tight text-ink md:text-[2.25rem]">
+            {detail.title}
+          </h1>
+        </div>
+        <AdminDocumentationButton topicId="youtube-video" />
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,18rem)_1fr]">

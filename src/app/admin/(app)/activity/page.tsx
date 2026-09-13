@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { canViewAdminActivity, homeForRole } from "@/lib/admin-access";
 import {
   humanizeAdminAuditAction,
@@ -110,12 +111,12 @@ export default async function AdminActivityPage({
 
   return (
     <div className={`min-w-0 ${adminWorkspaceWide}`}>
-      <header className="mb-6">
-        <h1 className="font-serif text-3xl text-ink">Activity</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Track important changes made by the Mesa team. Times in TRT.
-        </p>
-      </header>
+      <AdminPageHeader
+        title="Activity"
+        description="Track important changes made by the Mesa team. Times in TRT."
+        documentationTopicId="activity"
+        titleClassName="font-serif text-3xl text-ink"
+      />
 
       <form
         method="get"
