@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  appendUniqueMultiValueItems,
   coerceStringList,
   coerceStringListItem,
   isPlainStringListKind,
   isStringListCorruptSentinel,
+  parseMultiValueInput,
   STRING_LIST_CORRUPT_SENTINEL,
 } from "./coerce-string-list.ts";
 import { fieldAiResponseSchemaHint, normalizeFieldAiResponse } from "./ai-recipe/field-ai-registry.ts";
@@ -216,5 +218,67 @@ describe("editor hydrate/save list integrity", () => {
     assert.equal(encoded.tips, JSON.stringify(["Toast"]));
     assert.equal(encoded.faqs, JSON.stringify([{ name: "Q", note: "A" }]));
     assert.ok(!Object.values(encoded).some((value) => value.includes(STRING_LIST_CORRUPT_SENTINEL)));
+  });
+});
+
+describe("parseMultiValueInput / appendUniqueMultiValueItems", () => {
+  it("parses single values, comma lists, whitespace, empties, newlines, and mixed input", () => {
+    assert.deepEqual(parseMultiValueInput("Whisk"), ["Whisk"]);
+    assert.deepEqual(parseMultiValueInput("Whisk, Mixing bowl, Spatula"), [
+      "Whisk",
+      "Mixing bowl",
+      "Spatula",
+    ]);
+    assert.deepEqual(parseMultiValueInput(" Whisk ,  Mixing bowl , Spatula "), [
+      "Whisk",
+      "Mixing bowl",
+      "Spatula",
+    ]);
+    assert.deepEqual(parseMultiValueInput("Whisk,, ,Mixing bowl,"), ["Whisk", "Mixing bowl"]);
+    assert.deepEqual(parseMultiValueInput("Whisk\nMixing bowl\nSpatula"), [
+      "Whisk",
+      "Mixing bowl",
+      "Spatula",
+    ]);
+    assert.deepEqual(parseMultiValueInput("Whisk, Mixing bowl\nSpatula, Sieve"), [
+      "Whisk",
+      "Mixing bowl",
+      "Spatula",
+      "Sieve",
+    ]);
+  });
+
+  it("keeps multi-word values intact and preserves order", () => {
+    assert.deepEqual(parseMultiValueInput("Fine mesh sieve, Mixing bowl"), [
+      "Fine mesh sieve",
+      "Mixing bowl",
+    ]);
+    assert.deepEqual(parseMultiValueInput("dessert, French pastry, baking"), [
+      "dessert",
+      "French pastry",
+      "baking",
+    ]);
+    assert.deepEqual(parseMultiValueInput("Whisk, Bowl, Spatula"), ["Whisk", "Bowl", "Spatula"]);
+  });
+
+  it("de-duplicates within input case-insensitively", () => {
+    assert.deepEqual(parseMultiValueInput("Whisk, whisk, WHISK"), ["Whisk"]);
+  });
+
+  it("appends only new items against existing list casing", () => {
+    const result = appendUniqueMultiValueItems(["Whisk"], "Whisk, Mixing bowl, WHISK");
+    assert.deepEqual(result.added, ["Mixing bowl"]);
+    assert.deepEqual(result.next, ["Whisk", "Mixing bowl"]);
+  });
+
+  it("supports utensil and tag bulk examples", () => {
+    assert.deepEqual(
+      appendUniqueMultiValueItems([], "Whisk, Piping bag, Saucepan").next,
+      ["Whisk", "Piping bag", "Saucepan"],
+    );
+    assert.deepEqual(
+      appendUniqueMultiValueItems([], "dessert, French pastry, baking").next,
+      ["dessert", "French pastry", "baking"],
+    );
   });
 });

@@ -83,9 +83,14 @@ describe("Recipe editor Phase 2 Basics/Details contracts", () => {
     assert.match(editor, /kind === "list"[\s\S]*coerceStringList/);
     assert.deepEqual(coerceStringList([{ name: "whisk" }, { foo: 1 }, "bowl"]), ["whisk", "bowl"]);
     assert.ok(!coerceStringList([{ a: 1 }]).includes("[object Object]"));
-    assert.match(utensils, /Add utensil/);
+    assert.match(utensils, /Add utensil\(s\)/);
     assert.match(tags, /Improve tags|Suggest tags/);
-    assert.match(tags, /Add tag/);
+    assert.match(tags, /Add tag\(s\)/);
+    assert.match(utensils, /appendUniqueMultiValueItems/);
+    assert.match(tags, /appendUniqueMultiValueItems/);
+    assert.match(utensils, /event\.key === "Enter"/);
+    assert.match(tags, /event\.key === "Enter"/);
+    assert.doesNotMatch(tags, /event\.key === ","/);
   });
 
   it("preserves save path, form keys, and Phase 1 chrome contracts", () => {

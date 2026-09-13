@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { adminFocusRing, adminSecondaryButtonClass, adminTertiaryButtonClass } from "@/lib/admin-ui";
-import { coerceStringList } from "@/lib/coerce-string-list";
+import { appendUniqueMultiValueItems, coerceStringList } from "@/lib/coerce-string-list";
 
 const COLLAPSE_AFTER = 12;
 
@@ -37,15 +37,11 @@ export function TagsChipEditor({
   const hiddenCount = Math.max(0, tags.length - COLLAPSE_AFTER);
   const visible = expanded || hiddenCount === 0 ? tags : tags.slice(0, COLLAPSE_AFTER);
 
-  function addTag(raw: string) {
-    const next = raw.trim();
-    if (!next) return;
-    const exists = tags.some((tag) => tag.toLowerCase() === next.toLowerCase());
-    if (exists) {
-      setDraft("");
-      return;
-    }
-    onChange([...tags, next]);
+  function addFromDraft() {
+    const raw = draft;
+    if (!raw.trim()) return;
+    const { next, added } = appendUniqueMultiValueItems(tags, raw);
+    if (added.length) onChange(next);
     setDraft("");
   }
 
@@ -104,13 +100,14 @@ export function TagsChipEditor({
           type="text"
           value={draft}
           disabled={disabled}
-          placeholder="Add tag…"
+          placeholder="Add tag(s)…"
+          title="Separate multiple tags with commas"
           className="h-9 min-w-0 flex-1 rounded-sm border border-line bg-paper px-3 text-sm outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === ",") {
+            if (event.key === "Enter") {
               event.preventDefault();
-              addTag(draft.replace(/,/g, ""));
+              addFromDraft();
             }
             if (event.key === "Backspace" && !draft && tags.length) {
               removeTag(tags.length - 1);
@@ -121,7 +118,7 @@ export function TagsChipEditor({
           type="button"
           className={`${adminTertiaryButtonClass} ${adminFocusRing} min-h-9 shrink-0 px-2`}
           disabled={disabled || !draft.trim()}
-          onClick={() => addTag(draft)}
+          onClick={addFromDraft}
         >
           Add
         </button>

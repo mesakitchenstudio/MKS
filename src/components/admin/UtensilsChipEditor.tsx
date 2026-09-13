@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { adminFocusRing, adminTertiaryButtonClass } from "@/lib/admin-ui";
-import { coerceStringList } from "@/lib/coerce-string-list";
+import { appendUniqueMultiValueItems, coerceStringList } from "@/lib/coerce-string-list";
 
 export function UtensilsChipEditor({
   value,
@@ -17,14 +17,13 @@ export function UtensilsChipEditor({
   const [draft, setDraft] = useState("");
   const items = coerceStringList(value);
 
-  function addItem(raw: string) {
-    const next = raw.trim();
-    if (!next) return;
-    if (items.some((item) => item.toLowerCase() === next.toLowerCase())) {
-      setDraft("");
-      return;
-    }
-    onChange([...items, next]);
+  function addFromDraft() {
+    const raw = draft;
+    if (!raw.trim()) return;
+    const { next, added } = appendUniqueMultiValueItems(items, raw);
+    // Clear when the draft had content: added items, or only duplicates/empties.
+    // Match prior single-value behavior that cleared on duplicate.
+    if (added.length) onChange(next);
     setDraft("");
   }
 
@@ -60,13 +59,14 @@ export function UtensilsChipEditor({
           type="text"
           value={draft}
           disabled={disabled}
-          placeholder="Add utensil…"
+          placeholder="Add utensil(s)…"
+          title="Separate multiple utensils with commas"
           className="h-9 min-w-0 flex-1 rounded-sm border border-line bg-paper px-3 text-sm outline-none focus:border-olive focus:ring-2 focus:ring-olive/15"
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
-              addItem(draft);
+              addFromDraft();
             }
           }}
         />
@@ -74,7 +74,7 @@ export function UtensilsChipEditor({
           type="button"
           className={`${adminTertiaryButtonClass} ${adminFocusRing} min-h-9 shrink-0 px-2`}
           disabled={disabled || !draft.trim()}
-          onClick={() => addItem(draft)}
+          onClick={addFromDraft}
         >
           Add
         </button>

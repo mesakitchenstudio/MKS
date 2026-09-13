@@ -69,3 +69,51 @@ export function coerceStringList(value: unknown): string[] {
 export function isPlainStringListKind(kind: string): boolean {
   return kind === "list" || kind === "tags" || kind === "gallery";
 }
+
+/**
+ * Parse a chip-editor draft into ordered values.
+ * Separators: commas and newlines only (spaces inside a value are kept).
+ */
+export function parseMultiValueInput(input: string): string[] {
+  const chunks = String(input || "")
+    .split(/[,\n\r]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const chunk of chunks) {
+    const key = chunk.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(chunk);
+  }
+  return out;
+}
+
+/**
+ * Append newly parsed values onto an existing list.
+ * Case-insensitive de-dupe against existing items; preserves existing casing
+ * and the relative order of newly added values.
+ */
+export function appendUniqueMultiValueItems(
+  existing: readonly string[],
+  input: string,
+): { next: string[]; added: string[] } {
+  const current = coerceStringList(existing);
+  const known = new Set(current.map((item) => item.toLowerCase()));
+  const added: string[] = [];
+
+  for (const item of parseMultiValueInput(input)) {
+    const key = item.toLowerCase();
+    if (known.has(key)) continue;
+    known.add(key);
+    added.push(item);
+  }
+
+  return {
+    next: added.length ? [...current, ...added] : current,
+    added,
+  };
+}
+
