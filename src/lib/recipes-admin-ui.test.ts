@@ -26,7 +26,13 @@ describe("Recipes admin index UI contracts", () => {
   });
 
   it("uses H1 Recipes without procedural draft sentence", () => {
-    assert.match(index, /<h1[\s\S]*>\s*Recipes\s*</);
+    const header = readFileSync(
+      path.join(root, "../components/admin/AdminPageHeader.tsx"),
+      "utf8",
+    );
+    assert.match(index, /title="Recipes"/);
+    assert.match(index, /AdminPageHeader/);
+    assert.match(header, /<h1 className=\{titleClassName\}>\{title\}<\/h1>/);
     assert.doesNotMatch(index, /Drafts stay off the public site/);
   });
 
@@ -38,7 +44,8 @@ describe("Recipes admin index UI contracts", () => {
   });
 
   it("places New recipe in the header without a leading plus", () => {
-    assert.match(index, /<header[\s\S]*NewRecipeButton/);
+    assert.match(index, /AdminPageHeader[\s\S]*NewRecipeButton/);
+    assert.match(index, /documentationTopicId="recipes"/);
     assert.match(newRecipe, />\s*New recipe\s*</);
     assert.doesNotMatch(newRecipe, /\+\s*New recipe/);
   });

@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin-ui";
 import { formatAdminDateTimeUtc } from "@/lib/datetime";
 import { recipePublicationLabel } from "@/lib/recipe-schedule";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { NewRecipeButton } from "./NewRecipeButton";
 
 export type AdminRecipeRow = {
@@ -183,23 +184,21 @@ export function RecipesIndex({
 
   return (
     <div>
-      <header className="mb-8 md:mb-9">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-              Recipes
-            </h1>
-            {counts.total > 0 ? (
-              <p className="mt-2 text-sm text-muted">
-                {counts.total} {counts.total === 1 ? "recipe" : "recipes"} · {counts.published}{" "}
-                published · {counts.scheduled} scheduled · {counts.drafts}{" "}
-                {counts.drafts === 1 ? "draft" : "drafts"}
-              </p>
-            ) : null}
-          </div>
-          <NewRecipeButton types={types} className="shrink-0" />
-        </div>
-      </header>
+      <AdminPageHeader
+        title="Recipes"
+        description="Find, filter and manage every Mesa recipe and create new recipes by type."
+        documentationTopicId="recipes"
+        meta={
+          counts.total > 0 ? (
+            <>
+              {counts.total} {counts.total === 1 ? "recipe" : "recipes"} · {counts.published}{" "}
+              published · {counts.scheduled} scheduled · {counts.drafts}{" "}
+              {counts.drafts === 1 ? "draft" : "drafts"}
+            </>
+          ) : null
+        }
+        actions={<NewRecipeButton types={types} className="shrink-0" />}
+      />
 
       {recipes.length > 0 ? (
         <div className="mb-5 space-y-2">

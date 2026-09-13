@@ -10,6 +10,7 @@ import {
   type AiTargetedFillApplyPayload,
 } from "@/components/admin/AiRecipeAssistant";
 import { DeleteRecipeButton } from "@/components/admin/DeleteRecipeButton";
+import { AdminDocumentationButton } from "@/components/admin/AdminDocumentationButton";
 import { RecipeEditorSubnav } from "@/components/admin/RecipeEditorSubnav";
 import { EditorIssueNavigator } from "@/components/admin/EditorIssueNavigator";
 import { EditorDragHandle, EditorRowActions } from "@/components/admin/EditorRowActions";
@@ -2534,6 +2535,9 @@ export function RecipeEditor({
                   </>
                 ) : null}
               </p>
+              <p className="mt-1.5 max-w-xl text-xs leading-5 text-muted">
+                Create, edit, review, preview and publish this Mesa recipe.
+              </p>
               {recipeId ? (
                 <div className="mt-3">
                   <RecipeEditorSubnav recipeId={recipeId} active="recipe" />
@@ -2541,6 +2545,7 @@ export function RecipeEditor({
               ) : null}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
+              <AdminDocumentationButton topicId="recipe-editor" compact className="min-h-9" />
               {previewHref ? (
                 <Link
                   href={previewHref}
@@ -2641,6 +2646,7 @@ export function RecipeEditor({
             {pageTitle}
           </p>
           {documentStateIsUnsaved ? <span className="sr-only">Unsaved</span> : null}
+          <AdminDocumentationButton topicId="recipe-editor" compact className="min-h-9 px-2.5" />
           <button
             type="button"
             onClick={attemptUpdateRecipe}

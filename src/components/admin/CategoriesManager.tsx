@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { deleteCategoryAction, saveCategoryAction } from "@/app/admin/actions";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   adminDangerButtonClass,
   adminFocusRing,
@@ -491,36 +492,34 @@ export function CategoriesManager({
 
   return (
     <div id="categories" className="min-w-0">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-        <div className="min-w-0 max-w-2xl">
-          <h1 className="font-serif text-[2.125rem] leading-tight text-ink md:text-[2.375rem]">
-            Categories
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Organize the categories used for recipe discovery and menus.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (addOpen) {
-              setAddOpen(false);
-              return;
-            }
-            if (dirtyRef.current && !window.confirm("Discard unsaved changes to this category?")) {
-              return;
-            }
-            setDirty(false);
-            setExpandedId(null);
-            setAddOpen(true);
-          }}
-          aria-expanded={addOpen}
-          aria-controls={addPanelId}
-          className={`${adminPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
-        >
-          {addOpen ? "Close" : "New category"}
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Categories"
+        description="Manage the category structure used to organize and discover Mesa recipes."
+        documentationTopicId="categories"
+        className="mb-0"
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              if (addOpen) {
+                setAddOpen(false);
+                return;
+              }
+              if (dirtyRef.current && !window.confirm("Discard unsaved changes to this category?")) {
+                return;
+              }
+              setDirty(false);
+              setExpandedId(null);
+              setAddOpen(true);
+            }}
+            aria-expanded={addOpen}
+            aria-controls={addPanelId}
+            className={`${adminPrimaryButtonClass} ${adminFocusRing} shrink-0 self-start`}
+          >
+            {addOpen ? "Close" : "New category"}
+          </button>
+        }
+      />
 
       {addOpen ? (
         <div id={addPanelId} className="mt-5">

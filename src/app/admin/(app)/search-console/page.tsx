@@ -5,6 +5,7 @@ import {
   selectSearchConsolePropertyAction,
   syncSearchConsoleNowAction,
 } from "@/app/admin/search-console-actions";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   adminFocusRing,
   adminLinkClass,
@@ -65,22 +66,22 @@ export default async function AdminSearchConsolePage({
 
   return (
     <div className="min-w-0 space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl text-ink">Search Console</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            Google Search performance for Mesa — impressions, clicks, CTR, and position.
-            This is not Mesa on-site Search analytics, Site Health, or Content Health.
-          </p>
-        </div>
-        {canManage && connection.connected && connection.hasProperty ? (
-          <form action={syncSearchConsoleNowAction}>
-            <button type="submit" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
-              Sync now
-            </button>
-          </form>
-        ) : null}
-      </div>
+      <AdminPageHeader
+        title="Search Console"
+        description="Understand how Mesa performs in Google Search using clicks, impressions, CTR and average position. This is not Mesa on-site Search analytics, Site Health, or Content Health."
+        documentationTopicId="search-console"
+        titleClassName="font-serif text-3xl text-ink"
+        className="mb-0"
+        actions={
+          canManage && connection.connected && connection.hasProperty ? (
+            <form action={syncSearchConsoleNowAction}>
+              <button type="submit" className={`${adminPrimaryButtonClass} ${adminFocusRing}`}>
+                Sync now
+              </button>
+            </form>
+          ) : null
+        }
+      />
 
       {params.error ? (
         <p className="rounded-sm border border-line bg-paper px-4 py-3 text-sm text-terracotta" role="alert">
