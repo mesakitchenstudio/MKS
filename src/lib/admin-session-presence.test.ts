@@ -110,6 +110,7 @@ describe("admin session presence touch", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(result.updated, true);
+    assert.equal(result.locationUpdated, false);
 
     const aRow = await db.adminSession.findUniqueOrThrow({ where: { id: a.id } });
     const bRow = await db.adminSession.findUniqueOrThrow({ where: { id: b.id } });
@@ -127,6 +128,7 @@ describe("admin session presence touch", () => {
     assert.equal(second.ok, true);
     if (!second.ok) return;
     assert.equal(second.updated, false);
+    assert.equal(second.locationUpdated, false);
     assert.equal(second.lastSeenAt.getTime(), first.lastSeenAt.getTime());
 
     await db.adminSession.update({
@@ -139,26 +141,294 @@ describe("admin session presence touch", () => {
     assert.equal(third.ok, true);
     if (!third.ok) return;
     assert.equal(third.updated, true);
+    assert.equal(third.locationUpdated, false);
     assert.ok(third.lastSeenAt.getTime() > second.lastSeenAt.getTime());
   });
 
-  it("rejects revoked and expired sessions", async () => {
-    const revoked = await createAdminAuthSession({ adminId });
+  it("same IP heartbeat leaves location fields unchanged", async () => {
+    const row = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "34",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0 Chrome/120 Windows",
+        referer: "",
+      },
+    });
+    await db.adminSession.update({
+      where: { id: row.id },
+      data: { lastSeenAt: new Date(Date.now() - ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS - 500) },
+    });
+
+    const result = await touchAdminSessionPresence(row.sessionTokenId, {
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "34",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0 Chrome/120 Windows",
+        referer: "",
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.updated, true);
+    assert.equal(result.locationUpdated, false);
+
+    const after = await db.adminSession.findUniqueOrThrow({ where: { id: row.id } });
+    assert.equal(after.ipAddress, "203.0.113.10");
+    assert.equal(after.city, "Istanbul");
+    assert.equal(after.country, "TR");
+    assert.equal(after.region, "34");
+    assert.equal(after.browser, row.browser);
+  });
+
+  it("changed IP refreshes location fields together", async () => {
+    const row = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "34",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0 Chrome/120 Windows",
+        referer: "",
+      },
+    });
+    await db.adminSession.update({
+      where: { id: row.id },
+      data: { lastSeenAt: new Date(Date.now() - ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS - 500) },
+    });
+
+    const result = await touchAdminSessionPresence(row.sessionTokenId, {
+      headers: {
+        ip: "198.51.100.44",
+        country: "IR",
+        region: "07",
+        city: "Tehran",
+        userAgent: "Mozilla/5.0 Chrome/120 Windows",
+        referer: "",
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.updated, true);
+    assert.equal(result.locationUpdated, true);
+
+    const after = await db.adminSession.findUniqueOrThrow({ where: { id: row.id } });
+    assert.equal(after.ipAddress, "198.51.100.44");
+    assert.equal(after.country, "IR");
+    assert.equal(after.region, "07");
+    assert.equal(after.city, "Tehran");
+    // Device metadata stays from session creation.
+    assert.equal(after.userAgent, row.userAgent);
+    assert.equal(after.browser, row.browser);
+  });
+
+  it("changed IP inside presence throttle still updates location promptly", async () => {
+    const row = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "34",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+    // Fresh lastSeenAt → still inside throttle for presence-only writes.
+    const result = await touchAdminSessionPresence(row.sessionTokenId, {
+      headers: {
+        ip: "198.51.100.55",
+        country: "IR",
+        region: "",
+        city: "Isfahan",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.updated, true);
+    assert.equal(result.locationUpdated, true);
+
+    const after = await db.adminSession.findUniqueOrThrow({ where: { id: row.id } });
+    assert.equal(after.ipAddress, "198.51.100.55");
+    assert.equal(after.city, "Isfahan");
+    assert.equal(after.country, "IR");
+    assert.equal(after.region, "");
+  });
+
+  it("same IP inside throttle skips unnecessary DB write", async () => {
+    const row = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "34",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+    const before = await db.adminSession.findUniqueOrThrow({ where: { id: row.id } });
+    const result = await touchAdminSessionPresence(row.sessionTokenId, {
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "34",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.updated, false);
+    assert.equal(result.locationUpdated, false);
+    assert.equal(result.lastSeenAt.getTime(), before.lastSeenAt.getTime());
+
+    const after = await db.adminSession.findUniqueOrThrow({ where: { id: row.id } });
+    assert.equal(after.city, "Istanbul");
+    assert.equal(after.lastSeenAt.getTime(), before.lastSeenAt.getTime());
+  });
+
+  it("missing city/region geo headers normalize without crashing", async () => {
+    const row = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "34",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+    const result = await touchAdminSessionPresence(row.sessionTokenId, {
+      headers: {
+        ip: "198.51.100.77",
+        country: "IR",
+        region: "",
+        city: "",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.locationUpdated, true);
+
+    const after = await db.adminSession.findUniqueOrThrow({ where: { id: row.id } });
+    assert.equal(after.ipAddress, "198.51.100.77");
+    assert.equal(after.country, "IR");
+    assert.equal(after.city, "");
+    assert.equal(after.region, "");
+  });
+
+  it("rejects revoked and expired sessions and cannot refresh their location", async () => {
+    const revoked = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
     await revokeAdminAuthSessionByTokenId(revoked.sessionTokenId, "test_revoke");
-    const revokedResult = await touchAdminSessionPresence(revoked.sessionTokenId);
+    const revokedResult = await touchAdminSessionPresence(revoked.sessionTokenId, {
+      headers: {
+        ip: "198.51.100.1",
+        country: "IR",
+        region: "",
+        city: "Tehran",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
     assert.deepEqual(revokedResult, { ok: false, reason: "revoked" });
+    const revokedRow = await db.adminSession.findUniqueOrThrow({ where: { id: revoked.id } });
+    assert.equal(revokedRow.city, "Istanbul");
 
     const expired = await createAdminAuthSession({
       adminId,
       expiresAt: new Date(Date.now() - 1_000),
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
     });
-    const expiredResult = await touchAdminSessionPresence(expired.sessionTokenId);
+    const expiredResult = await touchAdminSessionPresence(expired.sessionTokenId, {
+      headers: {
+        ip: "198.51.100.1",
+        country: "IR",
+        region: "",
+        city: "Tehran",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
     assert.deepEqual(expiredResult, { ok: false, reason: "expired" });
+    const expiredRow = await db.adminSession.findUniqueOrThrow({ where: { id: expired.id } });
+    assert.equal(expiredRow.city, "Istanbul");
 
     assert.deepEqual(await touchAdminSessionPresence("missing-token"), {
       ok: false,
       reason: "missing",
     });
+  });
+
+  it("heartbeat for one sid cannot update another session's location", async () => {
+    const a = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+    const b = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "198.51.100.20",
+        country: "IR",
+        region: "",
+        city: "Tehran",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+
+    await touchAdminSessionPresence(a.sessionTokenId, {
+      headers: {
+        ip: "203.0.113.99",
+        country: "DE",
+        region: "",
+        city: "Berlin",
+        userAgent: "Mozilla/5.0",
+        referer: "",
+      },
+    });
+
+    const aRow = await db.adminSession.findUniqueOrThrow({ where: { id: a.id } });
+    const bRow = await db.adminSession.findUniqueOrThrow({ where: { id: b.id } });
+    assert.equal(aRow.city, "Berlin");
+    assert.equal(aRow.ipAddress, "203.0.113.99");
+    assert.equal(bRow.city, "Tehran");
+    assert.equal(bRow.ipAddress, "198.51.100.20");
   });
 
   it("two logins produce distinct rows with sid-specific current detection", async () => {
@@ -217,6 +487,48 @@ describe("admin session presence touch", () => {
       reason: "revoked",
     });
   });
+
+  it("owner Sessions view reflects refreshed location after heartbeat", async () => {
+    await db.adminSession.updateMany({
+      where: { subjectKey: adminId, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: "test_cleanup" },
+    });
+    const row = await createAdminAuthSession({
+      adminId,
+      headers: {
+        ip: "203.0.113.10",
+        country: "TR",
+        region: "34",
+        city: "Istanbul",
+        userAgent: "Mozilla/5.0 (Windows NT 10.0) Chrome/120.0.0.0",
+        referer: "",
+      },
+    });
+    const before = await loadOwnerAdminSessionGroups({ id: adminId, sid: row.sessionTokenId });
+    const beforeSession = before
+      .find((g) => g.subjectKey === adminId)
+      ?.sessions.find((s) => s.sessionTokenId === row.sessionTokenId);
+    assert.match(beforeSession?.location || "", /Istanbul/);
+
+    await touchAdminSessionPresence(row.sessionTokenId, {
+      headers: {
+        ip: "198.51.100.44",
+        country: "IR",
+        region: "07",
+        city: "Tehran",
+        userAgent: "Mozilla/5.0 (Windows NT 10.0) Chrome/120.0.0.0",
+        referer: "",
+      },
+    });
+
+    const after = await loadOwnerAdminSessionGroups({ id: adminId, sid: row.sessionTokenId });
+    const afterSession = after
+      .find((g) => g.subjectKey === adminId)
+      ?.sessions.find((s) => s.sessionTokenId === row.sessionTokenId);
+    assert.match(afterSession?.location || "", /Tehran/);
+    assert.doesNotMatch(afterSession?.location || "", /Istanbul/);
+    assert.equal(afterSession?.isCurrent, true);
+  });
 });
 
 describe("admin session presence wiring", () => {
@@ -244,6 +556,8 @@ describe("admin session presence wiring", () => {
 
     assert.match(staff, /AdminTeamSessionsPanel/);
     assert.match(presenceRoute, /touchAdminSessionPresence/);
+    assert.match(presenceRoute, /headers:\s*request\.headers/);
+    assert.match(presenceRoute, /locationUpdated/);
     assert.match(presenceRoute, /force-dynamic/);
     assert.doesNotMatch(presenceRoute, /createAdminAuthSession|writeAdminSession/);
     assert.match(sessionsRoute, /canAccess\(admin\.role, "staff"\)/);
@@ -252,6 +566,8 @@ describe("admin session presence wiring", () => {
     assert.doesNotMatch(me, /touchAdminSessionPresence/);
     assert.match(authSessions, /ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS/);
     assert.match(authSessions, /ADMIN_SESSION_LAST_SEEN_THROTTLE_MS/);
+    assert.match(authSessions, /locationUpdated/);
+    assert.match(authSessions, /normalizeAdminSessionIp/);
     assert.notEqual(ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS, ADMIN_SESSION_LAST_SEEN_THROTTLE_MS);
   });
 });

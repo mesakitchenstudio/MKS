@@ -255,19 +255,50 @@ export async function bindAdminCookieToRegistry(
 }
 
 export type TouchAdminSessionPresenceResult =
-  | { ok: true; updated: boolean; lastSeenAt: Date }
+  | { ok: true; updated: boolean; lastSeenAt: Date; locationUpdated: boolean }
   | { ok: false; reason: "missing" | "revoked" | "expired" };
 
+export type TouchAdminSessionPresenceOptions = {
+  /** Current request headers (or precomputed connection meta) for IP/location refresh. */
+  headers?: Headers | ConnectionMeta | null;
+  now?: Date;
+};
+
+/** Normalize stored/observed IPs for equality checks (empty / unknown are equivalent). */
+export function normalizeAdminSessionIp(ip: string | null | undefined): string {
+  const value = String(ip || "").trim();
+  if (!value || value === "unknown") return "";
+  return value;
+}
+
+function locationFieldsFromMeta(meta: ConnectionMeta) {
+  return {
+    ipAddress: meta.ip && meta.ip !== "unknown" ? meta.ip.slice(0, 128) : null,
+    country: meta.country.slice(0, 64),
+    region: meta.region.slice(0, 64),
+    city: meta.city.slice(0, 128),
+  };
+}
+
 /**
- * Presence-only lastSeenAt touch for the caller's registry row.
- * Does not mint sessions. Uses the short presence throttle, not the 5-minute nav throttle.
+ * Presence touch for the caller's registry row.
+ * Updates lastSeenAt under the short presence throttle.
+ * When the observed public IP changes, refreshes IP/geo fields immediately
+ * (even inside the throttle window) so Sessions location stays current.
+ * Does not mint sessions or rewrite device/UA metadata.
  */
 export async function touchAdminSessionPresence(
   sessionTokenId: string,
-  now = new Date(),
+  options?: TouchAdminSessionPresenceOptions,
 ): Promise<TouchAdminSessionPresenceResult> {
   const tokenId = sessionTokenId.trim();
   if (!tokenId) return { ok: false, reason: "missing" };
+
+  const now = options?.now ?? new Date();
+  // Without request headers, only refresh presence — never invent or clear location.
+  const hasRequestMeta = options?.headers != null;
+  const meta = hasRequestMeta ? metaFromHeaders(options?.headers) : null;
+  const observedIp = meta ? normalizeAdminSessionIp(meta.ip) : "";
 
   const db = getDb();
   const row = await db.adminSession.findUnique({
@@ -277,23 +308,43 @@ export async function touchAdminSessionPresence(
       lastSeenAt: true,
       revokedAt: true,
       expiresAt: true,
+      ipAddress: true,
     },
   });
   if (!row) return { ok: false, reason: "missing" };
   if (row.revokedAt) return { ok: false, reason: "revoked" };
   if (row.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "expired" };
 
+  const storedIp = normalizeAdminSessionIp(row.ipAddress);
+  const ipChanged = Boolean(meta) && observedIp !== storedIp;
   const elapsed = now.getTime() - row.lastSeenAt.getTime();
-  if (elapsed < ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS) {
-    return { ok: true, updated: false, lastSeenAt: row.lastSeenAt };
+  const presenceDue = elapsed >= ADMIN_SESSION_PRESENCE_WRITE_THROTTLE_MS;
+
+  if (!ipChanged && !presenceDue) {
+    return {
+      ok: true,
+      updated: false,
+      lastSeenAt: row.lastSeenAt,
+      locationUpdated: false,
+    };
   }
+
+  const data =
+    ipChanged && meta
+      ? { lastSeenAt: now, ...locationFieldsFromMeta(meta) }
+      : { lastSeenAt: now };
 
   const updated = await db.adminSession.update({
     where: { id: row.id },
-    data: { lastSeenAt: now },
+    data,
     select: { lastSeenAt: true },
   });
-  return { ok: true, updated: true, lastSeenAt: updated.lastSeenAt };
+  return {
+    ok: true,
+    updated: true,
+    lastSeenAt: updated.lastSeenAt,
+    locationUpdated: ipChanged,
+  };
 }
 
 export async function revokeAdminAuthSessionByTokenId(
