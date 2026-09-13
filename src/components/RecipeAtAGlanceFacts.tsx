@@ -4,7 +4,7 @@ import { publicRestLabel, publicRestMinutes } from "@/lib/recipe-timing";
 import {
   difficultyLabel,
   formatTime,
-  heatTimingRing,
+  heatTimingRings,
   totalMinutes,
 } from "@/lib/recipe-utils";
 
@@ -17,14 +17,16 @@ export function RecipeAtAGlanceFacts({
   recipe: Recipe & { extras?: ExtraField[] };
   className?: string;
 }) {
-  const heat = heatTimingRing(recipe);
+  const heatRings = heatTimingRings(recipe);
   const rest = publicRestMinutes(recipe);
   const restLabel = publicRestLabel(recipe);
   const total = totalMinutes(recipe);
 
   const items: GlanceItem[] = [];
   if (recipe.prepMinutes > 0) items.push({ label: "Prep", value: formatTime(recipe.prepMinutes) });
-  if (heat && heat.minutes > 0) items.push({ label: heat.label, value: formatTime(heat.minutes) });
+  for (const heat of heatRings) {
+    if (heat.minutes > 0) items.push({ label: heat.label, value: formatTime(heat.minutes) });
+  }
   if (rest > 0) items.push({ label: restLabel, value: formatTime(rest) });
   if (total > 0) items.push({ label: "Total", value: formatTime(total) });
   items.push({ label: "Yield", value: `${recipe.servings} ${recipe.servingsUnit}` });

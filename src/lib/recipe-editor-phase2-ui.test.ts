@@ -59,7 +59,10 @@ describe("Recipe editor Phase 2 Basics/Details contracts", () => {
   it("keeps Details field keys and subgroup order", () => {
     assert.match(editor, /recipe-section-details/);
     assert.match(editor, /YIELD_KEYS = \["servings", "servingsUnit"\]/);
-    assert.match(editor, /TIMING_KEYS = \["prepMinutes", "bakeMinutes", "restMinutes"\]/);
+    assert.match(
+      editor,
+      /TIMING_KEYS = \["prepMinutes", "cookMinutes", "bakeMinutes", "restMinutes"\]/,
+    );
     assert.match(
       editor,
       /CLASSIFICATION_KEYS = \["difficulty", "course", "method", "holiday", "cuisine"\]/,

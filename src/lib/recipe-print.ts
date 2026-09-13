@@ -6,7 +6,7 @@ import { publicRestLabel, publicRestMinutes } from "@/lib/recipe-timing";
 import {
   difficultyLabel,
   formatTime,
-  heatTimingRing,
+  heatTimingRings,
   totalMinutes,
 } from "@/lib/recipe-utils";
 
@@ -32,7 +32,7 @@ export function recipePrintMetaItems(
   recipe: Recipe,
   selectedServings: number,
 ): RecipePrintMetaItem[] {
-  const heat = heatTimingRing(recipe);
+  const heat = heatTimingRings(recipe);
   const rest = publicRestMinutes(recipe);
   const restLabel = publicRestLabel(recipe);
   const total = totalMinutes(recipe);
@@ -42,8 +42,10 @@ export function recipePrintMetaItems(
   if (recipe.prepMinutes > 0) {
     items.push({ label: "Prep", value: formatTime(recipe.prepMinutes) });
   }
-  if (heat && heat.minutes > 0) {
-    items.push({ label: heat.label, value: formatTime(heat.minutes) });
+  for (const ring of heat) {
+    if (ring.minutes > 0) {
+      items.push({ label: ring.label, value: formatTime(ring.minutes) });
+    }
   }
   if (rest > 0) {
     items.push({ label: restLabel, value: formatTime(rest) });

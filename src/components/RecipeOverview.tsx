@@ -3,7 +3,7 @@
 import type { Recipe } from "@/data/types";
 import type { ExtraField } from "@/lib/recipe-map";
 import {
-  heatTimingRing,
+  heatTimingRings,
   difficultyLabel,
   formatTime,
 } from "@/lib/recipe-utils";
@@ -67,14 +67,14 @@ export function RecipeOverview({
 }: {
   recipe: Recipe & { extras?: ExtraField[] };
 }) {
-  const heat = heatTimingRing(recipe);
+  const heat = heatTimingRings(recipe);
   const rest = publicRestMinutes(recipe);
   const restLabel = publicRestLabel(recipe);
   const utensils = recipe.utensils?.filter(Boolean) ?? [];
 
   const rings = [
     { minutes: recipe.prepMinutes, label: "Preparation" as const },
-    heat ? { minutes: heat.minutes, label: heat.label } : null,
+    ...heat.map((ring) => ({ minutes: ring.minutes, label: ring.label })),
     rest > 0 ? { minutes: rest, label: restLabel } : null,
   ].filter((ring): ring is { minutes: number; label: string } => ring != null && ring.minutes > 0);
 

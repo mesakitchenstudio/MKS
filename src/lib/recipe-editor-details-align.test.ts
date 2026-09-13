@@ -71,7 +71,10 @@ describe("Recipe editor Details field baseline alignment", () => {
   it("does not alter coerce / yield-timing keys / save contracts", () => {
     assert.ok(!coerceStringList([{ name: "tip" }, { x: 1 }]).includes("[object Object]"));
     assert.match(editor, /YIELD_KEYS = \["servings", "servingsUnit"\]/);
-    assert.match(editor, /TIMING_KEYS = \["prepMinutes", "bakeMinutes", "restMinutes"\]/);
+    assert.match(
+      editor,
+      /TIMING_KEYS = \["prepMinutes", "cookMinutes", "bakeMinutes", "restMinutes"\]/,
+    );
     assert.match(
       editor,
       /CLASSIFICATION_KEYS = \["difficulty", "course", "method", "holiday", "cuisine"\]/,

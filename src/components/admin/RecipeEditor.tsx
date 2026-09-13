@@ -182,7 +182,7 @@ const SECTION_ID_TO_EDITOR: Record<
 };
 
 const YIELD_KEYS = ["servings", "servingsUnit"] as const;
-const TIMING_KEYS = ["prepMinutes", "bakeMinutes", "restMinutes"] as const;
+const TIMING_KEYS = ["prepMinutes", "cookMinutes", "bakeMinutes", "restMinutes"] as const;
 const CLASSIFICATION_KEYS = ["difficulty", "course", "method", "holiday", "cuisine"] as const;
 const TOOLS_KEYS = ["utensils"] as const;
 const TAG_KEYS = ["tags"] as const;
@@ -192,6 +192,7 @@ const DETAILS_KEYS = [
   "servingsUnit",
   "difficulty",
   "prepMinutes",
+  "cookMinutes",
   "bakeMinutes",
   "restMinutes",
   "utensils",
@@ -227,7 +228,6 @@ const ALL_GROUPED = new Set<string>([
   ...ADVANCED_KEYS,
   ...RECIPE_OVERVIEW_KEYS,
   ...RECIPE_MEDIA_KEYS,
-  "cookMinutes",
   /** Identity field — rendered in Basics, not Details/specialist. */
   "dishName",
 ]);
@@ -2180,9 +2180,13 @@ export function RecipeEditor({
     const displayHelp =
       field.key === "imageAlt"
         ? "Describe the hero image for accessibility. Write what a sighted reader needs to understand the photo."
-        : field.key === "nutrition"
-          ? "AI estimates are per serving from ingredients and yield. Mark as verified only after review."
-          : field.helpText;
+        : field.key === "cookMinutes"
+          ? "Stovetop, pan, grill, or other active cooking. Use 0 if none."
+          : field.key === "bakeMinutes"
+            ? "Oven time. Use 0 if the recipe is not baked."
+            : field.key === "nutrition"
+              ? "AI estimates are per serving from ingredients and yield. Mark as verified only after review."
+              : field.helpText;
 
     const fieldPath = `values.${field.key}`;
     const fieldDef = getRecipeFieldAiDef(fieldPath, fields);

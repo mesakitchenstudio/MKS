@@ -234,12 +234,28 @@ export type HeatTimingRing = {
   label: "Baking" | "Cooking";
 };
 
-export function heatTimingRing(recipe: Recipe): HeatTimingRing | null {
+/**
+ * Heat facts that contribute to countedHeatMinutes — for honest public/preview display.
+ * When bake and cook are both > 0 and unequal, both rings are returned (Cooking then Baking).
+ * Legacy mirrored rows (bake === cook) expose a single Baking fact so Total stays understandable.
+ */
+export function heatTimingRings(recipe: Recipe): HeatTimingRing[] {
   const bake = ovenBakeMinutes(recipe);
   const cook = stovetopCookMinutes(recipe);
-  if (bake > 0) return { minutes: bake, label: "Baking" };
-  if (cook > 0) return { minutes: cook, label: "Cooking" };
-  return null;
+  if (bake > 0 && cook > 0 && bake !== cook) {
+    return [
+      { minutes: cook, label: "Cooking" },
+      { minutes: bake, label: "Baking" },
+    ];
+  }
+  if (bake > 0) return [{ minutes: bake, label: "Baking" }];
+  if (cook > 0) return [{ minutes: cook, label: "Cooking" }];
+  return [];
+}
+
+/** Primary heat fact (first of heatTimingRings). Prefer heatTimingRings for full display. */
+export function heatTimingRing(recipe: Recipe): HeatTimingRing | null {
+  return heatTimingRings(recipe)[0] ?? null;
 }
 
 /** Count oven + stovetop without double-counting legacy synced rows. */
