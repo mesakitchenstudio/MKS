@@ -117,7 +117,12 @@ describe("Phase 5C routes / gate / indexing", () => {
     assert.doesNotMatch(view, /NEXT_PUBLIC_MEAL_PLANNER_ENABLED|process\.env\.MEAL_PLANNER/);
     assert.match(gate, /MEAL_PLANNER_ENABLED === "true"/);
     assert.doesNotMatch(gate, /NEXT_PUBLIC_MEAL_PLANNER_ENABLED/);
-    assert.doesNotMatch(view, /shopping-list|Add day to Shopping|meal_plan_/);
+    // Phase 5E: Shopping CTAs are gated by shoppingListEnabled prop (server-derived).
+    assert.match(view, /shoppingListEnabled/);
+    assert.match(view, /Add week to Shopping List/);
+    assert.match(view, /Add this day to Shopping List/);
+    assert.match(view, /prepareMealPlanShoppingAction/);
+    assert.doesNotMatch(view, /NEXT_PUBLIC_MEAL_PLANNER|process\.env\.MEAL_PLANNER|meal_plan_add_to_shopping/);
     assert.doesNotMatch(readRepo("src/components/RecipeFloatTools.tsx"), /meal-planner|Meal Planner/);
   });
 

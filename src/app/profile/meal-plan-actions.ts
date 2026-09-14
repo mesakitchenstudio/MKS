@@ -22,6 +22,13 @@ import {
   reorderMealPlanItemsForUser,
   updateMealPlanItemForUser,
 } from "@/lib/meal-planner-server";
+import { prepareMealPlanShoppingForUser } from "@/lib/meal-planner-shopping-server";
+import {
+  mealPlanShoppingErrorMessage,
+  type MealPlanShoppingPrepareInput,
+  type MealPlanShoppingPrepareResult,
+} from "@/lib/meal-planner-shopping";
+import { isShoppingListEnabled } from "@/lib/shopping-list";
 
 async function requireMealPlannerMemberUserId(): Promise<
   { ok: true; userId: string } | { ok: false; result: MealPlanActionResult<never> }
@@ -261,4 +268,31 @@ export async function moveMealPlanItemInSlotAction(input: {
   );
   if (result.ok) revalidateMealPlanner([input.planId]);
   return result;
+}
+
+/**
+ * Read-only preparation for explicit Meal Planner → Shopping List add.
+ * Does not write localStorage or Shopping DB (there is none).
+ */
+export async function prepareMealPlanShoppingAction(
+  input: MealPlanShoppingPrepareInput,
+): Promise<MealPlanShoppingPrepareResult> {
+  const authz = await requireMealPlannerMemberUserId();
+  if (!authz.ok) {
+    return {
+      ok: false,
+      error: authz.result.error,
+      message: authz.result.message,
+    };
+  }
+
+  if (!isShoppingListEnabled()) {
+    return {
+      ok: false,
+      error: "SHOPPING_DISABLED",
+      message: mealPlanShoppingErrorMessage("SHOPPING_DISABLED"),
+    };
+  }
+
+  return prepareMealPlanShoppingForUser(authz.userId, input);
 }

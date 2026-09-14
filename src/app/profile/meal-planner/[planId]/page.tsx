@@ -14,6 +14,7 @@ import {
   listMealPlansForUser,
 } from "@/lib/meal-planner-server";
 import { getAllRecipes } from "@/lib/recipes";
+import { isShoppingListEnabled } from "@/lib/shopping-list";
 import { MealPlannerView } from "@/components/MealPlannerView";
 import { MealPlannerWeekBootstrap } from "@/components/MealPlannerWeekBootstrap";
 
@@ -106,6 +107,7 @@ export default async function MealPlannerPlanPage({ params, searchParams }: Page
       items={items}
       recipeOptions={recipeOptions}
       imageBySlug={imageBySlug}
+      shoppingListEnabled={isShoppingListEnabled()}
     />
   );
 }

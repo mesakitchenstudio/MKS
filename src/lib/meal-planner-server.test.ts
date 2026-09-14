@@ -53,7 +53,9 @@ describe("Phase 5B — wiring / gate / actions (static + gate)", () => {
     assert.match(actions, /createMealPlanForUser/);
     assert.match(actions, /addMealPlanItemForUser/);
     assert.doesNotMatch(actions, /userId:\s*input\.userId|body\.userId|formData\.get\(["']userId/);
-    assert.doesNotMatch(actions, /recordAdminAuditEvent|shopping-list|meal_plan_created/);
+    assert.doesNotMatch(actions, /recordAdminAuditEvent|meal_plan_created/);
+    // Phase 5E: prepareMealPlanShoppingAction is allowed; still no client userId.
+    assert.match(actions, /prepareMealPlanShoppingAction/);
   });
 
   it("server helpers require userId ownership paths", () => {

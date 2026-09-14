@@ -20,6 +20,7 @@ import {
   deleteMealPlanItemAction,
   moveMealPlanItemAction,
   moveMealPlanItemInSlotAction,
+  prepareMealPlanShoppingAction,
   renameMealPlanAction,
   updateMealPlanItemAction,
 } from "@/app/profile/meal-plan-actions";
@@ -42,6 +43,12 @@ import {
   type MealPlannerRecipeOption,
   type MealSlot,
 } from "@/lib/meal-planner";
+import type { MealPlanShoppingPrepareData } from "@/lib/meal-planner-shopping";
+import {
+  commitMealPlanShoppingBatch,
+  findMealPlanShoppingCollisions,
+} from "@/lib/meal-planner-shopping-client";
+import { SHOPPING_LIST_PATH } from "@/lib/shopping-list";
 import { normalizeSearchText } from "@/lib/recipe-utils";
 
 const DIALOG_PRIMARY =
@@ -63,6 +70,7 @@ export function MealPlannerView({
   items,
   recipeOptions,
   imageBySlug,
+  shoppingListEnabled = false,
 }: {
   planId: string;
   planName: string;
@@ -71,12 +79,19 @@ export function MealPlannerView({
   items: MealPlanItemView[];
   recipeOptions: MealPlannerRecipeOption[];
   imageBySlug: Record<string, { image: string; imageAlt: string }>;
+  shoppingListEnabled?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [today, setToday] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState(weekStart);
   const [error, setError] = useState<string | null>(null);
+  const [shoppingStatus, setShoppingStatus] = useState<string | null>(null);
+  const [shoppingPreparing, setShoppingPreparing] = useState(false);
+  const [shoppingConfirm, setShoppingConfirm] = useState<{
+    data: MealPlanShoppingPrepareData;
+    collisions: number;
+  } | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -146,6 +161,64 @@ export function MealPlannerView({
     if (!monday) return;
     setSelectedDay(today);
     router.push(weekHref(monday));
+  }
+
+  const itemCountByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of items) {
+      map.set(item.planDate, (map.get(item.planDate) ?? 0) + 1);
+    }
+    return map;
+  }, [items]);
+
+  const weekHasItems = items.length > 0;
+  const selectedDayHasItems = (itemCountByDate.get(selectedDay) ?? 0) > 0;
+
+  async function prepareShopping(scope: "day" | "week", date?: string) {
+    if (!shoppingListEnabled || !today) return;
+    setError(null);
+    setShoppingStatus(null);
+    setShoppingPreparing(true);
+    try {
+      const result = await prepareMealPlanShoppingAction({
+        planId,
+        scope,
+        date: scope === "day" ? date : undefined,
+        weekStart: scope === "week" ? weekStart : undefined,
+        today,
+      });
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      const collisions = findMealPlanShoppingCollisions(result.data.recipes);
+      setShoppingConfirm({ data: result.data, collisions: collisions.length });
+    } catch {
+      setError("Could not prepare Shopping List items. Please try again.");
+    } finally {
+      setShoppingPreparing(false);
+    }
+  }
+
+  function commitShopping() {
+    if (!shoppingConfirm) return;
+    const { data } = shoppingConfirm;
+    setShoppingConfirm(null);
+    const batch = commitMealPlanShoppingBatch(data.recipes);
+    let message = batch.message;
+    if (data.skippedUnavailable > 0) {
+      message +=
+        data.skippedUnavailable === 1
+          ? " 1 unavailable meal was skipped."
+          : ` ${data.skippedUnavailable} unavailable meals were skipped.`;
+    }
+    if (batch.ok) {
+      setShoppingStatus(message);
+      setError(null);
+    } else {
+      setError(message);
+      setShoppingStatus(null);
+    }
   }
 
   const prevWeek = previousMealPlanWeekStart(weekStart);
@@ -245,6 +318,22 @@ export function MealPlannerView({
         </p>
       ) : null}
 
+      {shoppingStatus ? (
+        <p
+          className="mt-4 rounded-sm border border-olive/30 bg-sand/40 px-3 py-2 text-sm text-ink"
+          role="status"
+          aria-live="polite"
+        >
+          {shoppingStatus}{" "}
+          <Link
+            href={SHOPPING_LIST_PATH}
+            className={`font-semibold text-terracotta ${authFocusRing} rounded-sm`}
+          >
+            View Shopping List
+          </Link>
+        </p>
+      ) : null}
+
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-y border-line py-4">
         <button
           type="button"
@@ -265,6 +354,19 @@ export function MealPlannerView({
           >
             Today
           </button>
+          {shoppingListEnabled ? (
+            <div className="mt-2">
+              <button
+                type="button"
+                className={`${ICON_BTN} w-full sm:w-auto`}
+                disabled={pending || shoppingPreparing || !weekHasItems || !today}
+                onClick={() => void prepareShopping("week")}
+                aria-label="Add this week to Shopping List"
+              >
+                {shoppingPreparing ? "Preparing…" : "Add week to Shopping List"}
+              </button>
+            </div>
+          ) : null}
         </div>
         <button
           type="button"
@@ -324,6 +426,17 @@ export function MealPlannerView({
               </span>
             ) : null}
           </h2>
+          {shoppingListEnabled ? (
+            <button
+              type="button"
+              className={`${ICON_BTN} mt-3`}
+              disabled={pending || shoppingPreparing || !selectedDayHasItems || !today}
+              onClick={() => void prepareShopping("day", selectedDay)}
+              aria-label={`Add ${selectedHeading} to Shopping List`}
+            >
+              Add this day to Shopping List
+            </button>
+          ) : null}
           <DaySlots
             planDate={selectedDay}
             itemsByDateSlot={itemsByDateSlot}
@@ -360,6 +473,8 @@ export function MealPlannerView({
         {weekDays.map((day) => {
           const label = formatMealPlanDayStripLabel(day);
           const isToday = today === day;
+          const dayHasItems = (itemCountByDate.get(day) ?? 0) > 0;
+          const dayHeading = formatMealPlanDayHeading(day) ?? day;
           return (
             <section key={day} className="min-w-0" aria-labelledby={`day-${day}`}>
               <h2 id={`day-${day}`} className="border-b border-line pb-2">
@@ -369,6 +484,17 @@ export function MealPlannerView({
                 </span>
                 <span className="font-serif text-2xl text-ink">{label?.day}</span>
               </h2>
+              {shoppingListEnabled ? (
+                <button
+                  type="button"
+                  className={`mt-2 w-full text-left text-[0.7rem] font-semibold leading-snug text-terracotta hover:text-terracotta-dark disabled:cursor-not-allowed disabled:opacity-40 ${authFocusRing} rounded-sm`}
+                  disabled={pending || shoppingPreparing || !dayHasItems || !today}
+                  onClick={() => void prepareShopping("day", day)}
+                  aria-label={`Add ${dayHeading} to Shopping List`}
+                >
+                  Add day to Shopping List
+                </button>
+              ) : null}
               <DaySlots
                 planDate={day}
                 itemsByDateSlot={itemsByDateSlot}
@@ -416,6 +542,16 @@ export function MealPlannerView({
             router.push(`/profile/meal-planner/${result.data.id}?week=${weekStart}`);
             return null;
           }}
+        />
+      ) : null}
+
+      {shoppingConfirm ? (
+        <ShoppingConfirmDialog
+          data={shoppingConfirm.data}
+          collisionCount={shoppingConfirm.collisions}
+          busy={pending || shoppingPreparing}
+          onClose={() => setShoppingConfirm(null)}
+          onConfirm={commitShopping}
         />
       ) : null}
 
@@ -924,6 +1060,66 @@ function ConfirmDialog({
           onClick={onConfirm}
         >
           {confirmLabel}
+        </button>
+        <button type="button" className={DIALOG_SECONDARY} disabled={busy} onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </PortalDialog>
+  );
+}
+
+function ShoppingConfirmDialog({
+  data,
+  collisionCount,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  data: MealPlanShoppingPrepareData;
+  collisionCount: number;
+  busy?: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const title =
+    data.scope === "week" ? "Add this week to Shopping List?" : "Add this day to Shopping List?";
+  return (
+    <PortalDialog title={title} onClose={onClose} busy={busy}>
+      <ul className="space-y-1 text-sm text-muted">
+        <li>
+          {data.mealCount} meal{data.mealCount === 1 ? "" : "s"}
+        </li>
+        <li>
+          {data.uniqueRecipeCount} unique recipe{data.uniqueRecipeCount === 1 ? "" : "s"}
+        </li>
+        <li>
+          {data.totalPlannedServings} total planned serving
+          {data.totalPlannedServings === 1 ? "" : "s"}
+        </li>
+        {data.skippedUnavailable > 0 ? (
+          <li>
+            {data.skippedUnavailable} unavailable meal
+            {data.skippedUnavailable === 1 ? "" : "s"} will be skipped
+          </li>
+        ) : null}
+        {collisionCount > 0 ? (
+          <li role="status">
+            {collisionCount === 1
+              ? "1 existing recipe will be updated."
+              : `${collisionCount} existing recipes will be updated.`}
+          </li>
+        ) : null}
+      </ul>
+      {collisionCount > 0 ? (
+        <p className="mt-3 text-sm text-ink">
+          Some recipes are already in your Shopping List. Adding this{" "}
+          {data.scope === "week" ? "week" : "day"} will update them to the planned servings.
+        </p>
+      ) : null}
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button type="button" className={DIALOG_PRIMARY} disabled={busy} onClick={onConfirm}>
+          Add to Shopping List
         </button>
         <button type="button" className={DIALOG_SECONDARY} disabled={busy} onClick={onClose}>
           Cancel
