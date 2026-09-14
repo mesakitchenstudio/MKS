@@ -1,29 +1,18 @@
 /**
  * Safe DB target description for ingredient operator CLIs.
  * Never prints credentials or full DATABASE_URL.
+ *
+ * Classification is based on DATABASE_URL scheme (see `@/lib/db-target`).
+ * VERCEL alone must never imply Production Postgres.
  */
-export function describeDatabaseTarget(): string {
-  if (process.env.VERCEL) {
-    const url = process.env.DATABASE_URL?.trim() ?? "";
-    let host = "(unknown)";
-    let database = "(unknown)";
-    try {
-      const parsed = new URL(url);
-      host = parsed.hostname || host;
-      database = parsed.pathname.replace(/^\//, "") || database;
-    } catch {
-      /* keep placeholders */
-    }
-    return [
-      "Database target: VERCEL / remote",
-      `Host (redacted): ${host}`,
-      `Database: ${database}`,
-      "Warning: this is not the local SQLite workspace DB.",
-    ].join("\n");
-  }
-
-  return [
-    "Database target: local SQLite (prisma/dev.db via getDb)",
-    "Production Neon: NOT used by default in this workspace.",
-  ].join("\n");
-}
+export {
+  assertIngredientOperatorWriteTargetSafe,
+  assertProductionOperatorDatabaseUrl,
+  classifyDatabaseUrl,
+  describeDatabaseTarget,
+  getDatabaseTargetInfo,
+  isIngredientOperatorProductionMode,
+  resolveOperatorDatabaseUrl,
+  type DatabaseProvider,
+  type DatabaseTargetInfo,
+} from "@/lib/db-target";

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
+import { assertProductionOperatorDatabaseUrl } from "@/lib/db-target";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient; prismaUrl?: string };
 
@@ -19,6 +20,8 @@ function databaseUrl() {
 
 export function getDb() {
   const url = databaseUrl();
+  // Production/operator mode must never open SQLite even if VERCEL is set.
+  assertProductionOperatorDatabaseUrl(url);
   if (!globalForPrisma.prisma || globalForPrisma.prismaUrl !== url) {
     globalForPrisma.prisma = new PrismaClient({
       datasources: { db: { url } },

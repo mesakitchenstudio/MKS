@@ -4,9 +4,8 @@
  * Usage:
  *   npm run ingredient:seo-readiness
  *
- * Reports the current database only (local SQLite via getDb unless VERCEL).
- * Not Production Neon readiness unless intentionally run in that environment.
- * No writes.
+ * Target banner is scheme-based (file: = SQLite; postgres = PostgreSQL).
+ * VERCEL alone does not imply Production Postgres. No writes.
  */
 import { getDb } from "../src/lib/db.ts";
 import { describeDatabaseTarget } from "../src/lib/ingredient-index/cli-guard.ts";

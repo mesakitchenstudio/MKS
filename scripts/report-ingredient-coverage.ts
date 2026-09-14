@@ -4,8 +4,8 @@
  * Usage:
  *   npm run ingredient:coverage
  *
- * Reports the current database only (local SQLite via getDb unless VERCEL).
- * Not Production Neon coverage unless intentionally run in that environment.
+ * Target banner is scheme-based (file: = SQLite; postgres = PostgreSQL).
+ * VERCEL alone does not imply Production Postgres.
  */
 import { getDb } from "../src/lib/db.ts";
 import {
