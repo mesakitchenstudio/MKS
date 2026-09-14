@@ -44,6 +44,7 @@ export type RecipeDetailViewProps = {
   defaultEmail?: string;
   verifiedTargetReviewId?: string | null;
   shoppingListEnabled?: boolean;
+  mealPlannerEnabled?: boolean;
   /** groupIndex:itemIndex → Ingredient slug for indexable SEO links (public only). */
   ingredientSeoLinks?: Record<string, string>;
 };
@@ -62,6 +63,7 @@ export function RecipeDetailView({
   defaultEmail = "",
   verifiedTargetReviewId = null,
   shoppingListEnabled = false,
+  mealPlannerEnabled = false,
   ingredientSeoLinks = {},
 }: RecipeDetailViewProps) {
   const preview = mode === "preview";
@@ -91,6 +93,7 @@ export function RecipeDetailView({
         youtube={youtube}
         initialStageVideoHelp={initialStageVideoHelp}
         shoppingListEnabled={shoppingListEnabled}
+        mealPlannerEnabled={mealPlannerEnabled && !preview}
         ingredientSeoLinks={preview ? {} : ingredientSeoLinks}
       />
 

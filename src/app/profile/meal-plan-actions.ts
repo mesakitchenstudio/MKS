@@ -86,6 +86,18 @@ export async function ensureDefaultMealPlanAction(): Promise<
   return result;
 }
 
+export async function listMealPlansAction(): Promise<
+  MealPlanActionResult<{ plans: { id: string; name: string }[] }>
+> {
+  const authz = await requireMealPlannerMemberUserId();
+  if (!authz.ok) return authz.result;
+  const plans = await listMealPlansForUser(authz.userId);
+  return {
+    ok: true,
+    data: { plans: plans.map((plan) => ({ id: plan.id, name: plan.name })) },
+  };
+}
+
 export async function createMealPlanAction(
   rawName: string,
 ): Promise<MealPlanActionResult<{ id: string; name: string }>> {

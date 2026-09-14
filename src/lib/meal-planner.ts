@@ -9,7 +9,7 @@ import {
   normalizeSavedRecipeCollectionNameKey,
 } from "@/lib/saved-recipe-collections";
 
-/** Default name for an automatically-created first plan (later phases). */
+/** Default first-plan name for an automatically-created plan (later phases). */
 export const MEAL_PLAN_DEFAULT_NAME = "My Meal Plan";
 
 export const MEAL_PLAN_MAX_PLANS = 20;
@@ -31,6 +31,9 @@ export const MEAL_SLOT_LABELS: Record<MealSlot, string> = {
   dinner: "Dinner",
   snack: "Snack",
 };
+
+/** Default meal slot for Recipe-detail Add to Meal Plan (no meal context on the page). */
+export const MEAL_PLAN_DEFAULT_SLOT: MealSlot = "dinner";
 
 const CIVIL_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -485,6 +488,14 @@ export function formatMealPlanDayStripLabel(ymd: unknown): { weekday: string; da
 /** Browser-local civil today — client-only; do not call during SSR. */
 export function browserLocalTodayYmd(now: Date = new Date()): string {
   return formatCivilDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
+/** Planner deep link for the week containing a civil planDate. */
+export function mealPlannerHrefForDate(planId: string, planDate: string): string | null {
+  const id = String(planId ?? "").trim();
+  const weekStart = startOfWeekMonday(planDate);
+  if (!id || !weekStart) return null;
+  return `/profile/meal-planner/${id}?week=${weekStart}`;
 }
 
 export function mealPlanErrorMessage(error: MealPlanError): string {

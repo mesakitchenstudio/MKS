@@ -22,6 +22,7 @@ import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideoOptional } from "@/components/youtube/RecipeVideoContext";
 import { AddRecipeToShoppingListButton } from "@/components/AddRecipeToShoppingListButton";
+import { AddRecipeToMealPlanButton } from "@/components/AddRecipeToMealPlanButton";
 
 function ChevronDown({ open }: { open: boolean }) {
   return (
@@ -209,6 +210,7 @@ export function RecipeCookingWorkspace(props: {
   youtube?: ResolvedRecipeYoutube | null;
   initialStageVideoHelp?: Record<string, StageVideoHelp>;
   shoppingListEnabled?: boolean;
+  mealPlannerEnabled?: boolean;
   /** groupIndex:itemIndex → Ingredient slug (server-resolved, indexable only). */
   ingredientSeoLinks?: Record<string, string>;
 }) {
@@ -220,12 +222,14 @@ function RecipeCookingWorkspaceInner({
   youtube = null,
   initialStageVideoHelp = {},
   shoppingListEnabled = false,
+  mealPlannerEnabled = false,
   ingredientSeoLinks = {},
 }: {
   recipe: Recipe;
   youtube?: ResolvedRecipeYoutube | null;
   initialStageVideoHelp?: Record<string, StageVideoHelp>;
   shoppingListEnabled?: boolean;
+  mealPlannerEnabled?: boolean;
   ingredientSeoLinks?: Record<string, string>;
 }) {
   const [servings, setServings] = useState(recipe.servings);
@@ -378,6 +382,14 @@ function RecipeCookingWorkspaceInner({
 
             {shoppingListEnabled ? (
               <AddRecipeToShoppingListButton recipe={recipe} selectedServings={servings} />
+            ) : null}
+
+            {mealPlannerEnabled && recipe.id?.trim() ? (
+              <AddRecipeToMealPlanButton
+                recipeId={recipe.id.trim()}
+                recipeTitle={recipe.title}
+                defaultServings={servings}
+              />
             ) : null}
 
             {recipe.ingredients.map((group, groupIndex) => (
