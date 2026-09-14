@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { findActiveMemberByEmail } from "@/lib/accounts";
 import {
@@ -13,6 +14,8 @@ import {
   createMealPlanForUser,
   deleteMealPlanForUser,
   deleteMealPlanItemForUser,
+  ensureDefaultMealPlanForUser,
+  listMealPlansForUser,
   moveMealPlanItemForUser,
   moveMealPlanItemInSlotForUser,
   renameMealPlanForUser,
@@ -66,12 +69,31 @@ async function requireMealPlannerMemberUserId(): Promise<
   return { ok: true, userId: member.id };
 }
 
+function revalidateMealPlanner(planIds?: string[]) {
+  revalidatePath("/profile/meal-planner");
+  for (const planId of planIds ?? []) {
+    if (planId) revalidatePath(`/profile/meal-planner/${planId}`);
+  }
+}
+
+export async function ensureDefaultMealPlanAction(): Promise<
+  MealPlanActionResult<{ id: string; name: string; created: boolean }>
+> {
+  const authz = await requireMealPlannerMemberUserId();
+  if (!authz.ok) return authz.result;
+  const result = await ensureDefaultMealPlanForUser(authz.userId);
+  if (result.ok) revalidateMealPlanner([result.data.id]);
+  return result;
+}
+
 export async function createMealPlanAction(
   rawName: string,
 ): Promise<MealPlanActionResult<{ id: string; name: string }>> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return createMealPlanForUser(authz.userId, rawName);
+  const result = await createMealPlanForUser(authz.userId, rawName);
+  if (result.ok) revalidateMealPlanner([result.data.id]);
+  return result;
 }
 
 export async function renameMealPlanAction(
@@ -80,7 +102,9 @@ export async function renameMealPlanAction(
 ): Promise<MealPlanActionResult<{ id: string; name: string }>> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return renameMealPlanForUser(authz.userId, planId, rawName);
+  const result = await renameMealPlanForUser(authz.userId, planId, rawName);
+  if (result.ok) revalidateMealPlanner([planId]);
+  return result;
 }
 
 export async function deleteMealPlanAction(
@@ -88,7 +112,34 @@ export async function deleteMealPlanAction(
 ): Promise<MealPlanActionResult> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return deleteMealPlanForUser(authz.userId, planId);
+  const result = await deleteMealPlanForUser(authz.userId, planId);
+  if (result.ok) revalidateMealPlanner([planId]);
+  return result;
+}
+
+/**
+ * Delete a plan, then ensure a selectable plan remains (default "My Meal Plan" if none).
+ * Orchestration for UI — does not embed ensure inside low-level delete.
+ */
+export async function deleteMealPlanAndSelectNextAction(
+  planId: string,
+): Promise<MealPlanActionResult<{ id: string; name: string }>> {
+  const authz = await requireMealPlannerMemberUserId();
+  if (!authz.ok) return authz.result;
+
+  const deleted = await deleteMealPlanForUser(authz.userId, planId);
+  if (!deleted.ok) return deleted;
+
+  const remaining = await listMealPlansForUser(authz.userId);
+  if (remaining.length > 0) {
+    revalidateMealPlanner([planId, remaining[0]!.id]);
+    return { ok: true, data: { id: remaining[0]!.id, name: remaining[0]!.name } };
+  }
+
+  const ensured = await ensureDefaultMealPlanForUser(authz.userId);
+  if (!ensured.ok) return ensured;
+  revalidateMealPlanner([planId, ensured.data.id]);
+  return { ok: true, data: { id: ensured.data.id, name: ensured.data.name } };
 }
 
 export async function addMealPlanItemAction(input: {
@@ -102,11 +153,14 @@ export async function addMealPlanItemAction(input: {
 }): Promise<MealPlanActionResult<{ item: MealPlanItemView }>> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return addMealPlanItemForUser(authz.userId, input);
+  const result = await addMealPlanItemForUser(authz.userId, input);
+  if (result.ok) revalidateMealPlanner([input.planId]);
+  return result;
 }
 
 export async function updateMealPlanItemAction(input: {
   itemId: string;
+  planId: string;
   planDate?: string;
   mealSlot?: string;
   plannedServings?: number;
@@ -115,46 +169,57 @@ export async function updateMealPlanItemAction(input: {
 }): Promise<MealPlanActionResult<{ item: MealPlanItemView }>> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  const { itemId, ...rest } = input;
-  return updateMealPlanItemForUser(authz.userId, itemId, rest);
+  const { itemId, planId, ...rest } = input;
+  const result = await updateMealPlanItemForUser(authz.userId, itemId, rest);
+  if (result.ok) revalidateMealPlanner([planId]);
+  return result;
 }
 
 export async function moveMealPlanItemAction(input: {
   itemId: string;
+  planId: string;
   planDate: string;
   mealSlot: string;
   today: string;
 }): Promise<MealPlanActionResult<{ item: MealPlanItemView }>> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return moveMealPlanItemForUser(authz.userId, input.itemId, {
+  const result = await moveMealPlanItemForUser(authz.userId, input.itemId, {
     planDate: input.planDate,
     mealSlot: input.mealSlot,
     today: input.today,
   });
+  if (result.ok) revalidateMealPlanner([input.planId]);
+  return result;
 }
 
 export async function copyMealPlanItemAction(input: {
   itemId: string;
+  planId: string;
   planDate: string;
   mealSlot: string;
   today: string;
 }): Promise<MealPlanActionResult<{ item: MealPlanItemView }>> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return copyMealPlanItemForUser(authz.userId, input.itemId, {
+  const result = await copyMealPlanItemForUser(authz.userId, input.itemId, {
     planDate: input.planDate,
     mealSlot: input.mealSlot,
     today: input.today,
   });
+  if (result.ok) revalidateMealPlanner([input.planId]);
+  return result;
 }
 
-export async function deleteMealPlanItemAction(
-  itemId: string,
-): Promise<MealPlanActionResult> {
+export async function deleteMealPlanItemAction(input: {
+  itemId: string;
+  planId: string;
+}): Promise<MealPlanActionResult> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return deleteMealPlanItemForUser(authz.userId, itemId);
+  const result = await deleteMealPlanItemForUser(authz.userId, input.itemId);
+  if (result.ok) revalidateMealPlanner([input.planId]);
+  return result;
 }
 
 export async function reorderMealPlanItemsAction(input: {
@@ -165,14 +230,23 @@ export async function reorderMealPlanItemsAction(input: {
 }): Promise<MealPlanActionResult<{ items: MealPlanItemView[] }>> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return reorderMealPlanItemsForUser(authz.userId, input);
+  const result = await reorderMealPlanItemsForUser(authz.userId, input);
+  if (result.ok) revalidateMealPlanner([input.planId]);
+  return result;
 }
 
 export async function moveMealPlanItemInSlotAction(input: {
   itemId: string;
+  planId: string;
   direction: "up" | "down";
 }): Promise<MealPlanActionResult<{ items: MealPlanItemView[] }>> {
   const authz = await requireMealPlannerMemberUserId();
   if (!authz.ok) return authz.result;
-  return moveMealPlanItemInSlotForUser(authz.userId, input.itemId, input.direction);
+  const result = await moveMealPlanItemInSlotForUser(
+    authz.userId,
+    input.itemId,
+    input.direction,
+  );
+  if (result.ok) revalidateMealPlanner([input.planId]);
+  return result;
 }

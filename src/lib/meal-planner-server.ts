@@ -607,10 +607,21 @@ export async function copyMealPlanItemForUser(
   });
   if (!existing) return fail("ITEM_NOT_FOUND", "Meal item not found.");
 
-  // Copy keeps historical recipe identity; if recipe was deleted, still allow copy with denormalized fields.
-  // If recipe still exists but is draft, copy is still historical plan data (already on plan).
+  // Copy creates a new meal entry — require a currently Published Recipe (no orphan/draft copies).
+  if (!existing.recipeId) {
+    return fail("RECIPE_NOT_AVAILABLE", "This recipe is no longer available.");
+  }
+
   try {
     const created = await db.$transaction(async (tx) => {
+      const recipe = await tx.recipe.findUnique({
+        where: { id: existing.recipeId! },
+        select: { id: true, slug: true, title: true, status: true },
+      });
+      if (!recipe || recipe.status !== "published") {
+        throw Object.assign(new Error("RECIPE_NOT_AVAILABLE"), { code: "RECIPE_NOT_AVAILABLE" });
+      }
+
       const itemCount = await tx.mealPlanItem.count({ where: { planId: existing.planId } });
       if (itemCount >= MEAL_PLAN_MAX_ITEMS) {
         throw Object.assign(new Error("PLAN_ITEM_LIMIT_REACHED"), { code: "PLAN_ITEM_LIMIT_REACHED" });
@@ -633,9 +644,9 @@ export async function copyMealPlanItemForUser(
       const row = await tx.mealPlanItem.create({
         data: {
           planId: existing.planId,
-          recipeId: existing.recipeId,
-          recipeSlug: existing.recipeSlug,
-          recipeTitle: existing.recipeTitle,
+          recipeId: recipe.id,
+          recipeSlug: recipe.slug,
+          recipeTitle: recipe.title,
           planDate: horizon.planDate,
           mealSlot: slot.mealSlot,
           sortOrder,
@@ -658,6 +669,9 @@ export async function copyMealPlanItemForUser(
     return { ok: true, data: { item: toItemView(created as ItemRow) } };
   } catch (error) {
     const code = (error as { code?: string })?.code;
+    if (code === "RECIPE_NOT_AVAILABLE") {
+      return fail("RECIPE_NOT_AVAILABLE", "This recipe is no longer available.");
+    }
     if (code === "PLAN_ITEM_LIMIT_REACHED") {
       return fail(
         "PLAN_ITEM_LIMIT_REACHED",

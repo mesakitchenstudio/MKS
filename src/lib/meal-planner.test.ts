@@ -206,18 +206,22 @@ describe("Phase 5A limits + gate", () => {
     assert.equal(MEAL_PLAN_DEFAULT_NAME, "My Meal Plan");
   });
 
-  it("feature gate defaults off unless explicitly true", () => {
+  it("feature gate defaults off; only MEAL_PLANNER_ENABLED=true enables", () => {
     const prevA = process.env.MEAL_PLANNER_ENABLED;
     const prevB = process.env.NEXT_PUBLIC_MEAL_PLANNER_ENABLED;
     try {
       delete process.env.MEAL_PLANNER_ENABLED;
       delete process.env.NEXT_PUBLIC_MEAL_PLANNER_ENABLED;
       assert.equal(isMealPlannerEnabled(), false);
+
       process.env.MEAL_PLANNER_ENABLED = "true";
       assert.equal(isMealPlannerEnabled(), true);
+
+      // NEXT_PUBLIC alone must NOT enable Meal Planner.
       delete process.env.MEAL_PLANNER_ENABLED;
       process.env.NEXT_PUBLIC_MEAL_PLANNER_ENABLED = "true";
-      assert.equal(isMealPlannerEnabled(), true);
+      assert.equal(isMealPlannerEnabled(), false);
+
       process.env.MEAL_PLANNER_ENABLED = "false";
       delete process.env.NEXT_PUBLIC_MEAL_PLANNER_ENABLED;
       assert.equal(isMealPlannerEnabled(), false);

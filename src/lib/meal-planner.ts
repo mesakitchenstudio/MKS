@@ -299,11 +299,240 @@ export function validateMealPlanSortOrder(
 
 /**
  * Feature gate — default OFF unless explicitly true.
- * UI/routes remain Phase 5B+; do not set Production env in 5A.
+ * Authoritative flag: MEAL_PLANNER_ENABLED (server-side only).
+ * Do not use NEXT_PUBLIC_* — pass mealPlannerEnabled from server layouts into client UI.
  */
 export function isMealPlannerEnabled(): boolean {
-  return (
-    process.env.MEAL_PLANNER_ENABLED === "true" ||
-    process.env.NEXT_PUBLIC_MEAL_PLANNER_ENABLED === "true"
-  );
+  return process.env.MEAL_PLANNER_ENABLED === "true";
 }
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+export function formatCivilDate(year: number, month: number, day: number): string {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+/** Add (or subtract) whole civil days from a YYYY-MM-DD string. */
+export function addCivilDays(ymd: unknown, deltaDays: number): string | null {
+  const parts = parseCivilDateParts(ymd);
+  if (!parts || !Number.isInteger(deltaDays)) return null;
+  const probe = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + deltaDays));
+  return formatCivilDate(probe.getUTCFullYear(), probe.getUTCMonth() + 1, probe.getUTCDate());
+}
+
+/**
+ * Mesa Planner weeks are Monday → Sunday (civil calendar, not Admin TRT).
+ * Returns the Monday YYYY-MM-DD of the week containing `ymd`.
+ */
+export function startOfWeekMonday(ymd: unknown): string | null {
+  const parts = parseCivilDateParts(ymd);
+  if (!parts) return null;
+  const utc = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  const weekday = utc.getUTCDay(); // 0=Sun … 6=Sat
+  const offset = weekday === 0 ? -6 : 1 - weekday;
+  return addCivilDays(parts.iso, offset);
+}
+
+export function endOfWeekSunday(weekStartMonday: unknown): string | null {
+  const monday = startOfWeekMonday(weekStartMonday);
+  if (!monday) return null;
+  return addCivilDays(monday, 6);
+}
+
+/** Seven civil dates Mon→Sun for the week containing the given date (or Monday start). */
+export function mealPlanWeekDates(weekStartMonday: unknown): string[] | null {
+  const monday = startOfWeekMonday(weekStartMonday);
+  if (!monday) return null;
+  const days: string[] = [];
+  for (let i = 0; i < 7; i += 1) {
+    const day = addCivilDays(monday, i);
+    if (!day) return null;
+    days.push(day);
+  }
+  return days;
+}
+
+export function previousMealPlanWeekStart(weekStartMonday: unknown): string | null {
+  const start = startOfWeekMonday(weekStartMonday);
+  if (!start) return null;
+  return addCivilDays(start, -7);
+}
+
+export function nextMealPlanWeekStart(weekStartMonday: unknown): string | null {
+  const start = startOfWeekMonday(weekStartMonday);
+  if (!start) return null;
+  return addCivilDays(start, 7);
+}
+
+export function isDateInMealPlanWeek(ymd: unknown, weekStartMonday: unknown): boolean {
+  const day = parseCivilDateParts(ymd)?.iso;
+  const days = mealPlanWeekDates(weekStartMonday);
+  if (!day || !days) return false;
+  return days.includes(day);
+}
+
+/**
+ * Parse `?week=` — snap any valid civil date to that week's Monday.
+ * Optional `today` enforces ±366 horizon on the Monday.
+ */
+export function parseMealPlanWeekParam(
+  raw: unknown,
+  today?: unknown,
+): { ok: true; weekStart: string } | { ok: false; error: "INVALID_DATE" | "DATE_OUT_OF_RANGE" } {
+  if (raw === undefined || raw === null || raw === "") {
+    return { ok: false, error: "INVALID_DATE" };
+  }
+  const date = validateMealPlanDate(raw);
+  if (!date.ok) return { ok: false, error: "INVALID_DATE" };
+  const weekStart = startOfWeekMonday(date.planDate);
+  if (!weekStart) return { ok: false, error: "INVALID_DATE" };
+  if (today !== undefined && today !== null && today !== "") {
+    const horizon = validateMealPlanDateHorizon(weekStart, today);
+    if (!horizon.ok) {
+      return {
+        ok: false,
+        error: horizon.error === "OUT_OF_HORIZON" ? "DATE_OUT_OF_RANGE" : "INVALID_DATE",
+      };
+    }
+  }
+  return { ok: true, weekStart };
+}
+
+const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const WEEKDAY_LONG = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+const MONTH_LONG = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+export function mealPlanWeekdayShort(ymd: unknown): string | null {
+  const days = mealPlanWeekDates(startOfWeekMonday(ymd) ?? "");
+  const iso = parseCivilDateParts(ymd)?.iso;
+  if (!days || !iso) return null;
+  const index = days.indexOf(iso);
+  return index >= 0 ? WEEKDAY_SHORT[index]! : null;
+}
+
+export function formatMealPlanWeekRangeLabel(weekStartMonday: unknown): string | null {
+  const days = mealPlanWeekDates(weekStartMonday);
+  if (!days) return null;
+  const start = parseCivilDateParts(days[0]!);
+  const end = parseCivilDateParts(days[6]!);
+  if (!start || !end) return null;
+  const startLabel = `${MONTH_SHORT[start.month - 1]} ${start.day}`;
+  const endLabel =
+    start.month === end.month
+      ? `${end.day}, ${end.year}`
+      : start.year === end.year
+        ? `${MONTH_SHORT[end.month - 1]} ${end.day}, ${end.year}`
+        : `${MONTH_SHORT[end.month - 1]} ${end.day}, ${end.year}`;
+  return `${startLabel}–${endLabel}`;
+}
+
+export function formatMealPlanDayHeading(ymd: unknown): string | null {
+  const parts = parseCivilDateParts(ymd);
+  if (!parts) return null;
+  const monday = startOfWeekMonday(parts.iso);
+  const days = monday ? mealPlanWeekDates(monday) : null;
+  if (!days) return null;
+  const index = days.indexOf(parts.iso);
+  if (index < 0) return null;
+  return `${WEEKDAY_LONG[index]} · ${MONTH_LONG[parts.month - 1]} ${parts.day}`;
+}
+
+export function formatMealPlanDayStripLabel(ymd: unknown): { weekday: string; day: number } | null {
+  const parts = parseCivilDateParts(ymd);
+  if (!parts) return null;
+  const weekday = mealPlanWeekdayShort(parts.iso);
+  if (!weekday) return null;
+  return { weekday, day: parts.day };
+}
+
+/** Browser-local civil today — client-only; do not call during SSR. */
+export function browserLocalTodayYmd(now: Date = new Date()): string {
+  return formatCivilDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
+export function mealPlanErrorMessage(error: MealPlanError): string {
+  switch (error) {
+    case "NOT_AUTHENTICATED":
+      return "Sign in to manage meal plans.";
+    case "FEATURE_DISABLED":
+      return "Meal Planner is not available right now.";
+    case "PLAN_NOT_FOUND":
+      return "Meal plan not found.";
+    case "ITEM_NOT_FOUND":
+      return "Meal item not found.";
+    case "INVALID_NAME":
+      return "Enter a valid meal plan name.";
+    case "DUPLICATE_PLAN_NAME":
+      return "You already have a meal plan with that name.";
+    case "PLAN_LIMIT_REACHED":
+      return `You can create up to ${MEAL_PLAN_MAX_PLANS} meal plans.`;
+    case "PLAN_ITEM_LIMIT_REACHED":
+      return `A meal plan can hold up to ${MEAL_PLAN_MAX_ITEMS} items.`;
+    case "DATE_ITEM_LIMIT_REACHED":
+      return `You can plan up to ${MEAL_PLAN_MAX_ITEMS_PER_DATE} meals for one day.`;
+    case "INVALID_DATE":
+      return "Use a valid date (YYYY-MM-DD).";
+    case "DATE_OUT_OF_RANGE":
+      return `Choose a date within ${MEAL_PLAN_DATE_HORIZON_DAYS} days of today.`;
+    case "INVALID_SLOT":
+      return "Choose a valid meal slot.";
+    case "INVALID_SERVINGS":
+      return `Servings must be between ${MEAL_PLAN_SERVINGS_MIN} and ${MEAL_PLAN_SERVINGS_MAX}.`;
+    case "INVALID_NOTE":
+      return `Use ${MEAL_PLAN_NOTE_MAX_LENGTH} characters or fewer.`;
+    case "INVALID_SORT_ORDER":
+      return "Sort order must be a non-negative integer.";
+    case "RECIPE_NOT_AVAILABLE":
+      return "This recipe is no longer available.";
+    case "INVALID_REORDER":
+      return "Could not reorder those meals.";
+    default:
+      return "Something went wrong. Please try again.";
+  }
+}
+
+export type MealPlannerRecipeOption = {
+  id: string;
+  slug: string;
+  title: string;
+  image: string;
+  imageAlt: string;
+  servings: number;
+};

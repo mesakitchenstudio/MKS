@@ -13,6 +13,7 @@ import { ProfileFavorites } from "@/components/ProfileFavorites";
 import { ProfileSavedCollections } from "@/components/ProfileSavedCollections";
 import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
 import { getMemberSavedCollections } from "@/lib/saved-recipe-collections-server";
+import { isMealPlannerEnabled } from "@/lib/meal-planner";
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -126,6 +127,21 @@ export default async function ProfilePage() {
           </div>
         </div>
       </header>
+
+      {isMealPlannerEnabled() ? (
+        <section className="mt-7 border-t border-line pt-7 md:mt-8 md:pt-8">
+          <h2 className="font-serif text-3xl text-ink">Meal Planner</h2>
+          <p className="mt-1.5 text-sm text-muted">
+            Plan recipes across your week. Private to your account.
+          </p>
+          <Link
+            href="/profile/meal-planner"
+            className={`mt-4 inline-flex h-11 items-center justify-center rounded-full border border-line bg-paper px-5 text-sm font-semibold text-ink transition-colors hover:bg-cream/80 ${authFocusRing}`}
+          >
+            Open Meal Planner
+          </Link>
+        </section>
+      ) : null}
 
       <section className="mt-7 border-t border-line pt-7 md:mt-8 md:pt-8">
         <h2 className="font-serif text-3xl text-ink">Saved recipes</h2>

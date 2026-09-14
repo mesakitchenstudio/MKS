@@ -25,7 +25,7 @@ const signOutClass =
 const triggerFocus =
   "rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
-export function AccountMenu() {
+export function AccountMenu({ mealPlannerEnabled = false }: { mealPlannerEnabled?: boolean }) {
   const { data, status } = useSession();
   const pathname = usePathname();
   const [localUser, setLocalUser] = useState<PublicUser | null>(null);
@@ -154,15 +154,28 @@ export function AccountMenu() {
               Studio admin
             </Link>
           ) : (
-            <Link
-              href="/profile"
-              role="menuitem"
-              aria-current={onProfile ? "page" : undefined}
-              className={`${menuItemClass} ${onProfile ? menuItemActiveClass : ""}`}
-              onClick={() => setOpen(false)}
-            >
-              Profile
-            </Link>
+            <>
+              <Link
+                href="/profile"
+                role="menuitem"
+                aria-current={onProfile && !pathname.startsWith("/profile/meal-planner") ? "page" : undefined}
+                className={`${menuItemClass} ${onProfile && !pathname.startsWith("/profile/meal-planner") ? menuItemActiveClass : ""}`}
+                onClick={() => setOpen(false)}
+              >
+                Profile
+              </Link>
+              {mealPlannerEnabled ? (
+                <Link
+                  href="/profile/meal-planner"
+                  role="menuitem"
+                  aria-current={pathname.startsWith("/profile/meal-planner") ? "page" : undefined}
+                  className={`${menuItemClass} ${pathname.startsWith("/profile/meal-planner") ? menuItemActiveClass : ""}`}
+                  onClick={() => setOpen(false)}
+                >
+                  Meal Planner
+                </Link>
+              ) : null}
+            </>
           )}
 
           <div className="border-t border-line" role="none" />

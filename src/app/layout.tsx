@@ -23,6 +23,7 @@ import { recipeSearchHaystack } from "@/lib/recipe-utils";
 import { hasRecipeYoutube } from "@/lib/recipe-youtube";
 import { siteGraphJsonLd } from "@/lib/schema";
 import { isShoppingListEnabled } from "@/lib/shopping-list";
+import { isMealPlannerEnabled } from "@/lib/meal-planner";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -168,6 +169,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               recipes={recipes}
               newsletterSubscribed={newsletterSubscribed}
               shoppingListEnabled={isShoppingListEnabled()}
+              mealPlannerEnabled={isMealPlannerEnabled()}
             >
               <main
                 id="main-content"

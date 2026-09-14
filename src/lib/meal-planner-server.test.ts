@@ -72,6 +72,9 @@ describe("Phase 5B — wiring / gate / actions (static + gate)", () => {
       delete process.env.MEAL_PLANNER_ENABLED;
       delete process.env.NEXT_PUBLIC_MEAL_PLANNER_ENABLED;
       assert.equal(isMealPlannerEnabled(), false);
+      // NEXT_PUBLIC alone must not unlock actions.
+      process.env.NEXT_PUBLIC_MEAL_PLANNER_ENABLED = "true";
+      assert.equal(isMealPlannerEnabled(), false);
       const result = await createMealPlanAction("Weekend");
       assert.equal(result.ok, false);
       if (!result.ok) assert.equal(result.error, "FEATURE_DISABLED");

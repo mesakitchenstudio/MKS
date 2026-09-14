@@ -13,6 +13,7 @@ export function PublicChrome({
   recipes = [],
   newsletterSubscribed = false,
   shoppingListEnabled = false,
+  mealPlannerEnabled = false,
 }: {
   children: React.ReactNode;
   hideTools?: boolean;
@@ -22,6 +23,7 @@ export function PublicChrome({
   /** Server-resolved: session email has an active NewsletterSubscriber row. */
   newsletterSubscribed?: boolean;
   shoppingListEnabled?: boolean;
+  mealPlannerEnabled?: boolean;
 }) {
   const pathname = usePathname() || "";
 
@@ -44,7 +46,7 @@ export function PublicChrome({
 
   return (
     <>
-      {showPublicChrome ? <SiteHeader /> : null}
+      {showPublicChrome ? <SiteHeader mealPlannerEnabled={mealPlannerEnabled} /> : null}
       {children}
       {showPublicChrome ? (
         <SiteFooter

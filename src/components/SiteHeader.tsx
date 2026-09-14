@@ -27,7 +27,7 @@ function primaryMegaLabel(slug: string) {
   return slug;
 }
 
-export function SiteHeader() {
+export function SiteHeader({ mealPlannerEnabled = false }: { mealPlannerEnabled?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -203,7 +203,7 @@ export function SiteHeader() {
         )}
 
         <div className="ml-auto flex items-center gap-3 md:ml-4">
-          <AccountMenu />
+          <AccountMenu mealPlannerEnabled={mealPlannerEnabled} />
           <button
             type="button"
             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta md:hidden"
