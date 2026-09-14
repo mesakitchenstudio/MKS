@@ -69,6 +69,8 @@ model Recipe {
   studioLessonLinks StudioLessonRecipeLink[]
   saves       RecipeSave[]
   reviews     RecipeReview[]
+  /// Private member Meal Planner items (Phase 5). Recipe delete → SetNull; denormalized slug/title kept.
+  mealPlanItems MealPlanItem[]
   /// Derived ingredient-identity index (ING-2+). Authored text remains in values.ingredients.
   recipeIngredients RecipeIngredient[]
   /// Optional relation for live recipes only — see RecipeRevision.recipeId delete policy.
@@ -223,6 +225,7 @@ model User {
   lastSeenAt   DateTime         @default(now())
   saves        RecipeSave[]
   savedRecipeCollections SavedRecipeCollection[]
+  mealPlans    MealPlan[]
   connections  UserConnection[]
   reviews      RecipeReview[]
   presenceSessions MemberPresenceSession[]
@@ -294,6 +297,54 @@ model SavedRecipeCollectionItem {
   @@unique([collectionId, recipeSaveId])
   @@index([recipeSaveId])
   @@index([collectionId, createdAt])
+}
+
+/**
+ * Private member Meal Planner plan (Phase 5).
+ * Not public; no slug/sharing. Distinct from SavedRecipeCollection.
+ */
+model MealPlan {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  /// Lowercased trimmed name for per-member uniqueness (same philosophy as SavedRecipeCollection).
+  nameNorm  String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  items     MealPlanItem[]
+
+  @@unique([userId, nameNorm])
+  @@index([userId, updatedAt])
+}
+
+/**
+ * Recipe-based Meal Plan row. recipeId may become null when Recipe is deleted;
+ * recipeSlug / recipeTitle remain for orphan-safe display. Same recipe may appear more than once.
+ */
+model MealPlanItem {
+  id              String    @id @default(cuid())
+  planId          String
+  plan            MealPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  recipeId        String?
+  recipe          Recipe?   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  /// Denormalized public URL slug (orphan-safe).
+  recipeSlug      String
+  /// Denormalized display title (orphan-safe).
+  recipeTitle     String
+  /// Member-local civil calendar date YYYY-MM-DD (not DateTime / not Admin TRT).
+  planDate        String
+  /// MVP slots only: breakfast | lunch | dinner | snack
+  mealSlot        String
+  sortOrder       Int
+  plannedServings Int
+  note            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([planId, planDate, mealSlot, sortOrder])
+  @@index([recipeId])
+  @@index([planId, recipeId])
 }
 
 model RecipeReview {
