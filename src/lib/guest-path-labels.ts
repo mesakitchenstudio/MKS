@@ -66,6 +66,11 @@ export function guestPathTitle(path: string, recipeTitles?: Map<string, string>)
     return humanizeSlug(seriesMatch[1]);
   }
 
+  const ingredientMatch = clean.match(/^\/ingredient\/([^/]+)\/?$/);
+  if (ingredientMatch?.[1]) {
+    return `${humanizeSlug(ingredientMatch[1])} Recipes`;
+  }
+
   const studioMatch = clean.match(/^\/studio\/([^/]+)\/?$/);
   if (studioMatch?.[1]) {
     return humanizeSlug(studioMatch[1]);

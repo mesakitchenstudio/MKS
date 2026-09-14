@@ -1,5 +1,6 @@
 import { activityDocTopic } from "./topics/activity";
 import { categoriesDocTopic } from "./topics/categories";
+import { ingredientsDocTopic } from "./topics/ingredients";
 import { contentCalendarDocTopic } from "./topics/content-calendar";
 import { contentHealthDocTopic } from "./topics/content-health";
 import { contentPerformanceDocTopic } from "./topics/content-performance";
@@ -72,6 +73,7 @@ export const ADMIN_DOC_TOPICS: AdminDocTopic[] = [
   mediaDocTopic,
   mediaAssetDocTopic,
   categoriesDocTopic,
+  ingredientsDocTopic,
   seriesDocTopic,
   seriesEditorDocTopic,
   seriesImportDocTopic,
@@ -109,6 +111,7 @@ const EXACT_PATH_TOPIC_IDS: Record<string, string> = {
   "/admin/studio": "studio",
   "/admin/media": "media",
   "/admin/categories": "categories",
+  "/admin/ingredients": "ingredients",
   "/admin/series": "series",
   "/admin/series/new": "series-editor",
   "/admin/series/import": "series-import",

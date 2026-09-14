@@ -39,19 +39,19 @@ export default async function AdminSeriesImportPage({
         <div>
           <p className="text-sm">
             <Link href="/admin/series" className={adminLinkClass}>
-              ← Series
+              ← Collections
             </Link>
           </p>
           <h1 className="mt-2 font-serif text-3xl text-ink">Import YouTube playlist</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Choose a public Mesa Kitchen Studio playlist. Mesa imports videos and order, attaches
+            Import a public playlist as a YouTube Collection. Mesa imports videos and order, attaches
             matching recipes, and leaves editorial SEO/hero fields for you to enrich.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <AdminDocumentationButton topicId="series-import" />
           <Link href="/admin/series/new" className={`${secondaryBtn} ${adminFocusRing}`}>
-            Create custom Series instead
+            Create Mesa Collection instead
           </Link>
         </div>
       </div>
@@ -108,7 +108,7 @@ export default async function AdminSeriesImportPage({
                   href={`/admin/series/${playlist.existingSeriesId}`}
                   className={`${adminPrimaryButtonClass} ${adminFocusRing}`}
                 >
-                  Edit Series
+                  Edit Collection
                 </Link>
               ) : (
                 <form action={importYoutubePlaylistAction}>

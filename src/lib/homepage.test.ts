@@ -245,9 +245,11 @@ describe("homepage Phase 1 discovery UI", () => {
     const block = read("src/components/HomepageFeaturedSeries.tsx");
     assert.match(block, /PublicSeriesCard/);
     assert.match(block, /href = `\/series\/\$\{series\.slug\}`/);
-    assert.match(block, /Featured series/);
+    assert.match(block, /Featured collection/);
     assert.match(block, /formatHomepageSeriesMetaLabel/);
-    assert.match(block, /Explore the series →/);
+    assert.match(block, /Explore collection →/);
+    assert.match(block, /Explore all collections →/);
+    assert.match(block, /placement="homepage_collections_index"/);
     assert.match(block, /ariaLabel=\{exploreLabel\}/);
     assert.match(block, /event="series_item_click"/);
     assert.match(block, /placement="homepage_series"/);
@@ -262,7 +264,8 @@ describe("homepage Phase 1 discovery UI", () => {
     assert.match(browse, /Browse the table/);
     assert.match(browse, /Browse recipes/);
     assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
-    assert.match(browse, /buildRecipesUrl\(\{ category: slug \}\)/);
+    assert.match(browse, /categoryPublicPath\(slug\)/);
+    assert.doesNotMatch(browse, /buildRecipesUrl/);
     assert.match(browse, /min-h-11/);
     assert.match(browse, /inline-flex/);
     assert.match(browse, /max-w-3xl/);
@@ -272,11 +275,11 @@ describe("homepage Phase 1 discovery UI", () => {
     assert.doesNotMatch(browse, /aspect-|Image|img |rounded-full bg-/);
   });
 
-  it("uses Cooking Series eyebrow on Featured Series without From the studio", () => {
+  it("uses Collections eyebrow on Featured Collection without From the studio", () => {
     const block = read("src/components/HomepageFeaturedSeries.tsx");
-    assert.match(block, /Cooking Series/);
+    assert.match(block, /Collections/);
     assert.doesNotMatch(block, /From the studio/);
-    assert.match(block, /Featured series/);
+    assert.match(block, /Featured collection/);
     assert.match(block, /event="series_item_click"/);
   });
 
@@ -299,7 +302,7 @@ describe("homepage Phase 1 discovery UI", () => {
   it("keeps Featured Series analytics and omits YouTube chrome after polish", () => {
     const block = read("src/components/HomepageFeaturedSeries.tsx");
     assert.match(block, /listPublishedSeries|PublicSeriesCard|publishedSeries\[0\]|series\.slug/);
-    assert.match(block, /formatHomepageSeriesMetaLabel\(series\.itemCount, series\.videoCount\)/);
+    assert.match(block, /formatHomepageSeriesMetaLabel\(\{[\s\S]*recipeCount: series\.recipeCount/);
     assert.match(block, /event="series_item_click"/);
     assert.match(block, /placement="homepage_series"/);
     assert.doesNotMatch(block, /<iframe|youtube\.com\/embed|Watch the full series on YouTube|YouTube logo|play icon/i);
@@ -405,8 +408,8 @@ describe("homepage Phase 4 editorial interactions", () => {
     assert.match(block, /aria-hidden="true"/);
     assert.match(block, /previews\.map\(\(item, index\)/);
     assert.match(block, /previewItems\.slice\(0, 2\)/);
-    assert.match(block, /Explore the series →/);
-    assert.equal((block.match(/Explore the series →/g) || []).length, 1);
+    assert.match(block, /Explore collection →/);
+    assert.equal((block.match(/Explore collection →/g) || []).length, 1);
     assert.doesNotMatch(block, /<iframe|youtube\.com\/embed|YouTube logo|play icon|rounded-full bg-/i);
     assert.doesNotMatch(block, /previews\.length > 0 \? null/);
   });
@@ -495,7 +498,8 @@ describe("homepage final launch QA contracts", () => {
     assert.match(series, /href=\{seriesHref\}/);
     assert.match(series, /placement="homepage_series"/);
     const browse = read("src/components/HomepageBrowseCategories.tsx");
-    assert.match(browse, /buildRecipesUrl\(\{ category: slug \}\)/);
+    assert.match(browse, /categoryPublicPath\(slug\)/);
+    assert.doesNotMatch(browse, /buildRecipesUrl/);
     assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
   });
 

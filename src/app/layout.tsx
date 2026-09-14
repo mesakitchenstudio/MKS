@@ -22,6 +22,7 @@ import { getAllRecipes, publicRecipeId } from "@/lib/recipes";
 import { recipeSearchHaystack } from "@/lib/recipe-utils";
 import { hasRecipeYoutube } from "@/lib/recipe-youtube";
 import { siteGraphJsonLd } from "@/lib/schema";
+import { isShoppingListEnabled } from "@/lib/shopping-list";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -166,6 +167,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               showChrome={!privateMode}
               recipes={recipes}
               newsletterSubscribed={newsletterSubscribed}
+              shoppingListEnabled={isShoppingListEnabled()}
             >
               <main
                 id="main-content"

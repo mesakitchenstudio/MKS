@@ -43,6 +43,9 @@ export type RecipeDetailViewProps = {
   defaultName?: string;
   defaultEmail?: string;
   verifiedTargetReviewId?: string | null;
+  shoppingListEnabled?: boolean;
+  /** groupIndex:itemIndex → Ingredient slug for indexable SEO links (public only). */
+  ingredientSeoLinks?: Record<string, string>;
 };
 
 export function RecipeDetailView({
@@ -58,6 +61,8 @@ export function RecipeDetailView({
   defaultName = "",
   defaultEmail = "",
   verifiedTargetReviewId = null,
+  shoppingListEnabled = false,
+  ingredientSeoLinks = {},
 }: RecipeDetailViewProps) {
   const preview = mode === "preview";
   const visibleExtrasList = publicExtrasForPage(recipe).filter((field) =>
@@ -85,6 +90,8 @@ export function RecipeDetailView({
         recipe={recipe}
         youtube={youtube}
         initialStageVideoHelp={initialStageVideoHelp}
+        shoppingListEnabled={shoppingListEnabled}
+        ingredientSeoLinks={preview ? {} : ingredientSeoLinks}
       />
 
       {preview ? null : (

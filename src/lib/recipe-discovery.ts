@@ -11,6 +11,13 @@ import {
   searchRecipesByText,
   totalMinutes,
 } from "@/lib/recipe-utils";
+import {
+  canonicalizeSlugList,
+  hasActiveIngredientFilter,
+  normalizeIngredientFilterSelection,
+  serializeIngredientSlugList,
+  type IngredientFilterSelection,
+} from "@/lib/ingredient-discovery";
 
 export type RecipeSort = "latest" | "alpha";
 
@@ -34,6 +41,12 @@ export type RecipeDiscoveryParams = {
   cuisine?: string;
   /** Exact method label (case-insensitive match). */
   method?: string;
+  /** Canonical Ingredient.slug values (include). */
+  ingredients?: string[];
+  /** all = every include; any = at least one. Omitted when no includes. */
+  ingredientMode?: "all" | "any";
+  /** Canonical Ingredient.slug values to exclude. */
+  excludeIngredients?: string[];
 };
 
 export const DISCOVERY_CATEGORIES = PRIMARY_PUBLIC_FILTERS;
@@ -92,6 +105,18 @@ export function cuisineFilterValue(cuisine: string) {
   return normalizeSearchText(cuisine);
 }
 
+function parseSlugListParam(raw: string | undefined): string[] | undefined {
+  if (!raw?.trim()) return undefined;
+  const list = canonicalizeSlugList(raw.split(","));
+  return list.length ? list : undefined;
+}
+
+function parseIngredientMode(raw: string | undefined): "all" | "any" | undefined {
+  if (raw === "any") return "any";
+  if (raw === "all") return "all";
+  return undefined;
+}
+
 export function parseDiscoveryParams(
   input: Record<string, string | string[] | undefined> | URLSearchParams,
 ): RecipeDiscoveryParams {
@@ -105,6 +130,15 @@ export function parseDiscoveryParams(
   const category = get("category");
   const cuisine = get("cuisine")?.trim();
   const method = get("method")?.trim();
+  const ingredients = parseSlugListParam(get("ingredients")?.trim());
+  const excludeIngredients = parseSlugListParam(get("excludeIngredients")?.trim());
+  const ingredientModeRaw = parseIngredientMode(get("ingredientMode")?.trim());
+
+  const normalized = normalizeIngredientFilterSelection({
+    ingredients,
+    excludeIngredients,
+    ingredientMode: ingredientModeRaw,
+  });
 
   return {
     q: get("q")?.trim() || undefined,
@@ -115,7 +149,37 @@ export function parseDiscoveryParams(
     video: parseVideoFilter(get("video")),
     cuisine: cuisine || undefined,
     method: method || undefined,
+    ingredients: normalized.includeSlugs.length ? normalized.includeSlugs : undefined,
+    excludeIngredients: normalized.excludeSlugs.length
+      ? normalized.excludeSlugs
+      : undefined,
+    ingredientMode:
+      normalized.includeSlugs.length <= 1
+        ? undefined
+        : normalized.mode === "any"
+          ? "any"
+          : undefined,
   };
+}
+
+/**
+ * True when /recipes has a non-default listing state that must stay noindex.
+ * Clean `/recipes` hub remains indexable. `sort=latest` is the default and is
+ * normally omitted from URLs; if present alone it still represents default order.
+ */
+export function isDiscoveryListingNoIndex(params: RecipeDiscoveryParams): boolean {
+  return Boolean(
+    params.q ||
+      params.category ||
+      params.collection ||
+      params.time ||
+      params.video ||
+      params.cuisine ||
+      params.method ||
+      params.sort === "alpha" ||
+      (params.ingredients && params.ingredients.length > 0) ||
+      (params.excludeIngredients && params.excludeIngredients.length > 0),
+  );
 }
 
 export function buildRecipesUrl(params: RecipeDiscoveryParams) {
@@ -128,8 +192,32 @@ export function buildRecipesUrl(params: RecipeDiscoveryParams) {
   if (params.video) search.set("video", "1");
   if (params.cuisine) search.set("cuisine", params.cuisine);
   if (params.method) search.set("method", params.method);
+
+  const ingredientState = normalizeIngredientFilterSelection({
+    ingredients: params.ingredients,
+    excludeIngredients: params.excludeIngredients,
+    ingredientMode: params.ingredientMode,
+  });
+  const include = serializeIngredientSlugList(ingredientState.includeSlugs);
+  const exclude = serializeIngredientSlugList(ingredientState.excludeSlugs);
+  if (include) search.set("ingredients", include);
+  if (exclude) search.set("excludeIngredients", exclude);
+  if (ingredientState.includeSlugs.length > 1 && ingredientState.mode === "any") {
+    search.set("ingredientMode", "any");
+  }
+
   const query = search.toString();
   return query ? `/recipes?${query}` : "/recipes";
+}
+
+export function getIngredientFilterSelection(
+  params: RecipeDiscoveryParams,
+): IngredientFilterSelection {
+  return normalizeIngredientFilterSelection({
+    ingredients: params.ingredients,
+    excludeIngredients: params.excludeIngredients,
+    ingredientMode: params.ingredientMode,
+  });
 }
 
 export function sortRecipeList(recipes: Recipe[], sort: RecipeSort = "latest") {
@@ -205,6 +293,10 @@ export function applyDiscoveryFilters(
   recipes: Recipe[],
   params: RecipeDiscoveryParams,
   collectionSlugs: Record<string, string[]>,
+  options?: {
+    /** When set, keep only recipes whose id (or slug fallback) is in the set. */
+    ingredientMatchedRecipeIds?: Set<string> | null;
+  },
 ) {
   let result = [...recipes];
   let preservedCollectionOrder = false;
@@ -242,6 +334,15 @@ export function applyDiscoveryFilters(
     result = result.filter((recipe) => recipeMatchesDiscoveryMethod(recipe, params.method!));
   }
 
+  if (options?.ingredientMatchedRecipeIds) {
+    const allowed = options.ingredientMatchedRecipeIds;
+    result = result.filter((recipe) => {
+      const id = (recipe as Recipe & { id?: string }).id?.trim();
+      if (id && allowed.has(id)) return true;
+      return allowed.has(recipe.slug);
+    });
+  }
+
   if (params.q) {
     const ranked = searchRecipesByText(result, params.q);
     result = ranked.map((row) => row.recipe);
@@ -260,6 +361,7 @@ export function applyDiscoveryFilters(
 }
 
 export function hasActiveDiscoveryFilters(params: RecipeDiscoveryParams) {
+  const ingredient = getIngredientFilterSelection(params);
   return Boolean(
     params.q ||
       params.category ||
@@ -268,7 +370,8 @@ export function hasActiveDiscoveryFilters(params: RecipeDiscoveryParams) {
       params.time ||
       params.video ||
       params.cuisine ||
-      params.method,
+      params.method ||
+      hasActiveIngredientFilter(ingredient),
   );
 }
 
@@ -284,6 +387,7 @@ export function discoveryTimeLabel(time: DiscoveryTimeFilter) {
 export function buildDiscoveryAppliedChips(
   params: RecipeDiscoveryParams,
   collectionTitles: Record<string, string> = {},
+  ingredientNames: Record<string, string> = {},
 ): DiscoveryAppliedChip[] {
   const chips: DiscoveryAppliedChip[] = [];
   if (params.q) {
@@ -318,6 +422,38 @@ export function buildDiscoveryAppliedChips(
   }
   if (params.method) {
     chips.push({ key: "method", label: params.method, clear: { method: undefined } });
+  }
+
+  const ingredient = getIngredientFilterSelection(params);
+  for (const slug of ingredient.includeSlugs) {
+    const label = ingredientNames[slug] ?? slug;
+    const remainingIncludes = ingredient.includeSlugs.filter((value) => value !== slug);
+    chips.push({
+      key: `ingredient:${slug}`,
+      label: `Contains: ${label}`,
+      clear: {
+        ingredients: remainingIncludes.length ? remainingIncludes : undefined,
+        ...(remainingIncludes.length <= 1 ? { ingredientMode: undefined } : {}),
+      },
+    });
+  }
+  if (ingredient.includeSlugs.length > 1 && ingredient.mode === "any") {
+    chips.push({
+      key: "ingredientMode",
+      label: "Match: Any",
+      clear: { ingredientMode: undefined },
+    });
+  }
+  for (const slug of ingredient.excludeSlugs) {
+    const label = ingredientNames[slug] ?? slug;
+    const remainingExcludes = ingredient.excludeSlugs.filter((value) => value !== slug);
+    chips.push({
+      key: `exclude:${slug}`,
+      label: `Exclude: ${label}`,
+      clear: {
+        excludeIngredients: remainingExcludes.length ? remainingExcludes : undefined,
+      },
+    });
   }
   return chips;
 }

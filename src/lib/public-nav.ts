@@ -1,12 +1,14 @@
 /** Primary public header navigation (Studio omitted until public launch). */
 export const PUBLIC_HEADER_NAV = [
   { href: "/recipes", label: "Recipes", mega: true as const },
+  { href: "/series", label: "Collections" },
   { href: "/videos", label: "Videos" },
   { href: "/about", label: "About" },
 ] as const;
 
 export const PUBLIC_MOBILE_NAV = [
   { href: "/recipes", label: "All recipes" },
+  { href: "/series", label: "Collections" },
   { href: "/videos", label: "Videos" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },

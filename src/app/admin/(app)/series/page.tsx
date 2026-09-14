@@ -5,6 +5,10 @@ import { SeriesIndexRowOverflow } from "@/components/admin/SeriesIndexRowOverflo
 import { requireAccess } from "@/lib/auth";
 import { listAdminSeries } from "@/lib/series-admin";
 import {
+  PHASE3C_MESA_COLLECTION_LABEL,
+  PHASE3C_YOUTUBE_COLLECTION_LABEL,
+} from "@/lib/phase3c-collections";
+import {
   adminFocusRing,
   adminLinkClass,
   adminPrimaryButtonClass,
@@ -14,7 +18,7 @@ import {
 import { youtubePlaylistUrl } from "@/lib/youtube";
 
 export const metadata: Metadata = {
-  title: "Series",
+  title: "Collections",
 };
 
 export const dynamic = "force-dynamic";
@@ -44,6 +48,12 @@ function itemsSummary(row: {
     parts.push(`${row.videoOnlyCount} video-only`);
   }
   return parts.join(" · ");
+}
+
+function collectionSourceLabel(syncMode: string) {
+  return syncMode === "YOUTUBE"
+    ? PHASE3C_YOUTUBE_COLLECTION_LABEL
+    : PHASE3C_MESA_COLLECTION_LABEL;
 }
 
 function SeriesRowActions({
@@ -78,7 +88,17 @@ function SeriesRowActions({
         >
           View ↗
         </Link>
-      ) : null}
+      ) : (
+        <Link
+          href={`/admin/series/${row.id}/preview`}
+          className={`${adminLinkClass} min-h-11 inline-flex items-center sm:min-h-0`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Preview ${row.title}`}
+        >
+          Preview
+        </Link>
+      )}
       <SeriesIndexRowOverflow
         seriesId={row.id}
         seriesTitle={row.title}
@@ -101,8 +121,8 @@ export default async function AdminSeriesPage({
   return (
     <div className="min-w-0 space-y-6">
       <AdminPageHeader
-        title="Series"
-        description="Editorial collections for the public site (routes stay /series). Import YouTube playlists or build custom Mesa-only collections."
+        title="Collections"
+        description="Create and manage curated public collections of Mesa recipes and videos."
         documentationTopicId="series"
         titleClassName="font-serif text-3xl text-ink"
         className="mb-0"
@@ -115,7 +135,7 @@ export default async function AdminSeriesPage({
               href="/admin/series/new"
               className={`${adminSecondaryButtonClass} ${adminFocusRing}`}
             >
-              Create custom Series
+              + New collection
             </Link>
           </>
         }
@@ -126,13 +146,13 @@ export default async function AdminSeriesPage({
           className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive"
           role="status"
         >
-          Series deleted.
+          Collection deleted.
         </p>
       ) : null}
 
       {rows.length === 0 ? (
         <p className="border-y border-line/80 py-10 text-sm text-muted">
-          No series yet. Import a YouTube playlist or create a custom Mesa Series.
+          No collections yet. Import a YouTube playlist or create a Mesa Collection.
         </p>
       ) : (
         <>
@@ -152,7 +172,7 @@ export default async function AdminSeriesPage({
               <thead className={adminTableHeadClass}>
                 <tr>
                   <th scope="col" className="px-4 py-3">
-                    Series
+                    Collection
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Source
@@ -174,8 +194,7 @@ export default async function AdminSeriesPage({
                   const ytUrl = row.youtubePlaylistId
                     ? youtubePlaylistUrl(row.youtubePlaylistId)
                     : null;
-                  const source =
-                    row.syncMode === "YOUTUBE" ? "YouTube playlist" : "Custom";
+                  const source = collectionSourceLabel(row.syncMode);
                   return (
                     <tr
                       key={row.id}
@@ -210,7 +229,7 @@ export default async function AdminSeriesPage({
               const ytUrl = row.youtubePlaylistId
                 ? youtubePlaylistUrl(row.youtubePlaylistId)
                 : null;
-              const source = row.syncMode === "YOUTUBE" ? "YouTube playlist" : "Custom";
+              const source = collectionSourceLabel(row.syncMode);
               return (
                 <li key={row.id} className="min-w-0 py-3.5">
                   <div className="flex items-start justify-between gap-3">

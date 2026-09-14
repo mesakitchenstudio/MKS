@@ -307,7 +307,7 @@ describe("phase 5C — discovery routing contracts", () => {
   });
 
   it("wires Series page to honour watchExternal", () => {
-    const page = read("app/series/[slug]/page.tsx");
+    const page = read("components/series/SeriesDetailView.tsx");
     const series = read("lib/series.ts");
     assert.match(page, /external=\{item\.watchExternal\}/);
     assert.match(series, /resolvePublicVideoDiscoveryHref/);

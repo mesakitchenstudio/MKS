@@ -267,7 +267,9 @@ describe("phase 6E — Content Health ↔ Site Health boundary", () => {
       categories: [{ slug: "bread" }],
       series: [{ slug: "weekend" }],
     });
-    const paths = new Set(sitemapPathnamesFromEntries(entries));
+    const paths = new Set(
+      sitemapPathnamesFromEntries(entries, "https://mesakitchenstudio.com"),
+    );
     assert.ok(paths.has("/recipes/a-ready"));
     assert.equal(paths.has("/recipes/f-scheduled"), false);
     assert.equal(paths.has("/recipes/g-due-blocked"), false);
@@ -353,15 +355,12 @@ describe("phase 6E — Media ↔ readiness / revision ownership", () => {
 });
 
 describe("phase 6E — category canonical decision", () => {
-  it("PASS WITH NOTE: category has one unambiguous public path and no filter aliases", () => {
+  it("Category pages declare explicit canonical and remain query-free", () => {
     const page = read("app/category/[slug]/page.tsx");
-    // Intentional: no alternates.canonical today — single /category/[slug] surface, no query variants.
-    assert.doesNotMatch(page, /alternates:\s*\{/);
+    assert.match(page, /alternates:\s*\{\s*canonical:\s*path\s*\}/);
     assert.doesNotMatch(page, /searchParams/);
     assert.match(page, /getCategoryBySlug|getRecipesByCategory/);
-    // Site Health does not invent a category.canonical checklist alarm.
-    const siteHealth = read("lib/site-health.ts");
-    assert.doesNotMatch(siteHealth, /canonical\.category/);
+    assert.match(page, /isCategoryIndexable/);
   });
 });
 

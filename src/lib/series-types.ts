@@ -43,6 +43,10 @@ export type PublicSeriesItem = {
   watchExternal: boolean;
   typeName: string;
   categorySlugs: string[];
+  /** First recipe category display name when recipe-linked. */
+  primaryCategoryLabel: string;
+  /** Recipe total minutes when recipe-linked and timing is present. */
+  totalTimeMinutes: number | null;
 };
 
 /** Featured-first, then catalog order; max 2 for homepage collection previews. */
@@ -85,6 +89,8 @@ export type PublicSeriesDetail = {
 };
 
 export type RecipeSeriesLink = {
+  /** Series id — used for analytics placements. */
+  id?: string;
   slug: string;
   title: string;
   shortTitle: string;

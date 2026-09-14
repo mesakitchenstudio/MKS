@@ -17,6 +17,7 @@ describe("public footer polish", () => {
     assert.match(footer, /bg-ink text-cream/);
     assert.match(footer, /<footer/);
     assert.match(footer, /href: "\/videos", label: "Videos"/);
+    assert.match(footer, /href: "\/series", label: "Collections"/);
     assert.match(footer, /About/);
     assert.match(footer, /Contact/);
     assert.match(footer, /Privacy/);
@@ -24,9 +25,10 @@ describe("public footer polish", () => {
     assert.match(footer, /PrivacyPreferencesFooterLink/);
 
     const about = footer.indexOf('href: "/about"');
+    const collections = footer.indexOf('href: "/series"');
     const videos = footer.indexOf('href: "/videos"');
     const contact = footer.indexOf('href: "/contact"');
-    assert.ok(about > 0 && videos > about && contact > videos);
+    assert.ok(about > 0 && collections > about && videos > collections && contact > videos);
   });
 
   it("preserves Explore primary categories and newsletter copy", () => {

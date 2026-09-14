@@ -129,6 +129,7 @@ export type SiteHealthContext = {
   siteUrl: string;
   sitePrivate: boolean;
   studioPublicLaunchEnabled: boolean;
+  cookWithWhatYouHaveEnabled?: boolean;
   productionLike: boolean;
   redirects: SiteHealthRedirectRow[];
   recipes: SiteHealthRecipeRow[];
@@ -167,6 +168,7 @@ export type KnownInternalPathKind =
   | "recipe"
   | "category"
   | "series"
+  | "ingredient"
   | "video"
   | "studio"
   | "static"
@@ -198,6 +200,8 @@ export function classifyInternalPublicPath(path: string): {
   if (category) return { kind: "category", slug: category[1] };
   const series = normalized.match(/^\/series\/([^/]+)$/);
   if (series) return { kind: "series", slug: series[1] };
+  const ingredient = normalized.match(/^\/ingredient\/([^/]+)$/);
+  if (ingredient) return { kind: "ingredient", slug: ingredient[1] };
   const video = normalized.match(/^\/videos\/([^/]+)$/);
   if (video) return { kind: "video", slug: video[1] };
   const studio = normalized.match(/^\/studio\/([^/]+)$/);
@@ -636,6 +640,7 @@ export function runSiteHealthChecks(context: SiteHealthContext): SiteHealthResul
       series: sitemapSeries,
       studioLessons: context.studioLessons,
       includeStudio: context.studioPublicLaunchEnabled,
+      includeCookWithWhatYouHave: Boolean(context.cookWithWhatYouHaveEnabled),
     });
     const paths = new Set(sitemapPathnamesFromEntries(entries, context.siteUrl));
 

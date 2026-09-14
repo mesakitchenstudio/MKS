@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { seriesItemListJsonLd, type PublicSeriesDetail } from "./series-types";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const page = readFileSync(path.join(root, "../app/series/[slug]/page.tsx"), "utf8");
+const route = readFileSync(path.join(root, "../app/series/[slug]/page.tsx"), "utf8");
+const page = readFileSync(path.join(root, "../components/series/SeriesDetailView.tsx"), "utf8");
 const seriesLib = readFileSync(path.join(root, "series.ts"), "utf8");
 const subscribe = readFileSync(
   path.join(root, "../components/youtube/YouTubeSubscribeCTA.tsx"),
@@ -52,6 +53,8 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
       watchExternal: true,
       typeName: "Bread",
       categorySlugs: ["breads"],
+      primaryCategoryLabel: "Breads",
+      totalTimeMinutes: 45,
     },
     items: [
       {
@@ -71,6 +74,8 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
         watchExternal: true,
         typeName: "Bread",
         categorySlugs: ["breads"],
+        primaryCategoryLabel: "Breads",
+        totalTimeMinutes: 45,
       },
       {
         id: "i2",
@@ -89,6 +94,8 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
         watchExternal: false,
         typeName: "Bread",
         categorySlugs: ["breads"],
+        primaryCategoryLabel: "Breads",
+        totalTimeMinutes: 30,
       },
     ],
     ...overrides,
@@ -98,13 +105,13 @@ function sampleSeries(overrides: Partial<PublicSeriesDetail> = {}): PublicSeries
 describe("Series public Phase 2 presentation contracts", () => {
   it("marks the Phase 2 collection layout on the sole public Series detail route", () => {
     assert.match(page, /data-mesa-series-layout="phase2-collection"/);
-    assert.match(page, /getPublishedSeriesBySlug/);
-    assert.match(page, /export const revalidate = 300/);
-    assert.match(page, /generateStaticParams/);
+    assert.match(route, /getPublishedSeriesBySlug/);
+    assert.match(route, /export const revalidate = 300/);
+    assert.match(route, /generateStaticParams/);
+    assert.match(route, /SeriesDetailView/);
   });
 
   it("removes every legacy standalone Featured showcase marker from the Series page", () => {
-    assert.doesNotMatch(page, /Watch playlist on YouTube/);
     assert.doesNotMatch(page, /Prefer binge-watching on YouTube/);
     assert.doesNotMatch(page, /bg-cream\/40 p-4 md:p-6/);
     assert.doesNotMatch(page, /md:grid-cols-\[minmax\(0,18rem\)_1fr\]/);
@@ -116,11 +123,12 @@ describe("Series public Phase 2 presentation contracts", () => {
     // Card labels use Watch video; recipe embeds may also say Watch video.
     assert.match(page, /Watch video/);
     assert.match(recipeContinued, /Watch video/);
+    assert.match(page, /SERIES_PLAYLIST_CTA_LABEL/);
   });
 
-  it("keeps intro immediately followed by the In this series grid (no Featured section between)", () => {
+  it("keeps intro immediately followed by the In this collection grid (no Featured section between)", () => {
     const introBlock = page.indexOf("series.intro");
-    const gridHeading = page.indexOf("In this series");
+    const gridHeading = page.indexOf("In this collection");
     assert.ok(introBlock > 0 && gridHeading > introBlock);
     const between = page.slice(introBlock, gridHeading);
     assert.doesNotMatch(between, /SeriesItemTrackLink/);
@@ -179,7 +187,7 @@ describe("Series public Phase 2 presentation contracts", () => {
 
   it("preserves ItemList JSON-LD and metadata wiring independent of Featured UI", () => {
     assert.match(page, /seriesItemListJsonLd\(series\)/);
-    assert.match(page, /generateMetadata/);
+    assert.match(route, /generateMetadata/);
     const series = sampleSeries();
     const json = seriesItemListJsonLd(series);
     assert.equal(json["@type"], "ItemList");
@@ -190,7 +198,7 @@ describe("Series public Phase 2 presentation contracts", () => {
   });
 
   it("preserves unpublished gating via notFound when series is missing", () => {
-    assert.match(page, /if \(!series\) notFound\(\)/);
+    assert.match(route, /if \(!series\) notFound\(\)/);
   });
 
   it("keeps SeriesItemTrackLink analytics wrappers for item and playlist actions", () => {

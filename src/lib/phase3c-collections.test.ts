@@ -61,13 +61,17 @@ describe("phase 3c — editorial collections decisions", () => {
     assert.equal(PHASE3C_SERIES_ROUTE_PREFIX, "/series");
     assert.equal(PHASE3C_PUBLIC_COLLECTIONS_LABEL, "Collections");
     const index = read("../app/series/page.tsx");
+    const card = read("../components/series/CollectionCard.tsx");
     assert.match(index, /PHASE3C_PUBLIC_COLLECTIONS_LABEL/);
-    assert.match(index, /Explore collection/);
+    assert.match(index, /CollectionCard/);
+    assert.match(card, /Explore collection/);
     assert.match(index, /canonical: "\/series"/);
     assert.doesNotMatch(index, /\/collections/);
     const detail = read("../app/series/[slug]/page.tsx");
-    assert.match(detail, />\s*Collections\s*</);
+    const detailView = read("../components/series/SeriesDetailView.tsx");
+    assert.match(detailView, />\s*Collections\s*</);
     assert.match(detail, /canonical: `\/series\/\$\{series\.slug\}`/);
+    assert.match(detail, /SeriesDetailView/);
   });
 
   it("does not create a Prisma Collection model", () => {

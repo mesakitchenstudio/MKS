@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import type { AdminAuditActor } from "@/lib/admin-audit";
 import { summarizeRecipeAuditChanges } from "@/lib/admin-audit";
 import { getDb } from "@/lib/db";
+import { rebuildRecipeIngredientIndex } from "@/lib/ingredient-index";
 import { parseValues } from "@/lib/recipe-map";
 
 export const RECIPE_REVISION_REASONS = [
@@ -523,6 +524,11 @@ export async function restoreRecipeRevisionContent(input: {
         })),
       });
     }
+
+    await rebuildRecipeIngredientIndex(tx, {
+      recipeId: input.recipeId,
+      values: nextSnapshot.values,
+    });
 
     return createRecipeRevisionIfChanged(tx, {
       recipeId: input.recipeId,

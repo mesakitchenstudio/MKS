@@ -16,8 +16,14 @@ import {
 
 describe("public navigation", () => {
   it("omits Studio from desktop and mobile nav labels", () => {
-    assert.deepEqual(publicHeaderNavLabels(), ["Recipes", "Videos", "About"]);
-    assert.deepEqual(publicMobileNavLabels(), ["All recipes", "Videos", "About", "Contact"]);
+    assert.deepEqual(publicHeaderNavLabels(), ["Recipes", "Collections", "Videos", "About"]);
+    assert.deepEqual(publicMobileNavLabels(), [
+      "All recipes",
+      "Collections",
+      "Videos",
+      "About",
+      "Contact",
+    ]);
     assert.equal(publicHeaderNavLabels().includes("Studio"), false);
     assert.equal(publicMobileNavLabels().includes("Studio"), false);
   });

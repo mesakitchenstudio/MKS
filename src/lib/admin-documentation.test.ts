@@ -30,6 +30,7 @@ const MAIN_NAV_EXPECTATIONS: Array<{ path: string; topicId: string }> = [
   { path: "/admin/studio", topicId: "studio" },
   { path: "/admin/media", topicId: "media" },
   { path: "/admin/categories", topicId: "categories" },
+  { path: "/admin/ingredients", topicId: "ingredients" },
   { path: "/admin/series", topicId: "series" },
   { path: "/admin/types", topicId: "recipe-types" },
   { path: "/admin/redirects", topicId: "redirects" },
@@ -112,7 +113,7 @@ describe("Admin documentation registry", () => {
     const topics = listAdminDocTopics();
     const ids = topics.map((topic) => topic.id);
     assert.equal(new Set(ids).size, ids.length);
-    assert.equal(topics.length, 33);
+    assert.equal(topics.length, 34);
     for (const topic of topics) {
       assert.ok(Boolean(topic.title.trim()), `missing title: ${topic.id}`);
       assert.ok(Boolean(topic.summary.trim()), `missing summary: ${topic.id}`);
@@ -219,6 +220,11 @@ describe("Admin documentation UI contracts", () => {
     assert.match(read("app/admin/(app)/media/page.tsx"), /documentationTopicId="media"/);
     assert.match(read("app/admin/(app)/categories/page.tsx"), /CategoriesManager/);
     assert.match(read("components/admin/CategoriesManager.tsx"), /documentationTopicId="categories"/);
+    assert.match(read("app/admin/(app)/ingredients/page.tsx"), /IngredientsManager/);
+    assert.match(
+      read("components/admin/IngredientsManager.tsx"),
+      /documentationTopicId="ingredients"/,
+    );
     assert.match(read("app/admin/(app)/series/page.tsx"), /documentationTopicId="series"/);
     assert.match(read("components/admin/AddTypeForm.tsx"), /documentationTopicId="recipe-types"/);
     assert.match(read("app/admin/(app)/redirects/page.tsx"), /documentationTopicId="redirects"/);
@@ -256,7 +262,7 @@ describe("Admin documentation UI contracts", () => {
     assert.match(read("components/admin/SeriesEditor.tsx"), /topicId="series-editor"/);
     assert.match(read("components/admin/SeriesEditor.tsx"), /attemptSaveDraft|publishButtonLabel/);
     assert.match(read("app/admin/(app)/series/import/page.tsx"), /topicId="series-import"/);
-    assert.match(read("app/admin/(app)/series/import/page.tsx"), /Create custom Series instead/);
+    assert.match(read("app/admin/(app)/series/import/page.tsx"), /Create Mesa Collection instead/);
     assert.match(read("app/admin/(app)/types/[id]/page.tsx"), /topicId="recipe-type-editor"/);
     assert.match(read("components/admin/AdminReviewDetail.tsx"), /topicId="review-detail"/);
     assert.match(read("app/admin/(app)/members/[id]/page.tsx"), /topicId="member-detail"/);

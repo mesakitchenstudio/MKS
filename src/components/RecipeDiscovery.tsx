@@ -14,12 +14,20 @@ import {
   buildDiscoveryAppliedChips,
   buildDiscoverySuggestions,
   buildRecipesUrl,
+  getIngredientFilterSelection,
+  hasActiveDiscoveryFilters,
   listDiscoveryCuisines,
   listDiscoveryMethods,
   type DiscoverySuggestion,
   type RecipeDiscoveryParams,
 } from "@/lib/recipe-discovery";
+import {
+  hasActiveIngredientFilter,
+  recipeMatchesIngredientMembership,
+  type PublicIngredientOption,
+} from "@/lib/ingredient-discovery";
 import { emitRecipeSearchAnalytics } from "@/lib/search-analytics-client";
+import { DiscoveryIngredientFilters } from "@/components/DiscoveryIngredientFilters";
 
 const controlFocus =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
@@ -36,7 +44,10 @@ function mergeParams(
 ): RecipeDiscoveryParams {
   const next: RecipeDiscoveryParams = { ...current, ...patch };
   for (const key of Object.keys(patch) as (keyof RecipeDiscoveryParams)[]) {
-    if (patch[key] === undefined) delete next[key];
+    const value = patch[key];
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) {
+      delete next[key];
+    }
   }
   return next;
 }
@@ -46,12 +57,24 @@ export function RecipeDiscovery({
   allRecipes,
   params,
   collectionTitles,
+  ingredientDiscoveryEnabled = false,
+  cookWithWhatYouHaveEnabled = false,
+  ingredientOptions = [],
+  ingredientNames = {},
+  ingredientMembership = {},
 }: {
   recipes: Recipe[];
   /** Full published catalogue for autocomplete + facet option lists. */
   allRecipes: Recipe[];
   params: RecipeDiscoveryParams;
   collectionTitles: Record<string, string>;
+  ingredientDiscoveryEnabled?: boolean;
+  /** Dual gate: ingredient discovery + CWYW. */
+  cookWithWhatYouHaveEnabled?: boolean;
+  ingredientOptions?: PublicIngredientOption[];
+  ingredientNames?: Record<string, string>;
+  /** recipe id → ingredient slugs for client-side dead-end recomputation */
+  ingredientMembership?: Record<string, string[]>;
 }) {
   const router = useRouter();
   const committedQuery = params.q ?? "";
@@ -67,22 +90,13 @@ export function RecipeDiscovery({
   const listboxId = useId();
   const activeCategory = params.category ?? "all";
   const activeSort = params.sort ?? "latest";
-  const hasFilters = Boolean(
-    params.q ||
-      params.category ||
-      params.collection ||
-      params.sort ||
-      params.time ||
-      params.video ||
-      params.cuisine ||
-      params.method,
-  );
+  const hasFilters = hasActiveDiscoveryFilters(params);
 
   const cuisineOptions = useMemo(() => listDiscoveryCuisines(allRecipes), [allRecipes]);
   const methodOptions = useMemo(() => listDiscoveryMethods(allRecipes), [allRecipes]);
   const appliedChips = useMemo(
-    () => buildDiscoveryAppliedChips(params, collectionTitles),
-    [collectionTitles, params],
+    () => buildDiscoveryAppliedChips(params, collectionTitles, ingredientNames),
+    [collectionTitles, ingredientNames, params],
   );
 
   const suggestions = useMemo(
@@ -110,33 +124,50 @@ export function RecipeDiscovery({
     router.push(buildRecipesUrl(next), { scroll: false });
   }
 
+  function discoveryFiltersPayload(next: RecipeDiscoveryParams) {
+    const ingredient = getIngredientFilterSelection(next);
+    return {
+      category: next.category,
+      collection: next.collection,
+      time: next.time,
+      cuisine: next.cuisine,
+      method: next.method,
+      video: next.video ? true : undefined,
+      sort: next.sort,
+      ingredients: ingredient.includeSlugs.length
+        ? ingredient.includeSlugs.join(",")
+        : undefined,
+      ingredientMode:
+        ingredient.includeSlugs.length > 1 ? ingredient.mode : undefined,
+      excludeIngredients: ingredient.excludeSlugs.length
+        ? ingredient.excludeSlugs.join(",")
+        : undefined,
+    };
+  }
+
+  function applyClientDiscovery(next: RecipeDiscoveryParams) {
+    let filtered = applyDiscoveryFilters(allRecipes, next, homepageCollectionSlugMap());
+    const selection = getIngredientFilterSelection(next);
+    if (ingredientDiscoveryEnabled && hasActiveIngredientFilter(selection)) {
+      filtered = filtered.filter((recipe) => {
+        const key = recipe.id?.trim() || recipe.slug;
+        return recipeMatchesIngredientMembership(ingredientMembership[key], selection);
+      });
+    }
+    return filtered;
+  }
+
   function emitFilterDeadEndIfNeeded(next: RecipeDiscoveryParams) {
     try {
-      const filtered = applyDiscoveryFilters(allRecipes, next, homepageCollectionSlugMap());
+      const filtered = applyClientDiscovery(next);
       if (filtered.length > 0) return;
-      const hasSignal = Boolean(
-        next.q ||
-          next.category ||
-          next.collection ||
-          next.time ||
-          next.cuisine ||
-          next.method ||
-          next.video,
-      );
+      const hasSignal = hasActiveDiscoveryFilters(next);
       if (!hasSignal) return;
       emitRecipeSearchAnalytics({
         searchQuery: next.q ?? "",
         resultCount: 0,
         placement: "recipes_catalog",
-        filters: {
-          category: next.category,
-          collection: next.collection,
-          time: next.time,
-          cuisine: next.cuisine,
-          method: next.method,
-          video: next.video ? true : undefined,
-          sort: next.sort,
-        },
+        filters: discoveryFiltersPayload(next),
       });
     } catch {
       /* never block navigation */
@@ -160,24 +191,12 @@ export function RecipeDiscovery({
         category: params.category,
         sort: params.sort ?? "latest",
       });
-      const filtered = applyDiscoveryFilters(
-        allRecipes,
-        nextParams,
-        homepageCollectionSlugMap(),
-      );
+      const filtered = applyClientDiscovery(nextParams);
       emitRecipeSearchAnalytics({
         searchQuery: nextQuery ?? "",
         resultCount: filtered.length,
         placement: "recipes_catalog",
-        filters: {
-          category: nextParams.category,
-          collection: nextParams.collection,
-          time: nextParams.time,
-          cuisine: nextParams.cuisine,
-          method: nextParams.method,
-          video: nextParams.video ? true : undefined,
-          sort: nextParams.sort,
-        },
+        filters: discoveryFiltersPayload(nextParams),
       });
     } catch {
       /* never block navigation */
@@ -468,6 +487,25 @@ export function RecipeDiscovery({
             </select>
           </label>
         </div>
+
+        {ingredientDiscoveryEnabled ? (
+          <DiscoveryIngredientFilters
+            params={params}
+            options={ingredientOptions}
+            onChange={(next) => navigateDiscovery(next)}
+          />
+        ) : null}
+
+        {cookWithWhatYouHaveEnabled ? (
+          <p className="mt-4 text-sm">
+            <a
+              href="/cook-with-what-you-have"
+              className={`font-semibold text-terracotta hover:text-terracotta-dark ${controlFocus}`}
+            >
+              Cook with what you have →
+            </a>
+          </p>
+        ) : null}
       </div>
 
       {appliedChips.length ? (
@@ -554,7 +592,10 @@ export function RecipeDiscovery({
         <div className="mt-10 max-w-md" role="status" aria-live="polite">
           <p className="font-serif text-2xl text-ink">No recipes found.</p>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Try another search or clear the current filters.
+            {getIngredientFilterSelection(params).includeSlugs.length ||
+            getIngredientFilterSelection(params).excludeSlugs.length
+              ? "No recipes match these ingredient filters. Try removing an ingredient or switching from All to Any."
+              : "Try another search or clear the current filters."}
           </p>
           {hasFilters ? (
             <button

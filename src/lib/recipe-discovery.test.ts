@@ -253,9 +253,9 @@ describe("public recipes Phase 1 editorial discovery UI", () => {
   it("preserves SEO canonical and filtered noindex", () => {
     const page = read("src/app/recipes/page.tsx");
     assert.match(page, /canonical: "\/recipes"/);
+    assert.match(page, /isDiscoveryListingNoIndex/);
     assert.match(page, /index: false/);
-    assert.match(page, /params\.time/);
-    assert.match(page, /params\.video/);
+    assert.match(page, /follow: true/);
   });
 
   it("uses editorial search, category index, and 1/2/3 card grid", () => {

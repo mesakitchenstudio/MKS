@@ -1,8 +1,8 @@
 /**
- * Authenticated recipe preview — public-style presentation without AdminShell.
+ * Authenticated recipe / collection preview — public-style presentation without AdminShell.
  * Sibling to `(app)` so Preview does not inherit the Admin sidebar.
  */
-export default function AdminRecipePreviewLayout({
+export default function AdminPreviewLayout({
   children,
 }: {
   children: React.ReactNode;

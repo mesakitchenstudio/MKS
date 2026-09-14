@@ -1,5 +1,6 @@
 import { slugify } from "@/lib/fields";
 import { getDb } from "@/lib/db";
+import { rebuildRecipeIngredientIndex } from "@/lib/ingredient-index";
 import { parseValues } from "@/lib/recipe-map";
 import { youtubeWatchUrl } from "@/lib/youtube";
 import {
@@ -245,20 +246,27 @@ async function createAndPopulateInner(input: {
 
   let recipe: { id: string; title: string; slug: string };
   try {
-    recipe = await db.recipe.create({
-      data: {
-        title: baseTitle,
-        slug,
-        excerpt: "",
-        typeId: recipeType.id,
-        status: "draft",
-        featured: false,
-        seasonal: false,
-        publishedAt: null,
-        values: JSON.stringify(values),
-        aiMeta: JSON.stringify(seedMeta),
-      },
-      select: { id: true, title: true, slug: true },
+    recipe = await db.$transaction(async (tx) => {
+      const row = await tx.recipe.create({
+        data: {
+          title: baseTitle,
+          slug,
+          excerpt: "",
+          typeId: recipeType.id,
+          status: "draft",
+          featured: false,
+          seasonal: false,
+          publishedAt: null,
+          values: JSON.stringify(values),
+          aiMeta: JSON.stringify(seedMeta),
+        },
+        select: { id: true, title: true, slug: true },
+      });
+      await rebuildRecipeIngredientIndex(tx, {
+        recipeId: row.id,
+        values,
+      });
+      return row;
     });
   } catch (error) {
     // Race: another request may have linked the same video between check and create.
@@ -469,30 +477,37 @@ async function populateDraftWithAi(input: {
       : input.seedMeta.heroImageYoutubeVideoId,
   };
 
-  await db.recipe.update({
-    where: { id: input.recipeId },
-    data: {
-      title: merged.title || recipe.title,
-      slug: merged.slug || recipe.slug,
-      excerpt: merged.excerpt,
-      values: JSON.stringify(values),
-      aiMeta: JSON.stringify(aiMeta),
-      featured: false,
-      seasonal: false,
-      status: "draft",
-      publishedAt: null,
-    },
-  });
-
-  if (merged.categoryIds.length) {
-    await db.recipeCategory.deleteMany({ where: { recipeId: input.recipeId } });
-    await db.recipeCategory.createMany({
-      data: merged.categoryIds.map((categoryId) => ({
-        recipeId: input.recipeId,
-        categoryId,
-      })),
+  await db.$transaction(async (tx) => {
+    await tx.recipe.update({
+      where: { id: input.recipeId },
+      data: {
+        title: merged.title || recipe.title,
+        slug: merged.slug || recipe.slug,
+        excerpt: merged.excerpt,
+        values: JSON.stringify(values),
+        aiMeta: JSON.stringify(aiMeta),
+        featured: false,
+        seasonal: false,
+        status: "draft",
+        publishedAt: null,
+      },
     });
-  }
+
+    await rebuildRecipeIngredientIndex(tx, {
+      recipeId: input.recipeId,
+      values,
+    });
+
+    if (merged.categoryIds.length) {
+      await tx.recipeCategory.deleteMany({ where: { recipeId: input.recipeId } });
+      await tx.recipeCategory.createMany({
+        data: merged.categoryIds.map((categoryId) => ({
+          recipeId: input.recipeId,
+          categoryId,
+        })),
+      });
+    }
+  });
 
   return { ok: true, title: merged.title || recipe.title, slug: merged.slug || recipe.slug };
 }

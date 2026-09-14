@@ -3,7 +3,7 @@ import type { AdminDocTopic } from "../types";
 export const categoriesDocTopic: AdminDocTopic = {
   id: "categories",
   title: "Categories",
-  summary: "Manage the category structure used to organize and discover Mesa recipes.",
+  summary: "Manage broad public taxonomy pages used to organize and discover Mesa recipes.",
   category: "library",
   routes: ["/admin/categories"],
   relatedTopicIds: ["recipes", "recipe-editor", "series", "recipe-types"],
@@ -12,7 +12,8 @@ export const categoriesDocTopic: AdminDocTopic = {
       id: "about",
       title: "About this page",
       paragraphs: [
-        "Categories are Mesa’s taxonomy for discovery and menus. They are not the same as free-form recipe tags.",
+        "Categories are Mesa’s broad public taxonomy for discovery. Each Category has a public landing page at /category/[slug]. They are not the same as free-form recipe tags, and they are not editorial Collections.",
+        "Use Categories for broad labels such as Breakfast, Desserts, Breads, Main Dishes, Oven, or Stovetop. Use Collections for compound editorial intent such as French Desserts or Easy Breakfast Recipes.",
       ],
     },
     {
@@ -30,9 +31,14 @@ export const categoriesDocTopic: AdminDocTopic = {
       title: "Important rules",
       paragraphs: [],
       bullets: [
-        "Prefer stable names and slugs — public discovery URLs can depend on category slugs",
+        "Public Category URL is /category/[slug] — catalogue filters like /recipes?category= are separate functional views and are not SEO destinations",
+        "Prefer stable names and slugs — public discovery URLs depend on category slugs",
         "Avoid unnecessary renames that affect published content without a plan",
         "Slugs must stay unique",
+        "Categories with fewer than 3 published recipes stay reachable but are noindex and omitted from the sitemap until enough content exists",
+        "Description supports visitors and is used for search/social metadata when present",
+        "Relevant published Collections may appear automatically after the Category recipe grid — editors do not attach them manually",
+        "Do not use Category.group for cuisine, ingredient, or diet — those are separate future concerns",
       ],
     },
     {
@@ -42,7 +48,8 @@ export const categoriesDocTopic: AdminDocTopic = {
       bullets: [
         "Keep category names clear for readers and editors",
         "Avoid redundant or overlapping categories",
-        "Keep related groups coherent (for example courses and collections)",
+        "Keep related groups coherent (desserts, course, method, season/holiday)",
+        "Avoid creating a Collection that only restates an existing Category name",
       ],
     },
     {
@@ -59,7 +66,7 @@ export const categoriesDocTopic: AdminDocTopic = {
       bullets: [
         "Recipes — assign work from the catalogue",
         "Recipe Editor — attach categories to a recipe",
-        "Series — curated collections (separate from categories)",
+        "Collections — curated editorial hubs (separate from categories; may surface on Category pages automatically)",
         "Recipe Types — structural templates, not taxonomy",
       ],
     },

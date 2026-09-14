@@ -80,7 +80,7 @@ describe("phase 5B — canonical Mesa watch routes", () => {
 describe("phase 5B — Editorial Collection video discovery", () => {
   it("maps Series watch destinations through catalogue eligibility helper", () => {
     const seriesLib = read("lib/series.ts");
-    const page = read("app/series/[slug]/page.tsx");
+    const page = read("components/series/SeriesDetailView.tsx");
     assert.match(seriesLib, /resolvePublicVideoDiscoveryHref/);
     assert.match(seriesLib, /isSyncedVideoCatalogueEligible/);
     assert.match(seriesLib, /watchExternal/);
@@ -120,6 +120,8 @@ describe("phase 5B — Editorial Collection video discovery", () => {
           watchExternal: false,
           typeName: "",
           categorySlugs: [],
+          primaryCategoryLabel: "",
+          totalTimeMinutes: null,
         },
       ],
     };

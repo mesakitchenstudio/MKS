@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { buildRecipesUrl } from "@/lib/recipe-discovery";
 import {
   PRIMARY_CATEGORY_LABELS,
   PRIMARY_CATEGORY_SLUGS,
 } from "@/lib/recipe-primary-taxonomy";
+import { categoryPublicPath } from "@/lib/category-seo";
 
 const linkFocus =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
@@ -23,7 +23,7 @@ export function HomepageBrowseCategories() {
             {PRIMARY_CATEGORY_SLUGS.map((slug) => (
               <li key={slug} className="min-w-0 border-t border-line">
                 <Link
-                  href={buildRecipesUrl({ category: slug })}
+                  href={categoryPublicPath(slug)}
                   className={`inline-flex min-h-11 max-w-full items-center py-2 text-terracotta hover:text-terracotta-dark ${linkFocus}`}
                 >
                   <span className="min-w-0">{PRIMARY_CATEGORY_LABELS[slug]}</span>

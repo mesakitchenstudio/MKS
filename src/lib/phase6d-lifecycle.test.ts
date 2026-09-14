@@ -333,7 +333,7 @@ describe("phase 6D — sitemap membership", () => {
       categories: [],
       series: [{ slug: "weekend-baking" }],
     });
-    const paths = sitemapPathnamesFromEntries(entries);
+    const paths = sitemapPathnamesFromEntries(entries, "https://mesakitchenstudio.com");
     assert.ok(paths.includes("/series/weekend-baking"));
     assert.equal(paths.includes("/series/draft-collection"), false);
   });
@@ -602,6 +602,7 @@ describe("phase 6D — admin UI, summary, side effects", () => {
     assert.equal(classifyInternalPublicPath("/recipes/x").kind, "recipe");
     assert.equal(classifyInternalPublicPath("/category/bread").kind, "category");
     assert.equal(classifyInternalPublicPath("/series/y").kind, "series");
+    assert.equal(classifyInternalPublicPath("/ingredient/egg").kind, "ingredient");
     assert.equal(classifyInternalPublicPath("/custom").kind, "unknown");
   });
 

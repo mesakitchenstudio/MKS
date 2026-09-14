@@ -5,7 +5,7 @@ import { site } from "@/data/site";
 import { Logo } from "./Logo";
 import { NewsletterForm } from "./NewsletterForm";
 import { PrivacyPreferencesFooterLink } from "./PrivacyConsentUi";
-import { buildRecipesUrl } from "@/lib/recipe-discovery";
+import { categoryPublicPath } from "@/lib/category-seo";
 import {
   PRIMARY_CATEGORY_LABELS,
   PRIMARY_CATEGORY_SLUGS,
@@ -19,6 +19,7 @@ const socialLinkClass =
 
 const FOOTER_SITE_LINKS = [
   { href: "/about", label: "About" },
+  { href: "/series", label: "Collections" },
   { href: "/videos", label: "Videos" },
   { href: "/contact", label: "Contact" },
   { href: "/privacy", label: "Privacy" },
@@ -32,10 +33,12 @@ export const FOOTER_NEWSLETTER_SUBSCRIBED_MESSAGE =
 export function SiteFooter({
   hideNewsletter = false,
   newsletterSubscribed = false,
+  shoppingListEnabled = false,
 }: {
   hideNewsletter?: boolean;
   /** Active NewsletterSubscriber for the authenticated session email (server-resolved). */
   newsletterSubscribed?: boolean;
+  shoppingListEnabled?: boolean;
 }) {
   return (
     <footer className="no-print mt-auto border-t border-line bg-ink text-cream pb-[var(--mks-privacy-consent-safe,0px)]">
@@ -58,7 +61,7 @@ export function SiteFooter({
           <ul className="mt-2.5 space-y-1.5 text-sm">
             {PRIMARY_CATEGORY_SLUGS.map((slug) => (
               <li key={slug}>
-                <Link href={buildRecipesUrl({ category: slug })} className={footerLinkClass}>
+                <Link href={categoryPublicPath(slug)} className={footerLinkClass}>
                   {PRIMARY_CATEGORY_LABELS[slug]}
                 </Link>
               </li>
@@ -76,6 +79,13 @@ export function SiteFooter({
                 </Link>
               </li>
             ))}
+            {shoppingListEnabled ? (
+              <li>
+                <Link href="/shopping-list" className={footerLinkClass}>
+                  Shopping List
+                </Link>
+              </li>
+            ) : null}
             <li>
               <PrivacyPreferencesFooterLink className={footerLinkClass} />
             </li>

@@ -14,7 +14,7 @@ import {
 import { mapSourceToPlacement } from "./funnel-analytics";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const page = readFileSync(path.join(root, "../app/series/[slug]/page.tsx"), "utf8");
+const page = readFileSync(path.join(root, "../components/series/SeriesDetailView.tsx"), "utf8");
 const conclusion = readFileSync(
   path.join(root, "../components/series/SeriesContinueWithMesa.tsx"),
   "utf8",
@@ -46,6 +46,8 @@ function item(
     watchExternal: false,
     typeName: "",
     categorySlugs: [],
+    primaryCategoryLabel: "",
+    totalTimeMinutes: null,
     ...partial,
   };
 }
@@ -82,7 +84,7 @@ describe("Series public Phase 3 conversion + metadata", () => {
       }),
     ];
     assert.equal(seriesVisibleVideoDurationTotalSeconds(bothVideos), 7 * 60 + 39 + 4 * 60 + 21);
-    assert.equal(formatSeriesCollectionMeta(bothVideos), "2-PART SERIES · 12 MIN TOTAL");
+    assert.equal(formatSeriesCollectionMeta(bothVideos), "2 VIDEOS · 12 MIN TOTAL");
 
     const missingDuration = [
       item({
@@ -101,7 +103,7 @@ describe("Series public Phase 3 conversion + metadata", () => {
       }),
     ];
     assert.equal(seriesVisibleVideoDurationTotalSeconds(missingDuration), null);
-    assert.equal(formatSeriesCollectionMeta(missingDuration), "2-PART SERIES");
+    assert.equal(formatSeriesCollectionMeta(missingDuration), "2 VIDEOS");
 
     const recipeOnlyPlusVideo = [
       item({
@@ -118,13 +120,22 @@ describe("Series public Phase 3 conversion + metadata", () => {
         durationDisplay: "10:00",
       }),
     ];
-    assert.equal(formatSeriesCollectionMeta(recipeOnlyPlusVideo), "2-PART SERIES · 10 MIN TOTAL");
-    assert.equal(formatSeriesCollectionMeta([item({ id: "x", title: "Solo" })]), "1-PART SERIES");
-    assert.equal(formatSeriesPartCountLabel(1), "1-part series");
-    assert.equal(formatSeriesPartCountLabel(2), "2-part series");
-    assert.equal(formatHomepageSeriesMetaLabel(2, 2), "2-part series · video guides");
-    assert.equal(formatHomepageSeriesMetaLabel(2, 0), "2-part series");
-    assert.equal(formatHomepageSeriesMetaLabel(1, 1), "1-part series · video guides");
+    assert.equal(formatSeriesCollectionMeta(recipeOnlyPlusVideo), "2 ITEMS · 10 MIN TOTAL");
+    assert.equal(formatSeriesCollectionMeta([item({ id: "x", title: "Solo" })]), "1 ITEM");
+    assert.equal(formatSeriesPartCountLabel(1), "1 item");
+    assert.equal(formatSeriesPartCountLabel(2), "2 items");
+    assert.equal(
+      formatHomepageSeriesMetaLabel({ recipeCount: 0, videoCount: 2, itemCount: 2 }),
+      "2 videos",
+    );
+    assert.equal(
+      formatHomepageSeriesMetaLabel({ recipeCount: 2, videoCount: 0, itemCount: 2 }),
+      "2 recipes",
+    );
+    assert.equal(
+      formatHomepageSeriesMetaLabel({ recipeCount: 1, videoCount: 1, itemCount: 1 }),
+      "1 item · video guides",
+    );
 
     assert.match(page, /formatSeriesCollectionMeta\(series\.items\)/);
   });

@@ -39,7 +39,7 @@ describe("Categories Phase 1 presentation contracts", () => {
     assert.match(manager, /New category/);
     assert.match(manager, /aria-expanded=\{addOpen\}/);
     assert.match(manager, /aria-controls=\{addPanelId\}/);
-    assert.match(manager, /Manage the category structure used to organize and discover Mesa recipes/);
+    assert.match(manager, /Manage broad public taxonomy pages/);
     assert.match(manager, /documentationTopicId="categories"/);
     assert.match(manager, /AdminPageHeader/);
     assert.match(manager, /action=\{saveCategoryAction\}/);

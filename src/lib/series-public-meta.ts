@@ -1,4 +1,8 @@
 import type { PublicSeriesItem } from "@/lib/series-types";
+import {
+  formatCollectionContentCount,
+  formatCollectionMetaLine,
+} from "@/lib/series-collection-count";
 
 /** Parse Mesa/YouTube display durations like `7:39` or `1:04:12`. */
 export function parseDurationDisplay(value: string): number | null {
@@ -31,35 +35,48 @@ export function seriesVisibleVideoDurationTotalSeconds(
   return total;
 }
 
-/** Sentence-case part count for homepage and restrained public surfaces. */
+/** Sentence-case part count for restrained public surfaces. */
 export function formatSeriesPartCountLabel(itemCount: number): string {
   const count = Math.max(0, Math.floor(itemCount));
-  if (count === 1) return "1-part series";
-  return `${count}-part series`;
+  if (count === 1) return "1 item";
+  return `${count} items`;
 }
 
 /**
- * Homepage Featured Series metadata.
- * Appends a quiet video cue only when the published Series has visible video items.
+ * Homepage Featured Collection metadata.
+ * Composition-aware: recipes / videos / items.
  */
-export function formatHomepageSeriesMetaLabel(itemCount: number, videoCount: number): string {
-  const base = formatSeriesPartCountLabel(itemCount);
-  if (videoCount > 0) return `${base} · video guides`;
+export function formatHomepageSeriesMetaLabel(input: {
+  recipeCount: number;
+  videoCount: number;
+  itemCount: number;
+}): string {
+  const base = formatCollectionContentCount(input);
+  if (!base) return "";
+  if (input.videoCount > 0 && input.recipeCount > 0) return `${base} · video guides`;
+  if (input.videoCount > 0 && input.recipeCount === 0) return base;
   return base;
 }
 
-/** Quiet editorial metadata, e.g. `2-PART SERIES · 12 MIN TOTAL`. */
+/** Quiet editorial metadata, e.g. `4 RECIPES · 12 MIN TOTAL`. */
 export function formatSeriesCollectionMeta(
-  items: Pick<PublicSeriesItem, "youtubeVideoId" | "watchUrl" | "durationDisplay">[],
+  items: Pick<
+    PublicSeriesItem,
+    "youtubeVideoId" | "watchUrl" | "durationDisplay" | "recipeSlug"
+  >[],
 ): string {
-  const count = items.length;
-  const partLabel = count === 1 ? "1-PART SERIES" : `${count}-PART SERIES`;
+  const recipeCount = items.filter((item) => Boolean(item.recipeSlug)).length;
+  const videoCount = items.filter((item) => Boolean(item.youtubeVideoId || item.watchUrl)).length;
+  const countLabel = formatCollectionContentCount({
+    recipeCount,
+    videoCount,
+    itemCount: items.length,
+  });
   const totalSeconds = seriesVisibleVideoDurationTotalSeconds(items);
-  if (totalSeconds == null || totalSeconds <= 0) return partLabel;
-
-  const totalMinutes = Math.max(1, Math.round(totalSeconds / 60));
-  return `${partLabel} · ${totalMinutes} MIN TOTAL`;
+  const totalMinutes =
+    totalSeconds != null && totalSeconds > 0 ? Math.max(1, Math.round(totalSeconds / 60)) : null;
+  return formatCollectionMetaLine(countLabel, totalMinutes);
 }
 
-/** Shared playlist CTA copy for Series page header + conclusion. */
-export const SERIES_PLAYLIST_CTA_LABEL = "Watch the full series on YouTube ↗";
+/** Shared playlist CTA copy for Collection page header + conclusion. */
+export const SERIES_PLAYLIST_CTA_LABEL = "Watch playlist on YouTube ↗";

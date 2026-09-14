@@ -69,12 +69,85 @@ model Recipe {
   studioLessonLinks StudioLessonRecipeLink[]
   saves       RecipeSave[]
   reviews     RecipeReview[]
+  /// Derived ingredient-identity index (ING-2+). Authored text remains in values.ingredients.
+  recipeIngredients RecipeIngredient[]
   /// Optional relation for live recipes only — see RecipeRevision.recipeId delete policy.
   revisions   RecipeRevision[]
   youtubeReleases YouTubeRelease[]
 
   @@index([scheduledPublishAt, status])
   @@index([publishedAt])
+}
+
+/**
+ * Canonical culinary ingredient identity (discovery/index vocabulary).
+ *
+ * Does NOT replace Recipe.values.ingredients authored display/amount/notes.
+ * Empty after migration until ING-3 seed/backfill.
+ */
+model Ingredient {
+  id        String   @id @default(cuid())
+  /// Human-readable canonical name (e.g. "Egg", "Egg yolk").
+  name      String
+  /// ING-1 normalizeIngredientLookupKey(name) — unique identity key.
+  nameNorm  String   @unique
+  /// Stable public-safe id; not auto-renamed when name changes later.
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  aliases           IngredientAlias[]
+  recipeIngredients RecipeIngredient[]
+}
+
+/**
+ * Known authored phrase mapping to one Ingredient.
+ * aliasNorm is globally unique so matching stays deterministic.
+ */
+model IngredientAlias {
+  id           String     @id @default(cuid())
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  /// Human alias phrase (e.g. "large eggs").
+  alias        String
+  /// ING-1 normalizeIngredientLookupKey(alias).
+  aliasNorm    String     @unique
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([ingredientId])
+}
+
+/**
+ * Derived Recipe.values.ingredients identity index.
+ *
+ * Authored source of truth remains Recipe.values.ingredients.
+ * groupIndex/itemIndex locate the row; ING-3 rebuilds on save after reorder.
+ * ingredientId is null when matchedVia = UNRESOLVED.
+ */
+model RecipeIngredient {
+  id               String      @id @default(cuid())
+  recipeId         String
+  recipe           Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  /// Null when unmatched (matchedVia UNRESOLVED).
+  ingredientId     String?
+  ingredient       Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  groupIndex       Int
+  itemIndex        Int
+  /// Snapshot of authored item text at index time (diagnostics only).
+  authoredItem     String      @default("")
+  /// ING-1 normalizeIngredientLookupKey(authoredItem).
+  authoredItemNorm String      @default("")
+  /// EXACT | ALIAS | UNRESOLVED
+  matchedVia       String      @default("UNRESOLVED")
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([recipeId, groupIndex, itemIndex])
+  @@index([recipeId])
+  @@index([ingredientId])
+  @@index([ingredientId, recipeId])
+  @@index([matchedVia, authoredItemNorm])
 }
 
 model AiRecipeGenerationCache {

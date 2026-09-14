@@ -43,7 +43,13 @@ export type AnalyticsEvent =
   | "newsletter_unsubscribe"
   | "series_item_click"
   | "series_watch_click"
-  | "series_watch_playlist_on_youtube_click";
+  | "series_watch_playlist_on_youtube_click"
+  | "cwyw_find"
+  | "cwyw_recipe_click"
+  | "shopping_list_add_recipe"
+  | "shopping_list_add_missing"
+  | "shopping_list_open"
+  | "shopping_list_clear";
 
 export type AnalyticsProperties = {
   recipe_slug?: string;
@@ -74,6 +80,16 @@ export type AnalyticsProperties = {
   sort?: string;
   result_count?: number;
   recipe_position?: number;
+  pantry_count?: number;
+  exact_count?: number;
+  near_count?: number;
+  /** Bounded comma-joined pantry slugs for CWYW (not free-text query). */
+  pantry_slugs?: string;
+  missing_bucket?: string;
+  contribution_count?: number;
+  missing_count?: number;
+  item_count?: number;
+  recipe_count?: number;
 };
 
 const BLOCKED_KEYS = new Set([

@@ -283,7 +283,8 @@ describe("phase 3e — discovery lifecycle fixture", () => {
       ["classic-french-baguettes", "herb-focaccia"],
     );
     const seriesPage = read("app/series/page.tsx");
-    assert.doesNotMatch(seriesPage, /homepageCollectionSlugMap|collection=/);
+    assert.doesNotMatch(seriesPage, /homepageCollectionSlugMap/);
+    assert.doesNotMatch(seriesPage, /\?collection=|params\.collection/);
   });
 
   it("aligns overlay title ranking with catalogue title preference", () => {

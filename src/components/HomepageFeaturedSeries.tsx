@@ -7,14 +7,18 @@ const linkFocus =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
 /**
- * Homepage bridge to one published Series (catalog order).
+ * Homepage bridge to one published Collection (catalog order).
  * Main visual + quiet editorial episode previews — no YouTube embeds or chrome.
  */
 export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard }) {
   const href = `/series/${series.slug}`;
   const description = series.description.trim();
-  const exploreLabel = `Explore the ${series.title} series`;
-  const metaLabel = formatHomepageSeriesMetaLabel(series.itemCount, series.videoCount);
+  const exploreLabel = `Explore the ${series.title} collection`;
+  const metaLabel = formatHomepageSeriesMetaLabel({
+    recipeCount: series.recipeCount,
+    videoCount: series.videoCount,
+    itemCount: series.itemCount,
+  });
   const previews = series.previewItems.slice(0, 2);
 
   return (
@@ -24,10 +28,10 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
     >
       <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-12">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-          Cooking Series
+          Collections
         </p>
         <h2 id="featured-series-heading" className="mt-2 font-serif text-3xl text-ink md:text-4xl">
-          Featured series
+          Featured collection
         </h2>
 
         <div className="mt-6 grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-2 lg:gap-10">
@@ -51,7 +55,7 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
             <p className="mt-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
               {metaLabel}
             </p>
-            <div className="mt-6">
+            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2">
               <SeriesItemTrackLink
                 href={href}
                 event="series_item_click"
@@ -61,7 +65,18 @@ export function HomepageFeaturedSeries({ series }: { series: PublicSeriesCard })
                 ariaLabel={exploreLabel}
                 className={`inline-flex min-h-11 items-center text-sm font-semibold text-terracotta hover:text-terracotta-dark ${linkFocus}`}
               >
-                Explore the series →
+                Explore collection →
+              </SeriesItemTrackLink>
+              <SeriesItemTrackLink
+                href="/series"
+                event="series_item_click"
+                seriesId={series.id}
+                seriesSlug={series.slug}
+                placement="homepage_collections_index"
+                ariaLabel="Explore all collections"
+                className={`inline-flex min-h-11 items-center text-sm font-semibold text-ink/80 hover:text-terracotta ${linkFocus}`}
+              >
+                Explore all collections →
               </SeriesItemTrackLink>
             </div>
 
@@ -108,7 +123,7 @@ function SeriesPreviewRow({
       destinationVideoId={item.youtubeVideoId ?? undefined}
       placement="homepage_series"
       className={`group flex min-h-11 flex-col gap-2 py-4 ${linkFocus}`}
-      ariaLabel={`${item.title} in the ${series.title} series`}
+      ariaLabel={`${item.title} in the ${series.title} collection`}
     >
       <span
         aria-hidden="true"

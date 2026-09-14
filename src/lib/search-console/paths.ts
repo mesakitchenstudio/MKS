@@ -46,6 +46,7 @@ export type SearchConsoleRouteKind =
   | "recipe"
   | "category"
   | "collection"
+  | "ingredient"
   | "video_hub"
   | "video"
   | "studio"
@@ -59,6 +60,7 @@ export function classifySearchConsolePath(normalizedPath: string): SearchConsole
   if (/^\/recipes\/[^/]+$/.test(path)) return "recipe";
   if (/^\/category\/[^/]+$/.test(path)) return "category";
   if (path === "/series" || /^\/series\/[^/]+$/.test(path)) return "collection";
+  if (/^\/ingredient\/[^/]+$/.test(path)) return "ingredient";
   if (path === "/studio" || /^\/studio\/[^/]+$/.test(path)) return "studio";
   return "other";
 }

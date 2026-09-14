@@ -21,6 +21,8 @@ function sampleItem(overrides: Partial<PublicSeriesItem> = {}): PublicSeriesItem
     watchExternal: false,
     typeName: "",
     categorySlugs: [],
+    primaryCategoryLabel: "",
+    totalTimeMinutes: null,
     ...overrides,
   };
 }
@@ -57,6 +59,8 @@ describe("series schema", () => {
           watchExternal: true,
           typeName: "Bread",
           categorySlugs: ["breads"],
+          primaryCategoryLabel: "Breads",
+          totalTimeMinutes: 40,
         },
       ],
     };

@@ -68,7 +68,7 @@ describe("recipe print helpers", () => {
   it("builds canonical recipe URL", () => {
     assert.equal(
       recipePrintCanonicalUrl("classic-baguettes"),
-      "https://mesakitchenstudio.com/recipes/classic-baguettes",
+      "https://www.mesakitchenstudio.com/recipes/classic-baguettes",
     );
   });
 

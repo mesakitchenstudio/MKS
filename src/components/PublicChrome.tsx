@@ -12,6 +12,7 @@ export function PublicChrome({
   showChrome = true,
   recipes = [],
   newsletterSubscribed = false,
+  shoppingListEnabled = false,
 }: {
   children: React.ReactNode;
   hideTools?: boolean;
@@ -20,13 +21,16 @@ export function PublicChrome({
   recipes?: OverlayRecipe[];
   /** Server-resolved: session email has an active NewsletterSubscriber row. */
   newsletterSubscribed?: boolean;
+  shoppingListEnabled?: boolean;
 }) {
   const pathname = usePathname() || "";
 
   // Admin has its own shell — never mount public header/footer/tools there,
-  // except authenticated recipe preview which should look like the public site.
+  // except authenticated recipe/collection preview which should look like the public site.
   const isRecipePreview = /^\/admin\/recipes\/[^/]+\/preview\/?$/.test(pathname);
-  if (pathname.startsWith("/admin") && !isRecipePreview) return children;
+  const isSeriesPreview = /^\/admin\/series\/[^/]+\/preview\/?$/.test(pathname);
+  const isAdminPreview = isRecipePreview || isSeriesPreview;
+  if (pathname.startsWith("/admin") && !isAdminPreview) return children;
 
   // Standalone newsletter unsubscribe — brand lives in the page; keep chrome off
   // so Coming Soon / private mode and a distraction-free utility surface stay consistent.
@@ -36,7 +40,7 @@ export function PublicChrome({
   const showPublicChrome = showChrome && !onNewsletterUnsubscribe && !onCookingMode;
   // Preview: public chrome yes; float favorite/search tools no (avoid member mutations).
   const showFloatTools =
-    !hideTools && !onNewsletterUnsubscribe && !onCookingMode && !isRecipePreview;
+    !hideTools && !onNewsletterUnsubscribe && !onCookingMode && !isAdminPreview;
 
   return (
     <>
@@ -46,6 +50,7 @@ export function PublicChrome({
         <SiteFooter
           hideNewsletter={pathname === "/"}
           newsletterSubscribed={newsletterSubscribed}
+          shoppingListEnabled={shoppingListEnabled}
         />
       ) : null}
       {showFloatTools ? <RecipeFloatTools recipes={recipes} /> : null}

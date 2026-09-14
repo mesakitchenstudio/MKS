@@ -10,6 +10,7 @@ import {
   type SiteHealthResult,
 } from "@/lib/site-health";
 import { filterPubliclyVisibleLessons, isStudioPublicLaunchEnabled } from "@/lib/studio-public";
+import { isCookWithWhatYouHaveEnabled } from "@/lib/cook-with-what-you-have";
 
 /**
  * Load Site / SEO Health from repository truth.
@@ -18,6 +19,7 @@ import { filterPubliclyVisibleLessons, isStudioPublicLaunchEnabled } from "@/lib
 export async function loadSiteHealth(): Promise<SiteHealthResult> {
   const db = getDb();
   const studioEnabled = isStudioPublicLaunchEnabled();
+  const cwywEnabled = isCookWithWhatYouHaveEnabled();
 
   const [redirects, recipes, categories, series] = await Promise.all([
     db.redirect.findMany({
@@ -71,6 +73,7 @@ export async function loadSiteHealth(): Promise<SiteHealthResult> {
     siteUrl: site.url,
     sitePrivate: isSitePrivate(),
     studioPublicLaunchEnabled: studioEnabled,
+    cookWithWhatYouHaveEnabled: cwywEnabled,
     // site.url is the production canonical host config (not preview/runtime host).
     productionLike: true,
     redirects,

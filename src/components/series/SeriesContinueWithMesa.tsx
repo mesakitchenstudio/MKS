@@ -49,7 +49,7 @@ export function SeriesContinueWithMesa({
           </h2>
           <p className="mt-2 text-sm leading-6 text-muted">
             {hasPlaylist
-              ? "Continue through the complete Series playlist on YouTube, or subscribe for future Mesa recipes and techniques."
+              ? "Continue through the complete playlist on YouTube, or subscribe for future Mesa recipes and techniques."
               : "Subscribe for future Mesa recipes and kitchen techniques from Mesa Kitchen Studio."}
           </p>
         </div>
@@ -68,7 +68,7 @@ export function SeriesContinueWithMesa({
               seriesSlug={seriesSlug}
               playlistId={youtubePlaylistId || undefined}
               placement="series_page_conclusion"
-              ariaLabel="Watch the full series on YouTube (opens in a new tab)"
+              ariaLabel="Watch playlist on YouTube (opens in a new tab)"
             >
               {SERIES_PLAYLIST_CTA_LABEL}
               <span className="sr-only"> (opens in a new tab)</span>

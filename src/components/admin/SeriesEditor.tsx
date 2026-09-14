@@ -49,6 +49,14 @@ import {
   validateAdminImageFile,
 } from "@/lib/admin-upload";
 import { youtubePlaylistUrl } from "@/lib/youtube";
+import {
+  COLLECTION_CATEGORY_CLONE_WARNING,
+  collectionMatchesCategoryClone,
+} from "@/lib/series-seo";
+import {
+  adminSeriesItemToVisibilityInput,
+  countSeriesMembershipVisibility,
+} from "@/lib/series-public-visibility";
 
 const sectionLabelClass =
   "text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-olive";
@@ -72,13 +80,22 @@ function seriesFormSnapshot(data: {
   return JSON.stringify(data);
 }
 
-function validateSeriesForPublish(title: string, slug: string, isNew: boolean): Record<string, string> {
+function validateSeriesForPublish(
+  title: string,
+  slug: string,
+  isNew: boolean,
+  publicVisibleCount: number,
+): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!title.trim()) {
     errors.title = "Title is required before publishing.";
   }
   if (isNew && !slug.trim()) {
     errors.slug = "Slug is required before publishing.";
+  }
+  if (publicVisibleCount <= 0) {
+    errors.content =
+      "Add at least one publicly available recipe or video before publishing this Collection.";
   }
   return errors;
 }
@@ -114,9 +131,9 @@ function itemCompactMeta(item: AdminSeriesItemDraft) {
 
 function removeItemConfirmMessage(item: AdminSeriesItemDraft) {
   if (item.youtubeVideoId) {
-    return "Remove this item from the Series? If it remains in the linked YouTube playlist, it may return after a future refresh.";
+    return "Remove this item from the Collection? If it remains in the linked YouTube playlist, it may return after a future refresh.";
   }
-  return "Remove this item from the Series?";
+  return "Remove this item from the Collection?";
 }
 
 function pickerFormatLabel(format: string) {
@@ -141,6 +158,7 @@ export function SeriesEditor({
   series,
   candidates,
   recipeTypes = [],
+  categories = [],
   linkablePlaylists = [],
   isNew = false,
   saved = false,
@@ -148,6 +166,8 @@ export function SeriesEditor({
   series: AdminSeriesDetail;
   candidates: SeriesPickerCandidate[];
   recipeTypes?: { id: string; name: string }[];
+  /** Loaded once for soft Category-clone guidance (no per-keystroke fetch). */
+  categories?: { name: string; slug: string }[];
   linkablePlaylists?: { playlistId: string; title: string; videoCount: number }[];
   isNew?: boolean;
   saved?: boolean;
@@ -244,8 +264,8 @@ export function SeriesEditor({
   );
 
   const draftActionLabel = isPublished ? "Move to draft" : "Save draft";
-  const publishButtonLabel = isPublished ? "Update published series" : "Publish";
-  const pageTitle = title.trim() || (isNew ? "New custom series" : "Edit series");
+  const publishButtonLabel = isPublished ? "Update published collection" : "Publish";
+  const pageTitle = title.trim() || (isNew ? "New collection" : "Edit collection");
   const aiSummary = seriesAiAssistanceSummary(aiMeta);
   const showAiHeaderNote =
     aiMeta.generatedByAI ||
@@ -371,7 +391,10 @@ export function SeriesEditor({
   }
 
   function attemptPublish() {
-    const errors = validateSeriesForPublish(title, slug, isNew);
+    const visibility = countSeriesMembershipVisibility(
+      items.map(adminSeriesItemToVisibilityInput),
+    );
+    const errors = validateSeriesForPublish(title, slug, isNew, visibility.publicVisible);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const count = Object.keys(errors).length;
@@ -429,7 +452,24 @@ export function SeriesEditor({
 
   const seriesContentHelper = isYoutube
     ? "Playlist membership can refresh from YouTube. Mesa titles and descriptions remain editable here."
-    : "Add recipes and videos to curate this Mesa-only collection.";
+    : "Add Mesa recipes first (and optional videos) to curate this public collection.";
+
+  const visibility = useMemo(
+    () => countSeriesMembershipVisibility(items.map(adminSeriesItemToVisibilityInput)),
+    [items],
+  );
+  const thinCollection = visibility.publicVisible > 0 && visibility.publicVisible < 3;
+  const categoryCloneWarning = useMemo(
+    () => collectionMatchesCategoryClone({ title, slug }, categories),
+    [title, slug, categories],
+  );
+  const editorialRecommendations = useMemo(() => {
+    const tips: string[] = [];
+    if (!description.trim()) tips.push("Add a short description (lead under the title)");
+    if (!intro.trim()) tips.push("Add an editorial introduction");
+    if (!heroImage.trim()) tips.push("Add a hero image for stronger visual and social presentation");
+    return tips;
+  }, [description, intro, heroImage]);
 
   return (
     <div className="relative isolate min-w-0 max-w-full space-y-6 overflow-x-clip">
@@ -438,15 +478,21 @@ export function SeriesEditor({
           href="/admin/series"
           className={`text-sm font-semibold text-muted transition-colors duration-150 hover:text-terracotta ${adminFocusRing}`}
         >
-          ← Series
+          ← Collections
         </Link>
         <h1 className="font-serif text-2xl leading-tight text-ink md:text-[1.75rem]">
-          {isNew ? "New custom series" : pageTitle}
+          {isNew ? "Create Collection" : pageTitle}
         </h1>
         <p className="text-sm text-muted">
           {isYoutube
-            ? "YouTube playlist supplies membership and order; Mesa owns editorial presentation."
-            : "Mesa-only collection — recipes and videos you curate by hand."}
+            ? "YouTube Collection — playlist supplies membership and order; Mesa owns editorial presentation."
+            : "Mesa Collection — curated public recipes and optional videos for SEO and discovery hubs."}
+        </p>
+        <p className="text-xs text-muted">
+          {isYoutube ? "YouTube Collection" : "Mesa Collection"}
+          {isNew
+            ? " · Ideal for hubs like French Desserts, Easy Breakfast, or 30-Minute Meals."
+            : null}
         </p>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
           <EditorStatusBadge published={isPublished} />
@@ -470,9 +516,9 @@ export function SeriesEditor({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AdminDocumentationButton topicId="series-editor" compact className="min-h-11" />
-            {!isNew && isPublished ? (
+            {!isNew ? (
               <Link
-                href={`/series/${series.slug}`}
+                href={`/admin/series/${series.id}/preview`}
                 className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -528,6 +574,9 @@ export function SeriesEditor({
             role="alert"
           >
             <p className="text-sm font-semibold text-terracotta">{publishAlert}</p>
+            {fieldErrors.content ? (
+              <p className="mt-1 text-sm text-terracotta">{fieldErrors.content}</p>
+            ) : null}
           </div>
         ) : null}
 
@@ -536,7 +585,7 @@ export function SeriesEditor({
             <h2 id="series-editorial-heading" className={sectionLabelClass}>
               Editorial presentation
             </h2>
-            <p className="mt-1 text-sm text-muted">Mesa copy shown on the Series page.</p>
+            <p className="mt-1 text-sm text-muted">Mesa copy shown on the public Collection page.</p>
           </div>
           <div className="grid max-w-[72ch] gap-4">
             <label className="grid min-w-0 gap-1 text-sm">
@@ -595,6 +644,10 @@ export function SeriesEditor({
                   markScalarEdit("description", e.target.value);
                 }}
               />
+              <span className="text-xs text-muted">
+                Short visitor-facing lead beneath the title. Also used as the search/social description
+                when SEO description is empty.
+              </span>
             </label>
             <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-semibold">
@@ -610,7 +663,18 @@ export function SeriesEditor({
                   markScalarEdit("intro", e.target.value);
                 }}
               />
+              <span className="text-xs text-muted">
+                Longer visitor-facing editorial context. Intro is not used as metadata fallback.
+              </span>
             </label>
+            {categoryCloneWarning ? (
+              <p
+                className="rounded-sm border border-line bg-sand/40 px-3 py-2 text-sm text-muted"
+                role="status"
+              >
+                {COLLECTION_CATEGORY_CLONE_WARNING}
+              </p>
+            ) : null}
           </div>
         </section>
 
@@ -657,9 +721,38 @@ export function SeriesEditor({
         <section className="min-w-0 space-y-4" aria-labelledby="series-content-heading">
           <div>
             <h2 id="series-content-heading" className={sectionLabelClass}>
-              Series content
+              Collection content
             </h2>
             <p className="mt-1 text-sm text-muted">{seriesContentHelper}</p>
+            <p className="mt-2 text-sm text-muted">
+              Total members: {visibility.totalMembers}
+              {" · "}
+              Publicly visible: {visibility.publicVisible}
+              {visibility.hidden > 0
+                ? ` · ${visibility.hidden} ${visibility.hidden === 1 ? "item is" : "items are"} not currently visible publicly`
+                : null}
+            </p>
+            {thinCollection ? (
+              <p className="mt-2 text-sm text-muted" role="status">
+                This Collection currently has fewer than 3 public items. Adding more content will
+                make it a stronger discovery page.
+              </p>
+            ) : null}
+            {editorialRecommendations.length > 0 ? (
+              <div className="mt-2 text-sm text-muted" role="note">
+                <p className="font-semibold text-ink/80">Recommended for stronger Collection pages:</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                  {editorialRecommendations.map((tip) => (
+                    <li key={tip}>{tip}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {fieldErrors.content && !publishAlert ? (
+              <p className="mt-2 text-sm font-semibold text-terracotta" role="alert">
+                {fieldErrors.content}
+              </p>
+            ) : null}
           </div>
 
           <div className="divide-y divide-line/80 border-y border-line/80">
@@ -690,7 +783,7 @@ export function SeriesEditor({
                           value={item.id}
                           className={`${adminSecondaryButtonClass} ${adminFocusRing} min-h-11`}
                         >
-                          Keep in Mesa Series
+                          Keep in Mesa Collection
                         </button>
                         <button
                           type="submit"
@@ -829,7 +922,15 @@ export function SeriesEditor({
 
           <div className="min-w-0 space-y-3 border-t border-line/60 pt-5">
             <div>
-              <h3 className="text-sm font-semibold text-ink">Add Mesa items</h3>
+              <h3 className="text-sm font-semibold text-ink">
+                {isYoutube ? "Add Mesa items" : "Add recipes"}
+              </h3>
+              {!isYoutube ? (
+                <p className="text-xs text-muted">
+                  Search and add published or draft recipes. Draft recipes stay in the editor but
+                  stay hidden on the public Collection until published.
+                </p>
+              ) : null}
               <p className="text-xs text-muted">Optional</p>
             </div>
             <div className="flex min-w-0 flex-wrap gap-2">
@@ -914,6 +1015,10 @@ export function SeriesEditor({
                   markScalarEdit("seoTitle", e.target.value);
                 }}
               />
+              <span className="text-xs text-muted">
+                Optional search and browser title. If empty, Mesa uses the Collection title. Does not
+                change the visible page heading.
+              </span>
             </label>
             <label className="grid min-w-0 gap-1 text-sm">
               <span className="font-semibold">
@@ -929,6 +1034,10 @@ export function SeriesEditor({
                   markScalarEdit("seoDescription", e.target.value);
                 }}
               />
+              <span className="text-xs text-muted">
+                Optional search and social description. If empty, Mesa uses the Collection description.
+                Aim for about 150–160 characters.
+              </span>
             </label>
             {isNew ? (
               <label className="grid min-w-0 gap-1 text-sm">
@@ -952,14 +1061,25 @@ export function SeriesEditor({
                 {fieldErrors.slug ? (
                   <p className="text-xs font-semibold text-terracotta">{fieldErrors.slug}</p>
                 ) : null}
+                <span className="text-xs text-muted">
+                  Becomes the public URL (/series/…). Collection URLs stay fixed after creation to
+                  preserve stable public links.
+                </span>
               </label>
             ) : (
               <div className="min-w-0">
                 <p className={sectionLabelClass}>Slug</p>
                 <p className="mt-1 font-mono text-sm text-muted">{slug}</p>
-                <p className="mt-0.5 text-xs text-muted">Locked after creation.</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  Collection URLs stay fixed after creation to preserve stable public links. Editing
+                  the title does not change /series/{slug}.
+                </p>
               </div>
             )}
+            <p className="text-xs text-muted">
+              Published Collections with no public items remain reachable but are excluded from search
+              indexing and the sitemap until public content returns.
+            </p>
             <label className="grid max-w-xs min-w-0 gap-1 text-sm">
               <span className="font-semibold text-muted">Catalog sort order</span>
               <input
@@ -968,7 +1088,7 @@ export function SeriesEditor({
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value)}
               />
-              <span className="text-xs text-muted">Controls Series order in the admin catalog.</span>
+              <span className="text-xs text-muted">Controls Collection order in the admin catalog.</span>
             </label>
           </div>
         </section>
@@ -1100,7 +1220,7 @@ export function SeriesEditor({
           <form
             action={deleteSeriesAction}
             onSubmit={(event) => {
-              if (!window.confirm("Delete this series permanently?")) event.preventDefault();
+              if (!window.confirm("Delete this collection permanently?")) event.preventDefault();
             }}
           >
             <input type="hidden" name="id" value={series.id} />
@@ -1108,7 +1228,7 @@ export function SeriesEditor({
               type="submit"
               className={`text-sm font-semibold text-terracotta hover:underline ${adminFocusRing}`}
             >
-              Delete series
+              Delete collection
             </button>
           </form>
         </div>

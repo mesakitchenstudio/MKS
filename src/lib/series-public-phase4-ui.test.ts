@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { mapSourceToPlacement } from "./funnel-analytics";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const page = readFileSync(path.join(root, "../app/series/[slug]/page.tsx"), "utf8");
+const page = readFileSync(path.join(root, "../components/series/SeriesDetailView.tsx"), "utf8");
 const conclusion = readFileSync(
   path.join(root, "../components/series/SeriesContinueWithMesa.tsx"),
   "utf8",
@@ -92,7 +92,7 @@ describe("Series public Phase 4 visual/conversion polish", () => {
     // Same structural card for Featured and non-Featured — only the label is conditional.
     assert.match(page, /isEffectiveFeatured \? \([\s\S]*Featured[\s\S]*\) : null/);
     // No fixed card/description height — exclude hero's intentional xl:h-[30rem].
-    const cardRegion = page.slice(page.indexOf("In this series"), page.indexOf("SeriesContinueWithMesa"));
+    const cardRegion = page.slice(page.indexOf("In this collection"), page.indexOf("SeriesContinueWithMesa"));
     assert.doesNotMatch(cardRegion, /min-h-\[|h-\[(?:\d)|h-96|h-80|h-72/);
     assert.doesNotMatch(cardRegion, /invisible|opacity-0/);
   });

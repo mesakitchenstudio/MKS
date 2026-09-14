@@ -157,6 +157,7 @@ describe("guest-path-labels", () => {
       "Chocolate Chunk Cookies",
     );
     assert.equal(guestPathTitle("/totally-unmapped-path"), "Totally Unmapped Path");
+    assert.equal(guestPathTitle("/ingredient/egg"), "Egg Recipes");
   });
 
   it("excludes internal paths from popular pages", () => {

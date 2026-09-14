@@ -21,6 +21,7 @@ import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { formatTime, totalMinutes } from "@/lib/recipe-utils";
 import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideoOptional } from "@/components/youtube/RecipeVideoContext";
+import { AddRecipeToShoppingListButton } from "@/components/AddRecipeToShoppingListButton";
 
 function ChevronDown({ open }: { open: boolean }) {
   return (
@@ -207,6 +208,9 @@ export function RecipeCookingWorkspace(props: {
   recipe: Recipe;
   youtube?: ResolvedRecipeYoutube | null;
   initialStageVideoHelp?: Record<string, StageVideoHelp>;
+  shoppingListEnabled?: boolean;
+  /** groupIndex:itemIndex → Ingredient slug (server-resolved, indexable only). */
+  ingredientSeoLinks?: Record<string, string>;
 }) {
   return <RecipeCookingWorkspaceInner key={props.recipe.slug} {...props} />;
 }
@@ -215,10 +219,14 @@ function RecipeCookingWorkspaceInner({
   recipe,
   youtube = null,
   initialStageVideoHelp = {},
+  shoppingListEnabled = false,
+  ingredientSeoLinks = {},
 }: {
   recipe: Recipe;
   youtube?: ResolvedRecipeYoutube | null;
   initialStageVideoHelp?: Record<string, StageVideoHelp>;
+  shoppingListEnabled?: boolean;
+  ingredientSeoLinks?: Record<string, string>;
 }) {
   const [servings, setServings] = useState(recipe.servings);
   const factor = servings / Math.max(1, recipe.servings);
@@ -368,23 +376,39 @@ function RecipeCookingWorkspaceInner({
               </button>
             </div>
 
-            {recipe.ingredients.map((group) => (
-              <div key={group.name ?? "main"} className="recipe-ingredient-group mt-4">
+            {shoppingListEnabled ? (
+              <AddRecipeToShoppingListButton recipe={recipe} selectedServings={servings} />
+            ) : null}
+
+            {recipe.ingredients.map((group, groupIndex) => (
+              <div key={group.name ?? `group-${groupIndex}`} className="recipe-ingredient-group mt-4">
                 {group.name ? <p className="mb-2 text-sm font-semibold text-olive">{group.name}</p> : null}
                 <ul className="space-y-2">
-                  {group.items.map((item) => (
-                    <li key={item.item} className="flex gap-3 text-sm leading-6">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-terracotta" />
-                      <span>
-                        <strong className="font-semibold">
-                          {scaleAmount(item.amount, factor)}
-                          {item.grams ? ` (${Math.round(item.grams * factor)}g)` : ""}
-                        </strong>{" "}
-                        {item.item}
-                        {item.notes ? <span className="text-muted">, {item.notes}</span> : null}
-                      </span>
-                    </li>
-                  ))}
+                  {group.items.map((item, itemIndex) => {
+                    const seoSlug = ingredientSeoLinks[`${groupIndex}:${itemIndex}`];
+                    return (
+                      <li key={`${groupIndex}-${itemIndex}-${item.item}`} className="flex gap-3 text-sm leading-6">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-terracotta" />
+                        <span>
+                          <strong className="font-semibold">
+                            {scaleAmount(item.amount, factor)}
+                            {item.grams ? ` (${Math.round(item.grams * factor)}g)` : ""}
+                          </strong>{" "}
+                          {seoSlug ? (
+                            <a
+                              href={`/ingredient/${seoSlug}`}
+                              className="text-ink underline decoration-line/80 underline-offset-2 hover:text-terracotta hover:decoration-terracotta"
+                            >
+                              {item.item}
+                            </a>
+                          ) : (
+                            item.item
+                          )}
+                          {item.notes ? <span className="text-muted">, {item.notes}</span> : null}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))}

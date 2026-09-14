@@ -12,6 +12,10 @@ import {
   adminWorkspaceWide,
 } from "./admin-ui";
 import { adminWorkspaceWidthForPath } from "./admin-nav";
+import {
+  adminSeriesPreviewBannerCopy,
+  adminSeriesPreviewPath,
+} from "./series-admin-preview.ts";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const page = readFileSync(path.join(root, "../app/admin/(app)/series/page.tsx"), "utf8");
@@ -24,7 +28,15 @@ const overflow = readFileSync(
   path.join(root, "../components/admin/SeriesIndexRowOverflow.tsx"),
   "utf8",
 );
-const publicSeries = readFileSync(path.join(root, "../app/series/[slug]/page.tsx"), "utf8");
+const publicSeries = readFileSync(path.join(root, "../components/series/SeriesDetailView.tsx"), "utf8");
+const publicPage = readFileSync(path.join(root, "../app/series/[slug]/page.tsx"), "utf8");
+const previewPage = readFileSync(
+  path.join(root, "../app/admin/(preview)/series/[id]/preview/page.tsx"),
+  "utf8",
+);
+const nav = readFileSync(path.join(root, "../lib/admin-nav.ts"), "utf8");
+const labels = readFileSync(path.join(root, "../lib/phase3c-collections.ts"), "utf8");
+const importPage = readFileSync(path.join(root, "../app/admin/(app)/series/import/page.tsx"), "utf8");
 
 describe("Series Phase 1 presentation contracts", () => {
   it("uses a Series-specific workspace width without widening unrelated routes", () => {
@@ -44,28 +56,31 @@ describe("Series Phase 1 presentation contracts", () => {
     assert.equal(canAccess("members", "content"), false);
   });
 
-  it("simplifies index columns and drops diagnostic columns from the ledger", () => {
-    assert.match(page, /scope="col"/);
-    assert.match(page, />\s*Series\s*</);
+  it("shows Collections terminology on Admin index and sidebar", () => {
+    assert.match(nav, /label: "Collections"/);
+    assert.match(page, /title="Collections"/);
+    assert.match(page, /\+ New collection/);
+    assert.match(page, /PHASE3C_MESA_COLLECTION_LABEL/);
+    assert.match(page, /PHASE3C_YOUTUBE_COLLECTION_LABEL/);
+    assert.match(labels, /PHASE3C_MESA_COLLECTION_LABEL = "Mesa Collection"/);
+    assert.match(labels, /PHASE3C_YOUTUBE_COLLECTION_LABEL = "YouTube Collection"/);
+    assert.match(page, />\s*Collection\s*</);
     assert.match(page, />\s*Source\s*</);
     assert.match(page, />\s*Items\s*</);
     assert.match(page, />\s*Status\s*</);
     assert.match(page, />\s*Actions\s*</);
     assert.doesNotMatch(page, /Last refreshed/);
-    assert.doesNotMatch(page, />\s*Linked\s*</);
-    assert.doesNotMatch(page, />\s*Video-only\s*</);
-    assert.doesNotMatch(page, />\s*Order\s*</);
-    assert.doesNotMatch(page, /overflow-x-auto/);
+    assert.doesNotMatch(page, /href="\/admin\/collections"/);
+    assert.doesNotMatch(page, /href="\/collections"/);
   });
 
-  it("keeps View conditional on published and moves source actions into overflow", () => {
+  it("keeps View conditional on published and Preview for drafts", () => {
     assert.match(page, /row\.isPublished \? \([\s\S]*View ↗/);
+    assert.match(page, /\/admin\/series\/\$\{row\.id\}\/preview/);
     assert.match(page, /aria-label=\{`Edit \$\{row\.title\}`\}/);
     assert.match(page, /aria-label=\{`View \$\{row\.title\}`\}/);
     assert.match(overflow, /More actions for/);
     assert.match(overflow, /refreshSeriesFromYoutubeAction/);
-    assert.match(overflow, /Refresh \$\{seriesTitle\} from YouTube/);
-    assert.match(overflow, /Open \$\{seriesTitle\} playlist on YouTube/);
     assert.doesNotMatch(page, /form action=\{refreshSeriesFromYoutubeAction\}/);
   });
 
@@ -78,7 +93,7 @@ describe("Series Phase 1 presentation contracts", () => {
     assert.match(page, /itemsSummary/);
   });
 
-  it("places Import as primary and Create custom as secondary", () => {
+  it("places Import as primary and New collection as secondary", () => {
     assert.match(page, /href="\/admin\/series\/import"/);
     assert.match(page, /href="\/admin\/series\/new"/);
     const importLink = page.indexOf('href="/admin/series/import"');
@@ -103,7 +118,7 @@ describe("Series Phase 1 presentation contracts", () => {
     const content = editor.indexOf('id="series-content-heading"');
     const discovery = editor.indexOf('id="series-discovery-heading"');
     const source = editor.indexOf('id="series-source-heading"');
-    const del = editor.indexOf("Delete series");
+    const del = editor.indexOf("Delete collection");
     assert.ok(ai > 0);
     assert.ok(editorial > ai);
     assert.ok(visual > editorial);
@@ -129,7 +144,7 @@ describe("Series Phase 1 presentation contracts", () => {
 
   it("reserves terracotta primary for save/update and demotes Refresh / Regenerate", () => {
     assert.match(editor, /adminPrimaryButtonClass/);
-    assert.match(editor, /Update published series/);
+    assert.match(editor, /Update published collection/);
     const refreshBlock = editor.slice(
       editor.indexOf("Refresh from YouTube") - 180,
       editor.indexOf("Refresh from YouTube"),
@@ -142,9 +157,11 @@ describe("Series Phase 1 presentation contracts", () => {
   });
 
   it("presents slug as immutable metadata after creation", () => {
-    assert.match(editor, /Locked after creation/);
     assert.match(editor, /type="hidden" name="slug"/);
     assert.match(editor, /font-mono text-sm text-muted">\{slug\}/);
+    assert.match(editor, /Collection URLs stay fixed after creation/);
+    assert.doesNotMatch(editor, /Automatic redirects are not yet created for Collection URLs/);
+    assert.doesNotMatch(editor, /Locked after creation/);
   });
 
   it("keeps items serialization and Featured / Remove presentation contracts", () => {
@@ -153,15 +170,25 @@ describe("Series Phase 1 presentation contracts", () => {
     assert.match(editor, /Featured item: \$\{item\.label\}/);
     assert.match(editor, /Set \$\{item\.label\} as featured/);
     assert.match(editor, /may return after a future refresh/);
-    assert.match(editor, /Remove this item from the Series\?/);
-    assert.doesNotMatch(editor, /Remove this item from the Series permanently\?/);
+    assert.match(editor, /Remove this item from the Collection\?/);
+    assert.doesNotMatch(editor, /Remove this item from the Collection permanently\?/);
+  });
+
+  it("uses recipe-first CUSTOM add copy and Admin Preview by Series.id", () => {
+    assert.match(editor, /Add recipes/);
+    assert.match(editor, /Create Collection/);
+    assert.match(editor, /Mesa Collection/);
+    assert.match(editor, /YouTube Collection/);
+    assert.match(editor, /\/admin\/series\/\$\{series\.id\}\/preview/);
+    assert.match(editor, /← Collections/);
+    assert.match(importPage, /Create Mesa Collection instead/);
+    assert.match(importPage, /YouTube Collection/);
   });
 
   it("polishes UNKNOWN display and keeps Add accessible names", () => {
     assert.match(editor, /format === "UNKNOWN"/);
     assert.match(editor, /function pickerFormatLabel/);
     assert.match(editor, /aria-label=\{`Add \$\{addLabel\}`\}/);
-    assert.match(editor, /Add Mesa items/);
     assert.doesNotMatch(editor, /Format not set/);
   });
 
@@ -190,9 +217,33 @@ describe("Series Phase 1 presentation contracts", () => {
     assert.match(editor, /adminRecipeEditorStickyBleedClass/);
   });
 
-  it("does not alter the public Series renderer in Phase 1 assumptions", () => {
+  it("shares public Collection presentation and keeps /series routes", () => {
     assert.match(publicSeries, /Featured/);
-    assert.match(publicSeries, /In this series/);
-    assert.doesNotMatch(editor, /app\/series\/\[slug\]/);
+    assert.match(publicSeries, /In this collection/);
+    assert.match(publicPage, /SeriesDetailView/);
+    assert.match(publicPage, /getPublishedSeriesBySlug/);
+    assert.doesNotMatch(publicPage, /href="\/collections/);
+  });
+});
+
+describe("Series Collection Admin Preview", () => {
+  it("builds preview paths by Series.id and banner copy", () => {
+    assert.equal(adminSeriesPreviewPath("clr123"), "/admin/series/clr123/preview");
+    assert.equal(adminSeriesPreviewBannerCopy(false).eyebrow, "Draft collection preview");
+    assert.equal(adminSeriesPreviewBannerCopy(true).eyebrow, "Collection preview");
+  });
+
+  it("wires authenticated preview outside AdminShell with noindex and engagement gate", () => {
+    assert.match(previewPage, /requireAccess\("content"\)/);
+    assert.match(previewPage, /getSeriesDetailByIdForAdminPreview/);
+    assert.match(previewPage, /robots: \{ index: false, follow: false \}/);
+    assert.match(previewPage, /SeriesPreviewEngagementGate/);
+    assert.match(previewPage, /mode="preview"/);
+    assert.match(previewPage, /Open live page|liveHref/);
+    const chrome = readFileSync(path.join(root, "../components/PublicChrome.tsx"), "utf8");
+    assert.match(chrome, /isSeriesPreview/);
+    const layout = readFileSync(path.join(root, "../app/admin/(preview)/layout.tsx"), "utf8");
+    assert.doesNotMatch(layout, /from ["']@\/components\/admin\/AdminShell["']/);
+    assert.doesNotMatch(layout, /<AdminShell/);
   });
 });

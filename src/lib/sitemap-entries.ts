@@ -14,6 +14,7 @@ export type SitemapRecipeEntry = {
 export type SitemapCategoryEntry = { slug: string };
 export type SitemapSeriesEntry = { slug: string };
 export type SitemapStudioLessonEntry = { slug: string };
+export type SitemapIngredientEntry = { slug: string };
 
 export type BuildSitemapEntriesInput = {
   siteUrl?: string;
@@ -24,6 +25,10 @@ export type BuildSitemapEntriesInput = {
   /** Already filtered to publicly visible lessons when Studio launch is enabled. */
   studioLessons?: SitemapStudioLessonEntry[];
   includeStudio?: boolean;
+  /** Clean CWYW route only when both public ingredient gates are on. */
+  includeCookWithWhatYouHave?: boolean;
+  /** Indexable Ingredient SEO landings only (≥ threshold + gate). */
+  ingredients?: SitemapIngredientEntry[];
 };
 
 export function recipeSitemapPath(slug: string): string {
@@ -40,6 +45,10 @@ export function seriesSitemapPath(slug: string): string {
 
 export function studioSitemapPath(slug: string): string {
   return `/studio/${String(slug || "").trim()}`;
+}
+
+export function ingredientSitemapPath(slug: string): string {
+  return `/ingredient/${String(slug || "").trim()}`;
 }
 
 /** Absolute URLs that the public sitemap should emit for the given entity set. */
@@ -62,18 +71,33 @@ export function buildSitemapEntries(
       changeFrequency: "daily",
       priority: 0.9,
     },
-    {
-      url: `${base}/series`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
+    // Hub is indexable only when there is at least one eligible Collection.
+    ...(input.series.length > 0
+      ? [
+          {
+            url: `${base}/series`,
+            lastModified: now,
+            changeFrequency: "weekly" as const,
+            priority: 0.8,
+          },
+        ]
+      : []),
     {
       url: `${base}/videos`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.75,
     },
+    ...(input.includeCookWithWhatYouHave
+      ? [
+          {
+            url: `${base}/cook-with-what-you-have`,
+            lastModified: now,
+            changeFrequency: "weekly" as const,
+            priority: 0.7,
+          },
+        ]
+      : []),
     {
       url: `${base}/about`,
       lastModified: now,
@@ -131,12 +155,20 @@ export function buildSitemapEntries(
         }))
       : [];
 
+  const ingredientRoutes = (input.ingredients ?? []).map((ingredient) => ({
+    url: `${base}${ingredientSitemapPath(ingredient.slug)}`,
+    lastModified: now,
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+  }));
+
   return [
     ...staticRoutes,
     ...recipeRoutes,
     ...categoryRoutes,
     ...seriesRoutes,
     ...lessonRoutes,
+    ...ingredientRoutes,
   ];
 }
 

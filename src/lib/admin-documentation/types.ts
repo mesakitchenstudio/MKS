@@ -14,6 +14,7 @@ export type AdminDocSectionId =
   | "when-to-use"
   | "common-tasks"
   | "how-it-works"
+  | "discovery"
   | "rules"
   | "best-practices"
   | "permissions"
@@ -22,7 +23,8 @@ export type AdminDocSectionId =
   | "details"
   | "content"
   | "media"
-  | "advanced";
+  | "advanced"
+  | "public-ingredient-pages";
 
 export type AdminDocSection = {
   id: AdminDocSectionId;

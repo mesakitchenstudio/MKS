@@ -494,7 +494,7 @@ export function CategoriesManager({
     <div id="categories" className="min-w-0">
       <AdminPageHeader
         title="Categories"
-        description="Manage the category structure used to organize and discover Mesa recipes."
+        description="Manage broad public taxonomy pages. Categories become eligible for search indexing once they contain enough published recipes."
         documentationTopicId="categories"
         className="mb-0"
         actions={

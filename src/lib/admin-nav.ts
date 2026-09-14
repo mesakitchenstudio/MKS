@@ -61,7 +61,8 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
     items: [
       { href: "/admin/media", label: "Media", match: "prefix", area: "content" },
       { href: "/admin/categories", label: "Categories", area: "content" },
-      { href: "/admin/series", label: "Series", area: "content" },
+      { href: "/admin/ingredients", label: "Ingredients", area: "content" },
+      { href: "/admin/series", label: "Collections", area: "content" },
       { href: "/admin/types", label: "Recipe types", area: "content" },
       { href: "/admin/redirects", label: "Redirects", area: "content" },
     ],
@@ -118,6 +119,7 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviewsList;
   if (pathname.startsWith("/admin/types")) return adminWorkspaceTypes;
   if (pathname.startsWith("/admin/categories")) return adminWorkspaceCategories;
+  if (pathname.startsWith("/admin/ingredients")) return adminWorkspaceCategories;
   if (pathname.startsWith("/admin/redirects")) return adminWorkspaceCategories;
   if (pathname.startsWith("/admin/media")) return adminWorkspaceWide;
   if (pathname.startsWith("/admin/activity")) return adminWorkspaceWide;

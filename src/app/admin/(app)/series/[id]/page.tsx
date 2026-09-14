@@ -21,7 +21,7 @@ export async function generateMetadata({
     where: { id },
     select: { title: true },
   });
-  if (!series) return { title: "Series" };
+  if (!series) return { title: "Collections" };
   return { title: series.title };
 }
 
@@ -71,10 +71,11 @@ export default async function AdminSeriesEditPage({
   await requireAccess("content");
   const { id } = await params;
   const query = await searchParams;
-  const [series, candidates, recipeTypes] = await Promise.all([
+  const [series, candidates, recipeTypes, categories] = await Promise.all([
     getAdminSeries(id),
     listSeriesPickerCandidates(),
     getDb().recipeType.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    getDb().category.findMany({ orderBy: { name: "asc" }, select: { name: true, slug: true } }),
   ]);
   if (!series) notFound();
 
@@ -113,7 +114,7 @@ export default async function AdminSeriesEditPage({
         clearParams={SERIES_EDITOR_FLASH_PARAMS}
         className="rounded-sm border border-olive/25 bg-olive/5 px-3 py-2 text-sm text-olive"
       >
-        Series saved.
+        Collection saved.
       </AdminFlashStatus>
       <AdminFlashStatus
         active={Boolean(importedMessage)}
@@ -174,6 +175,7 @@ export default async function AdminSeriesEditPage({
         series={series}
         candidates={candidates}
         recipeTypes={recipeTypes}
+        categories={categories}
         linkablePlaylists={linkablePlaylists}
         saved={Boolean(query.saved)}
       />

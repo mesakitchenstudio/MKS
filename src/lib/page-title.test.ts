@@ -62,8 +62,9 @@ describe("page title system", () => {
     assert.match(recipe, /title: `\$\{recipe\.title\} \| \$\{site\.name\}`/);
 
     const seriesDetail = readApp("series/[slug]/page.tsx");
-    assert.match(seriesDetail, /title: series\.title/);
-    assert.match(seriesDetail, /const documentTitle = series\.title/);
+    assert.match(seriesDetail, /collectionDocumentTitleSegment/);
+    assert.match(seriesDetail, /title: titleSegment/);
+    assert.doesNotMatch(seriesDetail, /title: series\.title/);
   });
 
   it("normalizes representative admin route title segments", () => {
@@ -79,7 +80,7 @@ describe("page title system", () => {
     assert.match(readApp("admin/(app)/redirects/page.tsx"), /title:\s*"Redirects"/);
     assert.match(readApp("admin/(app)/activity/page.tsx"), /title:\s*"Activity"/);
     assert.match(readApp("admin/(app)/recipes/[id]/history/page.tsx"), /History/);
-    assert.match(readApp("admin/(app)/series/page.tsx"), /title:\s*"Series"/);
+    assert.match(readApp("admin/(app)/series/page.tsx"), /title:\s*"Collections"/);
     assert.match(readApp("admin/(app)/studio/page.tsx"), /title:\s*"Studio"/);
     assert.match(readApp("admin/(app)/profile/page.tsx"), /title:\s*"Profile"/);
     assert.match(readApp("admin/(app)/page.tsx"), /title:\s*"Admin"/);

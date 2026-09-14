@@ -27,6 +27,7 @@ import {
 import { getRecipePublishingReadiness } from "@/lib/recipe-publishing-readiness";
 import { normalizePublicUpdateFields } from "@/lib/recipe-public-update";
 import { serializeRelatedRecipeIds } from "@/lib/recipe-related-overrides";
+import { isSeriesMembershipPubliclyRenderable } from "@/lib/series-public-visibility";
 import {
   parseIstanbulDateTimeLocal,
   validateScheduledPublishAt,
@@ -34,6 +35,14 @@ import {
 import { createAdminNotification } from "@/lib/admin-notifications-server";
 import { coerceStringList, isPlainStringListKind } from "@/lib/coerce-string-list";
 import { normalizeIngredientGroups } from "@/lib/ingredient-groups";
+import { rebuildRecipeIngredientIndex } from "@/lib/ingredient-index";
+import {
+  addIngredientAlias,
+  createCanonicalIngredient,
+  removeIngredientAlias,
+  resolveUnresolvedToExistingIngredient,
+  resolveUnresolvedToNewIngredient,
+} from "@/lib/ingredient-admin-mutations";
 import { mergeDishNameIntoValues } from "@/lib/recipe-editor-dish-name";
 import {
   countRecipesMissingFieldContent,
@@ -120,6 +129,186 @@ export async function logoutAction() {
     // Ignore — redirect below always completes logout UX.
   }
   redirect("/admin/login");
+}
+
+function ingredientsAdminRedirect(params: Record<string, string | undefined>): never {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && value !== "") qs.set(key, value);
+  }
+  const query = qs.toString();
+  redirect(query ? `/admin/ingredients?${query}` : "/admin/ingredients");
+}
+
+export async function createIngredientAction(formData: FormData) {
+  const actor = await requireEditor();
+  const name = String(formData.get("name") || "").trim();
+  const tab = String(formData.get("tab") || "ingredients");
+  const result = await createCanonicalIngredient(getDb(), { name });
+  if (!result.ok) {
+    ingredientsAdminRedirect({
+      tab,
+      error: result.code,
+      detail: result.error,
+      add: "1",
+      name,
+    });
+  }
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "ingredient.created",
+    area: "content",
+    entityType: "ingredient",
+    entityId: result.ingredientId!,
+    entityLabel: name,
+    entityPath: "/admin/ingredients",
+    metadata: { reindexedRecipes: result.reindex.rebuilt },
+  });
+  revalidatePath("/admin/ingredients");
+  ingredientsAdminRedirect({
+    tab: "ingredients",
+    saved: "ingredient",
+    message: result.message,
+    ingredientId: result.ingredientId,
+  });
+}
+
+export async function addIngredientAliasAction(formData: FormData) {
+  const actor = await requireEditor();
+  const ingredientId = String(formData.get("ingredientId") || "");
+  const alias = String(formData.get("alias") || "").trim();
+  const result = await addIngredientAlias(getDb(), { ingredientId, alias });
+  if (!result.ok) {
+    ingredientsAdminRedirect({
+      tab: "ingredients",
+      error: result.code,
+      detail: result.error,
+      ingredientId,
+      expand: ingredientId,
+    });
+  }
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "ingredient.alias_added",
+    area: "content",
+    entityType: "ingredient",
+    entityId: ingredientId,
+    entityLabel: alias,
+    entityPath: "/admin/ingredients",
+    metadata: {
+      alias,
+      ingredientId,
+      reindexedRecipes: result.reindex.rebuilt,
+    },
+  });
+  revalidatePath("/admin/ingredients");
+  ingredientsAdminRedirect({
+    tab: "ingredients",
+    saved: "alias",
+    message: result.message,
+    ingredientId,
+    expand: ingredientId,
+  });
+}
+
+export async function removeIngredientAliasAction(formData: FormData) {
+  const actor = await requireEditor();
+  const aliasId = String(formData.get("aliasId") || "");
+  const ingredientId = String(formData.get("ingredientId") || "");
+  const result = await removeIngredientAlias(getDb(), { aliasId });
+  if (!result.ok) {
+    ingredientsAdminRedirect({
+      tab: "ingredients",
+      error: result.code,
+      detail: result.error,
+      ingredientId,
+      expand: ingredientId,
+    });
+  }
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "ingredient.alias_removed",
+    area: "content",
+    entityType: "ingredient",
+    entityId: result.ingredientId || ingredientId,
+    entityLabel: result.message,
+    entityPath: "/admin/ingredients",
+    metadata: {
+      aliasId,
+      ingredientId: result.ingredientId || ingredientId,
+      reindexedRecipes: result.reindex.rebuilt,
+    },
+  });
+  revalidatePath("/admin/ingredients");
+  ingredientsAdminRedirect({
+    tab: "ingredients",
+    saved: "alias-removed",
+    message: result.message,
+    ingredientId: result.ingredientId || ingredientId,
+    expand: result.ingredientId || ingredientId,
+  });
+}
+
+export async function resolveUnresolvedIngredientAction(formData: FormData) {
+  const actor = await requireEditor();
+  const authoredItemNorm = String(formData.get("authoredItemNorm") || "").trim();
+  const representativeAuthoredItem = String(
+    formData.get("representativeAuthoredItem") || "",
+  ).trim();
+  const mode = String(formData.get("mode") || "existing");
+  const ingredientId = String(formData.get("ingredientId") || "").trim();
+  const canonicalName = String(formData.get("canonicalName") || "").trim();
+  const page = String(formData.get("page") || "1");
+  const q = String(formData.get("q") || "");
+
+  const result =
+    mode === "new"
+      ? await resolveUnresolvedToNewIngredient(getDb(), {
+          authoredItemNorm,
+          canonicalName,
+          representativeAuthoredItem,
+        })
+      : await resolveUnresolvedToExistingIngredient(getDb(), {
+          authoredItemNorm,
+          ingredientId,
+          representativeAuthoredItem,
+        });
+
+  if (!result.ok) {
+    ingredientsAdminRedirect({
+      tab: "unresolved",
+      error: result.code,
+      detail: result.error,
+      resolve: authoredItemNorm,
+      page,
+      q,
+    });
+  }
+
+  await recordAdminAuditEvent({
+    actor: actorFromAdminSession(actor),
+    action: "ingredient.unresolved_resolved",
+    area: "content",
+    entityType: "ingredient",
+    entityId: result.ingredientId || "",
+    entityLabel: authoredItemNorm,
+    entityPath: "/admin/ingredients",
+    metadata: {
+      authoredItemNorm,
+      mode,
+      aliasCreated: Boolean(result.aliasCreated),
+      reindexedRecipes: result.reindex.rebuilt,
+      canonicalName: mode === "new" ? canonicalName : undefined,
+    },
+  });
+  revalidatePath("/admin/ingredients");
+  ingredientsAdminRedirect({
+    tab: "unresolved",
+    saved: "resolved",
+    message: result.message,
+    page,
+    q,
+  });
 }
 
 export async function saveCategoryAction(formData: FormData) {
@@ -780,6 +969,11 @@ export async function saveRecipeAction(formData: FormData) {
         data: categoryIds.map((categoryId) => ({ recipeId: row.id, categoryId })),
       });
     }
+
+    await rebuildRecipeIngredientIndex(tx, {
+      recipeId: row.id,
+      values: data.values,
+    });
 
     await createRecipeRevisionIfChanged(tx, {
       recipeId: row.id,
@@ -1839,9 +2033,55 @@ export async function saveSeriesAction(formData: FormData) {
   }
   const validItems = normalizedItems.filter((item) => item.recipeId || item.youtubeVideoId);
 
+  async function countPubliclyRenderableAmong(items: typeof validItems) {
+    let count = 0;
+    for (const item of items) {
+      let recipePublished = false;
+      if (item.recipeId) {
+        const recipe = await db.recipe.findUnique({
+          where: { id: item.recipeId },
+          select: { status: true },
+        });
+        recipePublished = recipe?.status === "published";
+      }
+      let videoPrivacy = "";
+      if (item.youtubeVideoId) {
+        const video = await db.youTubeVideo.findUnique({
+          where: { videoId: item.youtubeVideoId },
+          select: { privacyStatus: true },
+        });
+        videoPrivacy = video?.privacyStatus || "";
+      }
+      if (
+        isSeriesMembershipPubliclyRenderable({
+          removedFromPlaylist: item.removedFromPlaylist,
+          recipeId: item.recipeId,
+          recipePublished,
+          youtubeVideoId: item.youtubeVideoId,
+          videoPrivacy,
+        })
+      ) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  const EMPTY_PUBLISH_ERROR = encodeURIComponent(
+    "Add at least one publicly available recipe or video before publishing this Collection.",
+  );
+
   if (id) {
     const existing = await db.series.findUnique({ where: { id } });
     if (!existing) redirect("/admin/series");
+
+    const publishingNow = isPublished && !existing.isPublished;
+    if (publishingNow) {
+      const publicVisible = await countPubliclyRenderableAmong(validItems);
+      if (publicVisible === 0) {
+        redirect(`/admin/series/${id}?error=${EMPTY_PUBLISH_ERROR}`);
+      }
+    }
 
     // Preserve playlist snapshot fields; only Mesa editorial + order mode are editable here.
     const isYoutube = existing.syncMode === "YOUTUBE" || Boolean(existing.youtubePlaylistId);
@@ -1943,6 +2183,13 @@ export async function saveSeriesAction(formData: FormData) {
 
   const slug = slugify(String(formData.get("slug") || title));
   if (!slug) redirect("/admin/series/new?error=invalid-slug");
+
+  if (isPublished) {
+    const publicVisible = await countPubliclyRenderableAmong(validItems);
+    if (publicVisible === 0) {
+      redirect(`/admin/series/new?error=${EMPTY_PUBLISH_ERROR}`);
+    }
+  }
 
   try {
     const created = await db.series.create({

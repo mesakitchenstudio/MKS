@@ -1,7 +1,21 @@
 import type { Metadata } from "next";
 import { RecipeDiscovery } from "@/components/RecipeDiscovery";
 import { homepageCollectionSlugMap, homepageCollectionTitles } from "@/data/homepage";
-import { applyDiscoveryFilters, parseDiscoveryParams } from "@/lib/recipe-discovery";
+import { getDb } from "@/lib/db";
+import {
+  findPublishedRecipeIdsByIngredientFilter,
+  hasActiveIngredientFilter,
+  isIngredientDiscoveryEnabled,
+  loadPublicIngredientFilterOptions,
+  loadPublishedRecipeIngredientSlugMembership,
+} from "@/lib/ingredient-discovery";
+import { isCookWithWhatYouHaveEnabled } from "@/lib/cook-with-what-you-have";
+import {
+  applyDiscoveryFilters,
+  getIngredientFilterSelection,
+  isDiscoveryListingNoIndex,
+  parseDiscoveryParams,
+} from "@/lib/recipe-discovery";
 import { pageTitleSegment } from "@/lib/page-title";
 import { getAllRecipes } from "@/lib/recipes";
 
@@ -25,16 +39,7 @@ export async function generateMetadata({
     description:
       "Tested recipes for everyday cooking, baking, drinks, sides, and the table.",
     alternates: { canonical: "/recipes" },
-    robots:
-      params.q ||
-      params.category ||
-      params.collection ||
-      params.time ||
-      params.video ||
-      params.cuisine ||
-      params.method
-        ? { index: false }
-        : undefined,
+    robots: isDiscoveryListingNoIndex(params) ? { index: false, follow: true } : undefined,
   };
 }
 
@@ -47,7 +52,32 @@ export default async function RecipesPage({
   const params = parseDiscoveryParams(raw);
   const recipes = await getAllRecipes();
   const collectionMap = homepageCollectionSlugMap();
-  const filtered = applyDiscoveryFilters(recipes, params, collectionMap);
+
+  const gateOn = isIngredientDiscoveryEnabled();
+  const cwywOn = isCookWithWhatYouHaveEnabled();
+  let ingredientOptions: Awaited<ReturnType<typeof loadPublicIngredientFilterOptions>> = [];
+  let ingredientMembership: Record<string, string[]> = {};
+  let ingredientMatchedRecipeIds: Set<string> | null = null;
+
+  if (gateOn) {
+    const db = getDb();
+    ingredientOptions = await loadPublicIngredientFilterOptions(db);
+    const selection = getIngredientFilterSelection(params);
+    if (hasActiveIngredientFilter(selection) && ingredientOptions.length > 0) {
+      ingredientMatchedRecipeIds = await findPublishedRecipeIdsByIngredientFilter(db, selection);
+      ingredientMembership = await loadPublishedRecipeIngredientSlugMembership(db);
+    } else if (ingredientOptions.length > 0) {
+      ingredientMembership = await loadPublishedRecipeIngredientSlugMembership(db);
+    }
+  }
+
+  const filtered = applyDiscoveryFilters(recipes, params, collectionMap, {
+    ingredientMatchedRecipeIds: gateOn ? ingredientMatchedRecipeIds : null,
+  });
+
+  const ingredientNames = Object.fromEntries(
+    ingredientOptions.map((option) => [option.slug, option.name]),
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
@@ -64,6 +94,11 @@ export default async function RecipesPage({
           allRecipes={recipes}
           params={params}
           collectionTitles={homepageCollectionTitles()}
+          ingredientDiscoveryEnabled={gateOn && ingredientOptions.length > 0}
+          cookWithWhatYouHaveEnabled={cwywOn}
+          ingredientOptions={ingredientOptions}
+          ingredientNames={ingredientNames}
+          ingredientMembership={ingredientMembership}
         />
       </section>
     </div>

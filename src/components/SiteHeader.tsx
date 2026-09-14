@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { megaMenu } from "@/data/categories";
-import { buildRecipesUrl } from "@/lib/recipe-discovery";
+import { categoryPublicPath } from "@/lib/category-seo";
 import {
   PUBLIC_HEADER_NAV_FOCUS,
   RECIPES_DISCLOSURE_LABEL,
@@ -141,7 +141,7 @@ export function SiteHeader() {
                         {column.slugs.map((slug) => (
                           <li key={slug}>
                             <Link
-                              href={buildRecipesUrl({ category: slug })}
+                              href={categoryPublicPath(slug)}
                               onClick={closeMenus}
                               className={`text-sm text-ink/80 hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS}`}
                             >
@@ -263,7 +263,7 @@ export function SiteHeader() {
                   {column.slugs.map((slug) => (
                     <li key={slug}>
                       <Link
-                        href={buildRecipesUrl({ category: slug })}
+                        href={categoryPublicPath(slug)}
                         onClick={closeMenus}
                         className={`inline-flex min-h-11 items-center text-sm text-ink/80 hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS}`}
                       >

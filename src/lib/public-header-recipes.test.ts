@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { megaMenu } from "@/data/categories";
-import { buildRecipesUrl } from "@/lib/recipe-discovery";
+import { categoryPublicPath } from "@/lib/category-seo";
 import {
   PUBLIC_HEADER_NAV_FOCUS,
   RECIPES_DISCLOSURE_LABEL,
@@ -51,13 +51,13 @@ describe("public header Recipes active state", () => {
 });
 
 describe("public header Recipes categories", () => {
-  it("keeps megaMenu order and discovery URLs, including Condiments → toppings", () => {
+  it("keeps megaMenu order and Category landing URLs, including Condiments → toppings", () => {
     assert.equal(megaMenu.length, 1);
     assert.deepEqual([...megaMenu[0].slugs], [...PRIMARY_CATEGORY_SLUGS]);
 
     const entries = megaMenu[0].slugs.map((slug) => ({
       label: PRIMARY_CATEGORY_LABELS[slug as PrimaryCategorySlug],
-      href: buildRecipesUrl({ category: slug }),
+      href: categoryPublicPath(slug),
     }));
 
     assert.deepEqual(
@@ -76,18 +76,19 @@ describe("public header Recipes categories", () => {
     assert.deepEqual(
       entries.map((entry) => entry.href),
       [
-        "/recipes?category=breakfast",
-        "/recipes?category=breads",
-        "/recipes?category=main-dishes",
-        "/recipes?category=side-dishes",
-        "/recipes?category=desserts",
-        "/recipes?category=drinks",
-        "/recipes?category=toppings",
+        "/category/breakfast",
+        "/category/breads",
+        "/category/main-dishes",
+        "/category/side-dishes",
+        "/category/desserts",
+        "/category/drinks",
+        "/category/toppings",
       ],
     );
 
     const condiments = entries.find((entry) => entry.label === "Condiments");
-    assert.equal(condiments?.href, "/recipes?category=toppings");
+    assert.equal(condiments?.href, "/category/toppings");
+    assert.match(siteHeaderSource, /categoryPublicPath\(slug\)/);
   });
 });
 
@@ -153,7 +154,13 @@ describe("public header Recipes desktop markup contracts", () => {
 
 describe("public header mobile recipes navigation", () => {
   it("preserves mobile primary links and two-column category area", () => {
-    assert.deepEqual(publicMobileNavLabels(), ["All recipes", "Videos", "About", "Contact"]);
+    assert.deepEqual(publicMobileNavLabels(), [
+      "All recipes",
+      "Collections",
+      "Videos",
+      "About",
+      "Contact",
+    ]);
     assert.match(siteHeaderSource, /grid grid-cols-2 gap-x-4 gap-y-1\.5/);
     // Mobile still shows the Recipes eyebrow above the category grid.
     assert.match(

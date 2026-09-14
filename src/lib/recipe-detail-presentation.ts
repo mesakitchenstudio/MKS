@@ -17,6 +17,7 @@ import { getSeriesLinksForRecipeSlug, getSeriesPeerRecipeSlugs } from "@/lib/ser
 import { getRelatedLessonsForRecipeSlug } from "@/lib/studio-recipe-links";
 import type { PublicRecipe } from "@/lib/recipes";
 import type { RecipeDetailViewProps } from "@/components/recipe/RecipeDetailView";
+import { loadRecipeIngredientSeoLinks } from "@/lib/ingredient-seo";
 
 function parseDurationSecondsFromDisplay(duration?: string) {
   if (!duration?.trim()) return undefined;
@@ -94,6 +95,11 @@ export async function loadRecipeDetailPresentation(
       )
     : {};
 
+  let ingredientSeoLinks: Record<string, string> = {};
+  if (recipeDbId && (await dbAvailable())) {
+    ingredientSeoLinks = await loadRecipeIngredientSeoLinks(getDb(), recipeDbId);
+  }
+
   return {
     recipe,
     seriesLinks,
@@ -106,5 +112,6 @@ export async function loadRecipeDetailPresentation(
     defaultName: session?.user?.name ?? admin?.name ?? "",
     defaultEmail: session?.user?.email ?? admin?.email ?? "",
     verifiedTargetReviewId,
+    ingredientSeoLinks,
   };
 }

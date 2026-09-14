@@ -72,6 +72,7 @@ describe("phase 7A — path / slug history policy", () => {
     assert.equal(classifySearchConsolePath("/recipes/x"), "recipe");
     assert.equal(classifySearchConsolePath("/series/y"), "collection");
     assert.equal(classifySearchConsolePath("/videos"), "video_hub");
+    assert.equal(classifySearchConsolePath("/ingredient/egg"), "ingredient");
     assert.equal(classifySearchConsolePath("/about"), "other");
   });
 });

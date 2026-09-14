@@ -5,6 +5,7 @@ import { site } from "@/data/site";
 import { loadRecipeDetailPresentation } from "@/lib/recipe-detail-presentation";
 import { recipePublicPath, resolveActiveRedirect } from "@/lib/redirects";
 import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
+import { isShoppingListEnabled } from "@/lib/shopping-list";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -65,5 +66,11 @@ export default async function RecipePage({ params, searchParams }: Props) {
     reviewQuery: targetReviewId,
   });
 
-  return <RecipeDetailView mode="public" {...detail} />;
+  return (
+    <RecipeDetailView
+      mode="public"
+      {...detail}
+      shoppingListEnabled={isShoppingListEnabled()}
+    />
+  );
 }

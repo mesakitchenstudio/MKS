@@ -40,12 +40,12 @@ describe("Admin documentation Phase 4 center access", () => {
     for (const topic of listAdminDocTopics()) {
       assert.ok(ADMIN_DOC_TOPIC_ACCESS[topic.id], `missing access: ${topic.id}`);
     }
-    assert.equal(Object.keys(ADMIN_DOC_TOPIC_ACCESS).length, 33);
+    assert.equal(Object.keys(ADMIN_DOC_TOPIC_ACCESS).length, 34);
   });
 
   it("shows all topics to owners", () => {
     const topics = listAdminDocTopicsForRole("owner");
-    assert.equal(topics.length, 33);
+    assert.equal(topics.length, 34);
   });
 
   it("hides members and staff topics from editors", () => {
@@ -97,8 +97,8 @@ describe("Admin documentation Phase 4 center access", () => {
 describe("Admin documentation Phase 4 registry and page links", () => {
   it("keeps unique ids, valid categories, and non-empty useful sections", () => {
     const topics = listAdminDocTopics();
-    assert.equal(topics.length, 33);
-    assert.equal(new Set(topics.map((topic) => topic.id)).size, 33);
+    assert.equal(topics.length, 34);
+    assert.equal(new Set(topics.map((topic) => topic.id)).size, 34);
     for (const topic of topics) {
       assert.ok(ADMIN_DOC_CATEGORY_ORDER.includes(topic.category), topic.id);
       assert.ok(topic.title.trim());
@@ -126,7 +126,7 @@ describe("Admin documentation Phase 4 registry and page links", () => {
       assert.match(link!.href, /^\/admin/);
       assert.ok(link!.label.startsWith("Open "));
     }
-    assert.equal(Object.keys(ADMIN_DOC_TOPIC_PAGE_LINKS).length, 33);
+    assert.equal(Object.keys(ADMIN_DOC_TOPIC_PAGE_LINKS).length, 34);
   });
 
   it("groups topics by category for the center", () => {
@@ -134,7 +134,7 @@ describe("Admin documentation Phase 4 registry and page links", () => {
     assert.ok(groups.length >= 5);
     assert.equal(
       groups.reduce((sum, group) => sum + group.topics.length, 0),
-      33,
+      34,
     );
   });
 });
