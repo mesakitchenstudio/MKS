@@ -1,6 +1,6 @@
 /**
- * Phase 5A — Meal Planner domain foundation (private, member-owned).
- * Pure constants/helpers only — no server actions, UI, or Shopping sync.
+ * Phase 5A/5B — Meal Planner domain (private, member-owned).
+ * Pure constants/helpers + shared error/result types for the server layer.
  */
 
 import { clampRecipeServings, MAX_RECIPE_SERVINGS, MIN_RECIPE_SERVINGS } from "@/lib/culinary-format";
@@ -34,8 +34,75 @@ export const MEAL_SLOT_LABELS: Record<MealSlot, string> = {
 
 const CIVIL_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+export const MEAL_PLAN_ERRORS = [
+  "NOT_AUTHENTICATED",
+  "FEATURE_DISABLED",
+  "PLAN_NOT_FOUND",
+  "ITEM_NOT_FOUND",
+  "INVALID_NAME",
+  "DUPLICATE_PLAN_NAME",
+  "PLAN_LIMIT_REACHED",
+  "PLAN_ITEM_LIMIT_REACHED",
+  "DATE_ITEM_LIMIT_REACHED",
+  "INVALID_DATE",
+  "DATE_OUT_OF_RANGE",
+  "INVALID_SLOT",
+  "INVALID_SERVINGS",
+  "INVALID_NOTE",
+  "INVALID_SORT_ORDER",
+  "RECIPE_NOT_AVAILABLE",
+  "INVALID_REORDER",
+] as const;
+
+export type MealPlanError = (typeof MEAL_PLAN_ERRORS)[number];
+
+export type MealPlanActionResult<T = undefined> =
+  | ({ ok: true } & (T extends undefined ? { data?: undefined } : { data: T }))
+  | { ok: false; error: MealPlanError; message: string };
+
+/** Public-linkability of the referenced Recipe for member planner UI. */
+export type MealPlanRecipeAvailability = "available" | "unavailable" | "orphaned";
+
+export type MealPlanSummary = {
+  id: string;
+  name: string;
+  nameNorm: string;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MealPlanItemView = {
+  id: string;
+  planId: string;
+  recipeId: string | null;
+  recipeSlug: string;
+  recipeTitle: string;
+  planDate: string;
+  mealSlot: MealSlot;
+  sortOrder: number;
+  plannedServings: number;
+  note: string | null;
+  /** available = Published (safe to link); unavailable = exists but not Published; orphaned = deleted. */
+  recipeAvailability: MealPlanRecipeAvailability;
+  /** Set only when recipeAvailability === "available". */
+  publicRecipeSlug: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MealPlanDetail = MealPlanSummary & {
+  items: MealPlanItemView[];
+};
+
 export type MealPlanNameOk = { ok: true; name: string; nameNorm: string };
 export type MealPlanNameErr = { ok: false; error: "INVALID_NAME"; message: string };
+
+/** Canonical slot rank for deterministic ordering (not lexical). */
+export function mealSlotSortIndex(slot: string): number {
+  const index = (MEAL_SLOTS as readonly string[]).indexOf(slot);
+  return index === -1 ? MEAL_SLOTS.length : index;
+}
 
 /** Trim + NFKC + collapse whitespace — reuses Saved Collection normalization. */
 export function normalizeMealPlanName(raw: unknown): string {
