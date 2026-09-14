@@ -335,7 +335,7 @@ function AddToMealPlanSheet({
 
             <div>
               <label htmlFor="add-mp-note" className="text-sm font-semibold text-ink">
-                Note <span className="font-normal text-muted">(optional)</span>
+                Planning note <span className="font-normal text-muted">(optional, private)</span>
               </label>
               <textarea
                 id="add-mp-note"

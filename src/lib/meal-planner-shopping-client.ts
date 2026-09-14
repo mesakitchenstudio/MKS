@@ -50,12 +50,16 @@ export function findMealPlanShoppingCollisions(
 }
 
 function failBatch(message: string): MealPlanShoppingBatchResult {
+  const trimmed = message.trim();
+  const withPrefix = trimmed.startsWith("Nothing was changed")
+    ? trimmed
+    : `Nothing was changed. ${trimmed}`;
   return {
     ok: false,
     added: 0,
     updated: 0,
     recipeCount: 0,
-    message,
+    message: withPrefix,
     href: SHOPPING_LIST_PATH,
   };
 }

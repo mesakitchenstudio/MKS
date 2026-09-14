@@ -501,13 +501,13 @@ export function mealPlannerHrefForDate(planId: string, planDate: string): string
 export function mealPlanErrorMessage(error: MealPlanError): string {
   switch (error) {
     case "NOT_AUTHENTICATED":
-      return "Sign in to manage meal plans.";
+      return "Sign in from Profile to manage meal plans.";
     case "FEATURE_DISABLED":
       return "Meal Planner is not available right now.";
     case "PLAN_NOT_FOUND":
       return "Meal plan not found.";
     case "ITEM_NOT_FOUND":
-      return "Meal item not found.";
+      return "That planned meal was not found.";
     case "INVALID_NAME":
       return "Enter a valid meal plan name.";
     case "DUPLICATE_PLAN_NAME":
@@ -519,19 +519,19 @@ export function mealPlanErrorMessage(error: MealPlanError): string {
     case "DATE_ITEM_LIMIT_REACHED":
       return `You can plan up to ${MEAL_PLAN_MAX_ITEMS_PER_DATE} meals for one day.`;
     case "INVALID_DATE":
-      return "Use a valid date (YYYY-MM-DD).";
+      return "Choose a valid date.";
     case "DATE_OUT_OF_RANGE":
       return `Choose a date within ${MEAL_PLAN_DATE_HORIZON_DAYS} days of today.`;
     case "INVALID_SLOT":
-      return "Choose a valid meal slot.";
+      return "Choose breakfast, lunch, dinner, or snack.";
     case "INVALID_SERVINGS":
       return `Servings must be between ${MEAL_PLAN_SERVINGS_MIN} and ${MEAL_PLAN_SERVINGS_MAX}.`;
     case "INVALID_NOTE":
-      return `Use ${MEAL_PLAN_NOTE_MAX_LENGTH} characters or fewer.`;
+      return `Planning notes can be up to ${MEAL_PLAN_NOTE_MAX_LENGTH} characters.`;
     case "INVALID_SORT_ORDER":
       return "Sort order must be a non-negative integer.";
     case "RECIPE_NOT_AVAILABLE":
-      return "This recipe is no longer available.";
+      return "This recipe is no longer available to plan.";
     case "INVALID_REORDER":
       return "Could not reorder those meals.";
     default:

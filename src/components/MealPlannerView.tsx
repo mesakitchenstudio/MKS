@@ -86,12 +86,15 @@ export function MealPlannerView({
   const [today, setToday] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState(weekStart);
   const [error, setError] = useState<string | null>(null);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const [shoppingStatus, setShoppingStatus] = useState<string | null>(null);
   const [shoppingPreparing, setShoppingPreparing] = useState(false);
   const [shoppingConfirm, setShoppingConfirm] = useState<{
     data: MealPlanShoppingPrepareData;
     collisions: number;
   } | null>(null);
+  const dayStripRef = useRef<HTMLDivElement>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -122,6 +125,13 @@ export function MealPlannerView({
     });
     return () => cancelAnimationFrame(frame);
   }, [weekStart]);
+
+  useEffect(() => {
+    const selected = dayStripRef.current?.querySelector<HTMLElement>(
+      `[data-day-tab="${selectedDay}"]`,
+    );
+    selected?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [selectedDay, weekStart]);
 
   const itemsByDateSlot = useMemo(() => {
     const map = new Map<string, MealPlanItemView[]>();
@@ -177,6 +187,7 @@ export function MealPlannerView({
   async function prepareShopping(scope: "day" | "week", date?: string) {
     if (!shoppingListEnabled || !today) return;
     setError(null);
+    setNeedsSignIn(false);
     setShoppingStatus(null);
     setShoppingPreparing(true);
     try {
@@ -188,7 +199,7 @@ export function MealPlannerView({
         today,
       });
       if (!result.ok) {
-        setError(result.message);
+        reportActionError(result);
         return;
       }
       const collisions = findMealPlanShoppingCollisions(result.data.recipes);
@@ -205,18 +216,19 @@ export function MealPlannerView({
     const { data } = shoppingConfirm;
     setShoppingConfirm(null);
     const batch = commitMealPlanShoppingBatch(data.recipes);
-    let message = batch.message;
-    if (data.skippedUnavailable > 0) {
-      message +=
-        data.skippedUnavailable === 1
-          ? " 1 unavailable meal was skipped."
-          : ` ${data.skippedUnavailable} unavailable meals were skipped.`;
-    }
     if (batch.ok) {
+      let message = batch.message;
+      if (data.skippedUnavailable > 0) {
+        message +=
+          data.skippedUnavailable === 1
+            ? " 1 unavailable meal was skipped."
+            : ` ${data.skippedUnavailable} unavailable meals were skipped.`;
+      }
       setShoppingStatus(message);
       setError(null);
+      setStatus(null);
     } else {
-      setError(message);
+      setError(batch.message);
       setShoppingStatus(null);
     }
   }
@@ -232,6 +244,8 @@ export function MealPlannerView({
 
   function run(action: () => Promise<void>) {
     setError(null);
+    setNeedsSignIn(false);
+    setStatus(null);
     startTransition(() => {
       void (async () => {
         try {
@@ -242,6 +256,14 @@ export function MealPlannerView({
         }
       })();
     });
+  }
+
+  function reportActionError(result: { error: string; message?: string }) {
+    setNeedsSignIn(result.error === "NOT_AUTHENTICATED");
+    setError(
+      result.message ||
+        mealPlanErrorMessage(result.error as Parameters<typeof mealPlanErrorMessage>[0]),
+    );
   }
 
   return (
@@ -257,22 +279,25 @@ export function MealPlannerView({
       </nav>
 
       <header className="mt-4 flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
             Meal Planner
           </p>
-          <h1 className="mt-2 font-serif text-4xl text-ink md:text-5xl">{planName}</h1>
+          <h1 className="mt-2 font-serif text-4xl text-ink md:text-5xl">Meal Planner</h1>
+          <p className="mt-2 max-w-xl break-words font-serif text-2xl text-ink md:text-3xl">
+            {planName}
+          </p>
           <p className="mt-2 max-w-xl text-sm text-muted">
             Plan breakfast through snack for the week. Private to your account.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="meal-plan-select">
-            Meal plan
+            Active meal plan
           </label>
           <select
             id="meal-plan-select"
-            className={`${authInputClass} h-11 min-w-[10rem]`}
+            className={`${authInputClass} h-11 w-full max-w-[16rem] truncate sm:w-auto`}
             value={planId}
             disabled={pending}
             onChange={(event) => {
@@ -290,6 +315,7 @@ export function MealPlannerView({
             className={ICON_BTN}
             disabled={pending}
             onClick={() => setCreateOpen(true)}
+            aria-label="Create a new meal plan"
           >
             New plan
           </button>
@@ -298,6 +324,7 @@ export function MealPlannerView({
             className={ICON_BTN}
             disabled={pending}
             onClick={() => setRenameOpen(true)}
+            aria-label={`Rename plan ${planName}`}
           >
             Rename
           </button>
@@ -306,6 +333,7 @@ export function MealPlannerView({
             className={`${ICON_BTN} text-terracotta`}
             disabled={pending}
             onClick={() => setDeleteOpen(true)}
+            aria-label={`Delete plan ${planName}`}
           >
             Delete
           </button>
@@ -315,6 +343,24 @@ export function MealPlannerView({
       {error ? (
         <p className="mt-4 rounded-sm border border-terracotta/30 bg-sand/50 px-3 py-2 text-sm text-terracotta" role="alert">
           {error}
+          {needsSignIn ? (
+            <>
+              {" "}
+              <Link href="/profile" className={`font-semibold underline ${authFocusRing} rounded-sm`}>
+                Open Profile to sign in
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
+      {status ? (
+        <p
+          className="mt-4 rounded-sm border border-olive/30 bg-sand/40 px-3 py-2 text-sm text-ink"
+          role="status"
+          aria-live="polite"
+        >
+          {status}
         </p>
       ) : null}
 
@@ -341,11 +387,12 @@ export function MealPlannerView({
           disabled={pending || prevDisabled}
           onClick={() => goWeek(prevWeek)}
           aria-label="Previous week"
+          title={prevDisabled ? "Earlier weeks are outside the planning range." : undefined}
         >
           ‹ Previous
         </button>
-        <div className="text-center">
-          <p className="font-serif text-xl text-ink md:text-2xl">{weekLabel}</p>
+        <div className="min-w-0 flex-1 text-center">
+          <h2 className="font-serif text-xl text-ink md:text-2xl">{weekLabel}</h2>
           <button
             type="button"
             className={`mt-1 text-sm font-semibold text-terracotta ${authFocusRing} rounded-sm`}
@@ -355,10 +402,10 @@ export function MealPlannerView({
             Today
           </button>
           {shoppingListEnabled ? (
-            <div className="mt-2">
+            <div className="mt-2 flex justify-center">
               <button
                 type="button"
-                className={`${ICON_BTN} w-full sm:w-auto`}
+                className={ICON_BTN}
                 disabled={pending || shoppingPreparing || !weekHasItems || !today}
                 onClick={() => void prepareShopping("week")}
                 aria-label="Add this week to Shopping List"
@@ -374,14 +421,23 @@ export function MealPlannerView({
           disabled={pending || nextDisabled}
           onClick={() => goWeek(nextWeek)}
           aria-label="Next week"
+          title={nextDisabled ? "Later weeks are outside the planning range." : undefined}
         >
           Next ›
         </button>
       </div>
 
-      {/* Mobile day strip */}
-      <div className="mt-6 md:hidden">
+      {!weekHasItems ? (
+        <div className="mt-6 rounded-sm border border-dashed border-line bg-cream/40 px-4 py-5 text-center">
+          <p className="font-serif text-xl text-ink">Your week is ready.</p>
+          <p className="mt-1 text-sm text-muted">Add a meal to start planning.</p>
+        </div>
+      ) : null}
+
+      {/* Mobile + tablet day strip (seven desktop columns start at lg) */}
+      <div className="mt-6 lg:hidden">
         <div
+          ref={dayStripRef}
           role="tablist"
           aria-label="Days of the week"
           className="flex gap-2 overflow-x-auto pb-2"
@@ -390,16 +446,19 @@ export function MealPlannerView({
             const label = formatMealPlanDayStripLabel(day);
             const selected = day === selectedDay;
             const isToday = today === day;
+            const dayName = formatMealPlanDayHeading(day) ?? day;
             return (
               <button
                 key={day}
                 type="button"
                 role="tab"
+                data-day-tab={day}
                 aria-selected={selected}
+                aria-label={`${dayName}${isToday ? ", today" : ""}${selected ? ", selected" : ""}`}
                 onClick={() => setSelectedDay(day)}
-                className={`flex min-w-[3.5rem] flex-col items-center rounded-sm border px-2 py-2 text-center ${authFocusRing} ${
+                className={`flex min-h-11 min-w-[3.75rem] flex-col items-center rounded-sm border px-2 py-2 text-center ${authFocusRing} ${
                   selected
-                    ? "border-olive bg-sand/70 text-ink"
+                    ? "border-olive bg-sand/70 text-ink ring-1 ring-olive/40"
                     : "border-line bg-paper text-muted hover:bg-cream/80"
                 }`}
               >
@@ -410,7 +469,9 @@ export function MealPlannerView({
                 {isToday ? (
                   <span className="mt-1 text-[0.6rem] font-semibold uppercase text-olive">Today</span>
                 ) : (
-                  <span className="mt-1 text-[0.6rem] opacity-0">Today</span>
+                  <span className="mt-1 text-[0.6rem] opacity-0" aria-hidden>
+                    Today
+                  </span>
                 )}
               </button>
             );
@@ -451,7 +512,13 @@ export function MealPlannerView({
             onRemove={(item) =>
               run(async () => {
                 const result = await deleteMealPlanItemAction({ itemId: item.id, planId });
-                if (!result.ok) setError(result.message || mealPlanErrorMessage(result.error));
+                if (!result.ok) {
+                  reportActionError(result);
+                  return;
+                }
+                setStatus(
+                  `Removed ${item.recipeTitle} from your plan. The recipe itself was not deleted.`,
+                );
               })
             }
             onReorder={(item, direction) =>
@@ -461,7 +528,7 @@ export function MealPlannerView({
                   planId,
                   direction,
                 });
-                if (!result.ok) setError(result.message || mealPlanErrorMessage(result.error));
+                if (!result.ok) reportActionError(result);
               })
             }
           />
@@ -469,14 +536,18 @@ export function MealPlannerView({
       </div>
 
       {/* Desktop week columns */}
-      <div className="mt-8 hidden gap-4 md:grid md:grid-cols-7">
+      <div className="mt-8 hidden gap-3 lg:grid lg:grid-cols-7">
         {weekDays.map((day) => {
           const label = formatMealPlanDayStripLabel(day);
           const isToday = today === day;
           const dayHasItems = (itemCountByDate.get(day) ?? 0) > 0;
           const dayHeading = formatMealPlanDayHeading(day) ?? day;
           return (
-            <section key={day} className="min-w-0" aria-labelledby={`day-${day}`}>
+            <section
+              key={day}
+              className={`min-w-0 ${isToday ? "rounded-sm ring-1 ring-olive/30" : ""}`}
+              aria-labelledby={`day-${day}`}
+            >
               <h2 id={`day-${day}`} className="border-b border-line pb-2">
                 <span className="block text-[0.65rem] font-semibold uppercase tracking-wide text-olive">
                   {label?.weekday}
@@ -484,11 +555,11 @@ export function MealPlannerView({
                 </span>
                 <span className="font-serif text-2xl text-ink">{label?.day}</span>
               </h2>
-              {shoppingListEnabled ? (
+              {shoppingListEnabled && dayHasItems ? (
                 <button
                   type="button"
                   className={`mt-2 w-full text-left text-[0.7rem] font-semibold leading-snug text-terracotta hover:text-terracotta-dark disabled:cursor-not-allowed disabled:opacity-40 ${authFocusRing} rounded-sm`}
-                  disabled={pending || shoppingPreparing || !dayHasItems || !today}
+                  disabled={pending || shoppingPreparing || !today}
                   onClick={() => void prepareShopping("day", day)}
                   aria-label={`Add ${dayHeading} to Shopping List`}
                 >
@@ -510,7 +581,13 @@ export function MealPlannerView({
                 onRemove={(item) =>
                   run(async () => {
                     const result = await deleteMealPlanItemAction({ itemId: item.id, planId });
-                    if (!result.ok) setError(result.message || mealPlanErrorMessage(result.error));
+                    if (!result.ok) {
+                      reportActionError(result);
+                      return;
+                    }
+                    setStatus(
+                      `Removed ${item.recipeTitle} from your plan. The recipe itself was not deleted.`,
+                    );
                   })
                 }
                 onReorder={(item, direction) =>
@@ -520,7 +597,7 @@ export function MealPlannerView({
                       planId,
                       direction,
                     });
-                    if (!result.ok) setError(result.message || mealPlanErrorMessage(result.error));
+                    if (!result.ok) reportActionError(result);
                   })
                 }
               />
@@ -574,7 +651,7 @@ export function MealPlannerView({
       {deleteOpen ? (
         <ConfirmDialog
           title="Delete meal plan?"
-          body={`Delete “${planName}”? Planned meals in this plan will be removed.`}
+          body={`Delete “${planName}”? Planned meals in this plan will be removed. Your recipes and Shopping List are not affected.`}
           confirmLabel="Delete plan"
           busy={pending}
           danger
@@ -583,10 +660,11 @@ export function MealPlannerView({
             run(async () => {
               const result = await deleteMealPlanAndSelectNextAction(planId);
               if (!result.ok) {
-                setError(result.message || mealPlanErrorMessage(result.error));
+                reportActionError(result);
                 return;
               }
               setDeleteOpen(false);
+              setStatus(`Deleted “${planName}”. Now viewing “${result.data.name}”.`);
               router.push(`/profile/meal-planner/${result.data.id}?week=${weekStart}`);
             })
           }
@@ -608,7 +686,7 @@ export function MealPlannerView({
                 today,
               });
               if (!result.ok) {
-                setError(result.message || mealPlanErrorMessage(result.error));
+                reportActionError(result);
                 return;
               }
               setAddPrefill(null);
@@ -637,7 +715,7 @@ export function MealPlannerView({
                 today,
               });
               if (!result.ok) {
-                setError(result.message || mealPlanErrorMessage(result.error));
+                reportActionError(result);
                 return;
               }
               setEditItem(null);
@@ -667,7 +745,7 @@ export function MealPlannerView({
                 today,
               });
               if (!result.ok) {
-                setError(result.message || mealPlanErrorMessage(result.error));
+                reportActionError(result);
                 return;
               }
               setMoveItem(null);
@@ -697,7 +775,7 @@ export function MealPlannerView({
                 today,
               });
               if (!result.ok) {
-                setError(result.message || mealPlanErrorMessage(result.error));
+                reportActionError(result);
                 return;
               }
               setCopyItem(null);
@@ -735,27 +813,32 @@ function DaySlots({
   onReorder: (item: MealPlanItemView, direction: "up" | "down") => void;
 }) {
   return (
-    <div className={compact ? "mt-3 space-y-4" : "mt-4 space-y-6"}>
+    <div className={compact ? "mt-3 space-y-3" : "mt-4 space-y-5"}>
       {MEAL_SLOTS.map((slot) => {
         const slotItems = itemsByDateSlot.get(`${planDate}|${slot}`) ?? [];
+        const headingId = `slot-${planDate}-${slot}`;
         return (
-          <div key={slot}>
+          <div key={slot} aria-labelledby={headingId}>
             <div className="flex items-baseline justify-between gap-2">
-              <h3 className={`font-semibold text-ink ${compact ? "text-xs" : "text-sm"}`}>
+              <h3
+                id={headingId}
+                className={`font-semibold text-ink ${compact ? "text-xs" : "text-sm"}`}
+              >
                 {MEAL_SLOT_LABELS[slot]}
               </h3>
               <button
                 type="button"
-                className={`text-xs font-semibold text-terracotta ${authFocusRing} rounded-sm`}
+                className={`shrink-0 text-xs font-semibold text-terracotta ${authFocusRing} rounded-sm`}
                 disabled={pending}
                 onClick={() => onAdd(slot)}
+                aria-label={`Add meal to ${MEAL_SLOT_LABELS[slot]} on ${planDate}`}
               >
-                + Add meal
+                + Add
               </button>
             </div>
             {slotItems.length === 0 ? (
               <p className={`mt-1 text-muted ${compact ? "text-[0.7rem]" : "text-sm"}`}>
-                No meal planned.
+                No meal planned
               </p>
             ) : (
               <ul className="mt-2 space-y-2">
@@ -819,7 +902,7 @@ function MealItemCard({
   const available = item.recipeAvailability === "available";
   const orphaned = item.recipeAvailability === "orphaned";
   const title = (
-    <span className={`font-semibold text-ink ${compact ? "text-xs" : "text-sm"}`}>
+    <span className={`break-words font-semibold text-ink ${compact ? "text-xs" : "text-sm"}`}>
       {item.recipeTitle}
     </span>
   );
@@ -828,8 +911,10 @@ function MealItemCard({
     <li className="rounded-sm border border-line bg-paper p-2">
       <div className="flex gap-2">
         {available && image ? (
-          <div className={`relative shrink-0 overflow-hidden rounded-sm bg-sand ${compact ? "h-10 w-10" : "h-14 w-14"}`}>
-            <RecipeImage src={image.image} alt={image.imageAlt} sizes="56px" />
+          <div
+            className={`relative shrink-0 overflow-hidden rounded-sm bg-sand ${compact ? "h-10 w-10" : "h-14 w-14"}`}
+          >
+            <RecipeImage src={image.image} alt="" sizes="56px" />
           </div>
         ) : null}
         <div className="min-w-0 flex-1">
@@ -843,7 +928,7 @@ function MealItemCard({
           ) : (
             <>
               {title}
-              <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted">
+              <p className="mt-0.5 text-[0.7rem] font-semibold uppercase tracking-wide text-muted">
                 {orphaned ? "Recipe no longer available" : "Unavailable"}
                 <span className="sr-only">
                   {orphaned
@@ -854,50 +939,77 @@ function MealItemCard({
             </>
           )}
           <p className={`text-muted ${compact ? "text-[0.7rem]" : "text-xs"}`}>
-            Serves {item.plannedServings}
+            Planned servings: {item.plannedServings}
           </p>
           {item.note ? (
-            <p className={`mt-0.5 text-muted ${compact ? "text-[0.7rem]" : "text-xs"}`}>
-              {item.note}
+            <p
+              className={`mt-0.5 break-words text-muted ${compact ? "text-[0.7rem]" : "text-xs"}`}
+            >
+              <span className="font-semibold text-ink/70">Planning note:</span> {item.note}
             </p>
           ) : null}
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-1">
-        <button type="button" className={ICON_BTN} disabled={pending} onClick={onEdit}>
+        <button
+          type="button"
+          className={ICON_BTN}
+          disabled={pending}
+          onClick={onEdit}
+          aria-label={`Edit ${item.recipeTitle}`}
+        >
           Edit
         </button>
-        <button type="button" className={ICON_BTN} disabled={pending} onClick={onMove}>
+        <button
+          type="button"
+          className={ICON_BTN}
+          disabled={pending}
+          onClick={onMove}
+          aria-label={`Move ${item.recipeTitle}`}
+        >
           Move
         </button>
         {available ? (
-          <button type="button" className={ICON_BTN} disabled={pending} onClick={onCopy}>
+          <button
+            type="button"
+            className={ICON_BTN}
+            disabled={pending}
+            onClick={onCopy}
+            aria-label={`Copy ${item.recipeTitle}`}
+          >
             Copy
           </button>
+        ) : (
+          <span className="sr-only">Copy unavailable for unpublished or deleted recipes.</span>
+        )}
+        {!isFirst ? (
+          <button
+            type="button"
+            className={ICON_BTN}
+            disabled={pending}
+            onClick={onUp}
+            aria-label={`Move ${item.recipeTitle} up`}
+          >
+            Up
+          </button>
         ) : null}
-        <button
-          type="button"
-          className={ICON_BTN}
-          disabled={pending || isFirst}
-          onClick={onUp}
-          aria-label={`Move ${item.recipeTitle} up`}
-        >
-          Up
-        </button>
-        <button
-          type="button"
-          className={ICON_BTN}
-          disabled={pending || isLast}
-          onClick={onDown}
-          aria-label={`Move ${item.recipeTitle} down`}
-        >
-          Down
-        </button>
+        {!isLast ? (
+          <button
+            type="button"
+            className={ICON_BTN}
+            disabled={pending}
+            onClick={onDown}
+            aria-label={`Move ${item.recipeTitle} down`}
+          >
+            Down
+          </button>
+        ) : null}
         <button
           type="button"
           className={`${ICON_BTN} text-terracotta`}
           disabled={pending}
           onClick={onRemove}
+          aria-label={`Remove ${item.recipeTitle} from plan`}
         >
           Remove
         </button>
@@ -922,10 +1034,34 @@ function PortalDialog({
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    panelRef.current?.querySelector<HTMLElement>("input,button,select,textarea")?.focus();
+    const panel = panelRef.current;
+    panel?.querySelector<HTMLElement>("input,button,select,textarea")?.focus();
+
+    function focusable() {
+      return Array.from(
+        panel?.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null);
+    }
 
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && !busy) onClose();
+      if (event.key === "Escape" && !busy) {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !panel) return;
+      const nodes = focusable();
+      if (nodes.length === 0) return;
+      const first = nodes[0]!;
+      const last = nodes[nodes.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => {
@@ -1103,18 +1239,12 @@ function ShoppingConfirmDialog({
             {data.skippedUnavailable === 1 ? "" : "s"} will be skipped
           </li>
         ) : null}
-        {collisionCount > 0 ? (
-          <li role="status">
-            {collisionCount === 1
-              ? "1 existing recipe will be updated."
-              : `${collisionCount} existing recipes will be updated.`}
-          </li>
-        ) : null}
       </ul>
       {collisionCount > 0 ? (
-        <p className="mt-3 text-sm text-ink">
-          Some recipes are already in your Shopping List. Adding this{" "}
-          {data.scope === "week" ? "week" : "day"} will update them to the planned servings.
+        <p className="mt-3 text-sm text-ink" role="status">
+          {collisionCount === 1
+            ? "This recipe is already in your Shopping List and will be updated to the planned servings."
+            : `${collisionCount} recipes are already in your Shopping List and will be updated to the planned servings.`}
         </p>
       ) : null}
       <div className="mt-5 flex flex-wrap gap-2">
@@ -1204,29 +1334,33 @@ function AddMealDialog({
             disabled={busy}
           />
           <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-sm border border-line p-1">
-            {filtered.map((recipe) => {
-              const active = recipe.id === recipeId;
-              return (
-                <li key={recipe.id}>
-                  <button
-                    type="button"
-                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm ${authFocusRing} ${
-                      active ? "bg-sand/70 font-semibold" : "hover:bg-cream/80"
-                    }`}
-                    onClick={() => {
-                      setRecipeId(recipe.id);
-                      setServings(recipe.servings || 4);
-                    }}
-                    aria-pressed={active}
-                  >
-                    <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-sm bg-sand">
-                      <RecipeImage src={recipe.image} alt="" sizes="32px" />
-                    </span>
-                    <span className="min-w-0 truncate">{recipe.title}</span>
-                  </button>
-                </li>
-              );
-            })}
+            {filtered.length === 0 ? (
+              <li className="px-2 py-3 text-sm text-muted">No published recipes match that search.</li>
+            ) : (
+              filtered.map((recipe) => {
+                const active = recipe.id === recipeId;
+                return (
+                  <li key={recipe.id}>
+                    <button
+                      type="button"
+                      className={`flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm ${authFocusRing} ${
+                        active ? "bg-sand/70 font-semibold" : "hover:bg-cream/80"
+                      }`}
+                      onClick={() => {
+                        setRecipeId(recipe.id);
+                        setServings(recipe.servings || 4);
+                      }}
+                      aria-pressed={active}
+                    >
+                      <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-sm bg-sand">
+                        <RecipeImage src={recipe.image} alt="" sizes="32px" />
+                      </span>
+                      <span className="min-w-0 break-words">{recipe.title}</span>
+                    </button>
+                  </li>
+                );
+              })
+            )}
           </ul>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -1281,7 +1415,7 @@ function AddMealDialog({
         </div>
         <div>
           <label htmlFor="add-note" className="text-sm font-semibold text-ink">
-            Note <span className="font-normal text-muted">(optional)</span>
+            Planning note <span className="font-normal text-muted">(optional, private)</span>
           </label>
           <textarea
             id="add-note"
@@ -1368,6 +1502,16 @@ function ItemFieldsDialog({
   return (
     <PortalDialog title={title} onClose={onClose} busy={busy}>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {!hideServings && !hideNote ? (
+          <p className="text-sm text-muted">
+            Changes apply to this planned meal only. The recipe itself is not replaced.
+          </p>
+        ) : null}
+        {hideServings && hideNote ? (
+          <p className="text-sm text-muted">
+            Choose a new date and meal. Recipe, servings, and planning note stay the same.
+          </p>
+        ) : null}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="item-date" className="text-sm font-semibold text-ink">
@@ -1423,7 +1567,7 @@ function ItemFieldsDialog({
         {!hideNote ? (
           <div>
             <label htmlFor="item-note" className="text-sm font-semibold text-ink">
-              Note <span className="font-normal text-muted">(optional)</span>
+              Planning note <span className="font-normal text-muted">(optional, private)</span>
             </label>
             <textarea
               id="item-note"

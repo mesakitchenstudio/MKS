@@ -265,6 +265,7 @@ describe("Phase 5E — atomic client batch commit", () => {
     ]);
     assert.equal(batch.ok, false);
     assert.equal(batch.recipeCount, 0);
+    assert.match(batch.message, /Nothing was changed/i);
     assert.match(batch.message, /limit/i);
     assert.doesNotMatch(batch.message, /succeeded|could not be added/i);
 
@@ -430,6 +431,7 @@ describe("Phase 5E — atomic client batch commit", () => {
     try {
       const batch = commitMealPlanShoppingBatch([prepared(recipeOf("save-fail"))]);
       assert.equal(batch.ok, false);
+      assert.match(batch.message, /Nothing was changed/i);
       assert.match(batch.message, /could not save/i);
       assert.equal(batch.recipeCount, 0);
     } finally {

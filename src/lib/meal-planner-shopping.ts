@@ -185,7 +185,7 @@ export function mealPlanShoppingErrorMessage(error: MealPlanShoppingError): stri
     case "FEATURE_DISABLED":
       return "Meal Planner is not available right now.";
     case "NOT_AUTHENTICATED":
-      return "Sign in to manage meal plans.";
+      return "Sign in from Profile to manage meal plans.";
     case "PLAN_NOT_FOUND":
       return "Meal plan not found.";
     default:
