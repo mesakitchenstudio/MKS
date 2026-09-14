@@ -7,15 +7,102 @@ import {
   parseRecipeValuesIngredients,
 } from "./build-rows";
 import { loadIngredientIdentityCatalogForKeys } from "./lookup";
-import { rebuildRecipeIngredientIndex } from "./rebuild";
+import {
+  prepareRecipeIngredientIndexRows,
+  replaceRecipeIngredientIndexRows,
+} from "./rebuild";
 import type { RecipeIngredientBackfillReport } from "./types";
 
 type DbClient = ReturnType<typeof getDb>;
+
+/**
+ * Interactive transaction options for per-recipe APPLY rebuilds.
+ * Prisma default timeout is 5000ms — too short for Production Neon latency
+ * when catalog lookup + delete/create ran inside the same interactive tx.
+ *
+ * maxWait: time to acquire a connection from the pool before starting.
+ * timeout: interactive transaction lifetime once started.
+ */
+export const RECIPE_INGREDIENT_BACKFILL_TX = {
+  maxWait: 10_000,
+  timeout: 30_000,
+} as const;
 
 function clip(value: unknown, max = 120) {
   return String(value ?? "")
     .trim()
     .slice(0, max);
+}
+
+/** Transient Neon / Prisma interactive-transaction failures eligible for one retry. */
+export function isTransientIngredientBackfillError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+
+  if (code === "P2028" || code === "P1001" || code === "P1017") {
+    return true;
+  }
+
+  return (
+    /Transaction already closed/i.test(message) ||
+    /expired transaction/i.test(message) ||
+    /Transaction API error/i.test(message) ||
+    /Interactive transaction .* timed out/i.test(message) ||
+    /Can't reach database server/i.test(message) ||
+    /Timed out fetching a new connection/i.test(message) ||
+    /Connection .* closed/i.test(message) ||
+    /Server has closed the connection/i.test(message)
+  );
+}
+
+async function applyRebuildOneRecipe(
+  db: DbClient,
+  recipeId: string,
+): Promise<{ rowCount: number; title: string }> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      // Reload authoritative values close to rebuild (fresher than the initial list scan).
+      const fresh = await db.recipe.findUnique({
+        where: { id: recipeId },
+        select: { id: true, title: true, values: true },
+      });
+      if (!fresh) {
+        throw new Error(`Recipe ${recipeId} not found during backfill apply`);
+      }
+
+      // Catalog + parse outside the interactive transaction so Neon latency does not
+      // burn the tx timeout before delete/createMany.
+      const rows = await prepareRecipeIngredientIndexRows(db, {
+        recipeId: fresh.id,
+        values: fresh.values,
+      });
+
+      const result = await db.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          return replaceRecipeIngredientIndexRows(tx, fresh.id, rows);
+        },
+        {
+          maxWait: RECIPE_INGREDIENT_BACKFILL_TX.maxWait,
+          timeout: RECIPE_INGREDIENT_BACKFILL_TX.timeout,
+        },
+      );
+
+      return { rowCount: result.rowCount, title: fresh.title };
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0 && isTransientIngredientBackfillError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 /**
@@ -67,12 +154,7 @@ export async function backfillRecipeIngredientIndex(
         continue;
       }
 
-      const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
-        return rebuildRecipeIngredientIndex(tx, {
-          recipeId: recipe.id,
-          values: recipe.values,
-        });
-      });
+      const result = await applyRebuildOneRecipe(db, recipe.id);
       report.rebuilt += 1;
       report.rowsWritten += result.rowCount;
     } catch (error) {

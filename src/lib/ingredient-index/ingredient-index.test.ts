@@ -409,16 +409,38 @@ describe("ING-3 DB seed / rebuild / coverage", () => {
     const db = getDb();
 
     async function runOnce() {
-      const before = await db.recipeIngredient.count();
+      // Scope to this suite's recipes so parallel suites cannot flake the global count.
+      const scopedIds = recipeIds.length
+        ? recipeIds
+        : (await db.recipe.findMany({ where: { slug: { startsWith: PREFIX } }, select: { id: true } })).map(
+            (r) => r.id,
+          );
+      assert.ok(scopedIds.length > 0);
+
+      const before = await db.recipeIngredient.count({
+        where: { recipeId: { in: scopedIds } },
+      });
       const dry = await backfillRecipeIngredientIndex(db, { apply: false });
       assert.equal(dry.mode, "dry_run");
-      assert.equal(await db.recipeIngredient.count(), before);
+      assert.equal(dry.status, "DRY_RUN");
+      assert.equal(
+        await db.recipeIngredient.count({ where: { recipeId: { in: scopedIds } } }),
+        before,
+      );
 
       const applied = await backfillRecipeIngredientIndex(db, { apply: true });
       assert.equal(applied.mode, "apply");
-      assert.ok(applied.status === "SUCCESS" || applied.rebuilt > 0);
+      assert.ok(
+        !applied.failures.some((f) => scopedIds.includes(f.recipeId)),
+        "suite recipes must rebuild successfully",
+      );
+      const afterApply = await db.recipeIngredient.count({
+        where: { recipeId: { in: scopedIds } },
+      });
+      assert.ok(afterApply >= before);
+
       const again = await backfillRecipeIngredientIndex(db, { apply: true });
-      assert.equal(again.status, "SUCCESS");
+      assert.ok(!again.failures.some((f) => scopedIds.includes(f.recipeId)));
       assert.equal(again.rowsWritten, applied.rowsWritten);
     }
 

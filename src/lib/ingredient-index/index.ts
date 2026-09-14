@@ -5,11 +5,17 @@ export {
   parseRecipeValuesIngredients,
 } from "./build-rows";
 export { loadIngredientIdentityCatalogForKeys } from "./lookup";
-export { rebuildRecipeIngredientIndex } from "./rebuild";
+export {
+  prepareRecipeIngredientIndexRows,
+  rebuildRecipeIngredientIndex,
+  replaceRecipeIngredientIndexRows,
+} from "./rebuild";
 export { seedIngredientIdentity, formatIngredientSeedReport } from "./seed-db";
 export {
+  RECIPE_INGREDIENT_BACKFILL_TX,
   backfillRecipeIngredientIndex,
   formatRecipeIngredientBackfillReport,
+  isTransientIngredientBackfillError,
 } from "./backfill";
 export {
   reportRecipeIngredientCoverage,
