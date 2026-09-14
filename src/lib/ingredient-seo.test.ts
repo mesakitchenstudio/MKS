@@ -22,6 +22,7 @@ import {
   isIngredientPageIndexable,
   isIngredientSeoEnabled,
   listIndexableIngredientSlugs,
+  listReachableIngredientSlugs,
   loadIndexableIngredientLinkMap,
   loadRecipeIngredientSeoLinks,
   reportIngredientSeoReadiness,
@@ -81,14 +82,58 @@ describe("ING-8 — indexability helpers", () => {
   });
 });
 
+describe("ING-8 — OFF-state metadata and page gate (runtime)", () => {
+  it("generateMetadata returns soft not-found when SEO OFF (no throw)", async () => {
+    const prev = process.env.INGREDIENT_SEO_ENABLED;
+    process.env.INGREDIENT_SEO_ENABLED = "false";
+    try {
+      const mod = await import("../app/ingredient/[slug]/page");
+      const meta = await mod.generateMetadata({
+        params: Promise.resolve({ slug: "example" }),
+      });
+      assert.equal(meta.title, "Not found");
+      assert.deepEqual(meta.robots, { index: false, follow: false });
+    } finally {
+      if (prev === undefined) delete process.env.INGREDIENT_SEO_ENABLED;
+      else process.env.INGREDIENT_SEO_ENABLED = prev;
+    }
+  });
+
+  it("page default export calls notFound when SEO OFF", async () => {
+    const prev = process.env.INGREDIENT_SEO_ENABLED;
+    process.env.INGREDIENT_SEO_ENABLED = "false";
+    try {
+      const mod = await import("../app/ingredient/[slug]/page");
+      await assert.rejects(
+        () => mod.default({ params: Promise.resolve({ slug: "example" }) }),
+        (err: unknown) => {
+          const digest = (err as { digest?: string } | null)?.digest;
+          // next/navigation notFound() uses NEXT_HTTP_ERROR_FALLBACK;404 or similar
+          return (
+            digest === "NEXT_HTTP_ERROR_FALLBACK;404" ||
+            digest === "NEXT_NOT_FOUND" ||
+            (err instanceof Error && /NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/.test(String(err)))
+          );
+        },
+      );
+    } finally {
+      if (prev === undefined) delete process.env.INGREDIENT_SEO_ENABLED;
+      else process.env.INGREDIENT_SEO_ENABLED = prev;
+    }
+  });
+});
+
 describe("ING-8 — route and wiring", () => {
   it("public route gates, metadata, structured data, and grid", () => {
     const page = read("../app/ingredient/[slug]/page.tsx");
     assert.match(page, /isIngredientSeoEnabled/);
     assert.match(page, /notFound\(\)/);
-    assert.match(page, /revalidate = 300/);
+    // force-dynamic: OFF empty generateStaticParams must not on-demand SSG into
+    // DYNAMIC_SERVER_USAGE; dynamicParams true: Admin-created slugs stay reachable.
+    assert.match(page, /dynamic = "force-dynamic"/);
     assert.match(page, /dynamicParams = true/);
     assert.match(page, /listReachableIngredientSlugs/);
+    assert.doesNotMatch(page, /listIndexableIngredientSlugs/);
     assert.match(page, /ingredientPageTitleSegment/);
     assert.match(page, /ingredientMetaDescription/);
     assert.match(page, /alternates: \{ canonical: path \}/);
@@ -98,6 +143,38 @@ describe("ING-8 — route and wiring", () => {
     assert.match(page, /RecipeGridCard/);
     assert.doesNotMatch(page, /recipeJsonLd|CollectionPage|Nutrition/);
     assert.doesNotMatch(page, /Also known as/i);
+  });
+
+  it("generateStaticParams uses reachable (≥1 published), not indexable (≥3) only", () => {
+    const page = read("../app/ingredient/[slug]/page.tsx");
+    assert.match(page, /listReachableIngredientSlugs/);
+    assert.doesNotMatch(page, /listIndexableIngredientSlugs/);
+    const docs = read("admin-documentation/topics/ingredients.ts");
+    assert.match(docs, /1–2 Published Recipes are reachable but noindex/);
+    assert.match(docs, /zero Published Recipes are not public/);
+  });
+
+  it("OFF-state fails closed before Ingredient data / SEO work", () => {
+    const page = read("../app/ingredient/[slug]/page.tsx");
+    const gateMeta = page.indexOf("generateMetadata");
+    const metaOff = page.indexOf("if (!isIngredientSeoEnabled())", gateMeta);
+    const metaDb = page.indexOf("getPublicIngredientLanding", metaOff);
+    assert.ok(metaOff > gateMeta && metaDb > metaOff);
+
+    const pageFn = page.indexOf("export default async function IngredientSeoPage");
+    const pageOff = page.indexOf("if (!isIngredientSeoEnabled()) notFound()", pageFn);
+    const pageDb = page.indexOf("getPublicIngredientLanding", pageOff);
+    assert.ok(pageOff > pageFn && pageDb > pageOff);
+    // Soft metadata when OFF (same pattern as shopping-list / CWYW) — must not throw.
+    assert.match(page, /title: "Not found", robots: \{ index: false, follow: false \}/);
+  });
+
+  it("Shopping List gating stays independent of Ingredient SEO route", () => {
+    const shopping = read("../app/shopping-list/page.tsx");
+    assert.match(shopping, /isShoppingListEnabled/);
+    assert.match(shopping, /notFound\(\)/);
+    assert.doesNotMatch(shopping, /isIngredientSeoEnabled/);
+    assert.doesNotMatch(read("../app/ingredient/[slug]/page.tsx"), /isShoppingListEnabled/);
   });
 
   it("does not create /ingredients index or alias redirects", () => {
@@ -352,6 +429,74 @@ describe("ING-8 — loader, membership, links, readiness (DB)", () => {
     });
     assert.ok(eggRows.length >= 2);
     assert.ok(eggRows.every((row) => row.ingredientId === eggId));
+  });
+
+  it("thin Ingredient (1 published) is reachable noindex; generateStaticParams list includes it", async (t) => {
+    if (!available) return t.skip("Ingredient tables missing");
+    const db = getDb();
+    const slug = `${PREFIX}thin-solo`;
+    const ing = await db.ingredient.create({
+      data: {
+        name: `${PREFIX} Thin Solo`,
+        nameNorm: `${PREFIX}thin solo`,
+        slug,
+      },
+    });
+    try {
+      const recipe = await createRecipe({
+        slug: "thin-solo-recipe",
+        status: "published",
+        items: [{ item: `${PREFIX} Thin Solo` }],
+      });
+      // Ensure membership even if phrase match missed the new name
+      const rows = await db.recipeIngredient.findMany({ where: { recipeId: recipe.id } });
+      for (const row of rows) {
+        await db.recipeIngredient.update({
+          where: { id: row.id },
+          data: { ingredientId: ing.id, matchedVia: "EXACT" },
+        });
+      }
+      if (!rows.length) {
+        await db.recipeIngredient.create({
+          data: {
+            recipeId: recipe.id,
+            ingredientId: ing.id,
+            groupIndex: 0,
+            itemIndex: 0,
+            authoredItem: `${PREFIX} Thin Solo`,
+            authoredItemNorm: `${PREFIX}thin solo`,
+            matchedVia: "EXACT",
+          },
+        });
+      }
+
+      const landing = await getPublicIngredientLanding(db, slug);
+      assert.ok(landing);
+      assert.equal(landing!.publishedRecipeCount, 1);
+      assert.equal(landing!.indexable, false);
+      assert.equal(classifyIngredientPublicSeoState(1), "REACHABLE_NOINDEX");
+
+      const reachable = await listReachableIngredientSlugs(db);
+      assert.ok(reachable.includes(slug));
+      const indexable = await listIndexableIngredientSlugs(db);
+      assert.equal(indexable.includes(slug), false);
+
+      const prev = process.env.INGREDIENT_SEO_ENABLED;
+      process.env.INGREDIENT_SEO_ENABLED = "true";
+      try {
+        const mod = await import("../app/ingredient/[slug]/page");
+        const meta = await mod.generateMetadata({
+          params: Promise.resolve({ slug }),
+        });
+        assert.deepEqual(meta.robots, { index: false, follow: true });
+        assert.match(String(meta.title), /Thin Solo Recipes/);
+      } finally {
+        if (prev === undefined) delete process.env.INGREDIENT_SEO_ENABLED;
+        else process.env.INGREDIENT_SEO_ENABLED = prev;
+      }
+    } finally {
+      await db.ingredient.delete({ where: { id: ing.id } }).catch(() => undefined);
+    }
   });
 
   it("indexable map and recipe links respect threshold and gate", async (t) => {

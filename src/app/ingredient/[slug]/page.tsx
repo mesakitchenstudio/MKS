@@ -21,7 +21,14 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
+/**
+ * Keep runtime params (Admin can create Ingredients after deploy).
+ * Pair with `force-dynamic` so OFF-state empty `generateStaticParams` does not
+ * attempt on-demand static generation — that path threw DYNAMIC_SERVER_USAGE
+ * (HTTP 500) via root-layout cookies()/auth. SEO OFF still fail-closes via
+ * `notFound()` / soft metadata below.
+ */
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
@@ -35,6 +42,7 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  // Same gated soft-metadata pattern as shopping-list / CWYW (no DB when OFF).
   if (!isIngredientSeoEnabled()) {
     return { title: "Not found", robots: { index: false, follow: false } };
   }
