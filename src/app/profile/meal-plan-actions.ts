@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { findActiveMemberByEmail } from "@/lib/accounts";
 import {
   isMealPlannerEnabled,
+  mealPlanErrorMessage,
   type MealPlanActionResult,
   type MealPlanItemView,
 } from "@/lib/meal-planner";
@@ -39,7 +40,7 @@ async function requireMealPlannerMemberUserId(): Promise<
       result: {
         ok: false,
         error: "FEATURE_DISABLED",
-        message: "Meal Planner is not available right now.",
+        message: mealPlanErrorMessage("FEATURE_DISABLED"),
       },
     };
   }
@@ -56,7 +57,7 @@ async function requireMealPlannerMemberUserId(): Promise<
       result: {
         ok: false,
         error: "NOT_AUTHENTICATED",
-        message: "Sign in to manage meal plans.",
+        message: mealPlanErrorMessage("NOT_AUTHENTICATED"),
       },
     };
   }
@@ -68,7 +69,7 @@ async function requireMealPlannerMemberUserId(): Promise<
       result: {
         ok: false,
         error: "NOT_AUTHENTICATED",
-        message: "Sign in to manage meal plans.",
+        message: mealPlanErrorMessage("NOT_AUTHENTICATED"),
       },
     };
   }

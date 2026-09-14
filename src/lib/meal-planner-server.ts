@@ -12,6 +12,7 @@ import {
   MEAL_SLOTS,
   isMealSlot,
   mealSlotSortIndex,
+  mealPlanErrorMessage,
   normalizeMealPlanNameKey,
   validateMealPlanDate,
   validateMealPlanDateHorizon,
@@ -28,8 +29,8 @@ import {
   type MealSlot,
 } from "@/lib/meal-planner";
 
-function fail(error: MealPlanError, message: string): MealPlanActionResult<never> {
-  return { ok: false, error, message };
+function fail(error: MealPlanError, message?: string): MealPlanActionResult<never> {
+  return { ok: false, error, message: message || mealPlanErrorMessage(error) };
 }
 
 type RecipeRef = {
@@ -167,7 +168,7 @@ export async function createMealPlanForUser(
   userId: string,
   rawName: unknown,
 ): Promise<MealPlanActionResult<{ id: string; name: string }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
   const validated = validateMealPlanName(rawName);
   if (!validated.ok) return fail(validated.error, validated.message);
 
@@ -205,7 +206,7 @@ export async function createMealPlanForUser(
 export async function ensureDefaultMealPlanForUser(
   userId: string,
 ): Promise<MealPlanActionResult<{ id: string; name: string; created: boolean }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
 
   const db = getDb();
   const defaultNorm = normalizeMealPlanNameKey(MEAL_PLAN_DEFAULT_NAME);
@@ -262,7 +263,7 @@ export async function renameMealPlanForUser(
   planId: string,
   rawName: unknown,
 ): Promise<MealPlanActionResult<{ id: string; name: string }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
   const validated = validateMealPlanName(rawName);
   if (!validated.ok) return fail(validated.error, validated.message);
 
@@ -296,7 +297,7 @@ export async function deleteMealPlanForUser(
   userId: string,
   planId: string,
 ): Promise<MealPlanActionResult> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
   const db = getDb();
   const plan = await db.mealPlan.findFirst({ where: { id: planId, userId } });
   if (!plan) return fail("PLAN_NOT_FOUND", "Meal plan not found.");
@@ -310,7 +311,7 @@ export async function listMealPlanItemsForUser(
   planId: string,
   options?: { fromDate?: string; toDate?: string },
 ): Promise<MealPlanActionResult<{ items: MealPlanItemView[] }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
   const detail = await getMealPlanForUser(userId, planId, options);
   if (!detail) return fail("PLAN_NOT_FOUND", "Meal plan not found.");
   return { ok: true, data: { items: detail.items } };
@@ -351,7 +352,7 @@ export async function addMealPlanItemForUser(
     today: unknown;
   },
 ): Promise<MealPlanActionResult<{ item: MealPlanItemView }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
 
   const planId = String(input.planId ?? "").trim();
   const recipeId = String(input.recipeId ?? "").trim();
@@ -364,7 +365,7 @@ export async function addMealPlanItemForUser(
   const horizon = validateMealPlanDateHorizon(input.planDate, input.today);
   const horizonFail = mapHorizonError(horizon);
   if (horizonFail) return horizonFail;
-  if (!horizon.ok) return fail("INVALID_DATE", "Use a valid date (YYYY-MM-DD).");
+  if (!horizon.ok) return fail("INVALID_DATE");
 
   const servings = validateMealPlanServings(input.plannedServings);
   if (!servings.ok) return fail(servings.error, servings.message);
@@ -461,7 +462,7 @@ export async function updateMealPlanItemForUser(
     today: unknown;
   },
 ): Promise<MealPlanActionResult<{ item: MealPlanItemView }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
   const id = String(itemId ?? "").trim();
   if (!id) return fail("ITEM_NOT_FOUND", "Meal item not found.");
 
@@ -482,7 +483,7 @@ export async function updateMealPlanItemForUser(
     const horizon = validateMealPlanDateHorizon(input.planDate, input.today);
     const horizonFail = mapHorizonError(horizon);
     if (horizonFail) return horizonFail;
-    if (!horizon.ok) return fail("INVALID_DATE", "Use a valid date (YYYY-MM-DD).");
+    if (!horizon.ok) return fail("INVALID_DATE");
     if (horizon.planDate !== existing.planDate) dateOrSlotChanged = true;
     nextDate = horizon.planDate;
   } else {
@@ -589,7 +590,7 @@ export async function copyMealPlanItemForUser(
   itemId: string,
   input: { planDate: unknown; mealSlot: unknown; today: unknown },
 ): Promise<MealPlanActionResult<{ item: MealPlanItemView }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
   const id = String(itemId ?? "").trim();
   if (!id) return fail("ITEM_NOT_FOUND", "Meal item not found.");
 
@@ -599,7 +600,7 @@ export async function copyMealPlanItemForUser(
   const horizon = validateMealPlanDateHorizon(input.planDate, input.today);
   const horizonFail = mapHorizonError(horizon);
   if (horizonFail) return horizonFail;
-  if (!horizon.ok) return fail("INVALID_DATE", "Use a valid date (YYYY-MM-DD).");
+  if (!horizon.ok) return fail("INVALID_DATE");
 
   const db = getDb();
   const existing = await db.mealPlanItem.findFirst({
@@ -693,7 +694,7 @@ export async function deleteMealPlanItemForUser(
   userId: string,
   itemId: string,
 ): Promise<MealPlanActionResult> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
   const id = String(itemId ?? "").trim();
   if (!id) return fail("ITEM_NOT_FOUND", "Meal item not found.");
 
@@ -728,7 +729,7 @@ export async function reorderMealPlanItemsForUser(
     orderedItemIds: unknown;
   },
 ): Promise<MealPlanActionResult<{ items: MealPlanItemView[] }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
 
   const planId = String(input.planId ?? "").trim();
   if (!planId) return fail("PLAN_NOT_FOUND", "Meal plan not found.");
@@ -800,7 +801,7 @@ export async function moveMealPlanItemInSlotForUser(
   itemId: string,
   direction: "up" | "down",
 ): Promise<MealPlanActionResult<{ items: MealPlanItemView[] }>> {
-  if (!userId) return fail("NOT_AUTHENTICATED", "Sign in to manage meal plans.");
+  if (!userId) return fail("NOT_AUTHENTICATED");
   const id = String(itemId ?? "").trim();
   if (!id) return fail("ITEM_NOT_FOUND", "Meal item not found.");
 

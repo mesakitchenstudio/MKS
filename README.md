@@ -73,6 +73,21 @@ Set `SITE_PRIVATE=true` in Vercel → Production only while you prep recipes. `/
 
 Optional: set `GOOGLE_SITE_VERIFICATION` in Vercel to the HTML-tag verification code from Search Console.
 
+## Meal Planner (member-private)
+
+Server-only gate: `MEAL_PLANNER_ENABLED=true`. There is no `NEXT_PUBLIC_MEAL_PLANNER_*` unlock.
+
+When enabled, signed-in members get `/profile/meal-planner` (noindex), Recipe “Add to Meal Plan”, and optional day/week adds into the existing browser-local Shopping List (`mesa:shopping-list:v1`). Shopping List still uses its own gate.
+
+Domain notes:
+
+- Civil `YYYY-MM-DD` dates, Monday–Sunday weeks (not Admin TRT)
+- New plan items use canonical `Recipe.id` (Published only); unpublish/delete preserves historical plan rows
+- Planner private notes never enter Shopping storage or analytics
+- Shopping Add is explicit and snapshot-based (no auto-sync); batch commit is atomic (one final localStorage save)
+
+Production migration: `20260914180000_meal_planner_foundation` (additive `MealPlan` / `MealPlanItem`). Prefer deploy with the gate **off**, verify migration, then set `MEAL_PLANNER_ENABLED=true` and redeploy. Feature rollback = unset the gate (do not drop tables).
+
 ## Production database
 
 Local development uses SQLite (`DATABASE_URL=file:./prisma/dev.db`) via `npm run db:push` / `db:setup`.
