@@ -58,8 +58,9 @@ describe("page title system", () => {
     assert.doesNotMatch(recipes, /\$\{collectionTitles\[params\.collection\].*\| \$\{site\.name\}/);
 
     const recipe = readApp("recipes/[slug]/page.tsx");
-    assert.match(recipe, /title: recipe\.title/);
-    assert.match(recipe, /title: `\$\{recipe\.title\} \| \$\{site\.name\}`/);
+    assert.match(recipe, /resolveRecipeCardTitle/);
+    assert.match(recipe, /title: publicTitle/);
+    assert.match(recipe, /title: `\$\{publicTitle\} \| \$\{site\.name\}`/);
 
     const seriesDetail = readApp("series/[slug]/page.tsx");
     assert.match(seriesDetail, /collectionDocumentTitleSegment/);

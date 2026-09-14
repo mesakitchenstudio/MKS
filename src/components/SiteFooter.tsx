@@ -6,10 +6,8 @@ import { Logo } from "./Logo";
 import { NewsletterForm } from "./NewsletterForm";
 import { PrivacyPreferencesFooterLink } from "./PrivacyConsentUi";
 import { categoryPublicPath } from "@/lib/category-seo";
-import {
-  PRIMARY_CATEGORY_LABELS,
-  PRIMARY_CATEGORY_SLUGS,
-} from "@/lib/recipe-primary-taxonomy";
+import type { PublicPrimaryCategoryLink } from "@/lib/public-primary-categories";
+import { PRIMARY_CATEGORY_LABELS, PRIMARY_CATEGORY_SLUGS } from "@/lib/recipe-primary-taxonomy";
 
 const footerLinkClass =
   "rounded-sm text-cream/90 transition-colors hover:text-terracotta hover:underline hover:underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
@@ -34,12 +32,22 @@ export function SiteFooter({
   hideNewsletter = false,
   newsletterSubscribed = false,
   shoppingListEnabled = false,
+  primaryCategories,
 }: {
   hideNewsletter?: boolean;
   /** Active NewsletterSubscriber for the authenticated session email (server-resolved). */
   newsletterSubscribed?: boolean;
   shoppingListEnabled?: boolean;
+  /** When provided, only populated primary categories are linked. */
+  primaryCategories?: PublicPrimaryCategoryLink[];
 }) {
+  const exploreCategories =
+    primaryCategories ??
+    PRIMARY_CATEGORY_SLUGS.map((slug) => ({
+      slug,
+      label: PRIMARY_CATEGORY_LABELS[slug],
+    }));
+
   return (
     <footer className="no-print mt-auto border-t border-line bg-ink text-cream pb-[var(--mks-privacy-consent-safe,0px)]">
       <div
@@ -59,10 +67,10 @@ export function SiteFooter({
             Explore
           </p>
           <ul className="mt-2.5 space-y-1.5 text-sm">
-            {PRIMARY_CATEGORY_SLUGS.map((slug) => (
-              <li key={slug}>
-                <Link href={categoryPublicPath(slug)} className={footerLinkClass}>
-                  {PRIMARY_CATEGORY_LABELS[slug]}
+            {exploreCategories.map((category) => (
+              <li key={category.slug}>
+                <Link href={categoryPublicPath(category.slug)} className={footerLinkClass}>
+                  {category.label}
                 </Link>
               </li>
             ))}
@@ -114,7 +122,8 @@ export function SiteFooter({
       <div className="border-t border-white/10">
         <div className="mx-auto grid max-w-6xl gap-2.5 px-4 py-4 text-xs text-sand/70 md:grid-cols-3 md:items-center md:gap-4 md:px-6">
           <p className="text-center md:text-left">
-            © {new Date().getFullYear()} {site.name}. All rights reserved.
+            © {new Date().getFullYear()}{" "}
+            <span className="whitespace-nowrap">{site.name}.</span> All rights reserved.
           </p>
           <p className="text-center">Made with ❤️ in Istanbul</p>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 md:justify-end">

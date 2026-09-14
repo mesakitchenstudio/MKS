@@ -34,7 +34,7 @@ export const categories: Category[] = [
   {
     slug: "breads",
     name: "Breads",
-    description: "Focaccia and everyday loaves from the studio oven.",
+    description: "Everyday loaves and skillet breads from the studio kitchen.",
     group: "course",
   },
   {

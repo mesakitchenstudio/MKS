@@ -87,7 +87,7 @@ export default async function CategoryPage({ params }: Props) {
         />
       ) : null}
       <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-olive">
-        {category.group}
+        Category
       </p>
       <h1 className="mt-2 font-serif text-5xl">{category.name}</h1>
       <p className="mt-3 max-w-2xl text-muted">{category.description}</p>

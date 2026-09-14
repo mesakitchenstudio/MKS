@@ -2,6 +2,7 @@ import { site } from "@/data/site";
 import type { Recipe } from "@/data/types";
 import { publicNutritionJsonLdFields } from "@/lib/field-content";
 import { instructionStepText } from "@/lib/instruction-step";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
 import { recipeDateModifiedIso } from "@/lib/recipe-public-update";
 import { countedHeatMinutes, isoDuration, totalMinutes } from "@/lib/recipe-utils";
 import type { RecipeReviewStats } from "@/lib/recipe-reviews";
@@ -63,12 +64,13 @@ export function siteGraphJsonLd() {
 }
 
 export function recipeJsonLd(recipe: Recipe, reviewStats?: RecipeReviewStats) {
-  // DEFERRED SEO/schema identity: Recipe `name` stays on canonical `recipe.title`
-  // even when the public H1 uses editorial dishName. Revisit with meta/OG policy.
+  // Public Recipe identity matches H1/cards (trustworthy dishName, else title).
+  // VideoObject below still uses the true YouTube title when a video is present.
+  const publicName = resolveRecipeCardTitle(recipe);
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Recipe",
-    name: recipe.title,
+    name: publicName,
     description: recipe.excerpt,
     image: [recipe.image],
     url: `${site.url}/recipes/${recipe.slug}`,

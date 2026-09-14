@@ -19,6 +19,7 @@ import { getAdminSession } from "@/lib/auth";
 import { isSitePrivate } from "@/lib/flags";
 import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
 import { getAllRecipes, publicRecipeId } from "@/lib/recipes";
+import { listPopulatedPrimaryCategoryLinks } from "@/lib/public-primary-categories";
 import { recipeSearchHaystack } from "@/lib/recipe-utils";
 import { hasRecipeYoutube } from "@/lib/recipe-youtube";
 import { siteGraphJsonLd } from "@/lib/schema";
@@ -129,9 +130,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     session?.error !== "MemberDeleted" &&
     session?.error !== "SessionRevoked" &&
     (await isMemberNewsletterSubscribed(memberEmail));
-  const recipes = privateMode
-    ? []
-    : (await getAllRecipes()).map((recipe) => ({
+  const publishedRecipes = privateMode ? [] : await getAllRecipes();
+  const primaryCategories = listPopulatedPrimaryCategoryLinks(publishedRecipes);
+  const recipes = publishedRecipes.map((recipe) => ({
         id: publicRecipeId(recipe),
         slug: recipe.slug,
         title: recipe.title,
@@ -167,6 +168,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               hideTools={privateMode}
               showChrome={!privateMode}
               recipes={recipes}
+              primaryCategories={primaryCategories}
               newsletterSubscribed={newsletterSubscribed}
               shoppingListEnabled={isShoppingListEnabled()}
               mealPlannerEnabled={isMealPlannerEnabled()}

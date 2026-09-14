@@ -33,6 +33,7 @@ describe("public footer polish", () => {
 
   it("preserves Explore primary categories and newsletter copy", () => {
     const footer = read("components/SiteFooter.tsx");
+    assert.match(footer, /primaryCategories/);
     assert.match(footer, /PRIMARY_CATEGORY_SLUGS/);
     for (const slug of PRIMARY_CATEGORY_SLUGS) {
       assert.ok(PRIMARY_CATEGORY_LABELS[slug]);
@@ -45,6 +46,7 @@ describe("public footer polish", () => {
     assert.match(footer, /Pinterest/);
     assert.match(footer, /YouTube/);
     assert.match(footer, /Made with ❤️ in Istanbul/);
+    assert.match(footer, /whitespace-nowrap/);
     assert.match(footer, /md:grid-cols-3/);
     assert.doesNotMatch(footer, /gradient|shadow|fa-instagram|svg.*youtube/i);
   });

@@ -13,8 +13,10 @@ import {
   recipesNavAriaCurrent,
 } from "@/lib/public-header-recipes";
 import { PUBLIC_HEADER_NAV, PUBLIC_MOBILE_NAV } from "@/lib/public-nav";
+import type { PublicPrimaryCategoryLink } from "@/lib/public-primary-categories";
 import {
   PRIMARY_CATEGORY_LABELS,
+  PRIMARY_CATEGORY_SLUGS,
   type PrimaryCategorySlug,
 } from "@/lib/recipe-primary-taxonomy";
 import { Logo } from "./Logo";
@@ -27,7 +29,14 @@ function primaryMegaLabel(slug: string) {
   return slug;
 }
 
-export function SiteHeader({ mealPlannerEnabled = false }: { mealPlannerEnabled?: boolean }) {
+export function SiteHeader({
+  mealPlannerEnabled = false,
+  primaryCategories,
+}: {
+  mealPlannerEnabled?: boolean;
+  /** Populated primary categories only — hides empty Drinks/Condiments at launch. */
+  primaryCategories?: PublicPrimaryCategoryLink[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -35,6 +44,18 @@ export function SiteHeader({ mealPlannerEnabled = false }: { mealPlannerEnabled?
   const [query, setQuery] = useState("");
   const recipesMenuRef = useRef<HTMLDivElement>(null);
   const disclosureRef = useRef<HTMLButtonElement>(null);
+
+  const categoryLinks =
+    primaryCategories ??
+    PRIMARY_CATEGORY_SLUGS.map((slug) => ({
+      slug,
+      label: PRIMARY_CATEGORY_LABELS[slug],
+    }));
+  // Keep megaMenu column label; swap slug list for populated-only links.
+  const recipesMegaColumns = megaMenu.map((column) => ({
+    label: column.label,
+    links: categoryLinks,
+  }));
 
   function closeMenus() {
     setOpen(false);
@@ -136,16 +157,16 @@ export function SiteHeader({ mealPlannerEnabled = false }: { mealPlannerEnabled?
                     id={RECIPES_DROPDOWN_ID}
                     className="absolute left-0 top-full z-20 w-[17rem] rounded-sm border border-line bg-paper p-5 shadow-lg"
                   >
-                    {megaMenu.map((column) => (
+                    {recipesMegaColumns.map((column) => (
                       <ul key={column.label} className="space-y-2">
-                        {column.slugs.map((slug) => (
-                          <li key={slug}>
+                        {column.links.map((link) => (
+                          <li key={link.slug}>
                             <Link
-                              href={categoryPublicPath(slug)}
+                              href={categoryPublicPath(link.slug)}
                               onClick={closeMenus}
                               className={`text-sm text-ink/80 hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS}`}
                             >
-                              {primaryMegaLabel(slug)}
+                              {link.label || primaryMegaLabel(link.slug)}
                             </Link>
                           </li>
                         ))}
@@ -254,20 +275,20 @@ export function SiteHeader({ mealPlannerEnabled = false }: { mealPlannerEnabled?
             ))}
           </div>
           <div className="mt-5 border-t border-line pt-4">
-            {megaMenu.map((column) => (
+            {recipesMegaColumns.map((column) => (
               <div key={column.label}>
                 <p className="mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-olive">
                   {column.label}
                 </p>
                 <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {column.slugs.map((slug) => (
-                    <li key={slug}>
+                  {column.links.map((link) => (
+                    <li key={link.slug}>
                       <Link
-                        href={categoryPublicPath(slug)}
+                        href={categoryPublicPath(link.slug)}
                         onClick={closeMenus}
                         className={`inline-flex min-h-11 items-center text-sm text-ink/80 hover:text-terracotta ${PUBLIC_HEADER_NAV_FOCUS}`}
                       >
-                        {primaryMegaLabel(slug)}
+                        {link.label || primaryMegaLabel(link.slug)}
                       </Link>
                     </li>
                   ))}

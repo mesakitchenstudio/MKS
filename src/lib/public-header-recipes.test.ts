@@ -51,7 +51,7 @@ describe("public header Recipes active state", () => {
 });
 
 describe("public header Recipes categories", () => {
-  it("keeps megaMenu order and Category landing URLs, including Condiments → toppings", () => {
+  it("keeps megaMenu taxonomy URLs, including Condiments → toppings", () => {
     assert.equal(megaMenu.length, 1);
     assert.deepEqual([...megaMenu[0].slugs], [...PRIMARY_CATEGORY_SLUGS]);
 
@@ -88,7 +88,9 @@ describe("public header Recipes categories", () => {
 
     const condiments = entries.find((entry) => entry.label === "Condiments");
     assert.equal(condiments?.href, "/category/toppings");
-    assert.match(siteHeaderSource, /categoryPublicPath\(slug\)/);
+    assert.match(siteHeaderSource, /primaryCategories/);
+    assert.match(siteHeaderSource, /categoryLinks/);
+    assert.match(siteHeaderSource, /categoryPublicPath\(link\.slug\)/);
   });
 });
 

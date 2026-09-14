@@ -59,19 +59,17 @@ describe("public recipe detail phase 1", () => {
     assert.equal(recipePrimaryCategoryDisplayLabel(baseRecipe()), "Main Dishes");
   });
 
-  it("keeps metadata and Recipe schema name on canonical title", () => {
+  it("uses public dish identity for metadata and Recipe schema name", () => {
     const page = read("app/recipes/[slug]/page.tsx");
-    assert.match(page, /title: recipe\.title/);
-    assert.match(page, /openGraph:[\s\S]*title: `\$\{recipe\.title\} \| \$\{site\.name\}`/);
-    assert.match(page, /twitter:[\s\S]*title: `\$\{recipe\.title\} \| \$\{site\.name\}`/);
+    assert.match(page, /resolveRecipeCardTitle/);
+    assert.match(page, /title: publicTitle/);
+    assert.match(page, /openGraph:[\s\S]*title: `\$\{publicTitle\} \| \$\{site\.name\}`/);
+    assert.match(page, /twitter:[\s\S]*title: `\$\{publicTitle\} \| \$\{site\.name\}`/);
     assert.match(page, /canonical: `\/recipes\/\$\{recipe\.slug\}`/);
 
     const data = recipeJsonLd(baseRecipe());
-    assert.equal(
-      data.name,
-      "Golden Crispy Rice with Eggs: You Won't Believe How Easy This Is!",
-    );
-    assert.match(read("lib/schema.ts"), /DEFERRED SEO\/schema identity/);
+    assert.equal(data.name, "Golden Crispy Rice with Eggs");
+    assert.match(read("lib/schema.ts"), /resolveRecipeCardTitle/);
   });
 
   it("Recipe JSON-LD nutrition omits unknown zero macros", () => {

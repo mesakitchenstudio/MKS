@@ -7,7 +7,6 @@ import { RecipeGridCard } from "@/components/RecipeGridCard";
 import { trackEvent } from "@/lib/analytics";
 import { homepageCollectionSlugMap } from "@/data/homepage";
 import {
-  DISCOVERY_CATEGORIES,
   DISCOVERY_SORTS,
   DISCOVERY_TIME_OPTIONS,
   applyDiscoveryFilters,
@@ -21,6 +20,7 @@ import {
   type DiscoverySuggestion,
   type RecipeDiscoveryParams,
 } from "@/lib/recipe-discovery";
+import { listPopulatedDiscoveryCategories } from "@/lib/public-primary-categories";
 import {
   hasActiveIngredientFilter,
   recipeMatchesIngredientMembership,
@@ -94,6 +94,10 @@ export function RecipeDiscovery({
 
   const cuisineOptions = useMemo(() => listDiscoveryCuisines(allRecipes), [allRecipes]);
   const methodOptions = useMemo(() => listDiscoveryMethods(allRecipes), [allRecipes]);
+  const discoveryCategories = useMemo(
+    () => listPopulatedDiscoveryCategories(allRecipes),
+    [allRecipes],
+  );
   const appliedChips = useMemo(
     () => buildDiscoveryAppliedChips(params, collectionTitles, ingredientNames),
     [collectionTitles, ingredientNames, params],
@@ -367,7 +371,7 @@ export function RecipeDiscovery({
         </p>
         <nav className="mt-3 max-w-3xl min-w-0" aria-label="Recipe category">
           <ul className="grid grid-cols-2 gap-x-6 text-sm font-semibold text-ink sm:grid-cols-3 md:grid-cols-4 md:gap-x-8">
-            {DISCOVERY_CATEGORIES.map((category) => {
+            {discoveryCategories.map((category) => {
               const isSelected =
                 category.id === "all"
                   ? !params.category && !params.collection

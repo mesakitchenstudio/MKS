@@ -1,14 +1,15 @@
 import Link from "next/link";
-import {
-  PRIMARY_CATEGORY_LABELS,
-  PRIMARY_CATEGORY_SLUGS,
-} from "@/lib/recipe-primary-taxonomy";
 import { categoryPublicPath } from "@/lib/category-seo";
+import { getAllRecipes } from "@/lib/recipes";
+import { listPopulatedPrimaryCategoryLinks } from "@/lib/public-primary-categories";
 
 const linkFocus =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
-export function HomepageBrowseCategories() {
+export async function HomepageBrowseCategories() {
+  const recipes = await getAllRecipes();
+  const categories = listPopulatedPrimaryCategoryLinks(recipes);
+
   return (
     <section className="border-y border-line bg-paper" aria-labelledby="browse-recipes-heading">
       <div className="mx-auto max-w-6xl px-4 py-12 md:px-6 md:py-14">
@@ -20,13 +21,13 @@ export function HomepageBrowseCategories() {
         </h2>
         <nav className="mt-6 max-w-3xl min-w-0" aria-label="Recipe categories">
           <ul className="grid grid-cols-2 gap-x-6 text-sm font-semibold text-ink sm:grid-cols-3 md:grid-cols-4 md:gap-x-8">
-            {PRIMARY_CATEGORY_SLUGS.map((slug) => (
-              <li key={slug} className="min-w-0 border-t border-line">
+            {categories.map((category) => (
+              <li key={category.slug} className="min-w-0 border-t border-line">
                 <Link
-                  href={categoryPublicPath(slug)}
+                  href={categoryPublicPath(category.slug)}
                   className={`inline-flex min-h-11 max-w-full items-center py-2 text-terracotta hover:text-terracotta-dark ${linkFocus}`}
                 >
-                  <span className="min-w-0">{PRIMARY_CATEGORY_LABELS[slug]}</span>
+                  <span className="min-w-0">{category.label}</span>
                 </Link>
               </li>
             ))}

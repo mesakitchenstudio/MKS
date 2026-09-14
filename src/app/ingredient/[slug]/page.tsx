@@ -15,6 +15,7 @@ import {
   isIngredientSeoEnabled,
   listReachableIngredientSlugs,
 } from "@/lib/ingredient-seo";
+import { formatRecipeCount } from "@/lib/category-admin";
 import { pageTitleSegment } from "@/lib/page-title";
 
 type Props = {
@@ -114,7 +115,7 @@ export default async function IngredientSeoPage({ params }: Props) {
       <h1 className="font-serif text-5xl text-ink">{heading}</h1>
       <p className="mt-3 max-w-2xl text-base leading-7 text-muted">{intro}</p>
       <p className="mt-4 text-sm text-muted" role="status">
-        {count} recipe{count === 1 ? "" : "s"}
+        {formatRecipeCount(count)}
       </p>
 
       <div className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">

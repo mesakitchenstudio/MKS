@@ -48,22 +48,38 @@ function recipeTotalMinutesFromValues(valuesJson: string): number | null {
   const bake = Number(values.bakeMinutes) || 0;
   const cook = Number(values.cookMinutes) || 0;
   const rest = Number(values.restMinutes) || 0;
+  const riseHours = Number(values.riseHours) || 0;
   const heat = bake > 0 && cook > 0 && bake !== cook ? bake + cook : Math.max(bake, cook);
-  const minutes = prep + heat + rest;
+  // Match publicRestMinutes / totalMinutes: include bread riseHours when present.
+  let passive = rest;
+  if (riseHours > 0) {
+    const riseMinutes = riseHours * 60;
+    if (rest > 0 && Math.abs(riseMinutes - rest) <= 5) {
+      passive = riseMinutes;
+    } else if (rest > 0) {
+      passive = riseMinutes + rest;
+    } else {
+      passive = riseMinutes;
+    }
+  }
+  const minutes = prep + heat + passive;
   return minutes > 0 ? minutes : null;
 }
 
 function itemDisplayTitle(input: {
   customTitle: string;
   recipeTitle?: string | null;
+  recipeDishName?: string | null;
   youtubeTitle?: string | null;
 }): string {
-  return (
-    input.customTitle.trim() ||
-    input.recipeTitle?.trim() ||
-    input.youtubeTitle?.trim() ||
-    "Series item"
-  );
+  const custom = input.customTitle.trim();
+  if (custom) return custom;
+  const fromRecipe = resolveRecipeCardTitle({
+    title: input.recipeTitle ?? "",
+    dishName: input.recipeDishName ?? "",
+  }).trim();
+  if (fromRecipe) return fromRecipe;
+  return input.youtubeTitle?.trim() || "Series item";
 }
 
 function resolveItemThumbnail(input: {
@@ -131,9 +147,14 @@ function mapSeriesItem(row: {
   if (!recipeOk && !videoPublic) return null;
 
   const recipeImage = recipeOk ? recipeImageFromValues(recipeOk.values) : "";
+  const dishName = recipeOk ? readEditorialDishName(parseValues(recipeOk.values)) : "";
+  const recipeCardTitle = recipeOk
+    ? resolveRecipeCardTitle({ title: recipeOk.title, dishName })
+    : "";
   const title = itemDisplayTitle({
     customTitle: row.customTitle,
     recipeTitle: recipeOk?.title,
+    recipeDishName: dishName,
     youtubeTitle: videoPublic?.title,
   });
   const description =
@@ -153,7 +174,7 @@ function mapSeriesItem(row: {
     }),
     recipeId: recipeOk?.id ?? null,
     recipeSlug: recipeOk?.slug ?? null,
-    recipeTitle: recipeOk?.title ?? null,
+    recipeTitle: recipeCardTitle || recipeOk?.title || null,
     youtubeVideoId: videoPublic?.videoId ?? null,
     youtubeTitle: videoPublic?.title ?? null,
     durationDisplay: videoPublic?.durationDisplay || "",

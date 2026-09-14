@@ -44,13 +44,14 @@ function row(partial: Partial<PublicVideoSourceRow> & Pick<PublicVideoSourceRow,
 }
 
 describe("public video eligibility", () => {
-  it("lists public videos with title and thumbnail", () => {
+  it("lists public videos with title, thumbnail, and Published recipe link", () => {
     assert.equal(
       isPublicCatalogueEligible({
         videoId: "abcdefghijk",
         title: "Caesar dressing",
         thumbnailUrl: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
         privacyStatus: "public",
+        recipeSlug: "homemade-chicken-caesar-salad-with-garlic-croutons",
       }),
       true,
     );
@@ -63,6 +64,7 @@ describe("public video eligibility", () => {
         title: "Secret",
         thumbnailUrl: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
         privacyStatus: "private",
+        recipeSlug: "soft-stovetop-flatbread",
       }),
       false,
     );
@@ -73,6 +75,7 @@ describe("public video eligibility", () => {
         thumbnailUrl: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
         privacyStatus: "public",
         hiddenFromSite: true,
+        recipeSlug: "soft-stovetop-flatbread",
       }),
       false,
     );
@@ -84,6 +87,7 @@ describe("public video eligibility", () => {
         videoId: "abcdefghijk",
         title: "Ok",
         thumbnailUrl: "",
+        recipeSlug: "soft-stovetop-flatbread",
       }),
       true,
       "youtube id alone can supply a thumbnail URL",
@@ -93,6 +97,7 @@ describe("public video eligibility", () => {
         videoId: "",
         title: "Ok",
         thumbnailUrl: "",
+        recipeSlug: "soft-stovetop-flatbread",
       }),
       false,
     );
@@ -101,12 +106,13 @@ describe("public video eligibility", () => {
         videoId: "abcdefghijk",
         title: "   ",
         thumbnailUrl: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
+        recipeSlug: "soft-stovetop-flatbread",
       }),
       false,
     );
   });
 
-  it("still lists unlinked recipes and incomplete chapters", () => {
+  it("requires a Published recipe link for public catalogue eligibility", () => {
     const card = toPublicVideoCard(
       row({
         videoId: "unlinked0001",
@@ -115,17 +121,17 @@ describe("public video eligibility", () => {
         description: "No chapters here",
       }),
     );
-    assert.ok(card);
-    assert.equal(card?.recipeSlug, undefined);
+    assert.equal(card, null);
   });
 
-  it("does not hide videos for admin metadata concerns", () => {
+  it("does not hide Published-linked videos for admin metadata concerns", () => {
     assert.equal(
       isPublicCatalogueEligible({
         videoId: "metaissue01",
         title: "Needs timestamps in admin",
         thumbnailUrl: "https://i.ytimg.com/vi/metaissue01/hqdefault.jpg",
         privacyStatus: "public",
+        recipeSlug: "soft-stovetop-flatbread",
       }),
       true,
     );
@@ -138,6 +144,7 @@ describe("public video eligibility", () => {
         title: "Quick tip #shorts",
         thumbnailUrl: "https://i.ytimg.com/vi/shortvideo1/hqdefault.jpg",
         privacyStatus: "public",
+        recipeSlug: "soft-stovetop-flatbread",
         format: "SHORT",
         embeddable: true,
       }),
@@ -153,7 +160,7 @@ describe("public video eligibility", () => {
     assert.equal(isShortPublicVideo("UNKNOWN"), false);
   });
 
-  it("maps explicit recipe links and keeps unlinked cards clean", () => {
+  it("maps explicit recipe links and keeps unlinked cards out of the catalogue", () => {
     const linked = toPublicVideoCard(
       row({
         videoId: "linked000001",
@@ -163,8 +170,7 @@ describe("public video eligibility", () => {
     );
     const unlinked = toPublicVideoCard(row({ videoId: "unlinked00002" }));
     assert.equal(linked?.recipeSlug, "soft-stovetop-flatbread");
-    assert.equal(unlinked?.recipeSlug, undefined);
-    assert.equal(unlinked?.recipeTitle, undefined);
+    assert.equal(unlinked, null);
   });
 });
 
@@ -193,6 +199,7 @@ describe("public video description excerpt", () => {
     const card = toPublicVideoCard(
       row({
         videoId: "excerptLONG1",
+        recipeSlug: "soft-stovetop-flatbread",
         description:
           "Soft, stretchy dough and a quiet stovetop cook — this flatbread is weeknight-friendly.\n\nSubscribe for more.",
       }),
@@ -216,6 +223,8 @@ describe("public video catalogue", () => {
     title: "Weeknight Skillet Pasta",
     publishedAt: new Date("2026-02-01T00:00:00.000Z"),
     durationSeconds: 420,
+    recipeSlug: "i-make-this-creamy-mushroom-pasta-3-times-a-week",
+    recipeTitle: "Creamy Mushroom Pasta",
   });
   const privateLong = row({
     videoId: "privateLONG",
@@ -223,6 +232,7 @@ describe("public video catalogue", () => {
     privacyStatus: "private",
     publishedAt: new Date("2026-04-01T00:00:00.000Z"),
     durationSeconds: 400,
+    recipeSlug: "soft-stovetop-flatbread",
   });
   const shortVideo = row({
     videoId: "shortSHORTS",
@@ -231,6 +241,8 @@ describe("public video catalogue", () => {
     publishedAt: new Date("2026-05-01T00:00:00.000Z"),
     durationSeconds: 45,
     durationDisplay: "0:45",
+    recipeSlug: "homemade-potato-chips",
+    recipeTitle: "Homemade Potato Chips",
   });
   const unmarkedShort = row({
     videoId: "BodG55anvjs",
@@ -238,14 +250,28 @@ describe("public video catalogue", () => {
     publishedAt: new Date("2026-09-01T00:00:00.000Z"),
     durationSeconds: 68,
     durationDisplay: "1:08",
+    recipeSlug: "making-the-perfect-chocolate-berry-donuts-at-home-dessert-baking-shorts",
+  });
+  const preferredFeatured = row({
+    videoId: "flatbreadVID",
+    title: "Homemade Bread Without an Oven? You Need to Try This!",
+    publishedAt: new Date("2026-01-01T00:00:00.000Z"),
+    durationSeconds: 338,
+    recipeSlug: "soft-stovetop-flatbread",
+    recipeTitle: "Soft Stovetop Flatbread",
   });
   const noThumb = row({
     videoId: "",
     title: "Broken",
     thumbnailUrl: "",
+    recipeSlug: "soft-stovetop-flatbread",
   });
 
-  it("selects latest eligible Long as featured and skips ineligible newer rows", () => {
+  it("selects preferred Soft Stovetop Flatbread when eligible, else newest Long", () => {
+    const withPreferred = buildPublicVideoCatalogue([longA, preferredFeatured, longB]);
+    assert.equal(withPreferred.featured?.videoId, "flatbreadVID");
+    assert.equal(withPreferred.featured?.recipeSlug, "soft-stovetop-flatbread");
+
     const catalogue = buildPublicVideoCatalogue([privateLong, longA, longB, shortVideo]);
     assert.equal(catalogue.featured?.videoId, "longAAAAAAA");
     assert.equal(catalogue.featured?.format, "LONG");
@@ -281,10 +307,16 @@ describe("public video catalogue", () => {
     assert.match(catalogue.featured?.excerpt || "", /creamy Caesar/);
   });
 
-  it("omits recipe relationship when unlinked", () => {
-    const catalogue = buildPublicVideoCatalogue([longB]);
-    assert.equal(catalogue.featured?.recipeSlug, undefined);
-    assert.equal(catalogue.featured?.recipeTitle, undefined);
+  it("omits unlinked videos from the public catalogue", () => {
+    const unlinkedLong = row({
+      videoId: "unlinkedLONG",
+      title: "Unlinked long",
+      publishedAt: new Date("2026-08-01T00:00:00.000Z"),
+      durationSeconds: 400,
+    });
+    const catalogue = buildPublicVideoCatalogue([longA, unlinkedLong]);
+    assert.equal(catalogue.longCount, 1);
+    assert.equal(catalogue.featured?.videoId, "longAAAAAAA");
   });
 
   it("filters out non-eligible source rows", () => {
@@ -308,6 +340,7 @@ describe("public video catalogue", () => {
             description: "#shorts",
             durationSeconds: 40,
             publishedAt: new Date(`2026-06-0${n}T00:00:00.000Z`),
+            recipeSlug: `published-short-${n}`,
           }),
         ),
       ],
@@ -344,6 +377,7 @@ describe("public video catalogue", () => {
       durationSeconds: 120,
       durationDisplay: "2:00",
       publishedAt: new Date("2026-07-01T00:00:00.000Z"),
+      recipeSlug: "soft-stovetop-flatbread",
     });
     assert.equal(classifyYouTubeVideoFormat(unknownRow), "UNKNOWN");
     const catalogue = buildPublicVideoCatalogue([longA, unknownRow, shortVideo]);
@@ -356,8 +390,8 @@ describe("public video catalogue", () => {
 
   it("builds a small same-format-first More from Mesa shelf", () => {
     const cards = [longA, longB, shortVideo, unmarkedShort]
-      .map((r) => toPublicVideoCard(r)!)
-      .filter(Boolean);
+      .map((r) => toPublicVideoCard(r))
+      .filter((card): card is NonNullable<typeof card> => Boolean(card));
     const more = selectMoreFromMesa(cards, "longAAAAAAA", "LONG", 4);
     assert.ok(more.every((video) => video.videoId !== "longAAAAAAA"));
     assert.equal(more[0]?.format, "LONG");
@@ -513,7 +547,9 @@ describe("public videos UI wiring", () => {
 
 describe("public video watch URL identity", () => {
   it("uses immutable YouTube videoId as the public route identity", () => {
-    const card = toPublicVideoCard(row({ videoId: "67Laso4MggU" }));
+    const card = toPublicVideoCard(
+      row({ videoId: "67Laso4MggU", recipeSlug: "soft-stovetop-flatbread" }),
+    );
     assert.equal(card?.videoId, "67Laso4MggU");
   });
 });

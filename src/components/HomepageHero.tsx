@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { RecipeImage } from "@/components/RecipeImage";
 import type { Recipe } from "@/data/types";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
 
 const linkFocus =
   "rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
@@ -12,6 +13,7 @@ export function HomepageHero({
   recipe: Recipe;
   eyebrow: string;
 }) {
+  const displayTitle = resolveRecipeCardTitle(recipe);
   return (
     <Link
       href={`/recipes/${recipe.slug}`}
@@ -28,7 +30,7 @@ export function HomepageHero({
       </div>
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/95 via-ink/70 via-35% to-transparent p-5 pt-20">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-cream/90">{eyebrow}</p>
-        <p className="mt-1 font-serif text-2xl text-cream">{recipe.title}</p>
+        <p className="mt-1 font-serif text-2xl text-cream">{displayTitle}</p>
         <p
           aria-hidden="true"
           className="mt-2 text-sm font-semibold text-cream/90 transition group-hover:text-cream group-focus-visible:text-cream"

@@ -2,6 +2,7 @@ import {
   isFullPublicVideo,
   isPublicFeaturedEligible,
   isShortPublicVideo,
+  PREFERRED_PUBLIC_FEATURED_RECIPE_SLUG,
   PUBLIC_SHORTS_FILTER_MIN,
   toPublicVideoCard,
 } from "@/lib/public-videos/eligibility";
@@ -24,8 +25,8 @@ function sortNewestFirst(a: PublicVideoCard, b: PublicVideoCard): number {
 }
 
 /**
- * Pick the featured video: newest eligible Long.
- * Prefer embeddable when choosing among equals; skip ineligible rows.
+ * Pick the featured video: prefer Soft Stovetop Flatbread when eligible,
+ * otherwise newest eligible Long (prefer embeddable).
  */
 export function selectFeaturedPublicVideo(videos: PublicVideoCard[]): PublicVideoCard | null {
   const longCandidates = videos
@@ -35,6 +36,7 @@ export function selectFeaturedPublicVideo(videos: PublicVideoCard[]): PublicVide
         title: video.title,
         thumbnailUrl: video.thumbnailUrl,
         privacyStatus: "public",
+        recipeSlug: video.recipeSlug,
         format: video.format,
         embeddable: video.embeddable,
       }),
@@ -45,6 +47,11 @@ export function selectFeaturedPublicVideo(videos: PublicVideoCard[]): PublicVide
       if (a.embeddable !== b.embeddable) return a.embeddable ? -1 : 1;
       return 0;
     });
+
+  const preferred = longCandidates.find(
+    (video) => video.recipeSlug === PREFERRED_PUBLIC_FEATURED_RECIPE_SLUG,
+  );
+  if (preferred) return preferred;
 
   // Prefer newest embeddable Long; if none embeddable, still feature newest Long.
   const embeddable = longCandidates.find((video) => video.embeddable);

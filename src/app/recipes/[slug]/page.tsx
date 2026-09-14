@@ -3,6 +3,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { RecipeDetailView } from "@/components/recipe/RecipeDetailView";
 import { site } from "@/data/site";
 import { loadRecipeDetailPresentation } from "@/lib/recipe-detail-presentation";
+import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
 import { recipePublicPath, resolveActiveRedirect } from "@/lib/redirects";
 import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
 import { isShoppingListEnabled } from "@/lib/shopping-list";
@@ -33,12 +34,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const recipe = await loadRecipeOrRedirect(slug);
   if (!recipe) return { title: "Recipe" };
 
+  const publicTitle = resolveRecipeCardTitle(recipe);
+
   return {
-    title: recipe.title,
+    title: publicTitle,
     description: recipe.excerpt,
     alternates: { canonical: `/recipes/${recipe.slug}` },
     openGraph: {
-      title: `${recipe.title} | ${site.name}`,
+      title: `${publicTitle} | ${site.name}`,
       description: recipe.excerpt,
       url: `${site.url}/recipes/${recipe.slug}`,
       images: [recipe.image],
@@ -47,7 +50,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: `${recipe.title} | ${site.name}`,
+      title: `${publicTitle} | ${site.name}`,
       description: recipe.excerpt,
       images: [recipe.image],
     },

@@ -116,13 +116,13 @@ describe("Category SEO Phase A — internal linking", () => {
     const discovery = read("../components/RecipeDiscovery.tsx");
     const recipe = read("../components/recipe/RecipeDetailView.tsx");
 
-    assert.match(homepage, /categoryPublicPath\(slug\)/);
+    assert.match(homepage, /categoryPublicPath\(category\.slug\)/);
     assert.doesNotMatch(homepage, /buildRecipesUrl/);
-    assert.match(footer, /categoryPublicPath\(slug\)/);
-    assert.match(header, /categoryPublicPath\(slug\)/);
+    assert.match(footer, /categoryPublicPath\(category\.slug\)/);
+    assert.match(header, /categoryPublicPath\(link\.slug\)/);
     assert.match(recipe, /href=\{`\/category\/\$\{category\}`\}/);
     assert.match(discovery, /buildRecipesUrl|category/);
-    assert.match(discovery, /DISCOVERY_CATEGORIES|params\.category|category:/);
+    assert.match(discovery, /listPopulatedDiscoveryCategories|params\.category|category:/);
 
     for (const slug of PRIMARY_CATEGORY_SLUGS) {
       assert.equal(categoryPublicPath(slug), `/category/${slug}`);

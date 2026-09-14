@@ -263,8 +263,8 @@ describe("homepage Phase 1 discovery UI", () => {
     const browse = read("src/components/HomepageBrowseCategories.tsx");
     assert.match(browse, /Browse the table/);
     assert.match(browse, /Browse recipes/);
-    assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
-    assert.match(browse, /categoryPublicPath\(slug\)/);
+    assert.match(browse, /listPopulatedPrimaryCategoryLinks/);
+    assert.match(browse, /categoryPublicPath\(category\.slug\)/);
     assert.doesNotMatch(browse, /buildRecipesUrl/);
     assert.match(browse, /min-h-11/);
     assert.match(browse, /inline-flex/);
@@ -366,9 +366,9 @@ describe("homepage Phase 3 visual enrichment", () => {
     assert.doesNotMatch(page, /recipeMatchesPrimaryCategory/);
     const browse = read("src/components/HomepageBrowseCategories.tsx");
     assert.match(browse, /border-t border-line/);
-    assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
-    assert.match(browse, /PRIMARY_CATEGORY_LABELS\[slug\]/);
-    assert.doesNotMatch(browse, /categoryCounts|tabular-nums|recipeMatchesPrimaryCategory/);
+    assert.match(browse, /listPopulatedPrimaryCategoryLinks/);
+    assert.match(browse, /category\.label/);
+    assert.doesNotMatch(browse, /categoryCounts|tabular-nums/);
     assert.doesNotMatch(browse, /aspect-|Image|img /);
   });
 
@@ -498,9 +498,9 @@ describe("homepage final launch QA contracts", () => {
     assert.match(series, /href=\{seriesHref\}/);
     assert.match(series, /placement="homepage_series"/);
     const browse = read("src/components/HomepageBrowseCategories.tsx");
-    assert.match(browse, /categoryPublicPath\(slug\)/);
+    assert.match(browse, /categoryPublicPath\(category\.slug\)/);
     assert.doesNotMatch(browse, /buildRecipesUrl/);
-    assert.match(browse, /PRIMARY_CATEGORY_SLUGS\.map/);
+    assert.match(browse, /listPopulatedPrimaryCategoryLinks/);
   });
 
   it("keeps hero overlay contrast via strong ink gradient without an opaque text card", () => {

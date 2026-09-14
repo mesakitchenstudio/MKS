@@ -101,6 +101,8 @@ const FIXTURE = {
     durationSeconds: 120,
     durationDisplay: "2:00",
     publishedAt: new Date("2026-06-01T00:00:00.000Z"),
+    recipeSlug: "soft-stovetop-flatbread",
+    recipeTitle: "Soft Stovetop Flatbread",
   }),
   nonEmbeddable: row({
     videoId: "nonEmbedd01",
@@ -117,12 +119,14 @@ const FIXTURE = {
     durationSeconds: 390,
     publishedAt: new Date("2026-04-01T00:00:00.000Z"),
     description: "#pasta #mesa https://youtu.be/abcdefghijk",
+    recipeSlug: "i-make-this-creamy-mushroom-pasta-3-times-a-week",
   }),
   privateVideo: row({
     videoId: "privateVID1",
     title: "Private draft clip",
     privacyStatus: "private",
     durationSeconds: 300,
+    recipeSlug: "soft-stovetop-flatbread",
   }),
 } as const;
 
@@ -188,8 +192,7 @@ describe("phase 5C — representative catalogue fixtures", () => {
     const linked = toPublicVideoCard(FIXTURE.longLinked);
     const unlinked = toPublicVideoCard(FIXTURE.longUnlinked);
     assert.equal(linked?.recipeSlug, "soft-stovetop-flatbread");
-    assert.equal(unlinked?.recipeSlug, undefined);
-    assert.equal(unlinked?.recipeTitle, undefined);
+    assert.equal(unlinked, null);
   });
 
   it("summarizes descriptions safely and drops script/URL/hashtag noise", () => {
@@ -232,6 +235,7 @@ describe("phase 5C — representative catalogue fixtures", () => {
           description: "#shorts",
           durationSeconds: 30,
           publishedAt: new Date(`2026-09-0${n}T00:00:00.000Z`),
+          recipeSlug: `published-short-${n}`,
         }),
       ),
     ]);
@@ -247,6 +251,7 @@ describe("phase 5C — representative catalogue fixtures", () => {
         durationSeconds: 400,
         publishedAt: new Date("2026-09-01T00:00:00.000Z"),
         embeddable: true,
+        recipeSlug: "homemade-potato-chips",
       }),
     )!;
     const b = toPublicVideoCard(
@@ -256,6 +261,7 @@ describe("phase 5C — representative catalogue fixtures", () => {
         durationSeconds: 400,
         publishedAt: new Date("2026-09-01T00:00:00.000Z"),
         embeddable: false,
+        recipeSlug: "chocolate-chunk-cookies",
       }),
     )!;
     assert.equal(selectFeaturedPublicVideo([b, a])?.videoId, "featEmbed001");

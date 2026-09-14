@@ -28,7 +28,8 @@ export function hasUsablePublicThumbnail(input: {
 
 /**
  * Catalogue eligibility for the public /videos experience.
- * Admin health (chapters, recipe link, metadata) must not hide content.
+ * Launch policy: only videos linked to a currently Published recipe are listed.
+ * Admin health (chapters, metadata) must not hide a Published-linked video.
  */
 export function isPublicCatalogueEligible(input: {
   videoId?: string | null;
@@ -36,6 +37,8 @@ export function isPublicCatalogueEligible(input: {
   thumbnailUrl?: string | null;
   privacyStatus?: string | null;
   hiddenFromSite?: boolean | null;
+  /** Required for public catalogue — Draft/unlinked videos stay in YouTube sync only. */
+  recipeSlug?: string | null;
 }): boolean {
   if (input.hiddenFromSite === true) return false;
   if (!isPublicPrivacyStatus(input.privacyStatus)) return false;
@@ -43,6 +46,7 @@ export function isPublicCatalogueEligible(input: {
   if (!title) return false;
   const videoId = String(input.videoId ?? "").trim();
   if (!videoId) return false;
+  if (!String(input.recipeSlug ?? "").trim()) return false;
   return hasUsablePublicThumbnail({ videoId, thumbnailUrl: input.thumbnailUrl });
 }
 
@@ -53,6 +57,7 @@ export function isPublicFeaturedEligible(input: {
   thumbnailUrl?: string | null;
   privacyStatus?: string | null;
   hiddenFromSite?: boolean | null;
+  recipeSlug?: string | null;
   format: YouTubeVideoFormat;
   embeddable?: boolean | null;
 }): boolean {
@@ -60,6 +65,9 @@ export function isPublicFeaturedEligible(input: {
   if (input.format !== "LONG") return false;
   return true;
 }
+
+/** Launch featured preference — Soft Stovetop Flatbread when present and eligible. */
+export const PREFERRED_PUBLIC_FEATURED_RECIPE_SLUG = "soft-stovetop-flatbread";
 
 export function resolvePublicThumbnailUrl(videoId: string, thumbnailUrl?: string | null): string {
   const direct = String(thumbnailUrl ?? "").trim();
