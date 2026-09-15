@@ -491,3 +491,38 @@ export function selectMemberHomeNextMeals(
   }
   return nextMeals;
 }
+
+/**
+ * Page h1 for Personalized Home — never uses email as the heading.
+ * Prefer “Welcome, {firstName}”; fall back to “Your Mesa”.
+ */
+export function memberHomeWelcomeHeading(input: {
+  name?: string | null;
+  email: string;
+}): string {
+  const email = input.email.trim();
+  const raw = (input.name || "").trim();
+  if (!raw) return "Your Mesa";
+  const emailKey = email.toLowerCase();
+  const rawKey = raw.toLowerCase();
+  if (rawKey === emailKey) return "Your Mesa";
+  const local = email.split("@")[0]?.trim().toLowerCase() || "";
+  if (local && rawKey === local) return "Your Mesa";
+  if (rawKey === "mesa" || rawKey === "mesa kitchen studio") return "Your Mesa";
+  const first = raw.split(/\s+/)[0]?.trim() || "";
+  if (!first || first.includes("@")) return "Your Mesa";
+  return `Welcome, ${first}`;
+}
+
+/** True when the member has essentially no personalization surface yet. */
+export function isMemberHomeColdStart(home: Pick<
+  MemberHomeReadModel,
+  "saved" | "collections" | "planner" | "recommendations"
+>): boolean {
+  return (
+    home.saved.visibleSaveCount === 0 &&
+    home.collections.totalCollectionCount === 0 &&
+    !home.planner.hasPlan &&
+    home.recommendations.items.length === 0
+  );
+}

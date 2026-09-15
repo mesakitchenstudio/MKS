@@ -643,11 +643,15 @@ describe("Phase 7B — wiring contracts", () => {
     assert.doesNotMatch(server, /unstable_cache/);
   });
 
-  it("does not wire Personalized Home into /profile yet", () => {
+  it("wires Personalized Home behind the feature gate only", () => {
     const page = readRepo("src/app/profile/page.tsx");
-    assert.doesNotMatch(page, /getPersonalizedMemberHome|member-home-server|isPersonalizedMemberHomeEnabled/);
+    assert.match(page, /isPersonalizedMemberHomeEnabled/);
+    assert.match(page, /getPersonalizedMemberHomeForUser/);
+    assert.match(page, /BaselineProfile/);
     assert.match(page, /force-dynamic/);
     assert.match(page, /robots:\s*\{\s*index:\s*false/);
+    assert.doesNotMatch(page, /NEXT_PUBLIC_PERSONALIZED_MEMBER_HOME|mesa:recently-viewed/);
+    assert.doesNotMatch(page, /ensureDefaultMealPlanForUser/);
   });
 
   it("domain documents no Recently Viewed scoring and no plan creation", () => {

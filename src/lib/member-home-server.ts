@@ -233,6 +233,20 @@ async function loadPlannerSummary(
 }
 
 /**
+ * Read-only planner week summary for Profile “This week”.
+ * Does not create plans. Requires a validated browser-local civil date.
+ */
+export async function getMemberHomePlannerWeekForUser(
+  userId: string,
+  weekAnchorYmd: string,
+): Promise<MemberHomePlannerSummary> {
+  if (!userId) {
+    throw new Error("getMemberHomePlannerWeekForUser requires an authenticated member userId");
+  }
+  return loadPlannerSummary(userId, weekAnchorYmd);
+}
+
+/**
  * Trusted-userId aggregator for Personalized Member Home.
  * Call only after auth → active member resolution on the server.
  *
