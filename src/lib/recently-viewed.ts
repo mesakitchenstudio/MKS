@@ -182,3 +182,10 @@ export function subscribeRecentlyViewed(listener: () => void) {
     window.removeEventListener("storage", onStorage);
   };
 }
+
+/** Responsive grid columns matching Homepage / Member Home shelves. */
+export function recentlyViewedGridClass(count: number): string {
+  if (count >= 4) return "grid gap-8 sm:grid-cols-2 lg:grid-cols-4";
+  if (count === 3) return "grid gap-8 sm:grid-cols-2 lg:grid-cols-3";
+  return "grid gap-8 sm:grid-cols-2";
+}

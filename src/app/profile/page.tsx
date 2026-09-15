@@ -12,6 +12,7 @@ import { DeleteAccountSection } from "@/components/DeleteAccountSection";
 import { ProfileFavorites } from "@/components/ProfileFavorites";
 import { ProfileSavedCollections } from "@/components/ProfileSavedCollections";
 import { MemberHomeThisWeek } from "@/components/member-home/MemberHomeThisWeek";
+import { MemberHomeRecentlyViewed } from "@/components/member-home/MemberHomeRecentlyViewed";
 import {
   MemberHomeCollectionsSection,
   MemberHomeDiscoverSection,
@@ -149,11 +150,11 @@ export default async function ProfilePage() {
         </div>
       </header>
 
-      {/* Phase 7D will insert browse history between This week and Recommended. */}
-
       {!coldStart && mealPlannerEnabled ? (
         <MemberHomeThisWeek initialPlanner={home.planner} />
       ) : null}
+
+      <MemberHomeRecentlyViewed recipes={recipes} />
 
       {hasRecommendations ? (
         <MemberHomeRecommendationsSection

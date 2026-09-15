@@ -13,6 +13,7 @@ import {
   mergeRecentlyViewedEntry,
   normalizeRecentlyViewedEntry,
   parseRecentlyViewedList,
+  recentlyViewedGridClass,
   resolveRecentlyViewedRecipes,
 } from "./recently-viewed.ts";
 
@@ -186,6 +187,11 @@ describe("recently viewed — data", () => {
     );
     assert.equal(resolved[0]?.title, "Classic French Baguettes");
   });
+  it("uses responsive grid helper shared by Homepage and Member Home", () => {
+    assert.equal(recentlyViewedGridClass(2), "grid gap-8 sm:grid-cols-2");
+    assert.equal(recentlyViewedGridClass(3), "grid gap-8 sm:grid-cols-2 lg:grid-cols-3");
+    assert.equal(recentlyViewedGridClass(4), "grid gap-8 sm:grid-cols-2 lg:grid-cols-4");
+  });
 });
 
 describe("recently viewed — architecture", () => {
@@ -214,9 +220,13 @@ describe("recently viewed — architecture", () => {
     assert.match(section, /clearRecentlyViewed/);
     assert.match(section, />\s*Clear\s*</);
     assert.match(section, /RECENTLY_VIEWED_MIN_DISPLAY/);
-    assert.match(section, /useSyncExternalStore/);
+    assert.match(section, /useRecentlyViewedRecipes/);
     assert.doesNotMatch(section, /isAnalyticsConsentGranted|trackEvent|fetch\(/);
     assert.doesNotMatch(section, /confirm\(|window\.confirm/);
+    const hook = read("components/useRecentlyViewedRecipes.ts");
+    assert.match(hook, /useSyncExternalStore/);
+    assert.match(hook, /getServerSnapshot/);
+    assert.match(hook, /subscribeRecentlyViewed/);
   });
 
   it("uses versioned localStorage key and is not cleared with guest analytics", () => {

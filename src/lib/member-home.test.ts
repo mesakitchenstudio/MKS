@@ -648,9 +648,10 @@ describe("Phase 7B — wiring contracts", () => {
     assert.match(page, /isPersonalizedMemberHomeEnabled/);
     assert.match(page, /getPersonalizedMemberHomeForUser/);
     assert.match(page, /BaselineProfile/);
+    assert.match(page, /MemberHomeRecentlyViewed/);
     assert.match(page, /force-dynamic/);
     assert.match(page, /robots:\s*\{\s*index:\s*false/);
-    assert.doesNotMatch(page, /NEXT_PUBLIC_PERSONALIZED_MEMBER_HOME|mesa:recently-viewed/);
+    assert.doesNotMatch(page, /NEXT_PUBLIC_PERSONALIZED_MEMBER_HOME/);
     assert.doesNotMatch(page, /ensureDefaultMealPlanForUser/);
   });
 

@@ -118,19 +118,26 @@ describe("Phase 7C — welcome / cold start helpers", () => {
 });
 
 describe("Phase 7C — enhanced Profile layout contracts", () => {
-  it("renders gate-ON hierarchy without Recently Viewed or Shopping", () => {
+  it("renders gate-ON hierarchy with Recently Viewed between This week and Recommended", () => {
     const page = readRepo("src/app/profile/page.tsx");
     assert.match(page, /memberHomeWelcomeHeading/);
     assert.match(page, /MemberHomeThisWeek/);
+    assert.match(page, /MemberHomeRecentlyViewed/);
     assert.match(page, /MemberHomeRecommendationsSection/);
     assert.match(page, /Your Saved Recipes/);
     assert.match(page, /MemberHomeCollectionsSection/);
     assert.match(page, /MemberHomeDiscoverSection/);
     assert.match(page, /MemberHomeGetStarted/);
-    assert.match(page, /Phase 7D will insert browse history/);
-    assert.doesNotMatch(page, /Recently Viewed|mesa:recently-viewed/);
+
+    const thisWeekIdx = page.indexOf("<MemberHomeThisWeek");
+    const recentIdx = page.indexOf("<MemberHomeRecentlyViewed");
+    const recIdx = page.indexOf("<MemberHomeRecommendationsSection");
+    assert.ok(thisWeekIdx >= 0 && recentIdx > thisWeekIdx);
+    assert.ok(recIdx > recentIdx);
+
     assert.doesNotMatch(page, /Shopping List|shopping-list/);
     assert.doesNotMatch(page, /ensureDefaultMealPlanForUser/);
+    assert.doesNotMatch(page, /rankMemberHomeRecommendations\([^\)]*recent/);
   });
 
   it("cold-start path favors Discover + Get Started over empty shelves", () => {
@@ -158,6 +165,55 @@ describe("Phase 7C — enhanced Profile layout contracts", () => {
     assert.match(card, /RecipeGridCard/);
     assert.match(card, /reasonLabel/);
     assert.doesNotMatch(card, /MemberRecipeCard|PersonalizedRecipeCard/);
+  });
+});
+
+describe("Phase 7D — Member Home Recently Viewed", () => {
+  it("reuses shared store, Published resolution, Clear, and display thresholds", () => {
+    const section = readRepo("src/components/member-home/MemberHomeRecentlyViewed.tsx");
+    const hook = readRepo("src/components/useRecentlyViewedRecipes.ts");
+    const home = readRepo("src/components/HomepageRecentlyViewed.tsx");
+    const store = readRepo("src/lib/recently-viewed.ts");
+
+    assert.match(section, /useRecentlyViewedRecipes/);
+    assert.match(section, /RECENTLY_VIEWED_MIN_DISPLAY/);
+    assert.match(section, /clearRecentlyViewed\(\)/);
+    assert.match(section, /Clear recently viewed/);
+    assert.match(section, /RecipeGridCard/);
+    assert.match(section, /Recipes you opened on this device/);
+    assert.doesNotMatch(section, /fetch\(|getPersonalizedMemberHome|rankMemberHome/);
+    assert.doesNotMatch(section, /confirm\(|window\.confirm/);
+
+    assert.match(hook, /useSyncExternalStore/);
+    assert.match(hook, /resolveRecentlyViewedRecipes/);
+    assert.match(hook, /publicRecipeId/);
+    assert.match(home, /useRecentlyViewedRecipes/);
+
+    assert.equal(
+      store.includes('RECENTLY_VIEWED_STORAGE_KEY = "mesa:recently-viewed:v1"'),
+      true,
+    );
+    assert.match(store, /RECENTLY_VIEWED_MAX_STORED = 12/);
+    assert.match(store, /RECENTLY_VIEWED_MAX_DISPLAY = 4/);
+    assert.match(store, /RECENTLY_VIEWED_MIN_DISPLAY = 2/);
+    assert.match(store, /RECENTLY_VIEWED_MAX_AGE_DAYS = 90/);
+  });
+
+  it("is gated only by enhanced Profile — not a separate RV flag", () => {
+    const page = readRepo("src/app/profile/page.tsx");
+    assert.match(page, /isPersonalizedMemberHomeEnabled/);
+    assert.match(page, /MemberHomeRecentlyViewed/);
+    assert.doesNotMatch(page, /RECENTLY_VIEWED_MEMBER_HOME|NEXT_PUBLIC_RECENTLY/);
+    const baseline = page.slice(page.indexOf("function BaselineProfile"));
+    assert.doesNotMatch(baseline, /MemberHomeRecentlyViewed|Recently viewed/);
+  });
+
+  it("does not feed Recently Viewed into recommendation scoring", () => {
+    const domain = readRepo("src/lib/member-home.ts");
+    const server = readRepo("src/lib/member-home-server.ts");
+    assert.match(domain, /Recently Viewed is intentionally excluded/);
+    assert.doesNotMatch(domain, /readRecentlyViewed|mesa:recently-viewed/);
+    assert.doesNotMatch(server, /readRecentlyViewed|mesa:recently-viewed/);
   });
 });
 
