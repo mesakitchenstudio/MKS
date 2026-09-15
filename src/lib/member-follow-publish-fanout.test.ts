@@ -14,15 +14,23 @@ import {
   maybeRunRecipeFollowedPublishFanOut,
   pickPrimaryFollowPublishContext,
 } from "./member-follow-publish-fanout.ts";
-import { followCategoryForUser, followSeriesForUser } from "./member-follows-server.ts";
+import { followCategoryForUser, followSeriesForUser, unfollowCategoryForUser } from "./member-follows-server.ts";
 import {
   buildRecipeFollowedPublishDedupeKey,
   MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH,
 } from "./member-notifications.ts";
 import {
+  countUnreadMemberNotificationsForUser,
+  createRecipeFollowedPublishNotificationForUser,
+} from "./member-notifications-server.ts";
+import {
   isFirstEverRecipePublicationTransition,
   recipeHadPriorPublication,
 } from "./recipe-first-publication.ts";
+import {
+  buildRecipeRevisionSnapshot,
+  createRecipeRevisionIfChanged,
+} from "./recipe-revisions.ts";
 import { runScheduledRecipePublishLifecycle } from "./recipe-schedule-server.ts";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -755,6 +763,199 @@ describe("Phase 8D — fan-out integration", () => {
       });
       assert.ok(row);
       assert.equal(row!.categoryId, catDessertsId);
+    });
+  });
+});
+
+describe("Phase 8F — durable signal independence + lifecycle hardening", () => {
+  const db = new PrismaClient();
+  const suffix = `f8f-${Date.now()}`;
+  let typeId = "";
+  let userId = "";
+  let categoryId = "";
+  let recipeAuditOnly = "";
+  let recipeRevOnly = "";
+  let recipeNeither = "";
+  let recipeLife = "";
+
+  before(async () => {
+    const type = await db.recipeType.create({
+      data: { slug: `type-${suffix}`, name: `Type ${suffix}` },
+    });
+    typeId = type.id;
+    const user = await db.user.create({
+      data: { email: `f8f-${suffix}@example.com`, name: "F8F" },
+    });
+    userId = user.id;
+    const category = await db.category.create({
+      data: { slug: `cat-${suffix}`, name: `Cat ${suffix}`, group: "desserts" },
+    });
+    categoryId = category.id;
+
+    const [a, b, c, life] = await Promise.all([
+      db.recipe.create({
+        data: {
+          slug: `audit-only-${suffix}`,
+          title: `Audit only ${suffix}`,
+          typeId,
+          status: "draft",
+          values: "{}",
+        },
+      }),
+      db.recipe.create({
+        data: {
+          slug: `rev-only-${suffix}`,
+          title: `Rev only ${suffix}`,
+          typeId,
+          status: "draft",
+          values: "{}",
+        },
+      }),
+      db.recipe.create({
+        data: {
+          slug: `neither-${suffix}`,
+          title: `Neither ${suffix}`,
+          typeId,
+          status: "draft",
+          values: "{}",
+        },
+      }),
+      db.recipe.create({
+        data: {
+          slug: `life-${suffix}`,
+          title: `Life ${suffix}`,
+          typeId,
+          status: "published",
+          publishedAt: new Date(),
+          values: "{}",
+          categories: { create: [{ categoryId }] },
+        },
+      }),
+    ]);
+    recipeAuditOnly = a.id;
+    recipeRevOnly = b.id;
+    recipeNeither = c.id;
+    recipeLife = life.id;
+
+    await recordAdminAuditEvent({
+      actor: { actorType: "system", name: "System", role: "system" },
+      action: "recipe.published",
+      area: "content",
+      entityType: "recipe",
+      entityId: recipeAuditOnly,
+      entityLabel: a.title,
+      entityPath: `/admin/recipes/${a.id}`,
+    });
+
+    const snap = buildRecipeRevisionSnapshot({
+      title: b.title,
+      excerpt: "",
+      featured: false,
+      seasonal: false,
+      typeId,
+      categoryIds: [],
+      values: {},
+      slug: b.slug,
+      status: "published",
+      publishedAt: new Date(),
+    });
+    await createRecipeRevisionIfChanged(db, {
+      recipeId: recipeRevOnly,
+      actor: { name: "System", role: "system" },
+      snapshot: snap,
+      reason: "published",
+      force: true,
+    });
+  });
+
+  after(async () => {
+    await db.memberNotification.deleteMany({ where: { userId } });
+    await db.userCategoryFollow.deleteMany({ where: { userId } });
+    await db.adminAuditEvent.deleteMany({
+      where: { entityId: { in: [recipeAuditOnly, recipeRevOnly, recipeNeither, recipeLife] } },
+    });
+    await db.recipeRevision.deleteMany({
+      where: {
+        stableRecipeId: { in: [recipeAuditOnly, recipeRevOnly, recipeNeither, recipeLife] },
+      },
+    });
+    await db.recipeCategory.deleteMany({ where: { recipeId: recipeLife } });
+    await db.user.deleteMany({ where: { id: userId } });
+    await db.recipe.deleteMany({
+      where: { id: { in: [recipeAuditOnly, recipeRevOnly, recipeNeither, recipeLife] } },
+    });
+    await db.category.deleteMany({ where: { id: categoryId } });
+    if (typeId) await db.recipeType.deleteMany({ where: { id: typeId } });
+    await db.$disconnect();
+  });
+
+  it("audit-only history is durable prior publication", async () => {
+    assert.equal(await recipeHadPriorPublication(recipeAuditOnly), true);
+    assert.equal(
+      isFirstEverRecipePublicationTransition({
+        previousStatus: "draft",
+        nextStatus: "published",
+        hadPriorPublication: true,
+      }),
+      false,
+    );
+  });
+
+  it("revision-only history is durable prior publication", async () => {
+    assert.equal(await recipeHadPriorPublication(recipeRevOnly), true);
+  });
+
+  it("neither signal keeps first-ever eligibility (legacy risk class)", async () => {
+    assert.equal(await recipeHadPriorPublication(recipeNeither), false);
+    assert.equal(
+      isFirstEverRecipePublicationTransition({
+        previousStatus: "draft",
+        nextStatus: "published",
+        hadPriorPublication: false,
+      }),
+      true,
+    );
+  });
+
+  it("unfollow before fan-out yields zero notifications", async () => {
+    await withGate(true, async () => {
+      await followCategoryForUser(userId, categoryId);
+      await unfollowCategoryForUser(userId, categoryId);
+      const result = await fanOutRecipeFollowedPublishNotifications(recipeLife);
+      assert.equal(result.matchedUsers, 0);
+      assert.equal(result.created, 0);
+    });
+  });
+
+  it("published edit path remains ineligible after late follow", async () => {
+    await withGate(true, async () => {
+      await followCategoryForUser(userId, categoryId);
+      const blocked = await maybeRunRecipeFollowedPublishFanOut({
+        recipeId: recipeLife,
+        previousStatus: "published",
+        nextStatus: "published",
+        hadPriorPublication: true,
+      });
+      assert.equal(blocked.eligible, false);
+    });
+  });
+
+  it("gate OFF preserves rows; gate ON resurfaces unread count", async () => {
+    await createRecipeFollowedPublishNotificationForUser({
+      userId,
+      recipeId: recipeLife,
+      context: { kind: "category", categoryId },
+    });
+    await withGate(false, async () => {
+      const disabled = await fanOutRecipeFollowedPublishNotifications(recipeLife);
+      assert.equal(disabled.enabled, false);
+      assert.equal(
+        await db.memberNotification.count({ where: { userId, recipeId: recipeLife } }),
+        1,
+      );
+    });
+    await withGate(true, async () => {
+      assert.equal(await countUnreadMemberNotificationsForUser(userId), 1);
     });
   });
 });

@@ -153,6 +153,22 @@ describe("Phase 8E — route / actions / AccountMenu contracts", () => {
     const sitemap = readRepo("src/lib/sitemap-entries.ts");
     assert.doesNotMatch(sitemap, /profile\/notifications/i);
   });
+
+  it("AccountMenu listener cleans up; migration remains additive; no polling/email", () => {
+    const menu = readRepo("src/components/AccountMenu.tsx");
+    assert.match(menu, /removeEventListener\("mesa-notifications-changed"/);
+    assert.doesNotMatch(menu, /setInterval|WebSocket|EventSource|BroadcastChannel/);
+    const sql = readRepo(
+      "prisma/migrations/20260915190000_member_follows_notifications/migration.sql",
+    );
+    assert.match(sql, /CREATE TABLE "UserSeriesFollow"/);
+    assert.match(sql, /CREATE TABLE "UserCategoryFollow"/);
+    assert.match(sql, /CREATE TABLE "MemberNotification"/);
+    assert.doesNotMatch(sql, /\bDROP TABLE\b|\bDROP COLUMN\b/);
+    const view = readRepo("src/components/ProfileNotificationsView.tsx");
+    assert.doesNotMatch(view, /preventDefault/);
+    assert.doesNotMatch(view, /Resend|PushManager|serviceWorker/i);
+  });
 });
 
 describe("Phase 8E — ownership / visibility / read semantics", () => {
