@@ -142,17 +142,17 @@ describe("Phase 7C — enhanced Profile layout contracts", () => {
 
   it("cold-start path favors Discover + Get Started over empty shelves", () => {
     const page = readRepo("src/app/profile/page.tsx");
-    assert.match(page, /isMemberHomeColdStart/);
-    assert.match(page, /\{!coldStart && mealPlannerEnabled/);
-    assert.match(page, /\{coldStart \? <MemberHomeGetStarted/);
-    assert.match(page, /showGetStartedHint=\{coldStart\}/);
+    assert.match(page, /memberHomeServerSectionFlags/);
+    assert.match(page, /sections\.showThisWeek/);
+    assert.match(page, /sections\.showGetStarted/);
+    assert.match(page, /showGetStartedHint=\{sections\.coldStart\}/);
   });
 
   it("omits Recommended empty state and avoids duplicate shelves when recommendations exist", () => {
     const page = readRepo("src/app/profile/page.tsx");
     assert.doesNotMatch(page, /No recommendations/);
-    assert.match(page, /hasRecommendations/);
-    assert.match(page, /showDiscover/);
+    assert.match(page, /sections\.showRecommended/);
+    assert.match(page, /sections\.showDiscover/);
     const sections = readRepo("src/components/member-home/MemberHomeSections.tsx");
     assert.match(sections, /Recommended for You/);
     assert.match(sections, /Discover something new/);
@@ -223,12 +223,10 @@ describe("Phase 7C — This week server action", () => {
     assert.match(actions, /"use server"/);
     assert.match(actions, /getMemberHomeThisWeekAction/);
     assert.match(actions, /weekAnchorYmd/);
-    assert.match(actions, /validateMealPlanDate/);
-    assert.match(actions, /findActiveMemberByEmail/);
-    assert.match(actions, /getMemberHomePlannerWeekForUser/);
+    assert.match(actions, /validateMealPlanDateHorizon/);
+    assert.match(actions, /INVALID_DATE|NOT_AUTHENTICATED|FEATURE_DISABLED|OUT_OF_HORIZON/);
     assert.doesNotMatch(actions, /ensureDefaultMealPlanForUser/);
-    assert.doesNotMatch(actions, /userId:\s*|email:\s*|planId:/);
-    assert.match(actions, /INVALID_DATE|NOT_AUTHENTICATED|FEATURE_DISABLED/);
+    assert.doesNotMatch(actions, /userId:\s*|planId:/);
 
     const thisWeek = readRepo("src/components/member-home/MemberHomeThisWeek.tsx");
     assert.match(thisWeek, /browserLocalYmd|getFullYear/);

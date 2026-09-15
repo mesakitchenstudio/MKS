@@ -10,6 +10,7 @@ import type { Recipe } from "@/data/types";
 import { scoreRelatedRecipe } from "@/lib/recipe-related";
 import {
   PRIMARY_CATEGORY_LABELS,
+  resolveRecipePrimaryCategorySlug,
   type PrimaryCategorySlug,
 } from "@/lib/recipe-primary-taxonomy";
 import type { MealSlot } from "@/lib/meal-planner";
@@ -197,8 +198,10 @@ function normKey(raw: string | undefined | null): string {
   return (raw || "").trim().toLowerCase();
 }
 
-function primaryCategorySlug(recipe: Pick<Recipe, "categories">): string {
-  return (recipe.categories[0] || "").trim().toLowerCase();
+function primaryCategorySlug(recipe: Recipe): string {
+  // Match public-site primary taxonomy (cakes/cookies → desserts, etc.).
+  // Do not use raw categories[0] — that splits one editorial family across keys.
+  return resolveRecipePrimaryCategorySlug(recipe) || (recipe.categories[0] || "").trim().toLowerCase();
 }
 
 export function toMemberHomeRecipeCard(recipe: Recipe): MemberHomeRecipeCard {
@@ -525,4 +528,61 @@ export function isMemberHomeColdStart(home: Pick<
     !home.planner.hasPlan &&
     home.recommendations.items.length === 0
   );
+}
+
+/**
+ * Get Started helps cold and near-cold members only.
+ * Near-cold: fewer than 2 Published saves, no collections, no plan.
+ * Active members (2+ saves / collections / plans) do not see the tutorial.
+ */
+export function isMemberHomeGetStartedVisible(
+  home: Pick<MemberHomeReadModel, "saved" | "collections" | "planner">,
+): boolean {
+  return (
+    home.saved.visibleSaveCount < MEMBER_HOME_RECOMMENDATION_MIN_SAVES &&
+    home.collections.totalCollectionCount === 0 &&
+    !home.planner.hasPlan
+  );
+}
+
+/** Discover when recommendations are absent/unavailable — not when strong recs exist. */
+export function shouldShowMemberHomeDiscover(
+  home: Pick<MemberHomeReadModel, "recommendations">,
+): boolean {
+  return !(
+    home.recommendations.status === "ok" && home.recommendations.items.length > 0
+  );
+}
+
+export type MemberHomeServerSectionFlags = {
+  coldStart: boolean;
+  showThisWeek: boolean;
+  showRecommended: boolean;
+  showSaved: boolean;
+  showCollectionsBlock: boolean;
+  showDiscover: boolean;
+  showGetStarted: boolean;
+};
+
+/**
+ * Deterministic gate-ON section visibility (server sections only).
+ * Recently Viewed is client-thresholded separately (≥2 Published).
+ */
+export function memberHomeServerSectionFlags(input: {
+  home: MemberHomeReadModel;
+  mealPlannerEnabled: boolean;
+}): MemberHomeServerSectionFlags {
+  const { home, mealPlannerEnabled } = input;
+  const coldStart = isMemberHomeColdStart(home);
+  const showRecommended =
+    home.recommendations.status === "ok" && home.recommendations.items.length > 0;
+  return {
+    coldStart,
+    showThisWeek: !coldStart && mealPlannerEnabled,
+    showRecommended,
+    showSaved: !coldStart && (home.saved.visibleSaveCount > 0 || home.saved.status === "unavailable"),
+    showCollectionsBlock: !coldStart,
+    showDiscover: shouldShowMemberHomeDiscover(home),
+    showGetStarted: isMemberHomeGetStartedVisible(home),
+  };
 }

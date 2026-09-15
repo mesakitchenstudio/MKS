@@ -2,7 +2,11 @@
 
 import { auth } from "@/auth";
 import { findActiveMemberByEmail } from "@/lib/accounts";
-import { isMealPlannerEnabled, validateMealPlanDate } from "@/lib/meal-planner";
+import {
+  isMealPlannerEnabled,
+  validateMealPlanDate,
+  validateMealPlanDateHorizon,
+} from "@/lib/meal-planner";
 import { getMemberHomePlannerWeekForUser } from "@/lib/member-home-server";
 import type { MemberHomePlannerSummary } from "@/lib/member-home";
 
@@ -10,9 +14,22 @@ export type MemberHomeThisWeekActionResult =
   | { ok: true; planner: MemberHomePlannerSummary }
   | {
       ok: false;
-      error: "NOT_AUTHENTICATED" | "FEATURE_DISABLED" | "INVALID_DATE" | "UNAVAILABLE";
+      error:
+        | "NOT_AUTHENTICATED"
+        | "FEATURE_DISABLED"
+        | "INVALID_DATE"
+        | "OUT_OF_HORIZON"
+        | "UNAVAILABLE";
       message: string;
     };
+
+/** Abuse-resistance reference day (UTC civil). Not used as member-local “today” for week content. */
+function serverUtcCivilYmd(now = new Date()): string {
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(now.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Browser-local week read for Profile “This week”.
@@ -36,6 +53,16 @@ export async function getMemberHomeThisWeekAction(
       ok: false,
       error: "INVALID_DATE",
       message: date.message,
+    };
+  }
+
+  // Horizon uses server UTC civil day only to reject absurd far dates — not to choose the week.
+  const horizon = validateMealPlanDateHorizon(date.planDate, serverUtcCivilYmd());
+  if (!horizon.ok) {
+    return {
+      ok: false,
+      error: horizon.error === "OUT_OF_HORIZON" ? "OUT_OF_HORIZON" : "INVALID_DATE",
+      message: horizon.message,
     };
   }
 

@@ -24,8 +24,8 @@ import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
 import { getMemberSavedCollections } from "@/lib/saved-recipe-collections-server";
 import { isMealPlannerEnabled } from "@/lib/meal-planner";
 import {
-  isMemberHomeColdStart,
   isPersonalizedMemberHomeEnabled,
+  memberHomeServerSectionFlags,
   memberHomeWelcomeHeading,
 } from "@/lib/member-home";
 import { getPersonalizedMemberHomeForUser } from "@/lib/member-home-server";
@@ -93,15 +93,11 @@ export default async function ProfilePage() {
     publishedRecipes: recipes,
   });
   const recipesBySlug = new Map(recipes.map((recipe) => [recipe.slug, recipe]));
-  const coldStart = isMemberHomeColdStart(home);
-  const hasRecommendations =
-    home.recommendations.status === "ok" && home.recommendations.items.length > 0;
-  const showDiscover =
-    coldStart ||
-    !hasRecommendations ||
-    home.recommendations.status === "unavailable" ||
-    home.recommendations.status === "empty";
-  const discoverRecipes = showDiscover
+  const sections = memberHomeServerSectionFlags({
+    home,
+    mealPlannerEnabled,
+  });
+  const discoverRecipes = sections.showDiscover
     ? home.discover.recipes
         .map((card) => recipesBySlug.get(card.slug))
         .filter((recipe): recipe is PublicRecipe => Boolean(recipe))
@@ -150,20 +146,20 @@ export default async function ProfilePage() {
         </div>
       </header>
 
-      {!coldStart && mealPlannerEnabled ? (
+      {sections.showThisWeek ? (
         <MemberHomeThisWeek initialPlanner={home.planner} />
       ) : null}
 
       <MemberHomeRecentlyViewed recipes={recipes} />
 
-      {hasRecommendations ? (
+      {sections.showRecommended ? (
         <MemberHomeRecommendationsSection
           items={home.recommendations.items}
           recipesBySlug={recipesBySlug}
         />
       ) : null}
 
-      {!coldStart && home.saved.status === "unavailable" ? (
+      {sections.showSaved && home.saved.status === "unavailable" ? (
         <section className="mt-8 border-t border-line pt-8" aria-labelledby="member-home-saved">
           <h2 id="member-home-saved" className="font-serif text-3xl text-ink">
             Your Saved Recipes
@@ -175,7 +171,7 @@ export default async function ProfilePage() {
         </section>
       ) : null}
 
-      {!coldStart && home.saved.visibleSaveCount > 0 ? (
+      {sections.showSaved && home.saved.visibleSaveCount > 0 ? (
         <section
           id="saved-recipes"
           className="mt-8 border-t border-line pt-8"
@@ -186,14 +182,16 @@ export default async function ProfilePage() {
           </h2>
           <p className="mt-1.5 text-sm text-muted">
             {home.saved.visibleSaveCount > savedPreviewRecipes.length
-              ? `Showing ${savedPreviewRecipes.length} of ${home.saved.visibleSaveCount} saved recipes.`
-              : "Recipes you have hearted — organize them into collections anytime."}
+              ? `Showing ${savedPreviewRecipes.length} of ${home.saved.visibleSaveCount} available saved recipes.`
+              : home.saved.totalSaveCount > home.saved.visibleSaveCount
+                ? `${home.saved.visibleSaveCount} available saved ${home.saved.visibleSaveCount === 1 ? "recipe" : "recipes"} (older saves may be unavailable).`
+                : "Recipes you have hearted — organize them into collections anytime."}
           </p>
           <ProfileFavorites recipes={savedPreviewRecipes} extras={[]} />
         </section>
       ) : null}
 
-      {!coldStart ? (
+      {sections.showCollectionsBlock ? (
         <MemberHomeCollectionsSection
           collections={home.collections.collections}
           totalCollectionCount={home.collections.totalCollectionCount}
@@ -202,11 +200,16 @@ export default async function ProfilePage() {
         />
       ) : null}
 
-      {showDiscover ? (
-        <MemberHomeDiscoverSection recipes={discoverRecipes} showGetStartedHint={coldStart} />
+      {sections.showDiscover ? (
+        <MemberHomeDiscoverSection
+          recipes={discoverRecipes}
+          showGetStartedHint={sections.coldStart}
+        />
       ) : null}
 
-      {coldStart ? <MemberHomeGetStarted mealPlannerEnabled={mealPlannerEnabled} /> : null}
+      {sections.showGetStarted ? (
+        <MemberHomeGetStarted mealPlannerEnabled={mealPlannerEnabled} />
+      ) : null}
 
       <EmailUpdatesPreference initialNotify={newsletterSubscribed} />
       <DeleteAccountSection />
