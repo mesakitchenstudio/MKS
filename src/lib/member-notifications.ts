@@ -100,3 +100,22 @@ export type MemberNotificationListItem = {
     | { kind: "category"; id: string; name: string; slug: string }
     | { kind: "none" };
 };
+
+/** Read-time context line — never persisted. */
+export function formatMemberNotificationContextLine(
+  context: MemberNotificationListItem["context"],
+): string {
+  if (context.kind === "series" || context.kind === "category") {
+    const name = context.name.trim();
+    if (name) return `New recipe in ${name}`;
+  }
+  return "New recipe from something you follow";
+}
+
+/** AccountMenu label: "Notifications" or "Notifications (N)" when N > 0. */
+export function formatMemberNotificationsMenuLabel(unreadCount: number | null | undefined): string {
+  if (unreadCount == null || !Number.isFinite(unreadCount) || unreadCount <= 0) {
+    return "Notifications";
+  }
+  return `Notifications (${Math.floor(unreadCount)})`;
+}

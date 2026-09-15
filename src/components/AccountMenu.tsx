@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut as signOutGoogle, useSession } from "next-auth/react";
 import { useEffect, useId, useRef, useState } from "react";
+import { getUnreadMemberNotificationCountAction } from "@/app/profile/notification-actions";
 import {
   clearMemberPresenceOnLogout,
   firstName,
@@ -13,6 +14,7 @@ import {
   signOut,
   type PublicUser,
 } from "@/lib/auth-client";
+import { formatMemberNotificationsMenuLabel } from "@/lib/member-notifications";
 
 const menuItemClass =
   "flex w-full items-center px-4 py-3 text-left text-sm font-semibold text-ink transition-colors hover:bg-cream/80 focus-visible:bg-cream/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-terracotta";
@@ -36,12 +38,20 @@ export function AccountMenu({
   const pathname = usePathname();
   const [localUser, setLocalUser] = useState<PublicUser | null>(null);
   const [open, setOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
+  const [unreadEpoch, setUnreadEpoch] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const onNotifications = pathname.startsWith("/profile/notifications");
   const onFollowing = pathname.startsWith("/profile/following");
   const onMealPlanner = pathname.startsWith("/profile/meal-planner");
-  const onProfile = pathname === "/profile" || (pathname.startsWith("/profile/") && !onFollowing && !onMealPlanner);
+  const onProfile =
+    pathname === "/profile" ||
+    (pathname.startsWith("/profile/") &&
+      !onFollowing &&
+      !onMealPlanner &&
+      !onNotifications);
   useEffect(() => {
     function sync() {
       setLocalUser(readSession());
@@ -50,6 +60,15 @@ export function AccountMenu({
     window.addEventListener("mesa-session-changed", sync);
     return () => window.removeEventListener("mesa-session-changed", sync);
   }, [data]);
+
+  useEffect(() => {
+    function onNotificationsChanged() {
+      setUnreadEpoch((n) => n + 1);
+    }
+    window.addEventListener("mesa-notifications-changed", onNotificationsChanged);
+    return () =>
+      window.removeEventListener("mesa-notifications-changed", onNotificationsChanged);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -96,6 +115,40 @@ export function AccountMenu({
             : null
           : null;
 
+  // Member-private unread count: client-fetched after auth is known.
+  // Never baked into shared ISR HTML. Count failures degrade to label without count.
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+
+      if (!memberFollowsEnabled || !user?.email) {
+        setUnreadCount(null);
+        return;
+      }
+      if (status === "loading" && !readSession()) return;
+      if (status === "unauthenticated") {
+        setUnreadCount(null);
+        return;
+      }
+
+      try {
+        const result = await getUnreadMemberNotificationCountAction();
+        if (cancelled) return;
+        if (result.ok) setUnreadCount(result.data.count);
+        else setUnreadCount(null);
+      } catch {
+        if (!cancelled) setUnreadCount(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [memberFollowsEnabled, user?.email, status, pathname, unreadEpoch]);
+
   if (!user) {
     return (
       <button
@@ -109,6 +162,7 @@ export function AccountMenu({
   }
 
   const identity = memberIdentityLines(user);
+  const notificationsLabel = formatMemberNotificationsMenuLabel(unreadCount);
 
   return (
     <div className="relative" ref={root}>
@@ -171,6 +225,22 @@ export function AccountMenu({
               >
                 Profile
               </Link>
+              {memberFollowsEnabled ? (
+                <Link
+                  href="/profile/notifications"
+                  role="menuitem"
+                  aria-current={onNotifications ? "page" : undefined}
+                  aria-label={
+                    unreadCount != null && unreadCount > 0
+                      ? `Notifications, ${unreadCount} unread`
+                      : "Notifications"
+                  }
+                  className={`${menuItemClass} ${onNotifications ? menuItemActiveClass : ""}`}
+                  onClick={() => setOpen(false)}
+                >
+                  {notificationsLabel}
+                </Link>
+              ) : null}
               {memberFollowsEnabled ? (
                 <Link
                   href="/profile/following"
