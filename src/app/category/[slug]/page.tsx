@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { MemberFollowButton } from "@/components/MemberFollowButton";
 import { CollectionCard } from "@/components/series/CollectionCard";
 import { JsonLd } from "@/components/JsonLd";
 import { RecipeGridCard } from "@/components/RecipeGridCard";
@@ -11,6 +12,8 @@ import {
   categoryPublicPath,
   isCategoryIndexable,
 } from "@/lib/category-seo";
+import { isMemberFollowsEnabled } from "@/lib/flags";
+import { isFollowableCategoryGroup } from "@/lib/member-follows";
 import { getAllCategories, getCategoryBySlug, getRecipesByCategory } from "@/lib/recipes";
 import { listPublishedSeriesCardsForCategory } from "@/lib/series";
 
@@ -66,6 +69,11 @@ export default async function CategoryPage({ params }: Props) {
   ]);
 
   const showItemList = recipes.length > 0;
+  const memberFollowsEnabled = isMemberFollowsEnabled();
+  const showFollow =
+    memberFollowsEnabled &&
+    Boolean(category.id) &&
+    isFollowableCategoryGroup(category.group);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
@@ -91,6 +99,13 @@ export default async function CategoryPage({ params }: Props) {
       </p>
       <h1 className="mt-2 font-serif text-5xl">{category.name}</h1>
       <p className="mt-3 max-w-2xl text-muted">{category.description}</p>
+      {showFollow && category.id ? (
+        <div className="mt-4">
+          <MemberFollowButton
+            target={{ type: "category", id: category.id, name: category.name }}
+          />
+        </div>
+      ) : null}
       {recipes.length ? (
         <div className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {recipes.map((recipe) => (

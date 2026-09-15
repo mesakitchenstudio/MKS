@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { MemberFollowButton } from "@/components/MemberFollowButton";
 import { CollectionCard } from "@/components/series/CollectionCard";
 import { JsonLd } from "@/components/JsonLd";
 import { SeriesContinueWithMesa } from "@/components/series/SeriesContinueWithMesa";
@@ -21,10 +22,13 @@ export function SeriesDetailView({
   series,
   mode = "public",
   relatedCollections = [],
+  memberFollowsEnabled = false,
 }: {
   series: PublicSeriesDetail;
   mode?: "public" | "preview";
   relatedCollections?: PublicSeriesCard[];
+  /** Server-derived gate — never read MEMBER_FOLLOWS_ENABLED in the client. */
+  memberFollowsEnabled?: boolean;
 }) {
   const isPreview = mode === "preview";
   const effectiveFeaturedId = series.featured?.id ?? null;
@@ -66,6 +70,14 @@ export function SeriesDetailView({
         <h1 className="mt-2 font-serif text-5xl leading-tight text-ink">{series.title}</h1>
         {series.description ? (
           <p className="mt-3 max-w-2xl text-lg leading-8 text-ink/90">{series.description}</p>
+        ) : null}
+
+        {!isPreview && memberFollowsEnabled ? (
+          <div className="mt-4">
+            <MemberFollowButton
+              target={{ type: "series", id: series.id, name: series.title }}
+            />
+          </div>
         ) : null}
 
         <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2">

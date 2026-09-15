@@ -14,6 +14,7 @@ export function PublicChrome({
   newsletterSubscribed = false,
   shoppingListEnabled = false,
   mealPlannerEnabled = false,
+  memberFollowsEnabled = false,
   primaryCategories,
 }: {
   children: React.ReactNode;
@@ -25,6 +26,7 @@ export function PublicChrome({
   newsletterSubscribed?: boolean;
   shoppingListEnabled?: boolean;
   mealPlannerEnabled?: boolean;
+  memberFollowsEnabled?: boolean;
   primaryCategories?: import("@/lib/public-primary-categories").PublicPrimaryCategoryLink[];
 }) {
   const pathname = usePathname() || "";
@@ -49,7 +51,11 @@ export function PublicChrome({
   return (
     <>
       {showPublicChrome ? (
-        <SiteHeader mealPlannerEnabled={mealPlannerEnabled} primaryCategories={primaryCategories} />
+        <SiteHeader
+          mealPlannerEnabled={mealPlannerEnabled}
+          memberFollowsEnabled={memberFollowsEnabled}
+          primaryCategories={primaryCategories}
+        />
       ) : null}
       {children}
       {showPublicChrome ? (

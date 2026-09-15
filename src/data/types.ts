@@ -91,6 +91,8 @@ export type Recipe = {
 };
 
 export type Category = {
+  /** Stable DB identity when loaded from Prisma; omitted for static fallbacks. */
+  id?: string;
   slug: string;
   name: string;
   description: string;

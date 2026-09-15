@@ -16,7 +16,7 @@ import {
 import { site } from "@/data/site";
 import { auth } from "@/auth";
 import { getAdminSession } from "@/lib/auth";
-import { isSitePrivate } from "@/lib/flags";
+import { isSitePrivate, isMemberFollowsEnabled } from "@/lib/flags";
 import { isMemberNewsletterSubscribed } from "@/lib/member-newsletter";
 import { getAllRecipes, publicRecipeId } from "@/lib/recipes";
 import { listPopulatedPrimaryCategoryLinks } from "@/lib/public-primary-categories";
@@ -172,6 +172,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               newsletterSubscribed={newsletterSubscribed}
               shoppingListEnabled={isShoppingListEnabled()}
               mealPlannerEnabled={isMealPlannerEnabled()}
+              memberFollowsEnabled={isMemberFollowsEnabled()}
             >
               <main
                 id="main-content"

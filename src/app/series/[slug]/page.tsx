@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { SeriesDetailView } from "@/components/series/SeriesDetailView";
 import { site } from "@/data/site";
 import { absolutePublicUrl } from "@/lib/breadcrumb-jsonld";
+import { isMemberFollowsEnabled } from "@/lib/flags";
 import {
   getPublishedSeriesBySlug,
   listRelatedPublishedSeriesCards,
@@ -68,6 +69,11 @@ export default async function SeriesDetailPage({ params }: Props) {
   const relatedCollections = await listRelatedPublishedSeriesCards(series.id);
 
   return (
-    <SeriesDetailView series={series} mode="public" relatedCollections={relatedCollections} />
+    <SeriesDetailView
+      series={series}
+      mode="public"
+      relatedCollections={relatedCollections}
+      memberFollowsEnabled={isMemberFollowsEnabled()}
+    />
   );
 }

@@ -158,8 +158,15 @@ export function toPublicRecipe(record: DbRecipeRecord): Recipe & { extras: Extra
   };
 }
 
-export function toPublicCategory(row: { slug: string; name: string; description: string; group: string }): Category {
+export function toPublicCategory(row: {
+  id?: string;
+  slug: string;
+  name: string;
+  description: string;
+  group: string;
+}): Category {
   return {
+    ...(row.id ? { id: row.id } : {}),
     slug: row.slug,
     name: row.name,
     description: row.description,

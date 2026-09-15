@@ -31,9 +31,11 @@ function primaryMegaLabel(slug: string) {
 
 export function SiteHeader({
   mealPlannerEnabled = false,
+  memberFollowsEnabled = false,
   primaryCategories,
 }: {
   mealPlannerEnabled?: boolean;
+  memberFollowsEnabled?: boolean;
   /** Populated primary categories only — hides empty Drinks/Condiments at launch. */
   primaryCategories?: PublicPrimaryCategoryLink[];
 }) {
@@ -224,7 +226,10 @@ export function SiteHeader({
         )}
 
         <div className="ml-auto flex items-center gap-3 md:ml-4">
-          <AccountMenu mealPlannerEnabled={mealPlannerEnabled} />
+          <AccountMenu
+            mealPlannerEnabled={mealPlannerEnabled}
+            memberFollowsEnabled={memberFollowsEnabled}
+          />
           <button
             type="button"
             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta md:hidden"

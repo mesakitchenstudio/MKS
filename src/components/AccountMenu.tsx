@@ -25,7 +25,13 @@ const signOutClass =
 const triggerFocus =
   "rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta";
 
-export function AccountMenu({ mealPlannerEnabled = false }: { mealPlannerEnabled?: boolean }) {
+export function AccountMenu({
+  mealPlannerEnabled = false,
+  memberFollowsEnabled = false,
+}: {
+  mealPlannerEnabled?: boolean;
+  memberFollowsEnabled?: boolean;
+}) {
   const { data, status } = useSession();
   const pathname = usePathname();
   const [localUser, setLocalUser] = useState<PublicUser | null>(null);
@@ -33,8 +39,9 @@ export function AccountMenu({ mealPlannerEnabled = false }: { mealPlannerEnabled
   const root = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
-  const onProfile = pathname === "/profile" || pathname.startsWith("/profile/");
-
+  const onFollowing = pathname.startsWith("/profile/following");
+  const onMealPlanner = pathname.startsWith("/profile/meal-planner");
+  const onProfile = pathname === "/profile" || (pathname.startsWith("/profile/") && !onFollowing && !onMealPlanner);
   useEffect(() => {
     function sync() {
       setLocalUser(readSession());
@@ -158,18 +165,29 @@ export function AccountMenu({ mealPlannerEnabled = false }: { mealPlannerEnabled
               <Link
                 href="/profile"
                 role="menuitem"
-                aria-current={onProfile && !pathname.startsWith("/profile/meal-planner") ? "page" : undefined}
-                className={`${menuItemClass} ${onProfile && !pathname.startsWith("/profile/meal-planner") ? menuItemActiveClass : ""}`}
+                aria-current={onProfile ? "page" : undefined}
+                className={`${menuItemClass} ${onProfile ? menuItemActiveClass : ""}`}
                 onClick={() => setOpen(false)}
               >
                 Profile
               </Link>
+              {memberFollowsEnabled ? (
+                <Link
+                  href="/profile/following"
+                  role="menuitem"
+                  aria-current={onFollowing ? "page" : undefined}
+                  className={`${menuItemClass} ${onFollowing ? menuItemActiveClass : ""}`}
+                  onClick={() => setOpen(false)}
+                >
+                  Following
+                </Link>
+              ) : null}
               {mealPlannerEnabled ? (
                 <Link
                   href="/profile/meal-planner"
                   role="menuitem"
-                  aria-current={pathname.startsWith("/profile/meal-planner") ? "page" : undefined}
-                  className={`${menuItemClass} ${pathname.startsWith("/profile/meal-planner") ? menuItemActiveClass : ""}`}
+                  aria-current={onMealPlanner ? "page" : undefined}
+                  className={`${menuItemClass} ${onMealPlanner ? menuItemActiveClass : ""}`}
                   onClick={() => setOpen(false)}
                 >
                   Meal Planner
