@@ -3,7 +3,7 @@
  *
  * Accept trusted `userId` for composition/tests.
  * Phase 8E public actions MUST derive userId from auth session — never client.
- * Do NOT call create from publish workflow yet (Phase 8D).
+ * Publish fan-out (Phase 8D) calls create via member-follow-publish-fanout.ts.
  */
 
 import { getDb } from "@/lib/db";

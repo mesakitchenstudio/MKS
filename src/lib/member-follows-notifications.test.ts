@@ -159,11 +159,14 @@ describe("Phase 8B — migration SQL additive shape", () => {
     assert.match(prep, /provider  = "postgresql"/);
   });
 
-  it("publish workflow not wired yet", () => {
+  it("publish fan-out wired via shared post-commit helper", () => {
     const actions = readRepo("src/app/admin/actions.ts");
-    assert.doesNotMatch(actions, /createRecipeFollowedPublishNotification|member-notifications-server|followSeriesForUser/);
+    assert.match(actions, /maybeRunRecipeFollowedPublishFanOut/);
+    assert.match(actions, /recipeHadPriorPublication/);
+    assert.doesNotMatch(actions, /createRecipeFollowedPublishNotificationForUser/);
     const cron = readRepo("src/lib/recipe-schedule-server.ts");
-    assert.doesNotMatch(cron, /createRecipeFollowedPublishNotification|member-notifications-server/);
+    assert.match(cron, /maybeRunRecipeFollowedPublishFanOut/);
+    assert.doesNotMatch(cron, /createRecipeFollowedPublishNotificationForUser/);
   });
 });
 

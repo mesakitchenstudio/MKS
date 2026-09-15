@@ -36,6 +36,8 @@ import { createAdminNotification } from "@/lib/admin-notifications-server";
 import { coerceStringList, isPlainStringListKind } from "@/lib/coerce-string-list";
 import { normalizeIngredientGroups } from "@/lib/ingredient-groups";
 import { rebuildRecipeIngredientIndex } from "@/lib/ingredient-index";
+import { maybeRunRecipeFollowedPublishFanOut } from "@/lib/member-follow-publish-fanout";
+import { recipeHadPriorPublication } from "@/lib/recipe-first-publication";
 import {
   addIngredientAlias,
   createCanonicalIngredient,
@@ -1047,6 +1049,9 @@ export async function saveRecipeAction(formData: FormData) {
     }
   }
 
+  const hadPriorPublication =
+    existing?.id != null ? await recipeHadPriorPublication(existing.id) : false;
+
   await recordRecipeSaveAudit({
     actor: actorFromAdminSession(actor),
     isCreate: !existing,
@@ -1058,6 +1063,13 @@ export async function saveRecipeAction(formData: FormData) {
     newStatus: data.status,
     changedFields,
     redirectCreated,
+  });
+
+  await maybeRunRecipeFollowedPublishFanOut({
+    recipeId: recipe.id,
+    previousStatus: existing?.status ?? null,
+    nextStatus: data.status,
+    hadPriorPublication,
   });
 
   if (scheduleIntent === "set" && scheduledPublishAt) {

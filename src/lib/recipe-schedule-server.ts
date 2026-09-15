@@ -13,6 +13,8 @@ import {
   scheduleFailureClearsSchedule,
   scheduledPublishClaimWhere,
 } from "@/lib/recipe-schedule";
+import { maybeRunRecipeFollowedPublishFanOut } from "@/lib/member-follow-publish-fanout";
+import { recipeHadPriorPublication } from "@/lib/recipe-first-publication";
 
 type TypeFieldRow = {
   typeId: string;
@@ -221,6 +223,8 @@ export async function runScheduledRecipePublishLifecycle(
         publicUpdatedAt: recipe.publicUpdatedAt,
       });
 
+      const hadPriorPublication = await recipeHadPriorPublication(recipe.id);
+
       const claim = await claimScheduledRecipePublish({
         recipeId: recipe.id,
         publishedAt,
@@ -255,6 +259,13 @@ export async function runScheduledRecipePublishLifecycle(
         oldStatus: "draft",
         newStatus: "published",
         changedFields: ["status", "publishedAt", "scheduledPublishAt"],
+      });
+
+      await maybeRunRecipeFollowedPublishFanOut({
+        recipeId: recipe.id,
+        previousStatus: "draft",
+        nextStatus: "published",
+        hadPriorPublication,
       });
 
       await createAdminNotification({
