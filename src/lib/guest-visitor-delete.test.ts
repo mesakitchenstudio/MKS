@@ -42,6 +42,9 @@ describe("guest visitor deletion", () => {
   it("keeps registered members in a separate User model", () => {
     const schema = readFileSync(new URL("../../prisma/schema.prisma", import.meta.url), "utf8");
     assert.match(schema, /model User \{[\s\S]*model GuestVisitor \{/);
-    assert.doesNotMatch(schema, /model GuestVisitor[\s\S]*userId/);
+    // Scope to GuestVisitor body only — later member models (e.g. UserSeriesFollow) also have userId.
+    const guestVisitorBlock = schema.match(/model GuestVisitor \{[\s\S]*?\n\}/);
+    assert.ok(guestVisitorBlock, "GuestVisitor model missing");
+    assert.doesNotMatch(guestVisitorBlock[0], /\buserId\b/);
   });
 });

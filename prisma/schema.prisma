@@ -14,6 +14,10 @@ model Category {
   description String           @default("")
   group       String
   recipes     RecipeCategory[]
+  /// Member Topic follows (Roadmap #8). Category delete → Cascade.
+  memberFollows UserCategoryFollow[]
+  /// Optional primary context on followed-publish notifications.
+  notificationContexts MemberNotification[]
 }
 
 model RecipeType {
@@ -76,6 +80,8 @@ model Recipe {
   /// Optional relation for live recipes only — see RecipeRevision.recipeId delete policy.
   revisions   RecipeRevision[]
   youtubeReleases YouTubeRelease[]
+  /// Member in-app notifications (Roadmap #8). Recipe delete → SetNull (hide/unavailable at read).
+  memberNotifications MemberNotification[]
 
   @@index([scheduledPublishAt, status])
   @@index([publishedAt])
@@ -229,6 +235,10 @@ model User {
   connections  UserConnection[]
   reviews      RecipeReview[]
   presenceSessions MemberPresenceSession[]
+  /// Roadmap #8 — Follow Series / Topics + in-app notifications (Cascade on User delete).
+  seriesFollows UserSeriesFollow[]
+  categoryFollows UserCategoryFollow[]
+  memberNotifications MemberNotification[]
 }
 
 /** Per-browser/device heartbeat rows for session-aware Online status. */
@@ -729,9 +739,75 @@ model Series {
   createdAt                   DateTime     @default(now())
   updatedAt                   DateTime     @updatedAt
   items                       SeriesItem[]
+  /// Member Series follows (Roadmap #8). Series delete → Cascade.
+  memberFollows UserSeriesFollow[]
+  /// Optional primary context on followed-publish notifications.
+  notificationContexts MemberNotification[]
 
   @@index([isPublished, sortOrder])
   @@index([youtubePlaylistId])
+}
+
+/**
+ * Member follows a published Series (public “Collection”).
+ * Trusted persistence only — public actions derive userId from session (Phase 8C).
+ */
+model UserSeriesFollow {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seriesId  String
+  series    Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, seriesId])
+  @@index([seriesId])
+  @@index([userId, createdAt])
+}
+
+/**
+ * Member follows an eligible public Category (“Topic”).
+ * Domain allow-list: course | desserts | holiday (not method).
+ */
+model UserCategoryFollow {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, categoryId])
+  @@index([categoryId])
+  @@index([userId, createdAt])
+}
+
+/**
+ * Persistent in-app member notification (Roadmap #8).
+ * MVP type: RECIPE_FOLLOWED_PUBLISH. Dedupe: one per member per Recipe ever.
+ */
+model MemberNotification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// RECIPE_FOLLOWED_PUBLISH (string for SQLite/Postgres parity; no speculative enum sprawl).
+  type       String
+  recipeId   String?
+  recipe     Recipe?   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  /// Canonical key e.g. recipe.followed_publish:{recipeId} — unique per user.
+  dedupeKey  String
+  /// At most one primary context (series XOR category) — enforced in domain layer.
+  seriesId   String?
+  series     Series?   @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+  readAt     DateTime?
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, createdAt])
+  @@index([userId, readAt, createdAt])
+  @@index([recipeId])
 }
 
 /// Ordered content row inside a Series (recipe and/or synced YouTube video).

@@ -10,3 +10,12 @@ export function isSitePrivate() {
 export function isPersonalizedMemberHomeEnabled(): boolean {
   return process.env.PERSONALIZED_MEMBER_HOME_ENABLED === "true";
 }
+
+/**
+ * Roadmap #8 — Follow Topics/Series + in-app Notifications.
+ * Server-only — default OFF unless exactly `"true"`.
+ * Do not mirror with NEXT_PUBLIC_* .
+ */
+export function isMemberFollowsEnabled(): boolean {
+  return process.env.MEMBER_FOLLOWS_ENABLED === "true";
+}
