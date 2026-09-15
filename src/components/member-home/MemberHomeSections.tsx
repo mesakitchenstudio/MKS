@@ -175,7 +175,7 @@ export function MemberHomeCollectionsSection({
               href={`/profile/collections/${collection.id}`}
               className={`flex h-full flex-col rounded-sm border border-line bg-paper p-4 transition-colors hover:bg-cream/60 ${authFocusRing}`}
             >
-              <p className="font-serif text-2xl leading-snug text-ink">{collection.name}</p>
+              <p className="break-words font-serif text-2xl leading-snug text-ink">{collection.name}</p>
               <p className="mt-1 text-sm text-muted">
                 {collection.visiblePublishedItemCount === 0
                   ? "0 available recipes"

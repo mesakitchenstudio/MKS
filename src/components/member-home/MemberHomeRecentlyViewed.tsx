@@ -30,7 +30,7 @@ export function MemberHomeRecentlyViewed({ recipes }: { recipes: Recipe[] }) {
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 id="member-home-recently-viewed" className="font-serif text-3xl text-ink">
+          <h2 id="member-home-recently-viewed" className="break-words font-serif text-3xl text-ink">
             Recently viewed
           </h2>
           <p className="mt-1.5 max-w-xl text-sm text-muted">

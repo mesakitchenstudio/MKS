@@ -17,6 +17,7 @@ export function RecipeGridCard({
   imageAspect = "5/4",
   variant = "default",
   excerptLines,
+  ariaDescribedBy,
   onNavigate,
 }: {
   recipe: Recipe;
@@ -30,6 +31,8 @@ export function RecipeGridCard({
   variant?: "default" | "discovery";
   /** Override excerpt line clamp (homepage Latest uses 2). */
   excerptLines?: 2 | 3;
+  /** Optional aria-describedby for the card link (e.g. recommendation reason). */
+  ariaDescribedBy?: string;
   /** Fires on card navigation without blocking the link. */
   onNavigate?: () => void;
 }) {
@@ -107,6 +110,7 @@ export function RecipeGridCard({
       <Link
         href={`/recipes/${recipe.slug}`}
         className={`group flex h-full flex-col ${linkFocus}`}
+        {...(ariaDescribedBy ? { "aria-describedby": ariaDescribedBy } : {})}
         onClick={onNavigate}
       >
         {body}
@@ -119,6 +123,7 @@ export function RecipeGridCard({
       <Link
         href={`/recipes/${recipe.slug}`}
         className={`flex h-full flex-col ${linkFocus}`}
+        {...(ariaDescribedBy ? { "aria-describedby": ariaDescribedBy } : {})}
         onClick={onNavigate}
       >
         {body}

@@ -6,7 +6,7 @@ import { authFocusRing } from "@/lib/auth-ui";
 
 /**
  * Thin wrapper: recommendation reason + existing RecipeGridCard.
- * Does not duplicate Recipe presentation.
+ * Reason is visible and aria-describedby-linked to the card link for SR order.
  */
 export function RecommendationRecipeCard({
   recipe,
@@ -15,11 +15,14 @@ export function RecommendationRecipeCard({
   recipe: Recipe;
   reasonLabel: string;
 }) {
+  const reasonId = `member-home-rec-reason-${recipe.slug}`;
   return (
-    <li className="flex h-full flex-col">
-      <p className="mb-2 text-xs leading-5 text-muted">{reasonLabel}</p>
-      <div className="min-h-0 flex-1">
-        <RecipeGridCard recipe={recipe} variant="discovery" />
+    <li className="flex h-full min-w-0 flex-col">
+      <p id={reasonId} className="mb-2 break-words text-xs leading-5 text-muted">
+        {reasonLabel}
+      </p>
+      <div className="min-h-0 min-w-0 flex-1">
+        <RecipeGridCard recipe={recipe} variant="discovery" ariaDescribedBy={reasonId} />
       </div>
     </li>
   );

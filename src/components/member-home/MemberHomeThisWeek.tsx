@@ -68,7 +68,7 @@ export function MemberHomeThisWeek({
   if (!initialPlanner.hasPlan) {
     return (
       <section className="mt-8 border-t border-line pt-8" aria-labelledby="member-home-this-week">
-        <h2 id="member-home-this-week" className="font-serif text-3xl text-ink">
+        <h2 id="member-home-this-week" className="break-words font-serif text-3xl text-ink">
           This week
         </h2>
         <p className="mt-1.5 max-w-xl text-sm text-muted">
@@ -88,10 +88,10 @@ export function MemberHomeThisWeek({
     <section className="mt-8 border-t border-line pt-8" aria-labelledby="member-home-this-week">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 id="member-home-this-week" className="font-serif text-3xl text-ink">
+          <h2 id="member-home-this-week" className="break-words font-serif text-3xl text-ink">
             This week
           </h2>
-          <p className="mt-1.5 text-sm text-muted">
+          <p className="mt-1.5 break-words text-sm text-muted">
             From <span className="font-semibold text-ink">{planName}</span>
           </p>
         </div>
