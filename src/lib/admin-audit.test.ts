@@ -102,6 +102,14 @@ describe("admin audit log", () => {
   it("humanizes stable action names", () => {
     assert.equal(humanizeAdminAuditAction("recipe.slug_changed"), "Changed recipe slug");
     assert.equal(humanizeAdminAuditAction("staff.role_changed"), "Changed staff role");
+    assert.equal(
+      humanizeAdminAuditAction("recipe.publication_legacy_marker"),
+      "Recorded legacy publication (pre-notification tracking)",
+    );
+    assert.notEqual(
+      humanizeAdminAuditAction("recipe.publication_legacy_marker"),
+      "Published recipe",
+    );
   });
 
   it("restricts Activity to owners via staff area + helper", () => {

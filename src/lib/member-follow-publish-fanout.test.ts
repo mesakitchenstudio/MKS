@@ -25,6 +25,7 @@ import {
 } from "./member-notifications-server.ts";
 import {
   isFirstEverRecipePublicationTransition,
+  RECIPE_PUBLICATION_LEGACY_MARKER_ACTION,
   recipeHadPriorPublication,
 } from "./recipe-first-publication.ts";
 import {
@@ -777,6 +778,9 @@ describe("Phase 8F — durable signal independence + lifecycle hardening", () =>
   let recipeRevOnly = "";
   let recipeNeither = "";
   let recipeLife = "";
+  let recipeLegacy = "";
+  let recipeWrongEntity = "";
+  let recipeLegacyRepub = "";
 
   before(async () => {
     const type = await db.recipeType.create({
@@ -792,7 +796,7 @@ describe("Phase 8F — durable signal independence + lifecycle hardening", () =>
     });
     categoryId = category.id;
 
-    const [a, b, c, life] = await Promise.all([
+    const [a, b, c, life, legacy, wrong, legRepub] = await Promise.all([
       db.recipe.create({
         data: {
           slug: `audit-only-${suffix}`,
@@ -831,11 +835,45 @@ describe("Phase 8F — durable signal independence + lifecycle hardening", () =>
           categories: { create: [{ categoryId }] },
         },
       }),
+      db.recipe.create({
+        data: {
+          slug: `legacy-${suffix}`,
+          title: `Legacy ${suffix}`,
+          typeId,
+          status: "published",
+          publishedAt: new Date(),
+          values: "{}",
+          categories: { create: [{ categoryId }] },
+        },
+      }),
+      db.recipe.create({
+        data: {
+          slug: `wrong-ent-${suffix}`,
+          title: `Wrong entity ${suffix}`,
+          typeId,
+          status: "draft",
+          values: "{}",
+        },
+      }),
+      db.recipe.create({
+        data: {
+          slug: `leg-repub-${suffix}`,
+          title: `Legacy repub ${suffix}`,
+          typeId,
+          status: "published",
+          publishedAt: new Date(),
+          values: JSON.stringify(publishableValues()),
+          categories: { create: [{ categoryId }] },
+        },
+      }),
     ]);
     recipeAuditOnly = a.id;
     recipeRevOnly = b.id;
     recipeNeither = c.id;
     recipeLife = life.id;
+    recipeLegacy = legacy.id;
+    recipeWrongEntity = wrong.id;
+    recipeLegacyRepub = legRepub.id;
 
     await recordAdminAuditEvent({
       actor: { actorType: "system", name: "System", role: "system" },
@@ -845,6 +883,68 @@ describe("Phase 8F — durable signal independence + lifecycle hardening", () =>
       entityId: recipeAuditOnly,
       entityLabel: a.title,
       entityPath: `/admin/recipes/${a.id}`,
+    });
+
+    await recordAdminAuditEvent({
+      actor: { actorType: "system", name: "System", role: "system" },
+      action: RECIPE_PUBLICATION_LEGACY_MARKER_ACTION,
+      area: "content",
+      entityType: "recipe",
+      entityId: recipeLegacy,
+      entityLabel: legacy.title,
+      entityPath: `/admin/recipes/${legacy.id}`,
+      metadata: {
+        source: "roadmap_8",
+        reason: "legacy_publication_safety_backfill",
+        syntheticHistoricalMarker: true,
+        meaning: "Recipe was already public before follower-notification tracking",
+      },
+    });
+
+    await recordAdminAuditEvent({
+      actor: { actorType: "system", name: "System", role: "system" },
+      action: RECIPE_PUBLICATION_LEGACY_MARKER_ACTION,
+      area: "content",
+      entityType: "recipe",
+      entityId: recipeLegacyRepub,
+      entityLabel: legRepub.title,
+      entityPath: `/admin/recipes/${legRepub.id}`,
+      metadata: {
+        source: "roadmap_8",
+        reason: "legacy_publication_safety_backfill",
+        syntheticHistoricalMarker: true,
+        meaning: "Recipe was already public before follower-notification tracking",
+      },
+    });
+
+    // Same entityId, non-recipe entityType — must NOT count as prior publication.
+    await db.adminAuditEvent.create({
+      data: {
+        actorType: "system",
+        actorName: "System",
+        actorRole: "system",
+        action: "recipe.published",
+        area: "content",
+        entityType: "category",
+        entityId: recipeWrongEntity,
+        entityLabel: "spoof",
+        entityPath: "/admin",
+        metadata: "{}",
+      },
+    });
+    await db.adminAuditEvent.create({
+      data: {
+        actorType: "system",
+        actorName: "System",
+        actorRole: "system",
+        action: RECIPE_PUBLICATION_LEGACY_MARKER_ACTION,
+        area: "content",
+        entityType: "series",
+        entityId: recipeWrongEntity,
+        entityLabel: "spoof-legacy",
+        entityPath: "/admin",
+        metadata: "{}",
+      },
     });
 
     const snap = buildRecipeRevisionSnapshot({
@@ -872,21 +972,61 @@ describe("Phase 8F — durable signal independence + lifecycle hardening", () =>
     await db.memberNotification.deleteMany({ where: { userId } });
     await db.userCategoryFollow.deleteMany({ where: { userId } });
     await db.adminAuditEvent.deleteMany({
-      where: { entityId: { in: [recipeAuditOnly, recipeRevOnly, recipeNeither, recipeLife] } },
+      where: {
+        entityId: {
+          in: [
+            recipeAuditOnly,
+            recipeRevOnly,
+            recipeNeither,
+            recipeLife,
+            recipeLegacy,
+            recipeWrongEntity,
+            recipeLegacyRepub,
+          ],
+        },
+      },
     });
     await db.recipeRevision.deleteMany({
       where: {
-        stableRecipeId: { in: [recipeAuditOnly, recipeRevOnly, recipeNeither, recipeLife] },
+        stableRecipeId: {
+          in: [
+            recipeAuditOnly,
+            recipeRevOnly,
+            recipeNeither,
+            recipeLife,
+            recipeLegacy,
+            recipeWrongEntity,
+            recipeLegacyRepub,
+          ],
+        },
       },
     });
-    await db.recipeCategory.deleteMany({ where: { recipeId: recipeLife } });
+    await db.recipeCategory.deleteMany({
+      where: { recipeId: { in: [recipeLife, recipeLegacy, recipeLegacyRepub] } },
+    });
     await db.user.deleteMany({ where: { id: userId } });
     await db.recipe.deleteMany({
-      where: { id: { in: [recipeAuditOnly, recipeRevOnly, recipeNeither, recipeLife] } },
+      where: {
+        id: {
+          in: [
+            recipeAuditOnly,
+            recipeRevOnly,
+            recipeNeither,
+            recipeLife,
+            recipeLegacy,
+            recipeWrongEntity,
+            recipeLegacyRepub,
+          ],
+        },
+      },
     });
     await db.category.deleteMany({ where: { id: categoryId } });
     if (typeId) await db.recipeType.deleteMany({ where: { id: typeId } });
     await db.$disconnect();
+  });
+
+  it("never-published draft is not prior publication", async () => {
+    assert.equal(await recipeHadPriorPublication(recipeNeither), false);
   });
 
   it("audit-only history is durable prior publication", async () => {
@@ -905,6 +1045,26 @@ describe("Phase 8F — durable signal independence + lifecycle hardening", () =>
     assert.equal(await recipeHadPriorPublication(recipeRevOnly), true);
   });
 
+  it("legacy marker alone is durable prior publication", async () => {
+    assert.equal(await recipeHadPriorPublication(recipeLegacy), true);
+    const publishedCount = await db.adminAuditEvent.count({
+      where: {
+        entityType: "recipe",
+        entityId: recipeLegacy,
+        action: "recipe.published",
+      },
+    });
+    const revCount = await db.recipeRevision.count({
+      where: { stableRecipeId: recipeLegacy, reason: "published" },
+    });
+    assert.equal(publishedCount, 0);
+    assert.equal(revCount, 0);
+  });
+
+  it("non-recipe entityType with same entityId does not count", async () => {
+    assert.equal(await recipeHadPriorPublication(recipeWrongEntity), false);
+  });
+
   it("neither signal keeps first-ever eligibility (legacy risk class)", async () => {
     assert.equal(await recipeHadPriorPublication(recipeNeither), false);
     assert.equal(
@@ -915,6 +1075,43 @@ describe("Phase 8F — durable signal independence + lifecycle hardening", () =>
       }),
       true,
     );
+  });
+
+  it("legacy-marked Recipe republish does not notify followers", async () => {
+    await withGate(true, async () => {
+      await db.memberNotification.deleteMany({ where: { userId } });
+      await db.userCategoryFollow.deleteMany({ where: { userId } });
+      await followCategoryForUser(userId, categoryId);
+
+      assert.equal(await recipeHadPriorPublication(recipeLegacyRepub), true);
+
+      await db.recipe.update({
+        where: { id: recipeLegacyRepub },
+        data: { status: "draft", publishedAt: null },
+      });
+      await db.recipe.update({
+        where: { id: recipeLegacyRepub },
+        data: { status: "published", publishedAt: new Date() },
+      });
+
+      const result = await maybeRunRecipeFollowedPublishFanOut({
+        recipeId: recipeLegacyRepub,
+        previousStatus: "draft",
+        nextStatus: "published",
+        hadPriorPublication: true,
+      });
+      assert.equal(result.eligible, false);
+      assert.equal(
+        await db.memberNotification.count({
+          where: {
+            userId,
+            recipeId: recipeLegacyRepub,
+            type: MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH,
+          },
+        }),
+        0,
+      );
+    });
   });
 
   it("unfollow before fan-out yields zero notifications", async () => {

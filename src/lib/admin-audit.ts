@@ -1,5 +1,6 @@
 import type { AdminArea } from "@/lib/admin-access";
 import { getDb } from "@/lib/db";
+import { RECIPE_PUBLICATION_LEGACY_MARKER_ACTION } from "@/lib/recipe-first-publication";
 import { parseValues } from "@/lib/recipe-map";
 
 export type AdminAuditActorType = "admin" | "system";
@@ -367,6 +368,8 @@ export function humanizeAdminAuditAction(action: string): string {
     "recipe.created": "Created recipe",
     "recipe.updated": "Updated recipe",
     "recipe.published": "Published recipe",
+    [RECIPE_PUBLICATION_LEGACY_MARKER_ACTION]:
+      "Recorded legacy publication (pre-notification tracking)",
     "recipe.moved_to_draft": "Moved recipe to draft",
     "recipe.deleted": "Deleted recipe",
     "recipe.slug_changed": "Changed recipe slug",
