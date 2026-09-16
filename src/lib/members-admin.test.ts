@@ -80,7 +80,7 @@ test("presence is textually Online or Offline", () => {
 
 describe("admin Members list contracts", () => {
   it("uses restrained intro and quiet presence metadata", () => {
-    assert.match(membersPage, />\s*Members\s*</);
+    assert.match(membersPage, /title="Members"|title=\{\s*"Members"\s*\}/);
     assert.match(membersPage, /People with Mesa accounts\./);
     assert.doesNotMatch(membersPage, /Registered members and their recent activity/);
     assert.match(membersTable, /online · Sorted by last seen · Times in TRT/);

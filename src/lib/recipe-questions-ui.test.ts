@@ -393,8 +393,10 @@ describe("Phase 9C — test runner allowlist coverage", () => {
       assert.ok(allowSet.has(f), `missing historic test from allowlist: ${f}`);
     }
 
-    // Intentional exclusions remain outside the suite (never part of 9B npm test).
-    assert.equal(allowSet.has("src/lib/members-admin.test.ts"), false);
+    // Untracked local experiments remain outside the suite.
     assert.equal(allowSet.has("src/lib/auth-google-admin-flow.test.ts"), false);
+    // 9F restored historically omitted tracked files into the allowlist.
+    assert.ok(allowSet.has("src/lib/members-admin.test.ts"));
+    assert.ok(allowSet.has("src/lib/recipe-questions-hardening.test.ts"));
   });
 });

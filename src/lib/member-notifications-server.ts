@@ -362,28 +362,54 @@ export async function listMemberNotificationsForUser(
 /**
  * Unread count among rows that would be visible in Notification Center.
  * Must stay in lockstep with list visibility (including Q&A gate + question state).
+ *
+ * Uses a single Prisma `count` with type-specific eligibility predicates so
+ * AccountMenu never loads unbounded unread history into memory.
+ * Unknown notification types are excluded (same as list presentation).
  */
 export async function countUnreadMemberNotificationsForUser(userId: string): Promise<number> {
   if (!userId.trim()) return 0;
   const db = getDb();
   const recipeQaEnabled = isRecipeQaEnabled();
 
-  const rows = await db.memberNotification.findMany({
+  const visibleBranches: Array<{
+    type: string;
+    recipeId: { not: null };
+    recipe: { status: "published" };
+    recipeQuestionId?: { not: null };
+    recipeQuestion?: {
+      status: "published";
+      answerBody: { not: string };
+    };
+  }> = [
+    {
+      type: MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH,
+      recipeId: { not: null },
+      recipe: { status: "published" },
+    },
+  ];
+
+  if (recipeQaEnabled) {
+    visibleBranches.push({
+      type: MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED,
+      recipeId: { not: null },
+      recipeQuestionId: { not: null },
+      recipe: { status: "published" },
+      recipeQuestion: {
+        status: "published",
+        // Non-null and non-empty; whitespace-only answers are not produced by sanitizers.
+        answerBody: { not: "" },
+      },
+    });
+  }
+
+  return db.memberNotification.count({
     where: {
       userId,
       readAt: null,
+      OR: visibleBranches,
     },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: MEMBER_NOTIFICATION_LIST_MAX_LIMIT * 2,
-    include: notificationListInclude,
   });
-
-  let count = 0;
-  for (const row of rows) {
-    const item = toListItem(row, { recipeQaEnabled });
-    if (item) count += 1;
-  }
-  return count;
 }
 
 export async function markMemberNotificationReadForUser(
