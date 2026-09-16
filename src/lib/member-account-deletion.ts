@@ -3,10 +3,22 @@ import { getStaffByEmail } from "@/lib/accounts";
 import { getDb } from "@/lib/db";
 import { validateNewsletterEmail } from "@/lib/newsletter";
 import { isActiveNewsletterStatus } from "@/lib/newsletter-unsubscribe";
+import { cleanupRecipeQuestionsForUserDeletion } from "@/lib/recipe-questions-server";
 
 export const FORMER_MEMBER_DISPLAY_NAME = "Former member";
 
-type DbLike = Pick<PrismaClient, "user" | "recipeReview" | "recipeSave" | "userConnection" | "memberPresenceSession" | "newsletterSubscriber" | "passwordReset">;
+type DbLike = Pick<
+  PrismaClient,
+  | "user"
+  | "recipeReview"
+  | "recipeSave"
+  | "userConnection"
+  | "memberPresenceSession"
+  | "newsletterSubscriber"
+  | "passwordReset"
+  | "recipeQuestion"
+>;
+
 
 /** Opaque placeholder so @@unique([recipeSlug, authorEmail]) stays valid without PII. */
 export function anonymizedReviewEmail(reviewId: string) {
@@ -68,6 +80,8 @@ export async function deleteMemberAccount(
           },
         });
       }
+
+      await cleanupRecipeQuestionsForUserDeletion(tx, userId);
 
       await tx.recipeSave.deleteMany({ where: { userId } });
       await tx.userConnection.deleteMany({ where: { userId } });

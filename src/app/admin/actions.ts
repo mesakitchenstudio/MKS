@@ -16,6 +16,7 @@ import {
 } from "@/lib/admin-audit";
 import { authenticateAdmin, clearAllAuthCookies, getAdminSession, requireAccess, writeAdminSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { cleanupRecipeQuestionsForUserDeletion } from "@/lib/recipe-questions-server";
 import { CORE_FIELDS, emptyValue, keyFromLabel, slugify } from "@/lib/fields";
 import { setRedirectActive, upsertRecipeSlugChangeRedirect } from "@/lib/redirects";
 import { syncDenormalizedRecipeIdentity } from "@/lib/recipe-identity";
@@ -1386,7 +1387,10 @@ export async function deleteMemberAction(formData: FormData) {
     select: { id: true, name: true, email: true },
   });
   try {
-    await getDb().user.delete({ where: { id } });
+    await getDb().$transaction(async (tx) => {
+      await cleanupRecipeQuestionsForUserDeletion(tx, id);
+      await tx.user.delete({ where: { id } });
+    });
   } catch {
     redirect("/admin/members");
   }
@@ -1438,6 +1442,9 @@ export async function deleteMembersAction(
       });
       if (existing.length !== ids.length) {
         throw new Error("MEMBER_DELETE_INCOMPLETE");
+      }
+      for (const memberId of ids) {
+        await cleanupRecipeQuestionsForUserDeletion(tx, memberId);
       }
       const result = await tx.user.deleteMany({
         where: { id: { in: ids } },

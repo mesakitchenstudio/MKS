@@ -82,6 +82,8 @@ model Recipe {
   youtubeReleases YouTubeRelease[]
   /// Member in-app notifications (Roadmap #8). Recipe delete → SetNull (hide/unavailable at read).
   memberNotifications MemberNotification[]
+  /// Roadmap #9 — Recipe Q&A. Recipe delete → Cascade (Q&A is Recipe-specific).
+  recipeQuestions RecipeQuestion[]
 
   @@index([scheduledPublishAt, status])
   @@index([publishedAt])
@@ -239,6 +241,8 @@ model User {
   seriesFollows UserSeriesFollow[]
   categoryFollows UserCategoryFollow[]
   memberNotifications MemberNotification[]
+  /// Roadmap #9 — Recipe Q&A (User delete → SetNull after anonymize/cleanup).
+  recipeQuestions RecipeQuestion[]
 }
 
 /** Per-browser/device heartbeat rows for session-aware Online status. */
@@ -430,6 +434,8 @@ model Admin {
   mediaAssets    MediaAsset[]
   notifications  AdminNotification[]
   notificationReceipts AdminNotificationReceipt[]
+  /// Roadmap #9 — official Recipe Q&A answers (Admin delete → SetNull).
+  recipeQuestionAnswers RecipeQuestion[]
 }
 
 /**
@@ -801,6 +807,9 @@ model MemberNotification {
   series     Series?   @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  /// Roadmap #9E prep — optional Q&A answer notification link (behavior inactive until 9E).
+  recipeQuestionId String?
+  recipeQuestion   RecipeQuestion? @relation(fields: [recipeQuestionId], references: [id], onDelete: SetNull)
   createdAt  DateTime  @default(now())
   readAt     DateTime?
 
@@ -808,6 +817,41 @@ model MemberNotification {
   @@index([userId, createdAt])
   @@index([userId, readAt, createdAt])
   @@index([recipeId])
+  @@index([recipeQuestionId])
+}
+
+/**
+ * Roadmap #9 — Recipe Q&A (one member question → zero/one official Mesa answer).
+ *
+ * Public listing requires status=published AND non-empty answerBody.
+ * User delete: SetNull after anonymize published / delete non-public (app layer).
+ * Recipe delete: Cascade.
+ */
+model RecipeQuestion {
+  id                 String    @id @default(cuid())
+  recipeId           String
+  recipe             Recipe    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  userId             String?
+  user               User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Display snapshot at submit (never email). Anonymized to "Former member" on account deletion.
+  authorName         String
+  body               String
+  /// pending | published | hidden | rejected (string for SQLite/Postgres parity).
+  status             String    @default("pending")
+  answerBody         String?
+  /// First official answer time — preserved across answer edits.
+  answeredAt         DateTime?
+  answeredByAdminId  String?
+  answeredByAdmin    Admin?    @relation(fields: [answeredByAdminId], references: [id], onDelete: SetNull)
+  /// First time publicly published — preserved across hide/republication.
+  publishedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  memberNotifications MemberNotification[]
+
+  @@index([recipeId, status, answeredAt])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
 
 /// Ordered content row inside a Series (recipe and/or synced YouTube video).

@@ -19,3 +19,12 @@ export function isPersonalizedMemberHomeEnabled(): boolean {
 export function isMemberFollowsEnabled(): boolean {
   return process.env.MEMBER_FOLLOWS_ENABLED === "true";
 }
+
+/**
+ * Roadmap #9 — Recipe Q&A.
+ * Server-only — default OFF unless exactly `"true"`.
+ * Do not mirror with NEXT_PUBLIC_* .
+ */
+export function isRecipeQaEnabled(): boolean {
+  return process.env.RECIPE_QA_ENABLED === "true";
+}
