@@ -6,6 +6,7 @@ import {
 } from "@/lib/ai-recipe/field-state";
 import type { RecipeAiMeta } from "@/lib/ai-recipe/types";
 import { alignStepTimers, instructionStepText, normalizeTimerSeconds } from "@/lib/instruction-step";
+import { alignStepVideoTimestamps, normalizeStepVideoTimestampSeconds } from "@/lib/step-video-timestamps";
 import { formatTimestampInput, parseTimestampInput } from "@/lib/youtube-metadata-editor";
 
 /** Instruction section with optional Mesa canonical video chapter fields (seconds internally). */
@@ -148,6 +149,13 @@ export function normalizeInstructionGroup(raw: unknown): InstructionGroupWithCha
     const aligned = alignStepTimers(timers, group.steps.length);
     if (aligned) {
       group.stepTimers = aligned;
+    }
+  }
+  if (Array.isArray(row.stepVideoTimestamps)) {
+    const stamps = row.stepVideoTimestamps.map((t) => normalizeStepVideoTimestampSeconds(t));
+    const aligned = alignStepVideoTimestamps(stamps, group.steps.length);
+    if (aligned) {
+      group.stepVideoTimestamps = aligned;
     }
   }
   if (typeof row.chapterLabel === "string" && row.chapterLabel.trim()) {
@@ -622,6 +630,9 @@ export function duplicateInstructionGroupForCopy(
     name: group.name,
     steps: [...group.steps],
     ...(group.stepTimers?.length ? { stepTimers: [...group.stepTimers] } : {}),
+    ...(group.stepVideoTimestamps?.length
+      ? { stepVideoTimestamps: [...group.stepVideoTimestamps] }
+      : {}),
     chapterLabel: group.chapterLabel,
     // Clear timestamps on duplicate — two sections must not share the same video range.
     startTimestamp: undefined,

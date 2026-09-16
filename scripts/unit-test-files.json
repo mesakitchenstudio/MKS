@@ -222,5 +222,6 @@
   "src/lib/recipe-editor-navigation.test.ts",
   "src/lib/series.test.ts",
   "src/lib/youtube-data/watch-next.test.ts",
-  "src/lib/recipe-questions-hardening.test.ts"
+  "src/lib/recipe-questions-hardening.test.ts",
+  "src/lib/step-video-timestamps.test.ts"
 ]

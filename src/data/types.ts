@@ -20,6 +20,12 @@ export type InstructionGroup = {
    * Sparse; missing/null entries mean no timer. Stored in Recipe.values JSON.
    */
   stepTimers?: Array<number | null | undefined>;
+  /**
+   * Optional per-step video seek offsets in seconds, index-aligned with `steps`.
+   * Sparse; missing/null entries mean no timestamp. Stored in Recipe.values JSON.
+   * Active only when `values.youtube.stepTimestampsVideoId` matches the Recipe video.
+   */
+  stepVideoTimestamps?: Array<number | null | undefined>;
   /** Optional shorter video-facing chapter title; falls back to `name`. */
   chapterLabel?: string;
   /** Video chapter start in seconds. */

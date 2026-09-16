@@ -28,3 +28,13 @@ export function isMemberFollowsEnabled(): boolean {
 export function isRecipeQaEnabled(): boolean {
   return process.env.RECIPE_QA_ENABLED === "true";
 }
+
+/**
+ * Roadmap #10 — Recipe step ↔ video timestamps.
+ * Server-only — default OFF unless exactly `"true"`.
+ * Do not mirror with NEXT_PUBLIC_* .
+ * Data helpers stay deterministic; UI/actions enforce this gate.
+ */
+export function isRecipeStepTimestampsEnabled(): boolean {
+  return process.env.RECIPE_STEP_TIMESTAMPS_ENABLED === "true";
+}

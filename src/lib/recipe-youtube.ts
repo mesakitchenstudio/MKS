@@ -129,6 +129,10 @@ export function parseRecipeYoutubeBlob(value: unknown): RecipeYoutube | null {
     timestamps: parseTimestamps(row.timestamps ?? row.chapters),
     stageAlignments: parseStageAlignments(row.stageAlignments),
     relatedVideos: parseRelatedVideos(row.relatedVideos ?? row.relatedYoutubeVideos),
+    stepTimestampsVideoId:
+      asString(row.stepTimestampsVideoId) ||
+      asString(preserved.stepTimestampsVideoId) ||
+      undefined,
   };
 }
 
@@ -175,6 +179,7 @@ export function resolveRecipeYoutube(
     timestamps: blob?.timestamps ?? [],
     stageAlignments: blob?.stageAlignments ?? [],
     relatedVideos: blob?.relatedVideos ?? [],
+    stepTimestampsVideoId: blob?.stepTimestampsVideoId,
   };
 }
 

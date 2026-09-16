@@ -52,6 +52,13 @@ export type RecipeYoutube = {
    */
   stageAlignments?: RecipeStageAlignment[];
   relatedVideos?: RecipeYoutubeRelatedVideo[];
+  /**
+   * YouTube video ID that current InstructionGroup.stepVideoTimestamps were
+   * authored/reconfirmed against. Safety binding — not the live video selector.
+   * When absent or mismatched with the Recipe's canonical videoId, per-step
+   * timestamps stay dormant.
+   */
+  stepTimestampsVideoId?: string;
 };
 
 export type ResolvedRecipeYoutube = RecipeYoutube & {

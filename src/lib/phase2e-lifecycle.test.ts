@@ -461,12 +461,10 @@ describe("Phase 2E stepTimers alignment", () => {
     assert.equal(groups[0]!.stepTimers?.[0], 600);
   });
 
-  it("Add step pads stepTimers via alignStepTimers", () => {
+  it("Add step pads stepTimers via withAppendedInstructionStep (co-mutates timers + timestamps)", () => {
     const accordion = read("components/admin/InstructionsAccordionEditor.tsx");
-    assert.match(
-      accordion,
-      /steps:\s*nextSteps[\s\S]*stepTimers:\s*alignStepTimers\(group\.stepTimers,\s*nextSteps\.length\)/,
-    );
+    assert.match(accordion, /withAppendedInstructionStep\(group,\s*""\)/);
+    assert.match(accordion, /from\s+"@\/lib\/step-video-timestamps"/);
   });
 });
 

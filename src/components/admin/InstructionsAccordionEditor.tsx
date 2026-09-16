@@ -40,6 +40,11 @@ import {
   normalizeTimerSeconds,
   timerSecondsToMinutes,
 } from "@/lib/instruction-step";
+import {
+  withAppendedInstructionStep,
+  withMovedInstructionStep,
+  withRemovedInstructionStep,
+} from "@/lib/step-video-timestamps";
 import { recipeGranularAnchorId } from "@/lib/recipe-editor-field-anchor";
 import { adminFocusRing, adminInputClass } from "@/lib/admin-ui";
 import type { SchemaField } from "@/lib/ai-recipe/schema-version";
@@ -61,38 +66,14 @@ function withMovedStepTimers(
   from: number,
   to: number,
 ): InstructionGroupWithChapters {
-  const steps = moveArrayItem(group.steps, from, to);
-  const timers = group.stepTimers?.length
-    ? moveArrayItem(
-        (alignStepTimers(group.stepTimers, group.steps.length) ??
-          Array.from({ length: group.steps.length }, () => undefined)) as Array<
-          number | null | undefined
-        >,
-        from,
-        to,
-      )
-    : undefined;
-  return {
-    ...group,
-    steps,
-    stepTimers: alignStepTimers(timers, steps.length),
-  };
+  return withMovedInstructionStep(group, from, to);
 }
 
 function withRemovedStep(
   group: InstructionGroupWithChapters,
   stepIndex: number,
 ): InstructionGroupWithChapters {
-  const steps = group.steps.filter((_, i) => i !== stepIndex);
-  const nextSteps = steps.length ? steps : [""];
-  const timers = group.stepTimers?.length
-    ? (alignStepTimers(group.stepTimers, group.steps.length) ?? []).filter((_, i) => i !== stepIndex)
-    : undefined;
-  return {
-    ...group,
-    steps: nextSteps,
-    stepTimers: alignStepTimers(timers, nextSteps.length),
-  };
+  return withRemovedInstructionStep(group, stepIndex);
 }
 
 function withStepTimerMinutes(
@@ -966,12 +947,7 @@ export function InstructionsAccordionEditor({
                   className={`${editorTextAction} mt-2`}
                   onClick={() => {
                     const next = [...groups];
-                    const nextSteps = [...group.steps, ""];
-                    next[groupIndex] = {
-                      ...group,
-                      steps: nextSteps,
-                      stepTimers: alignStepTimers(group.stepTimers, nextSteps.length),
-                    };
+                    next[groupIndex] = withAppendedInstructionStep(group, "");
                     onChange(next);
                   }}
                 >
