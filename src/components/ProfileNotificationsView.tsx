@@ -11,6 +11,8 @@ import { authFocusRing } from "@/lib/auth-ui";
 import { formatLongDate } from "@/lib/datetime";
 import {
   formatMemberNotificationContextLine,
+  formatRecipeQuestionAnsweredNotificationTitle,
+  MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED,
   type MemberNotificationListItem,
 } from "@/lib/member-notifications";
 
@@ -129,12 +131,21 @@ export function ProfileNotificationsView({
 
       <ul className="divide-y divide-line border-y border-line" aria-label="Notifications">
         {items.map((item) => {
+          const isQa =
+            item.type === MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED;
+          const recipeTitle = (item.recipeTitle || "Recipe").trim() || "Recipe";
           const href =
             item.recipeSlug != null && item.recipeSlug.trim()
-              ? `/recipes/${item.recipeSlug}`
+              ? isQa
+                ? `/recipes/${item.recipeSlug}#questions`
+                : `/recipes/${item.recipeSlug}`
               : null;
-          const title = (item.recipeTitle || "Recipe").trim() || "Recipe";
-          const contextLine = formatMemberNotificationContextLine(item.context);
+          const title = isQa
+            ? formatRecipeQuestionAnsweredNotificationTitle(recipeTitle)
+            : recipeTitle;
+          const contextLine = isQa
+            ? null
+            : formatMemberNotificationContextLine(item.context);
           const dateLabel = formatLongDate(item.createdAt);
 
           const body = (
@@ -153,11 +164,13 @@ export function ProfileNotificationsView({
                   {dateLabel}
                 </time>
               </div>
-              <p className="mt-2 text-sm text-muted">{contextLine}</p>
+              {contextLine ? (
+                <p className="mt-2 text-sm text-muted">{contextLine}</p>
+              ) : null}
               <p
-                className={`mt-1 font-serif text-xl text-ink md:text-2xl ${
+                className={`mt-1 min-w-0 break-words font-serif text-xl text-ink md:text-2xl ${
                   href ? "group-hover:text-terracotta" : ""
-                }`}
+                } ${isQa && !contextLine ? "mt-2" : ""}`}
               >
                 {title}
               </p>
@@ -167,19 +180,19 @@ export function ProfileNotificationsView({
           return (
             <li
               key={item.id}
-              className={`py-5 ${item.unread ? "bg-sand/25" : ""}`}
+              className={`min-w-0 py-5 ${item.unread ? "bg-sand/25" : ""}`}
               aria-label={item.unread ? `Unread: ${title}` : title}
             >
               {href ? (
                 <Link
                   href={href}
-                  className={`group block rounded-sm ${authFocusRing}`}
+                  className={`group block min-w-0 rounded-sm ${authFocusRing}`}
                   onClick={() => onNotificationActivate(item)}
                 >
                   {body}
                 </Link>
               ) : (
-                <div>{body}</div>
+                <div className="min-w-0">{body}</div>
               )}
             </li>
           );

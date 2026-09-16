@@ -4,9 +4,23 @@
  * Public routes/actions (Phase 8E) must derive userId from auth session.
  */
 
-export const MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH = "RECIPE_FOLLOWED_PUBLISH" as const;
+export const MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH =
+  "RECIPE_FOLLOWED_PUBLISH" as const;
+export const MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED =
+  "RECIPE_QUESTION_ANSWERED" as const;
 
-export type MemberNotificationType = typeof MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH;
+export type MemberNotificationType =
+  | typeof MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH
+  | typeof MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED;
+
+export function isMemberNotificationType(
+  value: unknown,
+): value is MemberNotificationType {
+  return (
+    value === MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH ||
+    value === MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED
+  );
+}
 
 /** Semantic dedupe key — one followed-publish alert per member per Recipe ever. */
 export function buildRecipeFollowedPublishDedupeKey(recipeId: string): string {
@@ -95,6 +109,8 @@ export type MemberNotificationListItem = {
   recipeSlug: string | null;
   /** Clean card title when available; never YouTube title. */
   recipeTitle: string | null;
+  /** Present for Q&A answer notifications when relation is intact. */
+  recipeQuestionId: string | null;
   context:
     | { kind: "series"; id: string; name: string; slug: string }
     | { kind: "category"; id: string; name: string; slug: string }
@@ -110,6 +126,14 @@ export function formatMemberNotificationContextLine(
     if (name) return `New recipe in ${name}`;
   }
   return "New recipe from something you follow";
+}
+
+/** Q&A notification primary copy — Recipe editorial title only. */
+export function formatRecipeQuestionAnsweredNotificationTitle(
+  recipeTitle: string | null | undefined,
+): string {
+  const title = (recipeTitle || "a recipe").trim() || "a recipe";
+  return `Mesa answered your question on ${title}`;
 }
 
 /** AccountMenu label: "Notifications" or "Notifications (N)" when N > 0. */

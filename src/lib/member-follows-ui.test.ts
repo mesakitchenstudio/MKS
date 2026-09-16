@@ -137,7 +137,7 @@ describe("Phase 8C — Follow control contracts", () => {
 });
 
 describe("Phase 8C — AccountMenu + Following UI", () => {
-  it("AccountMenu Following is gated via server prop; order Profile → Notifications → Following → Meal Planner", () => {
+  it("AccountMenu Following is gated via server prop; order Profile → My Questions → Notifications → Following → Meal Planner", () => {
     const menu = readRepo("src/components/AccountMenu.tsx");
     const layout = readRepo("src/app/layout.tsx");
     const chrome = readRepo("src/components/PublicChrome.tsx");
@@ -153,10 +153,12 @@ describe("Phase 8C — AccountMenu + Following UI", () => {
     assert.match(menu, />\s*Following\s*</);
 
     const profileIdx = menu.indexOf('href="/profile"');
+    const questionsIdx = menu.indexOf('href="/profile/questions"');
     const notificationsIdx = menu.indexOf('href="/profile/notifications"');
     const followingIdx = menu.indexOf('href="/profile/following"');
     const mealIdx = menu.indexOf('href="/profile/meal-planner"');
-    assert.ok(profileIdx > 0 && notificationsIdx > profileIdx);
+    assert.ok(profileIdx > 0 && questionsIdx > profileIdx);
+    assert.ok(notificationsIdx > questionsIdx);
     assert.ok(followingIdx > notificationsIdx);
     assert.ok(mealIdx > followingIdx);
   });

@@ -65,6 +65,7 @@ export const RECIPE_QUESTION_ERRORS = [
   "RECIPE_NOT_PUBLISHED",
   "NOT_EDITABLE",
   "NOT_DELETABLE",
+  "ANSWER_IN_PROGRESS",
   "ANSWER_REQUIRED",
   "REJECTED_TERMINAL",
 ] as const;
@@ -91,6 +92,8 @@ export function recipeQuestionErrorMessage(error: RecipeQuestionError): string {
       return "This question can no longer be edited.";
     case "NOT_DELETABLE":
       return "This question can no longer be deleted.";
+    case "ANSWER_IN_PROGRESS":
+      return "This question is being answered and can no longer be changed.";
     case "ANSWER_REQUIRED":
       return "An official answer is required before publishing.";
     case "REJECTED_TERMINAL":
@@ -114,13 +117,62 @@ export type ProfileRecipeQuestionItem = {
   recipeId: string;
   recipeSlug: string | null;
   recipeTitle: string | null;
+  /** Current Recipe.status when relation exists; null if unexpected. */
+  recipeStatus: string | null;
   body: string;
   status: RecipeQuestionStatus;
-  hasAnswer: boolean;
-  createdAt: Date;
+  /**
+   * Owner-visible Mesa answer. Null while pending (even if Admin drafted),
+   * or when no answer exists. Visible for published and previously-public hidden.
+   */
+  answerBody: string | null;
   answeredAt: Date | null;
   publishedAt: Date | null;
+  createdAt: Date;
+  canEdit: boolean;
+  canDelete: boolean;
 };
+
+/** Member-friendly status labels for Profile Questions. */
+export function formatRecipeQuestionMemberStatusLabel(
+  status: RecipeQuestionStatus,
+): string {
+  switch (status) {
+    case "pending":
+      return "Pending review";
+    case "published":
+      return "Answered";
+    case "hidden":
+      return "Not currently public";
+    case "rejected":
+      return "Not published";
+    default:
+      return status;
+  }
+}
+
+/** Whether the owner may see the official answer in private history. */
+export function shouldRevealRecipeQuestionAnswerToOwner(row: {
+  status: string;
+  publishedAt: Date | null | undefined;
+  answerBody: string | null | undefined;
+}): boolean {
+  const answer = row.answerBody?.trim() || "";
+  if (!answer) return false;
+  if (row.status === "published") return true;
+  // Previously public — answer already appeared on the Recipe page.
+  if (row.status === "hidden" && row.publishedAt) return true;
+  return false;
+}
+
+/** Pending + no staff answer draft → member may edit/delete. */
+export function canMemberMutatePendingRecipeQuestion(row: {
+  status: string;
+  answerBody: string | null | undefined;
+}): boolean {
+  if (row.status !== "pending") return false;
+  return !Boolean(row.answerBody && row.answerBody.trim());
+}
 
 export type AdminRecipeQuestionListItem = {
   id: string;
@@ -239,5 +291,50 @@ export function recipeQuestionSubmitMessage(
     case "FAILED":
     default:
       return "Could not submit your question. Please try again.";
+  }
+}
+
+/** Phase 9E member profile edit/delete action result codes. */
+export const RECIPE_QUESTION_PROFILE_ACTION_STATUSES = [
+  "SUCCESS",
+  "AUTH_REQUIRED",
+  "FEATURE_DISABLED",
+  "NOT_FOUND",
+  "INVALID_STATE",
+  "VALIDATION_ERROR",
+  "ANSWER_IN_PROGRESS",
+  "FAILED",
+] as const;
+
+export type RecipeQuestionProfileActionStatus =
+  (typeof RECIPE_QUESTION_PROFILE_ACTION_STATUSES)[number];
+
+export type RecipeQuestionProfileActionResult =
+  | { ok: true; status: "SUCCESS"; message?: string }
+  | {
+      ok: false;
+      status: Exclude<RecipeQuestionProfileActionStatus, "SUCCESS">;
+      message: string;
+    };
+
+export function recipeQuestionProfileActionMessage(
+  status: Exclude<RecipeQuestionProfileActionStatus, "SUCCESS">,
+): string {
+  switch (status) {
+    case "AUTH_REQUIRED":
+      return "Sign in to manage your questions.";
+    case "FEATURE_DISABLED":
+      return "Recipe Q&A is not available.";
+    case "NOT_FOUND":
+      return "Question not found.";
+    case "INVALID_STATE":
+      return "This question can no longer be changed.";
+    case "VALIDATION_ERROR":
+      return `Questions must be between ${RECIPE_QUESTION_BODY_MIN} and ${RECIPE_QUESTION_BODY_MAX} characters.`;
+    case "ANSWER_IN_PROGRESS":
+      return "Mesa is preparing an answer, so this question can no longer be edited or deleted.";
+    case "FAILED":
+    default:
+      return "Could not update your question. Please try again.";
   }
 }

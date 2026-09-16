@@ -68,8 +68,9 @@ describe("Phase 9D — Admin wiring contracts", () => {
     assert.match(detail, /requireAccess\("content"\)/);
     assert.match(actions, /isRecipeQaEnabled\(\)/);
     assert.match(actions, /requireAccess\("content"\)/);
-    assert.doesNotMatch(actions, /MemberNotification|RECIPE_QUESTION_ANSWERED/);
+    assert.match(actions, /createRecipeQuestionAnsweredNotification/);
     assert.doesNotMatch(actions, /adminId:\s*input/);
+    assert.doesNotMatch(actions, /createRecipeFollowedPublishNotification/);
   });
 
   it("question body is read-only; answer editor is plain textarea", () => {
@@ -108,13 +109,18 @@ describe("Phase 9D — Admin wiring contracts", () => {
     );
   });
 
-  it("no profile questions / notifications / pending badge", () => {
+  it("no Member Home Q&A shelf / pending badge; publish notifies via helper only", () => {
     const accountMenu = readRepo("src/components/AccountMenu.tsx");
-    assert.doesNotMatch(accountMenu, /profile\/questions/);
+    assert.match(accountMenu, /My Questions/);
+    assert.match(accountMenu, /recipeQaEnabled/);
     const shell = readRepo("src/components/admin/AdminShell.tsx");
     assert.doesNotMatch(shell, /countPendingRecipeQuestions/);
     const actions = readRepo("src/app/admin/question-actions.ts");
-    assert.doesNotMatch(actions, /createRecipeFollowedPublishNotification|memberNotification\.create/i);
+    assert.match(actions, /createRecipeQuestionAnsweredNotification/);
+    assert.doesNotMatch(actions, /createRecipeFollowedPublishNotification/);
+    assert.doesNotMatch(actions, /memberNotification\.create/i);
+    const profileHome = readRepo("src/app/profile/page.tsx");
+    assert.doesNotMatch(profileHome, /listRecipeQuestionsForUser|My Questions/);
   });
 
   it("admin filter parser defaults invalid to pending", () => {

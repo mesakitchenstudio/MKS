@@ -26,7 +26,9 @@ import {
   clampRecipeQuestionPublicLimit,
   isPubliclyVisibleRecipeQuestion,
   isRecipeQuestionStatus,
+  canMemberMutatePendingRecipeQuestion,
   recipeQuestionErrorMessage,
+  shouldRevealRecipeQuestionAnswerToOwner,
   type AdminRecipeQuestionListItem,
   type ProfileRecipeQuestionItem,
   type PublicRecipeQuestionItem,
@@ -140,7 +142,7 @@ export async function createRecipeQuestionForUser(input: {
   });
 }
 
-/** Member may edit only own pending questions. */
+/** Member may edit only own pending questions with no staff answer draft. */
 export async function updatePendingRecipeQuestionForUser(input: {
   userId: string;
   questionId: string;
@@ -161,10 +163,13 @@ export async function updatePendingRecipeQuestionForUser(input: {
   const db = getDb();
   const existing = await db.recipeQuestion.findFirst({
     where: { id: questionId, userId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, answerBody: true },
   });
   if (!existing) return fail("NOT_FOUND");
   if (existing.status !== "pending") return fail("NOT_EDITABLE");
+  if (!canMemberMutatePendingRecipeQuestion(existing)) {
+    return fail("ANSWER_IN_PROGRESS");
+  }
 
   const row = await db.recipeQuestion.update({
     where: { id: existing.id },
@@ -174,10 +179,15 @@ export async function updatePendingRecipeQuestionForUser(input: {
   return okData(row);
 }
 
-/** Member may delete only own pending questions. */
+/**
+ * Member may delete only own pending questions with no staff answer draft.
+ * Also refuses during the same-recipe submission cooldown window so delete→resubmit
+ * cannot trivially bypass the 2-minute soft rate guard (no extra schema).
+ */
 export async function deletePendingRecipeQuestionForUser(input: {
   userId: string;
   questionId: string;
+  now?: Date;
 }): Promise<RecipeQuestionActionResult> {
   const userId = input.userId.trim();
   const questionId = input.questionId.trim();
@@ -186,10 +196,24 @@ export async function deletePendingRecipeQuestionForUser(input: {
   const db = getDb();
   const existing = await db.recipeQuestion.findFirst({
     where: { id: questionId, userId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, answerBody: true, createdAt: true },
   });
   if (!existing) return fail("NOT_FOUND");
   if (existing.status !== "pending") return fail("NOT_DELETABLE");
+  if (!canMemberMutatePendingRecipeQuestion(existing)) {
+    return fail("ANSWER_IN_PROGRESS");
+  }
+
+  const now = input.now ?? new Date();
+  if (
+    now.getTime() - existing.createdAt.getTime() <
+    RECIPE_QUESTION_PER_RECIPE_COOLDOWN_MS
+  ) {
+    return fail(
+      "NOT_DELETABLE",
+      "Please wait a moment before deleting a newly submitted question.",
+    );
+  }
 
   await db.recipeQuestion.delete({ where: { id: existing.id } });
   return { ok: true };
@@ -443,22 +467,34 @@ export async function listRecipeQuestionsForUser(input: {
       createdAt: true,
       answeredAt: true,
       publishedAt: true,
-      recipe: { select: { slug: true, title: true } },
+      recipe: { select: { slug: true, title: true, status: true } },
     },
   });
 
-  return rows.map((row) => ({
-    id: row.id,
-    recipeId: row.recipeId,
-    recipeSlug: row.recipe?.slug ?? null,
-    recipeTitle: row.recipe?.title ?? null,
-    body: row.body,
-    status: (isRecipeQuestionStatus(row.status) ? row.status : "pending") as RecipeQuestionStatus,
-    hasAnswer: Boolean(row.answerBody && row.answerBody.trim()),
-    createdAt: row.createdAt,
-    answeredAt: row.answeredAt,
-    publishedAt: row.publishedAt,
-  }));
+  return rows.map((row) => {
+    const status = (
+      isRecipeQuestionStatus(row.status) ? row.status : "pending"
+    ) as RecipeQuestionStatus;
+    const reveal = shouldRevealRecipeQuestionAnswerToOwner(row);
+    const canMutate = canMemberMutatePendingRecipeQuestion(row);
+    const outsideCooldown =
+      Date.now() - row.createdAt.getTime() >= RECIPE_QUESTION_PER_RECIPE_COOLDOWN_MS;
+    return {
+      id: row.id,
+      recipeId: row.recipeId,
+      recipeSlug: row.recipe?.slug ?? null,
+      recipeTitle: row.recipe?.title ?? null,
+      recipeStatus: row.recipe?.status ?? null,
+      body: row.body,
+      status,
+      answerBody: reveal ? row.answerBody : null,
+      answeredAt: reveal ? row.answeredAt : null,
+      publishedAt: row.publishedAt,
+      createdAt: row.createdAt,
+      canEdit: canMutate,
+      canDelete: canMutate && outsideCooldown,
+    };
+  });
 }
 
 /** Admin moderation queue foundation. */

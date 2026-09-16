@@ -436,6 +436,7 @@ describe("Phase 9B — persistence / ownership / admin / reads / lifecycle", () 
     const del = await deletePendingRecipeQuestionForUser({
       userId: userA,
       questionId: pending.data.id,
+      now: new Date(Date.now() + 3 * 60 * 1000),
     });
     assert.equal(del.ok, true);
     assert.equal(

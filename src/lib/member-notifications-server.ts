@@ -1,19 +1,24 @@
 /**
- * Roadmap #8B — trusted MemberNotification persistence helpers.
+ * Roadmap #8B / #9E — trusted MemberNotification persistence helpers.
  *
  * Accept trusted `userId` for composition/tests.
- * Phase 8E public actions MUST derive userId from auth session — never client.
+ * Public actions MUST derive userId from auth session — never client.
  * Publish fan-out (Phase 8D) calls create via member-follow-publish-fanout.ts.
+ * Recipe Q&A answer notifications (Phase 9E) via createRecipeQuestionAnsweredNotification.
  */
 
 import { getDb } from "@/lib/db";
+import { isRecipeQaEnabled } from "@/lib/flags";
 import { readEditorialDishName } from "@/lib/recipe-editor-dish-name";
 import { resolveRecipeCardTitle } from "@/lib/recipe-dish-identity";
+import { buildRecipeQuestionAnsweredDedupeKey } from "@/lib/recipe-questions";
 import {
   MEMBER_NOTIFICATION_LIST_MAX_LIMIT,
   MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH,
+  MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED,
   buildRecipeFollowedPublishDedupeKey,
   clampMemberNotificationListLimit,
+  formatRecipeQuestionAnsweredNotificationTitle,
   memberNotificationErrorMessage,
   normalizeMemberNotificationContext,
   type MemberNotificationActionResult,
@@ -129,6 +134,92 @@ export async function createRecipeFollowedPublishNotificationForUser(
   }
 }
 
+export type CreateRecipeQuestionAnsweredNotificationOutcome =
+  | "created"
+  | "deduped"
+  | "skipped_gate"
+  | "skipped_no_owner"
+  | "skipped_invalid"
+  | "failed";
+
+export type CreateRecipeQuestionAnsweredNotificationResult = {
+  outcome: CreateRecipeQuestionAnsweredNotificationOutcome;
+  id?: string;
+};
+
+/**
+ * Idempotent create for RECIPE_QUESTION_ANSWERED (first public answer).
+ * Call only after editorial publish succeeds. Never rolls back publish.
+ */
+export async function createRecipeQuestionAnsweredNotification(input: {
+  userId: string | null | undefined;
+  questionId: string;
+  recipeId: string;
+}): Promise<CreateRecipeQuestionAnsweredNotificationResult> {
+  if (!isRecipeQaEnabled()) {
+    return { outcome: "skipped_gate" };
+  }
+
+  const userId = typeof input.userId === "string" ? input.userId.trim() : "";
+  if (!userId) return { outcome: "skipped_no_owner" };
+
+  const questionId = String(input.questionId || "").trim();
+  const recipeId = String(input.recipeId || "").trim();
+  if (!questionId || !recipeId) return { outcome: "skipped_invalid" };
+
+  const dedupeKey = buildRecipeQuestionAnsweredDedupeKey(questionId);
+
+  try {
+    const db = getDb();
+    const [user, question, recipe] = await Promise.all([
+      db.user.findUnique({ where: { id: userId }, select: { id: true } }),
+      db.recipeQuestion.findUnique({
+        where: { id: questionId },
+        select: { id: true, recipeId: true },
+      }),
+      db.recipe.findUnique({ where: { id: recipeId }, select: { id: true } }),
+    ]);
+    if (!user) return { outcome: "skipped_no_owner" };
+    if (!recipe) return { outcome: "skipped_invalid" };
+    if (!question || question.recipeId !== recipe.id) {
+      return { outcome: "skipped_invalid" };
+    }
+
+    try {
+      const row = await db.memberNotification.create({
+        data: {
+          userId: user.id,
+          type: MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED,
+          recipeId: recipe.id,
+          recipeQuestionId: question.id,
+          seriesId: null,
+          categoryId: null,
+          dedupeKey,
+        },
+        select: { id: true },
+      });
+      return { outcome: "created", id: row.id };
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        const existing = await db.memberNotification.findUnique({
+          where: { userId_dedupeKey: { userId: user.id, dedupeKey } },
+          select: { id: true },
+        });
+        if (existing) return { outcome: "deduped", id: existing.id };
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error("Recipe Q&A answer notification create failed", {
+      questionId,
+      recipeId,
+      kind: "failed",
+    });
+    void error;
+    return { outcome: "failed" };
+  }
+}
+
 function recipeAvailability(
   recipe: { id: string; status: string } | null,
   recipeId: string | null,
@@ -138,58 +229,108 @@ function recipeAvailability(
   return "unavailable";
 }
 
-function toListItem(row: {
+type NotificationRowForList = {
   id: string;
   type: string;
   createdAt: Date;
   readAt: Date | null;
   recipeId: string | null;
+  recipeQuestionId: string | null;
   recipe: { id: string; slug: string; title: string; status: string; values: string } | null;
+  recipeQuestion: {
+    id: string;
+    status: string;
+    answerBody: string | null;
+  } | null;
   series: { id: string; title: string; slug: string } | null;
   category: { id: string; name: string; slug: string } | null;
-}): MemberNotificationListItem | null {
-  if (row.type !== MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH) return null;
+};
 
-  const availability = recipeAvailability(row.recipe, row.recipeId);
-  // Hide Draft/unpublished and deleted/orphaned from presentation list.
-  if (availability !== "available" || !row.recipe) return null;
+function toListItem(
+  row: NotificationRowForList,
+  options: { recipeQaEnabled: boolean },
+): MemberNotificationListItem | null {
+  if (row.type === MEMBER_NOTIFICATION_TYPE_RECIPE_FOLLOWED_PUBLISH) {
+    const availability = recipeAvailability(row.recipe, row.recipeId);
+    if (availability !== "available" || !row.recipe) return null;
 
-  const dishName = readEditorialDishName(parseValues(row.recipe.values));
-  const recipeTitle = resolveRecipeCardTitle({
-    title: row.recipe.title,
-    dishName,
-  });
+    const dishName = readEditorialDishName(parseValues(row.recipe.values));
+    const recipeTitle = resolveRecipeCardTitle({
+      title: row.recipe.title,
+      dishName,
+    });
 
-  let context: MemberNotificationListItem["context"] = { kind: "none" };
-  if (row.series) {
-    context = {
-      kind: "series",
-      id: row.series.id,
-      name: row.series.title,
-      slug: row.series.slug,
-    };
-  } else if (row.category) {
-    context = {
-      kind: "category",
-      id: row.category.id,
-      name: row.category.name,
-      slug: row.category.slug,
+    let context: MemberNotificationListItem["context"] = { kind: "none" };
+    if (row.series) {
+      context = {
+        kind: "series",
+        id: row.series.id,
+        name: row.series.title,
+        slug: row.series.slug,
+      };
+    } else if (row.category) {
+      context = {
+        kind: "category",
+        id: row.category.id,
+        name: row.category.name,
+        slug: row.category.slug,
+      };
+    }
+
+    return {
+      id: row.id,
+      type: row.type as MemberNotificationType,
+      createdAt: row.createdAt.toISOString(),
+      readAt: row.readAt ? row.readAt.toISOString() : null,
+      unread: row.readAt == null,
+      recipeId: row.recipe.id,
+      recipeAvailability: availability,
+      recipeSlug: row.recipe.slug,
+      recipeTitle,
+      context,
+      recipeQuestionId: null,
     };
   }
 
-  return {
-    id: row.id,
-    type: row.type as MemberNotificationType,
-    createdAt: row.createdAt.toISOString(),
-    readAt: row.readAt ? row.readAt.toISOString() : null,
-    unread: row.readAt == null,
-    recipeId: row.recipe.id,
-    recipeAvailability: availability,
-    recipeSlug: row.recipe.slug,
-    recipeTitle,
-    context,
-  };
+  if (row.type === MEMBER_NOTIFICATION_TYPE_RECIPE_QUESTION_ANSWERED) {
+    if (!options.recipeQaEnabled) return null;
+    const availability = recipeAvailability(row.recipe, row.recipeId);
+    if (availability !== "available" || !row.recipe) return null;
+    if (!row.recipeQuestionId || !row.recipeQuestion) return null;
+    if (row.recipeQuestion.status !== "published") return null;
+    if (!row.recipeQuestion.answerBody?.trim()) return null;
+
+    const dishName = readEditorialDishName(parseValues(row.recipe.values));
+    const recipeTitle = resolveRecipeCardTitle({
+      title: row.recipe.title,
+      dishName,
+    });
+
+    return {
+      id: row.id,
+      type: row.type as MemberNotificationType,
+      createdAt: row.createdAt.toISOString(),
+      readAt: row.readAt ? row.readAt.toISOString() : null,
+      unread: row.readAt == null,
+      recipeId: row.recipe.id,
+      recipeAvailability: availability,
+      recipeSlug: row.recipe.slug,
+      recipeTitle,
+      context: { kind: "none" },
+      recipeQuestionId: row.recipeQuestion.id,
+    };
+  }
+
+  // Unknown / unrenderable types — omit safely (do not crash Notification Center).
+  return null;
 }
+
+const notificationListInclude = {
+  recipe: { select: { id: true, slug: true, title: true, status: true, values: true } },
+  recipeQuestion: { select: { id: true, status: true, answerBody: true } },
+  series: { select: { id: true, title: true, slug: true } },
+  category: { select: { id: true, name: true, slug: true } },
+} as const;
 
 export async function listMemberNotificationsForUser(
   userId: string,
@@ -198,22 +339,19 @@ export async function listMemberNotificationsForUser(
   if (!userId.trim()) return [];
   const limit = clampMemberNotificationListLimit(options?.limit);
   const db = getDb();
+  const recipeQaEnabled = isRecipeQaEnabled();
 
-  // Over-fetch slightly so hidden Draft/orphan rows can be skipped while still filling limit.
+  // Over-fetch so hidden Draft/orphan/dormant Q&A rows can be skipped while filling limit.
   const rows = await db.memberNotification.findMany({
     where: { userId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: Math.min(limit * 3, MEMBER_NOTIFICATION_LIST_MAX_LIMIT * 2),
-    include: {
-      recipe: { select: { id: true, slug: true, title: true, status: true, values: true } },
-      series: { select: { id: true, title: true, slug: true } },
-      category: { select: { id: true, name: true, slug: true } },
-    },
+    include: notificationListInclude,
   });
 
   const out: MemberNotificationListItem[] = [];
   for (const row of rows) {
-    const item = toListItem(row);
+    const item = toListItem(row, { recipeQaEnabled });
     if (!item) continue;
     out.push(item);
     if (out.length >= limit) break;
@@ -221,18 +359,31 @@ export async function listMemberNotificationsForUser(
   return out;
 }
 
-/** Unread count among rows that would be visible (Published recipe still present). */
+/**
+ * Unread count among rows that would be visible in Notification Center.
+ * Must stay in lockstep with list visibility (including Q&A gate + question state).
+ */
 export async function countUnreadMemberNotificationsForUser(userId: string): Promise<number> {
   if (!userId.trim()) return 0;
   const db = getDb();
-  return db.memberNotification.count({
+  const recipeQaEnabled = isRecipeQaEnabled();
+
+  const rows = await db.memberNotification.findMany({
     where: {
       userId,
       readAt: null,
-      recipeId: { not: null },
-      recipe: { status: "published" },
     },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: MEMBER_NOTIFICATION_LIST_MAX_LIMIT * 2,
+    include: notificationListInclude,
   });
+
+  let count = 0;
+  for (const row of rows) {
+    const item = toListItem(row, { recipeQaEnabled });
+    if (item) count += 1;
+  }
+  return count;
 }
 
 export async function markMemberNotificationReadForUser(
@@ -267,6 +418,11 @@ export async function markMemberNotificationReadForUser(
   return ok();
 }
 
+/**
+ * Marks all unread rows for the member (including currently hidden/dormant).
+ * Matches #8 semantics — does not filter by presentation visibility.
+ * Visible unread Q&A rows become read; AccountMenu count updates on next fetch.
+ */
 export async function markAllMemberNotificationsReadForUser(
   userId: string,
 ): Promise<MemberNotificationActionResult<{ updated: number }>> {
@@ -279,4 +435,9 @@ export async function markAllMemberNotificationsReadForUser(
     data: { readAt: new Date() },
   });
   return okData({ updated: result.count });
+}
+
+/** Exported for tests — presentation title helper re-export path. */
+export function buildRecipeQuestionAnsweredNotificationCopy(recipeTitle: string | null) {
+  return formatRecipeQuestionAnsweredNotificationTitle(recipeTitle);
 }

@@ -30,9 +30,11 @@ const triggerFocus =
 export function AccountMenu({
   mealPlannerEnabled = false,
   memberFollowsEnabled = false,
+  recipeQaEnabled = false,
 }: {
   mealPlannerEnabled?: boolean;
   memberFollowsEnabled?: boolean;
+  recipeQaEnabled?: boolean;
 }) {
   const { data, status } = useSession();
   const pathname = usePathname();
@@ -46,12 +48,14 @@ export function AccountMenu({
   const onNotifications = pathname.startsWith("/profile/notifications");
   const onFollowing = pathname.startsWith("/profile/following");
   const onMealPlanner = pathname.startsWith("/profile/meal-planner");
+  const onQuestions = pathname.startsWith("/profile/questions");
   const onProfile =
     pathname === "/profile" ||
     (pathname.startsWith("/profile/") &&
       !onFollowing &&
       !onMealPlanner &&
-      !onNotifications);
+      !onNotifications &&
+      !onQuestions);
   useEffect(() => {
     function sync() {
       setLocalUser(readSession());
@@ -225,6 +229,17 @@ export function AccountMenu({
               >
                 Profile
               </Link>
+              {recipeQaEnabled ? (
+                <Link
+                  href="/profile/questions"
+                  role="menuitem"
+                  aria-current={onQuestions ? "page" : undefined}
+                  className={`${menuItemClass} ${onQuestions ? menuItemActiveClass : ""}`}
+                  onClick={() => setOpen(false)}
+                >
+                  My Questions
+                </Link>
+              ) : null}
               {memberFollowsEnabled ? (
                 <Link
                   href="/profile/notifications"

@@ -100,10 +100,12 @@ describe("Phase 8E — route / actions / AccountMenu contracts", () => {
     assert.doesNotMatch(menu, /process\.env\.MEMBER_FOLLOWS|NEXT_PUBLIC_MEMBER_FOLLOWS/);
 
     const profileIdx = menu.indexOf('href="/profile"');
+    const questionsIdx = menu.indexOf('href="/profile/questions"');
     const notificationsIdx = menu.indexOf('href="/profile/notifications"');
     const followingIdx = menu.indexOf('href="/profile/following"');
     const mealIdx = menu.indexOf('href="/profile/meal-planner"');
-    assert.ok(profileIdx > 0 && notificationsIdx > profileIdx);
+    assert.ok(profileIdx > 0 && questionsIdx > profileIdx);
+    assert.ok(notificationsIdx > questionsIdx);
     assert.ok(followingIdx > notificationsIdx);
     assert.ok(mealIdx > followingIdx);
 

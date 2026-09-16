@@ -89,13 +89,14 @@ describe("Phase 9C — UI wiring contracts", () => {
     assert.doesNotMatch(actions, /MemberNotification|RECIPE_QUESTION_ANSWERED/);
   });
 
-  it("no Q&A structured data / profile / admin / notifications / search", () => {
+  it("no Q&A structured data / Member Home shelf / search; AccountMenu gated separately", () => {
     const schema = readRepo("src/lib/schema.ts");
     assert.doesNotMatch(schema, /FAQPage|QAPage|@type:\s*"Question"|@type:\s*"Answer"/);
     const section = readRepo("src/components/recipe/RecipeQuestionsSection.tsx");
     assert.doesNotMatch(section, /JsonLd|FAQPage|QAPage/);
     const accountMenu = readRepo("src/components/AccountMenu.tsx");
-    assert.doesNotMatch(accountMenu, /profile\/questions/);
+    assert.match(accountMenu, /recipeQaEnabled/);
+    assert.match(accountMenu, /profile\/questions/);
     const adminShell = readRepo("src/components/admin/AdminShell.tsx");
     assert.doesNotMatch(adminShell, /admin\/questions/);
   });
@@ -253,7 +254,9 @@ describe("Phase 9C — submit domain helpers", () => {
   });
 
   it("rate limit: per-recipe cooldown, global daily, independent users", async () => {
-    const now = new Date("2026-09-16T12:00:00.000Z");
+    // Use wall-clock `now` so earlier suite rows with real timestamps cannot
+    // outrank the intentionally stamped question in findFirst(orderBy createdAt desc).
+    const now = new Date();
 
     const first = await createRecipeQuestionForUser({
       userId: userA,

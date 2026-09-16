@@ -32,10 +32,12 @@ function primaryMegaLabel(slug: string) {
 export function SiteHeader({
   mealPlannerEnabled = false,
   memberFollowsEnabled = false,
+  recipeQaEnabled = false,
   primaryCategories,
 }: {
   mealPlannerEnabled?: boolean;
   memberFollowsEnabled?: boolean;
+  recipeQaEnabled?: boolean;
   /** Populated primary categories only — hides empty Drinks/Condiments at launch. */
   primaryCategories?: PublicPrimaryCategoryLink[];
 }) {
@@ -229,6 +231,7 @@ export function SiteHeader({
           <AccountMenu
             mealPlannerEnabled={mealPlannerEnabled}
             memberFollowsEnabled={memberFollowsEnabled}
+            recipeQaEnabled={recipeQaEnabled}
           />
           <button
             type="button"

@@ -5,6 +5,7 @@ import { actorFromAdminSession, recordAdminAuditEvent } from "@/lib/admin-audit"
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { isRecipeQaEnabled } from "@/lib/flags";
+import { createRecipeQuestionAnsweredNotification } from "@/lib/member-notifications-server";
 import {
   hideRecipeQuestion,
   publishRecipeQuestion,
@@ -66,6 +67,7 @@ async function loadQuestionContext(questionId: string) {
     select: {
       id: true,
       recipeId: true,
+      userId: true,
       status: true,
       answerBody: true,
       answeredAt: true,
@@ -199,6 +201,7 @@ export async function publishRecipeQuestionAction(input: {
     }
 
     const previousStatus = existing.status;
+    const wasFirstPublicPublication = existing.publishedAt == null;
     const result = await publishRecipeQuestion({ questionId: existing.id });
     if (!result.ok) {
       if (result.error === "ANSWER_REQUIRED") {
@@ -234,6 +237,35 @@ export async function publishRecipeQuestionAction(input: {
 
     revalidateAdminQuestion(existing.id);
     revalidatePublicRecipe(existing.recipe.slug);
+
+    // Best-effort member notification AFTER editorial success — first public only.
+    if (
+      wasFirstPublicPublication &&
+      previousStatus !== "published" &&
+      existing.answerBody?.trim()
+    ) {
+      try {
+        const notify = await createRecipeQuestionAnsweredNotification({
+          userId: existing.userId,
+          questionId: existing.id,
+          recipeId: existing.recipeId,
+        });
+        if (notify.outcome === "failed") {
+          console.error("Recipe Q&A answer notification failed after publish", {
+            questionId: existing.id,
+            recipeId: existing.recipeId,
+            outcome: notify.outcome,
+          });
+        }
+      } catch (error) {
+        console.error("Recipe Q&A answer notification failed after publish", {
+          questionId: existing.id,
+          recipeId: existing.recipeId,
+        });
+        void error;
+      }
+    }
+
     return ok("Question published.");
   } catch (error) {
     console.error("Admin recipe question publish failed", error);

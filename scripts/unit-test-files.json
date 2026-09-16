@@ -2,6 +2,7 @@
   "src/lib/recipe-questions.test.ts",
   "src/lib/recipe-questions-ui.test.ts",
   "src/lib/recipe-questions-admin.test.ts",
+  "src/lib/recipe-questions-profile.test.ts",
   "src/lib/member-follows-notifications.test.ts",
   "src/lib/member-follow-publish-fanout.test.ts",
   "src/lib/member-follows-ui.test.ts",
