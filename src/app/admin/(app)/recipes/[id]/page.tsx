@@ -8,6 +8,7 @@ import { ensureRecipeTypeCorrections } from "@/lib/ensure-recipe-type-correction
 import { parseValues } from "@/lib/recipe-map";
 import { parseRelatedRecipeIds } from "@/lib/recipe-related-overrides";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
+import { isRecipeStepTimestampsEnabled } from "@/lib/flags";
 
 export async function generateMetadata({
   params,
@@ -71,6 +72,7 @@ export default async function EditRecipePage({
       typeName={recipe.type.name}
       recipeTypes={recipeTypes}
       relatedCandidates={relatedCandidates}
+      stepTimestampsEnabled={isRecipeStepTimestampsEnabled()}
       saved={Boolean(saved)}
       restored={Boolean(restored)}
       scheduledNotice={
@@ -86,6 +88,8 @@ export default async function EditRecipePage({
             ? decodeURIComponent(String(detail))
             : error === "chapters" && detail
             ? decodeURIComponent(String(detail))
+            : error === "step-timestamps" && detail
+              ? decodeURIComponent(String(detail))
             : error === "public-update"
               ? detail
                 ? decodeURIComponent(String(detail))

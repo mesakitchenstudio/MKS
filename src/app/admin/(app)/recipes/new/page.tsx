@@ -4,6 +4,7 @@ import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
+import { isRecipeStepTimestampsEnabled } from "@/lib/flags";
 
 export default async function NewRecipePage({
   searchParams,
@@ -36,6 +37,7 @@ export default async function NewRecipePage({
       typeName={recipeType.name}
       recipeTypes={recipeTypes}
       relatedCandidates={relatedCandidates}
+      stepTimestampsEnabled={isRecipeStepTimestampsEnabled()}
       serverError={
         error === "public-update"
           ? detail
@@ -47,7 +49,9 @@ export default async function NewRecipePage({
               : "Publishing readiness checks failed."
             : error === "chapters" && detail
               ? decodeURIComponent(String(detail))
-              : undefined
+              : error === "step-timestamps" && detail
+                ? decodeURIComponent(String(detail))
+                : undefined
       }
       fields={recipeType.fields.map((field) => ({
         ...field,

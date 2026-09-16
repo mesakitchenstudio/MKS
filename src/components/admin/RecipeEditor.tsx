@@ -145,6 +145,12 @@ import {
   type InstructionChapterValidationIssue,
 } from "@/lib/instruction-chapters";
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
+import {
+  clearStepVideoTimestamps,
+  getCanonicalRecipeVideoIdFromValues,
+  getStepTimestampBindingState,
+  hasStepVideoTimestamps,
+} from "@/lib/step-video-timestamps";
 import { youtubeVideoId } from "@/lib/youtube";
 import {
   parseTimestampInput,
@@ -523,6 +529,7 @@ export function RecipeEditor({
   aiNotice,
   serverError,
   scheduledNotice,
+  stepTimestampsEnabled = false,
 }: {
   recipeId?: string;
   typeId: string;
@@ -551,11 +558,13 @@ export function RecipeEditor({
   aiNotice?: string;
   serverError?: string;
   scheduledNotice?: "scheduled" | "cleared";
+  stepTimestampsEnabled?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLInputElement>(null);
   const scheduleIntentRef = useRef<HTMLInputElement>(null);
   const scheduleLocalRef = useRef<HTMLInputElement>(null);
+  const stepTimestampsIntentRef = useRef<HTMLInputElement>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const sectionNavRef = useRef<HTMLElement>(null);
   const headerSentinelRef = useRef<HTMLDivElement>(null);
@@ -1465,6 +1474,68 @@ export function RecipeEditor({
       canonicalChaptersActive: hasCanonicalInstructionChapters(groups),
     };
   }, [values.instructions, values.youtube]);
+
+  const stepTimestampEditorContext = useMemo(() => {
+    if (!stepTimestampsEnabled) {
+      return {
+        bindingState: "none" as const,
+        editable: false,
+        currentVideoId: null as string | null,
+      };
+    }
+    const youtubeBlob =
+      serializeYoutubeMetadataEditorState(
+        (values.youtube as YoutubeMetadataEditorState) ??
+          youtubeMetadataToEditorState(undefined),
+      ) ?? {};
+    const snapshot = {
+      instructions: values.instructions,
+      youtube: youtubeBlob,
+      youtubeUrl: values.youtubeUrl,
+    };
+    const bindingState = getStepTimestampBindingState(snapshot);
+    const currentVideoId = getCanonicalRecipeVideoIdFromValues(snapshot);
+    const editable =
+      Boolean(currentVideoId) && (bindingState === "active" || bindingState === "none");
+    return { bindingState, editable, currentVideoId };
+  }, [stepTimestampsEnabled, values.instructions, values.youtube, values.youtubeUrl]);
+
+  function handleReconfirmStepTimestamps() {
+    if (!stepTimestampsEnabled) return;
+    const videoId = stepTimestampEditorContext.currentVideoId;
+    if (!videoId || !hasStepVideoTimestamps(values.instructions)) return;
+    const state =
+      (values.youtube as YoutubeMetadataEditorState) ?? youtubeMetadataToEditorState(undefined);
+    setField("youtube", {
+      ...state,
+      preserved: { ...state.preserved, stepTimestampsVideoId: videoId },
+    });
+    if (stepTimestampsIntentRef.current) stepTimestampsIntentRef.current.value = "reconfirm";
+  }
+
+  function handleClearStepTimestamps() {
+    if (!stepTimestampsEnabled) return;
+    if (
+      !window.confirm(
+        "Remove all per-step video timestamps from this recipe? Section chapter timestamps will not be removed.",
+      )
+    ) {
+      return;
+    }
+    const youtubeBlob =
+      serializeYoutubeMetadataEditorState(
+        (values.youtube as YoutubeMetadataEditorState) ??
+          youtubeMetadataToEditorState(undefined),
+      ) ?? {};
+    const cleared = clearStepVideoTimestamps({
+      instructions: values.instructions,
+      youtube: youtubeBlob,
+      youtubeUrl: values.youtubeUrl,
+    });
+    setField("instructions", cleared.instructions);
+    setField("youtube", youtubeMetadataToEditorState(cleared.youtube ?? {}));
+    if (stepTimestampsIntentRef.current) stepTimestampsIntentRef.current.value = "clear";
+  }
 
   function handleInstructionChapterFieldChange(
     groupIndex: number,
@@ -2389,6 +2460,11 @@ export function RecipeEditor({
             onApplyChapterSuggestions={handleApplyChapterSuggestions}
             recipeId={recipeId}
             isDirty={isDirty && !saved}
+            stepTimestampsEnabled={stepTimestampsEnabled}
+            stepTimestampBindingState={stepTimestampEditorContext.bindingState}
+            stepTimestampsEditable={stepTimestampEditorContext.editable}
+            onReconfirmStepTimestamps={handleReconfirmStepTimestamps}
+            onClearStepTimestamps={handleClearStepTimestamps}
           />
         ) : (
           <KindInput
@@ -2699,6 +2775,12 @@ export function RecipeEditor({
         <input type="hidden" name="id" value={recipeId || ""} />
         <input ref={statusRef} type="hidden" name="status" value={status} />
         <input ref={scheduleIntentRef} type="hidden" name="scheduleIntent" defaultValue="" />
+        <input
+          ref={stepTimestampsIntentRef}
+          type="hidden"
+          name="stepTimestampsIntent"
+          defaultValue=""
+        />
         <input
           ref={scheduleLocalRef}
           type="hidden"

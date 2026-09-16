@@ -358,3 +358,215 @@ export function withAppendedInstructionStep(
 ): InstructionGroup {
   return withInsertedInstructionStep(group, group.steps.length, stepText);
 }
+
+/** Set/clear one step's video timestamp (seconds). Clears array+field when none remain. */
+export function withStepVideoTimestampSeconds(
+  group: InstructionGroup,
+  stepIndex: number,
+  seconds: number | null,
+): InstructionGroup {
+  if (stepIndex < 0 || stepIndex >= group.steps.length) return group;
+  const next: InstructionGroup = { ...group };
+  if (seconds == null) {
+    if (!group.stepVideoTimestamps?.length) {
+      delete next.stepVideoTimestamps;
+      return next;
+    }
+    const padded = padToLength(group.stepVideoTimestamps, group.steps.length);
+    padded[stepIndex] = null;
+    const aligned = alignStepVideoTimestamps(padded, group.steps.length);
+    if (aligned) next.stepVideoTimestamps = aligned;
+    else delete next.stepVideoTimestamps;
+    return next;
+  }
+  const normalized = normalizeStepVideoTimestampSeconds(seconds);
+  if (normalized == null) return group;
+  const padded = padToLength(group.stepVideoTimestamps, group.steps.length);
+  padded[stepIndex] = normalized;
+  next.stepVideoTimestamps = alignStepVideoTimestamps(padded, group.steps.length);
+  return next;
+}
+
+/** Stable fingerprint of per-step timestamp payloads (for mutation detection). */
+export function stepVideoTimestampsFingerprint(
+  instructions: InstructionGroup[] | unknown,
+): string {
+  if (!Array.isArray(instructions)) return "";
+  return JSON.stringify(
+    instructions.map((group) => {
+      if (!group || typeof group !== "object") return [];
+      const stamps = (group as InstructionGroup).stepVideoTimestamps;
+      if (!Array.isArray(stamps)) return [];
+      return stamps.map((t) => normalizeStepVideoTimestampSeconds(t));
+    }),
+  );
+}
+
+/**
+ * True when a raw slot is present but not a valid persisted timestamp.
+ * Empty / null / undefined are allowed (no timestamp).
+ */
+export function isInvalidStepVideoTimestampInput(value: unknown): boolean {
+  if (value == null || value === "") return false;
+  return normalizeStepVideoTimestampSeconds(value) == null;
+}
+
+export function findInvalidStepVideoTimestampInputs(
+  instructions: InstructionGroup[] | unknown,
+): Array<{ groupIndex: number; stepIndex: number }> {
+  const issues: Array<{ groupIndex: number; stepIndex: number }> = [];
+  if (!Array.isArray(instructions)) return issues;
+  instructions.forEach((group, groupIndex) => {
+    if (!group || typeof group !== "object") return;
+    const stamps = (group as InstructionGroup).stepVideoTimestamps;
+    if (!Array.isArray(stamps)) return;
+    stamps.forEach((value, stepIndex) => {
+      if (isInvalidStepVideoTimestampInput(value)) {
+        issues.push({ groupIndex, stepIndex });
+      }
+    });
+  });
+  return issues;
+}
+
+export type StepTimestampsSaveIntent = "" | "reconfirm" | "clear";
+
+export type ApplyStepVideoTimestampsOnSaveResult =
+  | { ok: true; values: Record<string, unknown> }
+  | { ok: false; error: string; values: Record<string, unknown> };
+
+/**
+ * Server-authoritative #10 save policy.
+ * Never silently rebinds timestamps to a replaced video ID.
+ */
+export function applyStepVideoTimestampsOnSave(input: {
+  previousValues: Record<string, unknown> | null | undefined;
+  nextValues: Record<string, unknown>;
+  intent?: StepTimestampsSaveIntent | string | null;
+  featureEnabled: boolean;
+}): ApplyStepVideoTimestampsOnSaveResult {
+  const previous = input.previousValues ?? {};
+  let next: Record<string, unknown> = { ...input.nextValues };
+  const intent = String(input.intent ?? "").trim() as StepTimestampsSaveIntent;
+
+  // Always start from previous binding — ignore arbitrary client binding writes.
+  const previousBinding = getStepTimestampsVideoIdFromValues(previous);
+  next = withStepTimestampsVideoBinding(next, previousBinding);
+
+  if (!input.featureEnabled) {
+    if (!hasStepVideoTimestamps(previous.instructions)) {
+      next = clearStepVideoTimestamps(next);
+    }
+    // Co-mutated timestamps from step edits may remain when previous had data.
+    next = withStepTimestampsVideoBinding(next, previousBinding);
+    return { ok: true, values: next };
+  }
+
+  if (intent === "clear") {
+    return { ok: true, values: clearStepVideoTimestamps(next) };
+  }
+
+  const invalid = findInvalidStepVideoTimestampInputs(next.instructions);
+  if (invalid.length) {
+    return {
+      ok: false,
+      error: "One or more step video timestamps are invalid. Use a time such as 1:42 or 1:02:05.",
+      values: next,
+    };
+  }
+
+  // Normalize arrays onto instruction groups (defensive).
+  if (Array.isArray(next.instructions)) {
+    next = {
+      ...next,
+      instructions: (next.instructions as InstructionGroup[]).map((group) => {
+        if (!group || typeof group !== "object") return group;
+        const aligned = alignStepVideoTimestamps(
+          group.stepVideoTimestamps,
+          Array.isArray(group.steps) ? group.steps.length : 0,
+        );
+        const copy = { ...group };
+        if (aligned) copy.stepVideoTimestamps = aligned;
+        else delete copy.stepVideoTimestamps;
+        return copy;
+      }),
+    };
+  }
+
+  const prevHas = hasStepVideoTimestamps(previous.instructions);
+  const nextHas = hasStepVideoTimestamps(next.instructions);
+  const stampsChanged =
+    stepVideoTimestampsFingerprint(previous.instructions) !==
+    stepVideoTimestampsFingerprint(next.instructions);
+  const currentVideoId = getCanonicalRecipeVideoIdFromValues(next);
+
+  if (intent === "reconfirm") {
+    if (!nextHas) {
+      return {
+        ok: false,
+        error: "Reconfirm requires at least one step video timestamp.",
+        values: next,
+      };
+    }
+    if (!currentVideoId) {
+      return {
+        ok: false,
+        error: "Add a Recipe video before confirming step timestamps.",
+        values: next,
+      };
+    }
+    if (stampsChanged) {
+      return {
+        ok: false,
+        error: "Confirm the current video before editing step timestamps, or clear them first.",
+        values: next,
+      };
+    }
+    next = withStepTimestampsVideoBinding(next, currentVideoId);
+    return { ok: true, values: next };
+  }
+
+  if (!nextHas) {
+    // Last timestamp removed (or never present) — drop binding.
+    next = withStepTimestampsVideoBinding(next, null);
+    return { ok: true, values: next };
+  }
+
+  if (!stampsChanged) {
+    // Retention: keep previous binding even if video changed (mismatch / missing_video).
+    return { ok: true, values: next };
+  }
+
+  // Timestamp mutation path.
+  if (!currentVideoId) {
+    return {
+      ok: false,
+      error: "Add a Recipe video before adding or editing step timestamps.",
+      values: next,
+    };
+  }
+
+  const bindingForCurrent = getStepTimestampsVideoIdFromValues(next);
+  const activeForCurrent =
+    bindingForCurrent != null && bindingForCurrent === currentVideoId;
+
+  if (!prevHas) {
+    // First genuine authoring — safe auto-bind.
+    next = withStepTimestampsVideoBinding(next, currentVideoId);
+    return { ok: true, values: next };
+  }
+
+  if (!activeForCurrent) {
+    // unbound or mismatch — mutation blocked without explicit reconfirm.
+    return {
+      ok: false,
+      error:
+        "Step timestamps are inactive for the current video. Reconfirm for the current video or clear them before editing.",
+      values: next,
+    };
+  }
+
+  // Active mapping — allow edits; keep binding.
+  next = withStepTimestampsVideoBinding(next, currentVideoId);
+  return { ok: true, values: next };
+}

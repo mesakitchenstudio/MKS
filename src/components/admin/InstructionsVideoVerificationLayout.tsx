@@ -78,6 +78,11 @@ type Props = {
   }) => void;
   recipeId?: string;
   isDirty?: boolean;
+  stepTimestampsEnabled?: boolean;
+  stepTimestampBindingState?: import("@/lib/step-video-timestamps").StepTimestampBindingState;
+  stepTimestampsEditable?: boolean;
+  onReconfirmStepTimestamps?: () => void;
+  onClearStepTimestamps?: () => void;
 };
 
 function VideoPanelRestoreButton() {
@@ -124,6 +129,11 @@ function InstructionsVideoVerificationBody({
   handleSetStartFromPlayhead,
   handleSetEndFromPlayhead,
   endPlayheadFeedbackByGroup,
+  stepTimestampsEnabled = false,
+  stepTimestampBindingState = "none",
+  stepTimestampsEditable = false,
+  onReconfirmStepTimestamps,
+  onClearStepTimestamps,
 }: {
   groups: InstructionGroupWithChapters[];
   onInstructionsChange: (next: InstructionGroupWithChapters[]) => void;
@@ -152,6 +162,11 @@ function InstructionsVideoVerificationBody({
   handleSetStartFromPlayhead: (groupIndex: number, seconds: number) => void;
   handleSetEndFromPlayhead: (groupIndex: number, seconds: number) => void;
   endPlayheadFeedbackByGroup: Record<number, string>;
+  stepTimestampsEnabled?: boolean;
+  stepTimestampBindingState?: Props["stepTimestampBindingState"];
+  stepTimestampsEditable?: boolean;
+  onReconfirmStepTimestamps?: () => void;
+  onClearStepTimestamps?: () => void;
 }) {
   const { videoPanelVisible } = useInstructionVideoWorkspace();
 
@@ -207,6 +222,11 @@ function InstructionsVideoVerificationBody({
           onSetStartFromPlayhead={handleSetStartFromPlayhead}
           onSetEndFromPlayhead={handleSetEndFromPlayhead}
           endPlayheadFeedbackByGroup={endPlayheadFeedbackByGroup}
+          stepTimestampsEnabled={stepTimestampsEnabled}
+          stepTimestampBindingState={stepTimestampBindingState}
+          stepTimestampsEditable={stepTimestampsEditable}
+          onReconfirmStepTimestamps={onReconfirmStepTimestamps}
+          onClearStepTimestamps={onClearStepTimestamps}
         />
       </div>
     </div>
@@ -246,6 +266,11 @@ export function InstructionsVideoVerificationLayout({
   onApplyChapterSuggestions,
   recipeId,
   isDirty = false,
+  stepTimestampsEnabled = false,
+  stepTimestampBindingState = "none",
+  stepTimestampsEditable = false,
+  onReconfirmStepTimestamps,
+  onClearStepTimestamps,
 }: Props) {
   const groups = useMemo(
     () => normalizeInstructionGroups(values.instructions),
@@ -436,6 +461,11 @@ export function InstructionsVideoVerificationLayout({
         handleSetStartFromPlayhead={handleSetStartFromPlayhead}
         handleSetEndFromPlayhead={handleSetEndFromPlayhead}
         endPlayheadFeedbackByGroup={endPlayheadFeedbackByGroup}
+        stepTimestampsEnabled={stepTimestampsEnabled}
+        stepTimestampBindingState={stepTimestampBindingState}
+        stepTimestampsEditable={stepTimestampsEditable}
+        onReconfirmStepTimestamps={onReconfirmStepTimestamps}
+        onClearStepTimestamps={onClearStepTimestamps}
       />
     </InstructionVideoWorkspaceProvider>
   );

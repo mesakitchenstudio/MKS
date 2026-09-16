@@ -77,6 +77,8 @@ import {
 import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { parseValues } from "@/lib/recipe-map";
 import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
+import { applyStepVideoTimestampsOnSave } from "@/lib/step-video-timestamps";
+import { isRecipeStepTimestampsEnabled } from "@/lib/flags";
 import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
@@ -797,6 +799,24 @@ export async function saveRecipeAction(formData: FormData) {
   } catch (error) {
     console.error("Could not enrich YouTube chapters from video description", error);
   }
+
+  const previousValuesForTimestamps = existing ? parseValues(existing.values) : {};
+  const stepTimestampsIntent = String(formData.get("stepTimestampsIntent") || "").trim();
+  const stepTimestampsApply = applyStepVideoTimestampsOnSave({
+    previousValues: previousValuesForTimestamps,
+    nextValues: values,
+    intent: stepTimestampsIntent,
+    featureEnabled: isRecipeStepTimestampsEnabled(),
+  });
+  if (!stepTimestampsApply.ok) {
+    const detail = encodeURIComponent(stepTimestampsApply.error);
+    redirect(
+      id
+        ? `/admin/recipes/${id}?error=step-timestamps&detail=${detail}`
+        : `/admin/recipes/new?type=${typeId}&error=step-timestamps&detail=${detail}`,
+    );
+  }
+  Object.assign(values, stepTimestampsApply.values);
 
   const aiMetaRaw = String(formData.get("aiMeta") || "{}");
   let aiMeta = "{}";

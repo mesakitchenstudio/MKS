@@ -543,13 +543,14 @@ describe("Roadmap #10B — revision / content hash", () => {
 });
 
 describe("Roadmap #10B — no UI / prisma / player scope leak", () => {
-  it("does not add Admin timestamp input or public Watch-at UI in 10B", () => {
-    const accordion = read("components/admin/InstructionsAccordionEditor.tsx");
-    assert.doesNotMatch(accordion, /stepVideoTimestamps.*input|Video timestamp/i);
+  it("does not add public Watch-at UI or ungated Admin fields in foundation phase contracts", () => {
     const card = read("components/RecipeCard.tsx");
     assert.doesNotMatch(card, /stepVideoTimestamps/);
     const cook = read("components/cooking/CookingMode.tsx");
     assert.doesNotMatch(cook, /stepVideoTimestamps/);
+    // Admin fields are gated by stepTimestampsEnabled (added in 10C).
+    const accordion = read("components/admin/InstructionsAccordionEditor.tsx");
+    assert.match(accordion, /stepTimestampsEnabled/);
   });
 
   it("does not change Prisma schema", () => {

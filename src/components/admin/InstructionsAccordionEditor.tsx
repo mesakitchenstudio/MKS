@@ -41,9 +41,12 @@ import {
   timerSecondsToMinutes,
 } from "@/lib/instruction-step";
 import {
+  MAX_STEP_VIDEO_TIMESTAMP_SECONDS,
   withAppendedInstructionStep,
   withMovedInstructionStep,
   withRemovedInstructionStep,
+  withStepVideoTimestampSeconds,
+  type StepTimestampBindingState,
 } from "@/lib/step-video-timestamps";
 import { recipeGranularAnchorId } from "@/lib/recipe-editor-field-anchor";
 import { adminFocusRing, adminInputClass } from "@/lib/admin-ui";
@@ -256,6 +259,11 @@ export function InstructionsAccordionEditor({
   onClearStartTimestamp,
   onClearEndTimestamp,
   endPlayheadFeedbackByGroup = {},
+  stepTimestampsEnabled = false,
+  stepTimestampBindingState = "none",
+  stepTimestampsEditable = false,
+  onReconfirmStepTimestamps,
+  onClearStepTimestamps,
 }: {
   groups: InstructionGroupWithChapters[];
   onChange: (value: unknown) => void;
@@ -295,6 +303,11 @@ export function InstructionsAccordionEditor({
   onClearStartTimestamp?: (groupIndex: number) => void;
   onClearEndTimestamp?: (groupIndex: number) => void;
   endPlayheadFeedbackByGroup?: Record<number, string>;
+  stepTimestampsEnabled?: boolean;
+  stepTimestampBindingState?: StepTimestampBindingState;
+  stepTimestampsEditable?: boolean;
+  onReconfirmStepTimestamps?: () => void;
+  onClearStepTimestamps?: () => void;
 }) {
   const videoWorkspace = useInstructionVideoWorkspaceOptional();
 
@@ -306,6 +319,8 @@ export function InstructionsAccordionEditor({
   const [endInputDrafts, setEndInputDrafts] = useState<Record<number, string>>({});
   const [startInputErrors, setStartInputErrors] = useState<Record<number, string>>({});
   const [endInputErrors, setEndInputErrors] = useState<Record<number, string>>({});
+  const [stepVideoDrafts, setStepVideoDrafts] = useState<Record<string, string>>({});
+  const [stepVideoErrors, setStepVideoErrors] = useState<Record<string, string>>({});
 
   const totalSteps = useMemo(
     () => groups.reduce((sum, group) => sum + group.steps.length, 0),
@@ -412,6 +427,63 @@ export function InstructionsAccordionEditor({
     patchGroup(groupIndex, { endTimestamp: parsed });
   }
 
+  function stepVideoKey(groupIndex: number, stepIndex: number) {
+    return `${groupIndex}:${stepIndex}`;
+  }
+
+  function stepVideoDisplayValue(groupIndex: number, stepIndex: number, seconds: number | null | undefined) {
+    const key = stepVideoKey(groupIndex, stepIndex);
+    if (stepVideoDrafts[key] !== undefined) return stepVideoDrafts[key]!;
+    if (seconds != null && Number.isInteger(seconds) && seconds >= 0) {
+      return formatTimestampInput(seconds);
+    }
+    return "";
+  }
+
+  function updateStepVideoTimestamp(groupIndex: number, stepIndex: number, raw: string) {
+    if (!stepTimestampsEditable) return;
+    const key = stepVideoKey(groupIndex, stepIndex);
+    setStepVideoDrafts((current) => ({ ...current, [key]: raw }));
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setStepVideoErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      const next = [...groups];
+      next[groupIndex] = withStepVideoTimestampSeconds(groups[groupIndex]!, stepIndex, null);
+      onChange(next);
+      setStepVideoDrafts((current) => {
+        const nextDrafts = { ...current };
+        delete nextDrafts[key];
+        return nextDrafts;
+      });
+      return;
+    }
+    const parsed = parseTimestampInput(trimmed);
+    if (parsed == null || parsed > MAX_STEP_VIDEO_TIMESTAMP_SECONDS) {
+      setStepVideoErrors((current) => ({
+        ...current,
+        [key]: "Use a time such as 1:42 or 1:02:05.",
+      }));
+      return;
+    }
+    setStepVideoErrors((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    setStepVideoDrafts((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    const next = [...groups];
+    next[groupIndex] = withStepVideoTimestampSeconds(groups[groupIndex]!, stepIndex, parsed);
+    onChange(next);
+  }
+
   function startInputDisplayValue(input: {
     group: InstructionGroupWithChapters;
     groupIndex: number;
@@ -488,6 +560,115 @@ export function InstructionsAccordionEditor({
           </button>
         </div>
       </div>
+
+      {stepTimestampsEnabled && stepTimestampBindingState === "mismatch" ? (
+        <div
+          className="rounded-sm border border-line bg-sand/40 px-3 py-3 text-sm text-ink"
+          role="status"
+          data-testid="step-timestamps-mismatch-warning"
+        >
+          <p className="font-semibold text-ink">
+            These step timestamps were created for a different video and are currently inactive.
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Public step links stay hidden until you reconfirm for the current video or clear them.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {onReconfirmStepTimestamps ? (
+              <button
+                type="button"
+                className={editorTextAction}
+                onClick={onReconfirmStepTimestamps}
+                data-testid="step-timestamps-reconfirm"
+              >
+                Reconfirm for current video
+              </button>
+            ) : null}
+            {onClearStepTimestamps ? (
+              <button
+                type="button"
+                className={editorTextAction}
+                onClick={onClearStepTimestamps}
+                data-testid="step-timestamps-clear"
+              >
+                Clear step timestamps
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {stepTimestampsEnabled && stepTimestampBindingState === "unbound" ? (
+        <div
+          className="rounded-sm border border-line bg-sand/40 px-3 py-3 text-sm text-ink"
+          role="status"
+          data-testid="step-timestamps-unbound-warning"
+        >
+          <p className="font-semibold text-ink">
+            Step timestamps are stored but not confirmed for the current video.
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Reconfirm for the current video before editing, or clear them.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {onReconfirmStepTimestamps ? (
+              <button
+                type="button"
+                className={editorTextAction}
+                onClick={onReconfirmStepTimestamps}
+                data-testid="step-timestamps-reconfirm"
+              >
+                Reconfirm for current video
+              </button>
+            ) : null}
+            {onClearStepTimestamps ? (
+              <button
+                type="button"
+                className={editorTextAction}
+                onClick={onClearStepTimestamps}
+                data-testid="step-timestamps-clear"
+              >
+                Clear step timestamps
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {stepTimestampsEnabled && stepTimestampBindingState === "missing_video" ? (
+        <div
+          className="rounded-sm border border-line bg-sand/40 px-3 py-3 text-sm text-ink"
+          role="status"
+          data-testid="step-timestamps-missing-video-warning"
+        >
+          <p className="font-semibold text-ink">
+            Step timestamps are preserved but inactive while this recipe has no video.
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Restore the same video to reactivate them, or clear step timestamps.
+          </p>
+          {onClearStepTimestamps ? (
+            <div className="mt-3">
+              <button
+                type="button"
+                className={editorTextAction}
+                onClick={onClearStepTimestamps}
+                data-testid="step-timestamps-clear"
+              >
+                Clear step timestamps
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {stepTimestampsEnabled &&
+      stepTimestampBindingState === "none" &&
+      !stepTimestampsEditable ? (
+        <p className="text-xs text-muted" data-testid="step-timestamps-need-video">
+          Add a Recipe video before adding step timestamps.
+        </p>
+      ) : null}
 
       {groups.map((group, groupIndex) => {
         const expanded = expandedGroups[groupIndex] ?? false;
@@ -902,6 +1083,49 @@ export function InstructionsAccordionEditor({
                           />
                           <span>minutes (optional)</span>
                         </label>
+                        {stepTimestampsEnabled ? (
+                          <label className="grid gap-1 text-xs text-muted">
+                            <span className="font-semibold uppercase tracking-[0.08em]">
+                              Video timestamp
+                            </span>
+                            <span className="flex flex-wrap items-center gap-2">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="e.g. 1:42"
+                                disabled={!stepTimestampsEditable}
+                                aria-label={`Video timestamp for step ${stepNumber}`}
+                                aria-invalid={Boolean(
+                                  stepVideoErrors[stepVideoKey(groupIndex, stepIndex)],
+                                )}
+                                data-testid={`instruction-step-video-ts-${groupIndex}-${stepIndex}`}
+                                value={stepVideoDisplayValue(
+                                  groupIndex,
+                                  stepIndex,
+                                  group.stepVideoTimestamps?.[stepIndex] ?? null,
+                                )}
+                                onChange={(event) =>
+                                  updateStepVideoTimestamp(
+                                    groupIndex,
+                                    stepIndex,
+                                    event.target.value,
+                                  )
+                                }
+                                className={`${adminInputClass} w-28 ${
+                                  stepVideoErrors[stepVideoKey(groupIndex, stepIndex)]
+                                    ? "border-terracotta/60"
+                                    : ""
+                                } ${!stepTimestampsEditable ? "opacity-70" : ""}`}
+                              />
+                              <span className="text-muted">optional</span>
+                            </span>
+                            {stepVideoErrors[stepVideoKey(groupIndex, stepIndex)] ? (
+                              <span className="font-semibold text-terracotta" role="alert">
+                                {stepVideoErrors[stepVideoKey(groupIndex, stepIndex)]}
+                              </span>
+                            ) : null}
+                          </label>
+                        ) : null}
                         {onRunFieldAi && onApplyFieldSuggestion && onClearFieldSuggestion ? (
                           <GranularFieldAiSlot
                             path={stepPath}
