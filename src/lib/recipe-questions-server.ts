@@ -207,15 +207,18 @@ export type AnsweredRecipeQuestion = {
  * Set or update the official Mesa answer.
  * answeredAt is set only on first answer; answer edits preserve it.
  * answeredByAdminId reflects the latest staff member who authored/updated the answer.
+ * System Owner session id "env" has no Admin row — answeredByAdminId stays null.
  */
 export async function setRecipeQuestionAnswer(input: {
   questionId: string;
-  adminId: string;
+  adminId: string | null;
   answerBody: string;
 }): Promise<RecipeQuestionActionResult<AnsweredRecipeQuestion>> {
   const questionId = input.questionId.trim();
-  const adminId = input.adminId.trim();
-  if (!questionId || !adminId) return fail("INVALID_INPUT");
+  const rawAdminId = input.adminId?.trim() || "";
+  const staffAdminId =
+    rawAdminId && rawAdminId !== "env" ? rawAdminId : null;
+  if (!questionId) return fail("INVALID_INPUT");
 
   const answerNorm = normalizeAnswerBody(input.answerBody);
   if (!answerNorm.ok) {
@@ -238,11 +241,15 @@ export async function setRecipeQuestionAnswer(input: {
   if (!existing) return fail("NOT_FOUND");
   if (existing.status === "rejected") return fail("REJECTED_TERMINAL");
 
-  const admin = await db.admin.findUnique({
-    where: { id: adminId },
-    select: { id: true },
-  });
-  if (!admin) return fail("NOT_FOUND", "Staff account not found.");
+  let answeredByAdminId: string | null = null;
+  if (staffAdminId) {
+    const admin = await db.admin.findUnique({
+      where: { id: staffAdminId },
+      select: { id: true },
+    });
+    if (!admin) return fail("NOT_FOUND", "Staff account not found.");
+    answeredByAdminId = admin.id;
+  }
 
   const wasFirstAnswer = !existing.answeredAt;
   const answeredAt = existing.answeredAt ?? new Date();
@@ -252,7 +259,7 @@ export async function setRecipeQuestionAnswer(input: {
     data: {
       answerBody: answerNorm.body,
       answeredAt,
-      answeredByAdminId: admin.id,
+      answeredByAdminId,
     },
     select: {
       id: true,
@@ -266,7 +273,7 @@ export async function setRecipeQuestionAnswer(input: {
     id: row.id,
     answerBody: row.answerBody!,
     answeredAt: row.answeredAt!,
-    answeredByAdminId: row.answeredByAdminId!,
+    answeredByAdminId: row.answeredByAdminId ?? "",
     wasFirstAnswer,
   });
 }
@@ -463,10 +470,16 @@ export async function listRecipeQuestionsForAdmin(input?: {
   const where: Prisma.RecipeQuestionWhereInput = {};
   if (input?.status) where.status = input.status;
 
+  // Pending queue: oldest waiting first. Other filters: newest submitted first.
+  const orderBy =
+    input?.status === "pending"
+      ? ([{ createdAt: "asc" as const }, { id: "asc" as const }] as const)
+      : ([{ createdAt: "desc" as const }, { id: "desc" as const }] as const);
+
   const db = getDb();
   const rows = await db.recipeQuestion.findMany({
     where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: [...orderBy],
     take,
     select: {
       id: true,

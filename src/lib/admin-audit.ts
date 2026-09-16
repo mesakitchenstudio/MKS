@@ -416,6 +416,11 @@ export function humanizeAdminAuditAction(action: string): string {
     "search_console.property_selected": "Selected Search Console property",
     "search_console.disconnected": "Disconnected Search Console",
     "search_console.sync_requested": "Requested Search Console sync",
+    "recipe_question.answered": "Answered recipe question",
+    "recipe_question.answer_updated": "Updated recipe question answer",
+    "recipe_question.published": "Published recipe question",
+    "recipe_question.hidden": "Hid recipe question",
+    "recipe_question.rejected": "Rejected recipe question",
   };
   return map[action] || action.replace(/\./g, " ");
 }

@@ -22,6 +22,8 @@ export type AdminNavItem = {
   match?: AdminNavMatch;
   /** Existing permission area — unchanged from prior IA. */
   area: AdminArea;
+  /** Optional product feature gate (server-derived; never NEXT_PUBLIC). */
+  feature?: "recipeQa";
 };
 
 export type AdminNavSection = {
@@ -72,6 +74,7 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
     label: "Community",
     items: [
       { href: "/admin/reviews", label: "Reviews", area: "content" },
+      { href: "/admin/questions", label: "Questions", area: "content", feature: "recipeQa" },
       { href: "/admin/members", label: "Members", area: "members" },
       { href: "/admin/newsletter", label: "Newsletter", area: "members" },
     ],
@@ -98,10 +101,18 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
 ];
 
 /** Role-aware navigation sections — same global IA; filters via existing `canAccess` rules. */
-export function buildAdminNavSections(role: AccessLevel): AdminNavSection[] {
+export function buildAdminNavSections(
+  role: AccessLevel,
+  options?: { recipeQaEnabled?: boolean },
+): AdminNavSection[] {
+  const recipeQaEnabled = options?.recipeQaEnabled === true;
   return ADMIN_NAV_IA.map((section) => ({
     ...section,
-    items: section.items.filter((item) => canAccess(role, item.area)),
+    items: section.items.filter((item) => {
+      if (!canAccess(role, item.area)) return false;
+      if (item.feature === "recipeQa" && !recipeQaEnabled) return false;
+      return true;
+    }),
   })).filter((section) => section.items.length > 0);
 }
 
@@ -117,6 +128,8 @@ export function adminWorkspaceWidthForPath(pathname: string) {
   if (pathname.startsWith("/admin/newsletter")) return adminWorkspaceNewsletter;
   if (pathname.startsWith("/admin/reviews/")) return adminWorkspaceReviewsDetail;
   if (pathname.startsWith("/admin/reviews")) return adminWorkspaceReviewsList;
+  if (pathname.startsWith("/admin/questions/")) return adminWorkspaceReviewsDetail;
+  if (pathname.startsWith("/admin/questions")) return adminWorkspaceReviewsList;
   if (pathname.startsWith("/admin/types")) return adminWorkspaceTypes;
   if (pathname.startsWith("/admin/categories")) return adminWorkspaceCategories;
   if (pathname.startsWith("/admin/ingredients")) return adminWorkspaceCategories;

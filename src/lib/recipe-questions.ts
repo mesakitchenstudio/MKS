@@ -163,6 +163,44 @@ export function clampRecipeQuestionProfileLimit(limit?: number): number {
   return Math.min(n, RECIPE_QUESTION_PROFILE_LIST_MAX_LIMIT);
 }
 
+/** Admin list filter query values (includes "all"). */
+export const RECIPE_QUESTION_ADMIN_FILTERS = [
+  "pending",
+  "published",
+  "hidden",
+  "rejected",
+  "all",
+] as const;
+
+export type RecipeQuestionAdminFilter = (typeof RECIPE_QUESTION_ADMIN_FILTERS)[number];
+
+export function parseRecipeQuestionAdminFilter(
+  raw: unknown,
+): RecipeQuestionAdminFilter {
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if ((RECIPE_QUESTION_ADMIN_FILTERS as readonly string[]).includes(value)) {
+    return value as RecipeQuestionAdminFilter;
+  }
+  return "pending";
+}
+
+export function adminRecipeQuestionHref(input: {
+  recipeId: string;
+  recipeSlug: string;
+  recipeStatus: string;
+}): { href: string; external: boolean } {
+  if (input.recipeStatus === "published" && input.recipeSlug) {
+    return {
+      href: `/recipes/${encodeURIComponent(input.recipeSlug)}`,
+      external: true,
+    };
+  }
+  return {
+    href: `/admin/recipes/${encodeURIComponent(input.recipeId)}`,
+    external: false,
+  };
+}
+
 /** Phase 9C member submission action result codes (product-facing). */
 export const RECIPE_QUESTION_SUBMIT_STATUSES = [
   "SUCCESS",
