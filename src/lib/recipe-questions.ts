@@ -44,6 +44,14 @@ export const RECIPE_QUESTION_ADMIN_LIST_MAX_LIMIT = 100;
 export const RECIPE_QUESTION_PROFILE_LIST_DEFAULT_LIMIT = 50;
 export const RECIPE_QUESTION_PROFILE_LIST_MAX_LIMIT = 100;
 
+/** Soft anti-spam: minimum gap between questions on the same Recipe (same member). */
+export const RECIPE_QUESTION_PER_RECIPE_COOLDOWN_MS = 2 * 60 * 1000;
+/** Soft anti-spam: max questions per member in a rolling 24h window (all statuses). */
+export const RECIPE_QUESTION_GLOBAL_DAILY_MAX = 10;
+export const RECIPE_QUESTION_GLOBAL_DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Soft double-submit: identical normalized body on same Recipe within this window. */
+export const RECIPE_QUESTION_DUPLICATE_WINDOW_MS = 60 * 1000;
+
 /** Future 9E semantic key — do not create notifications in 9B. */
 export function buildRecipeQuestionAnsweredDedupeKey(questionId: string): string {
   return `recipe_question.answered:${questionId.trim()}`;
@@ -153,4 +161,45 @@ export function clampRecipeQuestionProfileLimit(limit?: number): number {
   const n = Math.floor(limit);
   if (n < 1) return 1;
   return Math.min(n, RECIPE_QUESTION_PROFILE_LIST_MAX_LIMIT);
+}
+
+/** Phase 9C member submission action result codes (product-facing). */
+export const RECIPE_QUESTION_SUBMIT_STATUSES = [
+  "SUCCESS",
+  "AUTH_REQUIRED",
+  "FEATURE_DISABLED",
+  "RECIPE_UNAVAILABLE",
+  "VALIDATION_ERROR",
+  "RATE_LIMITED",
+  "FAILED",
+] as const;
+
+export type RecipeQuestionSubmitStatus = (typeof RECIPE_QUESTION_SUBMIT_STATUSES)[number];
+
+export type RecipeQuestionSubmitResult =
+  | { ok: true; status: "SUCCESS"; questionId: string; reusedExisting?: boolean }
+  | {
+      ok: false;
+      status: Exclude<RecipeQuestionSubmitStatus, "SUCCESS">;
+      message: string;
+    };
+
+export function recipeQuestionSubmitMessage(
+  status: Exclude<RecipeQuestionSubmitStatus, "SUCCESS">,
+): string {
+  switch (status) {
+    case "AUTH_REQUIRED":
+      return "Sign in to ask a question.";
+    case "FEATURE_DISABLED":
+      return "Recipe Q&A is not available.";
+    case "RECIPE_UNAVAILABLE":
+      return "Questions are not available for this recipe.";
+    case "VALIDATION_ERROR":
+      return `Questions must be between ${RECIPE_QUESTION_BODY_MIN} and ${RECIPE_QUESTION_BODY_MAX} characters.`;
+    case "RATE_LIMITED":
+      return "Please wait before submitting another question.";
+    case "FAILED":
+    default:
+      return "Could not submit your question. Please try again.";
+  }
 }

@@ -16,7 +16,11 @@ import {
   RECIPE_QUESTION_AUTHOR_NAME_MAX,
   RECIPE_QUESTION_BODY_MAX,
   RECIPE_QUESTION_BODY_MIN,
+  RECIPE_QUESTION_DUPLICATE_WINDOW_MS,
   RECIPE_QUESTION_FORMER_MEMBER_AUTHOR_NAME,
+  RECIPE_QUESTION_GLOBAL_DAILY_MAX,
+  RECIPE_QUESTION_GLOBAL_DAILY_WINDOW_MS,
+  RECIPE_QUESTION_PER_RECIPE_COOLDOWN_MS,
   clampRecipeQuestionAdminLimit,
   clampRecipeQuestionProfileLimit,
   clampRecipeQuestionPublicLimit,
@@ -579,4 +583,110 @@ export async function cleanupRecipeQuestionsForUserDeletion(
       status: { in: ["pending", "hidden", "rejected"] },
     },
   });
+}
+
+/**
+ * Failure-isolated public read for Recipe pages.
+ * Never throws — callers distinguish empty vs unavailable.
+ */
+export async function loadPublishedRecipeQuestionsForPage(input: {
+  recipeId: string;
+  limit?: number;
+}): Promise<
+  | { ok: true; items: PublicRecipeQuestionItem[] }
+  | { ok: false; items: [] }
+> {
+  try {
+    const items = await listPublishedRecipeQuestions(input);
+    return { ok: true, items };
+  } catch (error) {
+    console.error("Recipe Q&A public read failed", error);
+    return { ok: false, items: [] };
+  }
+}
+
+export type RecipeQuestionRateLimitDecision =
+  | { ok: true }
+  | { ok: false; reason: "PER_RECIPE_COOLDOWN" | "GLOBAL_DAILY_CAP" };
+
+/**
+ * Soft anti-spam checks (DB-backed). Inject `now` for deterministic tests.
+ * Counts all statuses — successful creates only reach this after validation.
+ */
+export async function checkRecipeQuestionSubmitRateLimit(input: {
+  userId: string;
+  recipeId: string;
+  now?: Date;
+}): Promise<RecipeQuestionRateLimitDecision> {
+  const userId = input.userId.trim();
+  const recipeId = input.recipeId.trim();
+  if (!userId || !recipeId) return { ok: false, reason: "PER_RECIPE_COOLDOWN" };
+
+  const now = input.now ?? new Date();
+  const db = getDb();
+
+  const latestOnRecipe = await db.recipeQuestion.findFirst({
+    where: { userId, recipeId },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  if (
+    latestOnRecipe &&
+    now.getTime() - latestOnRecipe.createdAt.getTime() < RECIPE_QUESTION_PER_RECIPE_COOLDOWN_MS
+  ) {
+    return { ok: false, reason: "PER_RECIPE_COOLDOWN" };
+  }
+
+  const windowStart = new Date(now.getTime() - RECIPE_QUESTION_GLOBAL_DAILY_WINDOW_MS);
+  const globalCount = await db.recipeQuestion.count({
+    where: {
+      userId,
+      createdAt: { gte: windowStart },
+    },
+  });
+  if (globalCount >= RECIPE_QUESTION_GLOBAL_DAILY_MAX) {
+    return { ok: false, reason: "GLOBAL_DAILY_CAP" };
+  }
+
+  return { ok: true };
+}
+
+/** Soft double-submit: identical normalized body on same Recipe recently. */
+export async function findRecentDuplicateRecipeQuestion(input: {
+  userId: string;
+  recipeId: string;
+  body: string;
+  now?: Date;
+}): Promise<{ id: string } | null> {
+  const userId = input.userId.trim();
+  const recipeId = input.recipeId.trim();
+  const body = input.body;
+  if (!userId || !recipeId || !body) return null;
+
+  const now = input.now ?? new Date();
+  const since = new Date(now.getTime() - RECIPE_QUESTION_DUPLICATE_WINDOW_MS);
+  const db = getDb();
+
+  const row = await db.recipeQuestion.findFirst({
+    where: {
+      userId,
+      recipeId,
+      body,
+      createdAt: { gte: since },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  return row;
+}
+
+/** Normalize question body for product actions (shared with create helper). */
+export function normalizeRecipeQuestionBodyForSubmit(
+  raw: string,
+): { ok: true; body: string } | { ok: false } {
+  return normalizeQuestionBody(raw);
+}
+
+export function normalizeRecipeQuestionAuthorNameForSubmit(raw: string): string {
+  return normalizeAuthorName(raw);
 }

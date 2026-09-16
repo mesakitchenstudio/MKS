@@ -8,6 +8,7 @@ import { RecipeCookingWorkspace } from "@/components/RecipeCard";
 import { RecipeLearnSection } from "@/components/RecipeLearnSection";
 import { RecipePageHero } from "@/components/RecipePageHero";
 import { RecipeReviews } from "@/components/RecipeReviews";
+import { RecipeQuestionsSection } from "@/components/recipe/RecipeQuestionsSection";
 import { RecipeSectionNav } from "@/components/RecipeSectionNav";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
 import { RecipeContinuedViewing } from "@/components/youtube/RecipeContinuedViewing";
@@ -45,6 +46,8 @@ export type RecipeDetailViewProps = {
   verifiedTargetReviewId?: string | null;
   shoppingListEnabled?: boolean;
   mealPlannerEnabled?: boolean;
+  /** Roadmap #9 — server-derived gate; never NEXT_PUBLIC. */
+  recipeQaEnabled?: boolean;
   /** groupIndex:itemIndex → Ingredient slug for indexable SEO links (public only). */
   ingredientSeoLinks?: Record<string, string>;
 };
@@ -64,6 +67,7 @@ export function RecipeDetailView({
   verifiedTargetReviewId = null,
   shoppingListEnabled = false,
   mealPlannerEnabled = false,
+  recipeQaEnabled = false,
   ingredientSeoLinks = {},
 }: RecipeDetailViewProps) {
   const preview = mode === "preview";
@@ -161,6 +165,14 @@ export function RecipeDetailView({
           targetReviewId={verifiedTargetReviewId}
           interactionDisabled={preview}
         />
+
+        {recipeQaEnabled && !preview && recipe.id?.trim() ? (
+          <RecipeQuestionsSection
+            recipeId={recipe.id.trim()}
+            recipeSlug={recipe.slug}
+            recipeTitle={recipe.title}
+          />
+        ) : null}
 
         {!youtube && !preview ? (
           <RecipeFooterSubscribe recipeSlug={recipe.slug} recipeName={recipe.title} />
