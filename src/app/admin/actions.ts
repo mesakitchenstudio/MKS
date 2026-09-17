@@ -1020,6 +1020,7 @@ export async function saveRecipeAction(formData: FormData) {
     });
     redirectCreated = Boolean(redirectRow && redirectRow.ok);
     revalidatePath(`/recipes/${previousSlug}`);
+    revalidatePath(`/recipes/${previousSlug}/cook`);
   }
 
   await syncDenormalizedRecipeIdentity({
@@ -1133,6 +1134,7 @@ export async function saveRecipeAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${slug}`);
+  revalidatePath(`/recipes/${slug}/cook`);
   if (scheduleIntent === "set") {
     redirect(`/admin/recipes/${recipe.id}?scheduled=1`);
   }

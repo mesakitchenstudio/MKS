@@ -147,6 +147,40 @@ export function isStepTimestampMappingActive(
   return getStepTimestampBindingState(values) === "active";
 }
 
+/** Public/preview eligibility for #10 per-step Watch controls. */
+export function isPublicStepVideoTimestampsEligible(input: {
+  gateEnabled: boolean;
+  instructions: unknown;
+  youtube?: unknown;
+  youtubeUrl?: string | null;
+}): boolean {
+  if (!input.gateEnabled) return false;
+  return isStepTimestampMappingActive({
+    instructions: input.instructions,
+    youtube: input.youtube,
+    youtubeUrl: input.youtubeUrl ?? undefined,
+  });
+}
+
+/**
+ * Accessible spoken duration for screen readers.
+ * Examples: 0 → "0 seconds"; 65 → "1 minute 5 seconds"; 3725 → "1 hour 2 minutes 5 seconds"
+ */
+export function formatVideoTimestampAccessible(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  if (mins > 0) parts.push(`${mins} minute${mins === 1 ? "" : "s"}`);
+  if (secs > 0 || parts.length === 0) {
+    parts.push(`${secs} second${secs === 1 ? "" : "s"}`);
+  }
+  return parts.join(" ");
+}
+
 /** Compare canonical video identity (not raw URL text). */
 export function didRecipeVideoIdChange(
   previousValues: Record<string, unknown> | null | undefined,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Recipe } from "@/data/types";
 import type { RecipeYoutubeTimestamp, ResolvedRecipeYoutube } from "@/data/youtube-types";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
+import { RecipeStepVideoTimestampLink } from "@/components/youtube/RecipeStepVideoTimestampLink";
 import { recipeContentShellClass } from "@/components/RecipeContentShell";
 import { clampRecipeServings, scaleAmount } from "@/lib/culinary-format";
 import { writeRecipeServingsBridge } from "@/lib/recipe-servings-bridge";
@@ -23,6 +24,7 @@ import { trackVideoEvent } from "@/lib/video-analytics";
 import { useRecipeVideoOptional } from "@/components/youtube/RecipeVideoContext";
 import { AddRecipeToShoppingListButton } from "@/components/AddRecipeToShoppingListButton";
 import { AddRecipeToMealPlanButton } from "@/components/AddRecipeToMealPlanButton";
+import { isPublicStepVideoTimestampsEligible } from "@/lib/step-video-timestamps";
 
 function ChevronDown({ open }: { open: boolean }) {
   return (
@@ -110,6 +112,7 @@ function StageAccordion({
   recipe,
   tips,
   videoHelp,
+  stepTimestampsEligible = false,
 }: {
   stage: RecipeInstructionStage;
   open: boolean;
@@ -118,6 +121,7 @@ function StageAccordion({
   recipe: Recipe;
   tips: string[];
   videoHelp?: StageVideoHelp;
+  stepTimestampsEligible?: boolean;
 }) {
   const panelId = `${stage.id}-panel`;
   const buttonId = `${stage.id}-button`;
@@ -168,18 +172,39 @@ function StageAccordion({
         ) : null}
         <ol className="space-y-3">
           {stage.steps.map((step) => {
-            const ts = youtube ? timestampForStep(youtube.timestamps, step.globalIndex) : undefined;
+            const stepNumber = step.globalIndex + 1;
+            const stepTs10 =
+              stepTimestampsEligible &&
+              youtube &&
+              step.videoTimestampSeconds != null
+                ? step.videoTimestampSeconds
+                : null;
+            const legacyTs =
+              stepTs10 == null && youtube
+                ? timestampForStep(youtube.timestamps, step.globalIndex)
+                : undefined;
             return (
               <li key={step.globalIndex} className="recipe-print-step flex gap-3 text-sm leading-7">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-terracotta text-xs font-semibold text-paper">
-                  {step.globalIndex + 1}
+                  {stepNumber}
                 </span>
-                <span>
+                <span className="min-w-0">
                   {step.text}
-                  {ts && youtube ? (
+                  {stepTs10 != null && youtube ? (
+                    <span className="block">
+                      <RecipeStepVideoTimestampLink
+                        seconds={stepTs10}
+                        videoId={youtube.videoId}
+                        recipeSlug={recipe.slug}
+                        recipeName={recipe.title}
+                        videoTitle={youtube.title}
+                        stepNumber={stepNumber}
+                      />
+                    </span>
+                  ) : legacyTs && youtube ? (
                     <VideoTimestampLink
-                      label={ts.label}
-                      time={ts.time}
+                      label={legacyTs.label}
+                      time={legacyTs.time}
                       videoId={youtube.videoId}
                       recipeSlug={recipe.slug}
                       recipeName={recipe.title}
@@ -213,6 +238,8 @@ export function RecipeCookingWorkspace(props: {
   mealPlannerEnabled?: boolean;
   /** groupIndex:itemIndex → Ingredient slug (server-resolved, indexable only). */
   ingredientSeoLinks?: Record<string, string>;
+  /** Roadmap #10 — server-derived gate; never NEXT_PUBLIC. */
+  stepTimestampsEnabled?: boolean;
 }) {
   return <RecipeCookingWorkspaceInner key={props.recipe.slug} {...props} />;
 }
@@ -224,6 +251,7 @@ function RecipeCookingWorkspaceInner({
   shoppingListEnabled = false,
   mealPlannerEnabled = false,
   ingredientSeoLinks = {},
+  stepTimestampsEnabled = false,
 }: {
   recipe: Recipe;
   youtube?: ResolvedRecipeYoutube | null;
@@ -231,6 +259,7 @@ function RecipeCookingWorkspaceInner({
   shoppingListEnabled?: boolean;
   mealPlannerEnabled?: boolean;
   ingredientSeoLinks?: Record<string, string>;
+  stepTimestampsEnabled?: boolean;
 }) {
   const [servings, setServings] = useState(recipe.servings);
   const factor = servings / Math.max(1, recipe.servings);
@@ -239,6 +268,12 @@ function RecipeCookingWorkspaceInner({
     writeRecipeServingsBridge(recipe.slug, servings);
   }, [recipe.slug, servings]);
   const stages = useMemo(() => recipeInstructionStages(recipe), [recipe]);
+  const stepTimestampsEligible = isPublicStepVideoTimestampsEligible({
+    gateEnabled: stepTimestampsEnabled,
+    instructions: recipe.instructions,
+    youtube: recipe.youtube,
+    youtubeUrl: recipe.youtubeUrl,
+  });
   const stepCount = totalInstructionSteps(stages);
   const cookingContext = useMemo(() => planCookingContext(recipe, stages), [recipe, stages]);
   const videoCtx = useRecipeVideoOptional();
@@ -457,6 +492,7 @@ function RecipeCookingWorkspaceInner({
                   recipe={recipe}
                   tips={cookingContext.stageTips[stage.id] ?? []}
                   videoHelp={stageVideoHelp[stage.id]}
+                  stepTimestampsEligible={stepTimestampsEligible}
                 />
               ))}
             </div>

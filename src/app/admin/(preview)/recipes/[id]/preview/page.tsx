@@ -4,6 +4,7 @@ import { RecipePreviewBanner } from "@/components/recipe/RecipePreviewBanner";
 import { RecipePreviewEngagementGate } from "@/components/recipe/RecipePreviewEngagementGate";
 import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { isRecipeStepTimestampsEnabled } from "@/lib/flags";
 import { loadAdminRecipePreviewById } from "@/lib/recipe-admin-preview-server";
 import { loadRecipeDetailPresentation } from "@/lib/recipe-detail-presentation";
 
@@ -51,7 +52,11 @@ export default async function AdminRecipePreviewPage({ params }: Props) {
         editorHref={editorHref}
         liveHref={liveHref}
       />
-      <RecipeDetailView mode="preview" {...detail} />
+      <RecipeDetailView
+        mode="preview"
+        {...detail}
+        stepTimestampsEnabled={isRecipeStepTimestampsEnabled()}
+      />
     </RecipePreviewEngagementGate>
   );
 }

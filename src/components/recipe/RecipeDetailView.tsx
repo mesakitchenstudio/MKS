@@ -48,6 +48,8 @@ export type RecipeDetailViewProps = {
   mealPlannerEnabled?: boolean;
   /** Roadmap #9 — server-derived gate; never NEXT_PUBLIC. */
   recipeQaEnabled?: boolean;
+  /** Roadmap #10 — server-derived gate; never NEXT_PUBLIC. */
+  stepTimestampsEnabled?: boolean;
   /** groupIndex:itemIndex → Ingredient slug for indexable SEO links (public only). */
   ingredientSeoLinks?: Record<string, string>;
 };
@@ -68,6 +70,7 @@ export function RecipeDetailView({
   shoppingListEnabled = false,
   mealPlannerEnabled = false,
   recipeQaEnabled = false,
+  stepTimestampsEnabled = false,
   ingredientSeoLinks = {},
 }: RecipeDetailViewProps) {
   const preview = mode === "preview";
@@ -99,6 +102,7 @@ export function RecipeDetailView({
         shoppingListEnabled={shoppingListEnabled}
         mealPlannerEnabled={mealPlannerEnabled && !preview}
         ingredientSeoLinks={preview ? {} : ingredientSeoLinks}
+        stepTimestampsEnabled={stepTimestampsEnabled}
       />
 
       {preview ? null : (

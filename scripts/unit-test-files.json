@@ -224,5 +224,6 @@
   "src/lib/youtube-data/watch-next.test.ts",
   "src/lib/recipe-questions-hardening.test.ts",
   "src/lib/step-video-timestamps.test.ts",
-  "src/lib/step-video-timestamps-admin.test.ts"
+  "src/lib/step-video-timestamps-admin.test.ts",
+  "src/lib/step-video-timestamps-public.test.ts"
 ]

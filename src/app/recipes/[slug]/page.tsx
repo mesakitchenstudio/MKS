@@ -8,7 +8,7 @@ import { recipePublicPath, resolveActiveRedirect } from "@/lib/redirects";
 import { getAllRecipes, getRecipeBySlug } from "@/lib/recipes";
 import { isShoppingListEnabled } from "@/lib/shopping-list";
 import { isMealPlannerEnabled } from "@/lib/meal-planner";
-import { isRecipeQaEnabled } from "@/lib/flags";
+import { isRecipeQaEnabled, isRecipeStepTimestampsEnabled } from "@/lib/flags";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -78,6 +78,7 @@ export default async function RecipePage({ params, searchParams }: Props) {
       shoppingListEnabled={isShoppingListEnabled()}
       mealPlannerEnabled={isMealPlannerEnabled()}
       recipeQaEnabled={isRecipeQaEnabled()}
+      stepTimestampsEnabled={isRecipeStepTimestampsEnabled()}
     />
   );
 }

@@ -46,7 +46,9 @@ export function youtubeEmbedUrl(
     params.set("enablejsapi", "1");
     if (options.origin) params.set("origin", options.origin);
   }
-  if (options?.start && options.start > 0) params.set("start", String(Math.floor(options.start)));
+  if (options?.start != null && Number.isFinite(options.start) && options.start >= 0) {
+    params.set("start", String(Math.floor(options.start)));
+  }
   if (options?.autoplay) {
     params.set("autoplay", "1");
     params.set("mute", options.mute === false ? "0" : "1");
@@ -71,7 +73,8 @@ export function youtubePlaylistUrl(playlistId: string) {
 
 export function youtubeWatchUrlAt(urlOrId: string, seconds: number) {
   const base = youtubeWatchUrl(urlOrId);
-  if (!base || seconds <= 0) return base;
+  if (!base) return null;
+  if (!Number.isFinite(seconds) || seconds < 0) return base;
   return `${base}&t=${Math.floor(seconds)}`;
 }
 
