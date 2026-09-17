@@ -9,6 +9,11 @@ export type CookingFlatStep = {
   stageStepIndex: number;
   text: string;
   timerSeconds?: number;
+  /**
+   * Per-step video seek offset carried from recipeInstructionStages.
+   * Public/#10 eligibility (gate + binding) is decided by the Cooking Mode caller.
+   */
+  videoTimestampSeconds?: number;
 };
 
 export type CookingNavModel = {
@@ -33,6 +38,9 @@ export function buildCookingNavModel(recipe: Recipe): CookingNavModel {
         stageStepIndex,
         text: step.text,
         timerSeconds: step.timerSeconds,
+        ...(step.videoTimestampSeconds != null
+          ? { videoTimestampSeconds: step.videoTimestampSeconds }
+          : {}),
       });
     }
   }

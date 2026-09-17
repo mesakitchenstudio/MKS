@@ -36,6 +36,8 @@ export function RecipeStepVideoTimestampLink({
   recipeName,
   videoTitle,
   stepNumber,
+  /** Recipe page defaults to scrolling the video into view; Cooking Mode uses false. */
+  scroll = true,
 }: {
   seconds: number;
   videoId: string;
@@ -44,6 +46,7 @@ export function RecipeStepVideoTimestampLink({
   videoTitle?: string;
   /** Visible 1-based step number when known. */
   stepNumber?: number;
+  scroll?: boolean;
 }) {
   const ctx = useRecipeVideoOptional();
   const href = youtubeWatchUrlAt(videoId, seconds);
@@ -80,7 +83,7 @@ export function RecipeStepVideoTimestampLink({
           ctx.expandWatchMethod({
             start: seconds,
             source: "instruction_timestamp",
-            scroll: true,
+            scroll,
           });
         } catch {
           window.location.assign(href);

@@ -10,6 +10,7 @@ import {
 } from "@/components/cooking/CookingIngredientsPanel";
 import { CookingTimersPanel } from "@/components/cooking/CookingTimersPanel";
 import { useKeepScreenAwake } from "@/components/cooking/useKeepScreenAwake";
+import { RecipeStepVideoTimestampLink } from "@/components/youtube/RecipeStepVideoTimestampLink";
 import { VideoTimestampLink } from "@/components/youtube/VideoTimestampLink";
 import { useRecipeVideoOptional } from "@/components/youtube/RecipeVideoContext";
 import { site } from "@/data/site";
@@ -34,6 +35,7 @@ import {
   writeCookingSession,
 } from "@/lib/cooking-session";
 import type { StageVideoHelp } from "@/lib/recipe-stage-video-help";
+import { isPublicStepVideoTimestampsEligible } from "@/lib/step-video-timestamps";
 import { timestampForStep } from "@/lib/recipe-youtube";
 import { formatTimestampInput } from "@/lib/youtube-metadata-editor";
 
@@ -43,15 +45,28 @@ export function CookingMode({
   youtube = null,
   stageVideoHelp = {},
   initialServings,
+  stepTimestampsEnabled = false,
 }: {
   recipe: Recipe;
   recipeId: string;
   youtube?: ResolvedRecipeYoutube | null;
   stageVideoHelp?: Record<string, StageVideoHelp>;
   initialServings?: number;
+  /** Roadmap #10 — server-derived gate; never NEXT_PUBLIC. */
+  stepTimestampsEnabled?: boolean;
 }) {
   const contentVersion = useMemo(() => cookingContentVersion(recipe), [recipe]);
   const nav = useMemo(() => buildCookingNavModel(recipe), [recipe]);
+  const stepTimestampsEligible = useMemo(
+    () =>
+      isPublicStepVideoTimestampsEligible({
+        gateEnabled: stepTimestampsEnabled,
+        instructions: recipe.instructions,
+        youtube: recipe.youtube,
+        youtubeUrl: recipe.youtubeUrl,
+      }),
+    [stepTimestampsEnabled, recipe.instructions, recipe.youtube, recipe.youtubeUrl],
+  );
   const video = useRecipeVideoOptional();
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
   const ingredientsTitleId = useId();
@@ -320,7 +335,16 @@ export function CookingMode({
   const progressPct =
     nav.totalSteps > 0 ? Math.round(((currentIndex + (finished ? 1 : 0)) / nav.totalSteps) * 100) : 0;
   const stageHelp = current ? stageVideoHelp[current.stageId] : undefined;
-  const stepTs = current && youtube ? timestampForStep(youtube.timestamps, current.globalIndex) : undefined;
+  const stepTs10 =
+    stepTimestampsEligible && current && current.videoTimestampSeconds != null
+      ? current.videoTimestampSeconds
+      : null;
+  const legacyStepTs =
+    stepTs10 == null && current && youtube
+      ? timestampForStep(youtube.timestamps, current.globalIndex)
+      : undefined;
+  // Legacy XOR: per-step legacy hides stage help. Active #10 may coexist with stage help.
+  const showStageHelpLink = Boolean(stageHelp && youtube && (stepTs10 != null || !legacyStepTs));
 
   if (nav.totalSteps === 0) {
     return (
@@ -451,22 +475,34 @@ export function CookingMode({
               id="cooking-step-heading"
               ref={stepHeadingRef}
               tabIndex={-1}
-              className="font-[family-name:var(--font-fraunces)] text-2xl leading-snug text-ink outline-none sm:text-3xl"
+              className="break-words font-[family-name:var(--font-fraunces)] text-2xl leading-snug text-ink outline-none sm:text-3xl"
             >
               {current?.text}
             </h2>
 
-            <div className="flex flex-wrap gap-3">
-              {stepTs && youtube ? (
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-3">
+              {stepTs10 != null && youtube ? (
+                <RecipeStepVideoTimestampLink
+                  seconds={stepTs10}
+                  videoId={youtube.videoId}
+                  recipeSlug={recipe.slug}
+                  recipeName={recipe.title}
+                  videoTitle={youtube.title}
+                  stepNumber={currentIndex + 1}
+                  scroll={false}
+                />
+              ) : null}
+              {legacyStepTs && youtube ? (
                 <VideoTimestampLink
-                  label={`Watch this step · ${formatTimestampInput(stepTs.time)}`}
-                  time={stepTs.time}
+                  label={`Watch this step · ${formatTimestampInput(legacyStepTs.time)}`}
+                  time={legacyStepTs.time}
                   videoId={youtube.videoId}
                   recipeSlug={recipe.slug}
                   recipeName={recipe.title}
                   videoTitle={youtube.title}
                 />
-              ) : stageHelp && youtube ? (
+              ) : null}
+              {showStageHelpLink && stageHelp && youtube ? (
                 <VideoTimestampLink
                   label={`Watch this stage · ${formatTimestampInput(stageHelp.time)}`}
                   time={stageHelp.time}

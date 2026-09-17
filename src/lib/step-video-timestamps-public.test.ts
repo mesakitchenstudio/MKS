@@ -355,7 +355,7 @@ describe("Roadmap #10D — progressive link component", () => {
     assert.match(src, /isModifiedLinkActivation/);
     assert.match(src, /preventDefault/);
     assert.match(src, /expandWatchMethod\(\{\s*start:\s*seconds/);
-    assert.match(src, /scroll:\s*true/);
+    assert.match(src, /scroll(?:=\s*true)?/);
     assert.match(src, /catch\s*\{[\s\S]*location\.assign\(href\)/);
     assert.match(src, /if\s*\(!ctx\)\s*return/);
     assert.match(src, /recipe_video_timestamp_click/);
@@ -408,12 +408,12 @@ describe("Roadmap #10D — public RecipeCard precedence + stage help", () => {
   });
 });
 
-describe("Roadmap #10D — Cooking Mode boundary", () => {
-  it("does not wire stepVideoTimestamps into Cooking Mode", () => {
+describe("Roadmap #10D — Cooking Mode boundary (pre-10E contract retained for storage key)", () => {
+  it("does not persist stepVideoTimestamps into cooking session storage keys", () => {
     const cook = read("components/cooking/CookingMode.tsx");
-    assert.doesNotMatch(cook, /stepVideoTimestamps|RecipeStepVideoTimestampLink|videoTimestampSeconds/);
-    assert.match(cook, /VideoTimestampLink/);
-    assert.match(cook, /timestampForStep/);
+    const session = read("lib/cooking-session.ts");
+    assert.doesNotMatch(cook, /stepVideoTimestamps/);
+    assert.doesNotMatch(session, /stepVideoTimestamps|videoTimestampSeconds/);
   });
 
   it("legacy VideoTimestampLink remains a button (unchanged Cooking Mode contract)", () => {

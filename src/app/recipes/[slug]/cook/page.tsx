@@ -8,6 +8,7 @@ import { recipeInstructionStages } from "@/lib/recipe-instructions";
 import { selectStageVideoHelp } from "@/lib/recipe-stage-video-help";
 import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { recipePublicPath, resolveActiveRedirect } from "@/lib/redirects";
+import { isRecipeStepTimestampsEnabled } from "@/lib/flags";
 import { getAllRecipes, getRecipeBySlug, publicRecipeId } from "@/lib/recipes";
 import { resolveRecipeYoutube, resolveRecipeYoutubeForDisplay } from "@/lib/recipe-youtube";
 import { getWatchNextRecommendation } from "@/lib/youtube-data/watch-next";
@@ -114,6 +115,7 @@ export default async function RecipeCookPage({ params, searchParams }: Props) {
       youtube={youtube}
       stageVideoHelp={stageVideoHelp}
       initialServings={initialServings}
+      stepTimestampsEnabled={isRecipeStepTimestampsEnabled()}
     />
   );
 
