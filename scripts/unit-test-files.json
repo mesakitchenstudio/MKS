@@ -226,5 +226,6 @@
   "src/lib/step-video-timestamps.test.ts",
   "src/lib/step-video-timestamps-admin.test.ts",
   "src/lib/step-video-timestamps-public.test.ts",
-  "src/lib/step-video-timestamps-cooking.test.ts"
+  "src/lib/step-video-timestamps-cooking.test.ts",
+  "src/lib/step-video-timestamps-hardening.test.ts"
 ]

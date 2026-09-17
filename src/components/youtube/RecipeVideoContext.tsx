@@ -13,7 +13,7 @@ import {
 import type { RecipeYoutubeTimestamp, ResolvedRecipeYoutube } from "@/data/youtube-types";
 import type { WatchNextRecommendation } from "@/lib/youtube-data/watch-next-select";
 import type { VideoAnalyticsSource } from "@/lib/video-analytics";
-import { resetVideoMilestones, trackVideoEvent } from "@/lib/video-analytics";
+import { resetVideoMilestones, resolveVideoAnalyticsTimestamp, trackVideoEvent } from "@/lib/video-analytics";
 
 function normalizeChapters(timestamps: RecipeYoutubeTimestamp[] | undefined) {
   return [...(timestamps ?? [])]
@@ -156,7 +156,8 @@ export function RecipeVideoProvider({
         videoId: youtube.videoId,
         videoTitle: youtube.title,
         source: options?.source ?? "recipe_top_watch",
-        timestamp: options?.start || undefined,
+        // Preserve explicit 0 (Watch at 00:00); do not treat 0 as absent.
+        timestamp: resolveVideoAnalyticsTimestamp(options?.start),
       });
       if (options?.scroll) {
         const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -195,7 +196,8 @@ export function RecipeVideoProvider({
         videoId: youtube.videoId,
         videoTitle: youtube.title,
         source: options?.source ?? "main_embed",
-        timestamp: start || undefined,
+        // Preserve explicit 0; omit only when start was not provided.
+        timestamp: resolveVideoAnalyticsTimestamp(options?.start),
       });
     },
     [recipeName, recipeSlug, youtube.title, youtube.videoId],

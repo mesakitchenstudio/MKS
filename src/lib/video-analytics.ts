@@ -89,6 +89,16 @@ function toAnalyticsProps(payload: VideoAnalyticsPayload): AnalyticsProperties {
   };
 }
 
+/**
+ * Preserve explicit start=0 for analytics payloads.
+ * `|| undefined` incorrectly drops Watch-at-00:00.
+ */
+export function resolveVideoAnalyticsTimestamp(
+  start: number | undefined | null,
+): number | undefined {
+  return start ?? undefined;
+}
+
 export function trackVideoEvent(event: VideoAnalyticsEvent, payload: VideoAnalyticsPayload) {
   trackEvent(event, toAnalyticsProps(payload));
 }
