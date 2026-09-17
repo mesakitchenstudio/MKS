@@ -38,3 +38,13 @@ export function isRecipeQaEnabled(): boolean {
 export function isRecipeStepTimestampsEnabled(): boolean {
   return process.env.RECIPE_STEP_TIMESTAMPS_ENABLED === "true";
 }
+
+/**
+ * Roadmap #11 — Internal-link recommendations (contextual Recipe links).
+ * Server-only — default OFF unless exactly `"true"`.
+ * Do not mirror with NEXT_PUBLIC_* .
+ * Pure scoring/normalization helpers stay ungated; UI/actions enforce this gate.
+ */
+export function isInternalLinkRecommendationsEnabled(): boolean {
+  return process.env.INTERNAL_LINK_RECOMMENDATIONS_ENABLED === "true";
+}
