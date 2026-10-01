@@ -1297,15 +1297,18 @@ export async function restoreRecipeRevisionAction(formData: FormData) {
     redirect(`/admin/recipes/${recipeId}/history/${revisionId}?error=${result.error}`);
   }
 
-  await syncDenormalizedRecipeIdentity({
-    recipeId,
-    // Slug unchanged — still refresh title on saves/reviews denormalized fields.
-    slug: (
+  const restoredSlug =
+    (
       await getDb().recipe.findUnique({
         where: { id: recipeId },
         select: { slug: true },
       })
-    )?.slug || "",
+    )?.slug || "";
+
+  await syncDenormalizedRecipeIdentity({
+    recipeId,
+    // Slug unchanged — still refresh title on saves/reviews denormalized fields.
+    slug: restoredSlug,
     title: result.title,
   });
 
@@ -1328,6 +1331,16 @@ export async function restoreRecipeRevisionAction(formData: FormData) {
   revalidatePath(`/admin/recipes/${recipeId}/history`);
   revalidatePath("/admin");
   revalidatePath("/recipes");
+  if (restoredSlug) {
+    revalidatePath(`/recipes/${restoredSlug}`);
+    revalidatePath(`/recipes/${restoredSlug}/cook`);
+  }
+  // Restore may change title/dishName/accepted links — refresh pages that Try-next this Recipe.
+  try {
+    await revalidateRecipesLinkingToContextualTarget(recipeId);
+  } catch {
+    // Non-fatal: aligned with save/delete reverse-revalidation isolation.
+  }
   redirect(`/admin/recipes/${recipeId}?restored=1`);
 }
 

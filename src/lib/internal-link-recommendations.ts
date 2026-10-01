@@ -146,7 +146,14 @@ const WEAK_INGREDIENT_KEYS = new Set(
   ].map((item) => normalizeIngredientLookupKey(item)),
 );
 
-const STRONG_CATEGORY_GROUPS = new Set<CategoryGroup>(["course", "desserts", "holiday"]);
+/**
+ * Groups that alone can clear the recommendation floor.
+ * Season/holiday ("Weekend", "Summer", …) is intentionally excluded: those
+ * labels are often applied across unrelated courses and produced weak
+ * cross-cuisine pairings in the 11E catalogue audit. Holiday can still
+ * contribute via primary-category (70) when it is the first category.
+ */
+const STRONG_CATEGORY_GROUPS = new Set<CategoryGroup>(["course", "desserts"]);
 
 function normToken(value: unknown): string {
   return String(value ?? "")

@@ -98,6 +98,9 @@ describe("Phase 11D — public Try next wiring", () => {
     assert.match(actions, /revalidatePath\(`\/recipes\/\$\{slug\}`\)/);
     assert.match(actions, /revalidateRecipesLinkingToContextualTarget/);
     assert.match(actions, /deleteRecipeAction/);
+    assert.match(actions, /restoreRecipeRevisionAction/);
+    const restoreSlice = actions.slice(actions.indexOf("restoreRecipeRevisionAction"));
+    assert.match(restoreSlice, /revalidateRecipesLinkingToContextualTarget\(recipeId\)/);
     const publicLib = read("lib/contextual-internal-links-public.ts");
     assert.match(publicLib, /findRecipeSlugsLinkingToContextualTarget/);
     assert.match(publicLib, /revalidateRecipesLinkingToContextualTarget/);
