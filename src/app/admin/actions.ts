@@ -78,7 +78,19 @@ import { parseRecipeYoutubeBlob } from "@/lib/recipe-youtube";
 import { parseValues } from "@/lib/recipe-map";
 import { parseTimestampInput } from "@/lib/youtube-metadata-editor";
 import { applyStepVideoTimestampsOnSave } from "@/lib/step-video-timestamps";
-import { isRecipeStepTimestampsEnabled } from "@/lib/flags";
+import {
+  isInternalLinkRecommendationsEnabled,
+  isRecipeStepTimestampsEnabled,
+} from "@/lib/flags";
+import { applyContextualInternalLinksOnSave } from "@/lib/contextual-internal-links-save";
+import {
+  getContextualInternalLinkIds,
+  normalizeContextualInternalLinks,
+} from "@/lib/contextual-internal-links";
+import {
+  parseSubmittedContextualInternalLinks,
+  resolveContextualInternalLinkTargetsForSave,
+} from "@/lib/internal-link-recommendations-admin";
 import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
@@ -817,6 +829,45 @@ export async function saveRecipeAction(formData: FormData) {
     );
   }
   Object.assign(values, stepTimestampsApply.values);
+
+  const previousValuesForInternalLinks = existing ? parseValues(existing.values) : {};
+  const submittedInternalLinks = parseSubmittedContextualInternalLinks(
+    formData.get("contextualInternalLinks"),
+  );
+  const submittedLinkIds = (
+    normalizeContextualInternalLinks(submittedInternalLinks, id || undefined)?.map(
+      (item) => item.recipeId,
+    ) ?? []
+  );
+  const previousLinkIds = getContextualInternalLinkIds(previousValuesForInternalLinks, id || undefined);
+  const targetsToResolve = [...new Set([...submittedLinkIds, ...previousLinkIds])];
+  let targetStatusMap = new Map<
+    string,
+    { exists: boolean; status?: string | null }
+  >();
+  try {
+    targetStatusMap = await resolveContextualInternalLinkTargetsForSave(targetsToResolve);
+  } catch {
+    targetStatusMap = new Map();
+  }
+  const internalLinksApply = applyContextualInternalLinksOnSave({
+    previousValues: previousValuesForInternalLinks,
+    nextValues: values,
+    submittedRaw: submittedInternalLinks,
+    sourceRecipeId: id || "",
+    featureEnabled: isInternalLinkRecommendationsEnabled(),
+    resolveTarget: (recipeId) =>
+      targetStatusMap.get(recipeId) ?? { exists: false },
+  });
+  if (!internalLinksApply.ok) {
+    const detail = encodeURIComponent(internalLinksApply.error);
+    redirect(
+      id
+        ? `/admin/recipes/${id}?error=internal-links&detail=${detail}`
+        : `/admin/recipes/new?type=${typeId}&error=internal-links&detail=${detail}`,
+    );
+  }
+  Object.assign(values, internalLinksApply.values);
 
   const aiMetaRaw = String(formData.get("aiMeta") || "{}");
   let aiMeta = "{}";

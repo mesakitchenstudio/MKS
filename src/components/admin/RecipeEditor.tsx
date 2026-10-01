@@ -82,6 +82,13 @@ import {
 } from "@/lib/recipe-schedule";
 import { PublishingReadinessPanel } from "@/components/admin/PublishingReadinessPanel";
 import { RelatedRecipePinsEditor, type RelatedRecipePinCandidate } from "@/components/admin/RelatedRecipePinsEditor";
+import { ContextualInternalLinksEditor } from "@/components/admin/ContextualInternalLinksEditor";
+import type {
+  AdminInternalLinkAcceptedTarget,
+  AdminInternalLinkPickerCandidate,
+  AdminInternalLinkSuggestion,
+} from "@/lib/internal-link-recommendations-admin";
+import { getContextualInternalLinkIds } from "@/lib/contextual-internal-links";
 import { parseRelatedRecipeIds } from "@/lib/recipe-related-overrides";
 import {
   listMissingAiFillableFields,
@@ -318,6 +325,7 @@ function editorFormSnapshot(payload: {
   seasonal: boolean;
   categoryIds: string[];
   relatedRecipeIds?: string[];
+  contextualInternalLinkIds?: string[];
   values: Record<string, unknown>;
   aiMeta?: RecipeAiMeta | null;
   publicUpdateEnabled?: boolean;
@@ -328,6 +336,7 @@ function editorFormSnapshot(payload: {
     ...payload,
     categoryIds: [...payload.categoryIds].sort(),
     relatedRecipeIds: [...(payload.relatedRecipeIds ?? [])],
+    contextualInternalLinkIds: [...(payload.contextualInternalLinkIds ?? [])],
     aiMeta: payload.aiMeta ?? null,
     publicUpdateEnabled: Boolean(payload.publicUpdateEnabled),
     publicUpdateNote: payload.publicUpdateNote ?? "",
@@ -521,6 +530,12 @@ export function RecipeEditor({
   typeName: initialTypeName,
   recipeTypes = [],
   relatedCandidates = [],
+  internalLinkRecommendationsEnabled = false,
+  internalLinkSuggestions = [],
+  internalLinkSuggestionsError = false,
+  internalLinkAcceptedTargets = [],
+  internalLinkAcceptedTargetsError = false,
+  internalLinkPickerCandidates = [],
   initial,
   fields,
   categories,
@@ -536,6 +551,12 @@ export function RecipeEditor({
   typeName: string;
   recipeTypes?: { id: string; name: string }[];
   relatedCandidates?: RelatedRecipePinCandidate[];
+  internalLinkRecommendationsEnabled?: boolean;
+  internalLinkSuggestions?: AdminInternalLinkSuggestion[];
+  internalLinkSuggestionsError?: boolean;
+  internalLinkAcceptedTargets?: AdminInternalLinkAcceptedTarget[];
+  internalLinkAcceptedTargetsError?: boolean;
+  internalLinkPickerCandidates?: AdminInternalLinkPickerCandidate[];
   initial: {
     title: string;
     slug: string;
@@ -609,6 +630,9 @@ export function RecipeEditor({
   const [relatedRecipeIds, setRelatedRecipeIds] = useState(() =>
     parseRelatedRecipeIds(initial.relatedRecipeIds),
   );
+  const [contextualInternalLinkIds, setContextualInternalLinkIds] = useState(() =>
+    getContextualInternalLinkIds(initial.values, recipeId),
+  );
   const initialPublicNote = String(initial.publicUpdateNote ?? "").trim();
   const initialPublicDate = publicUpdateDateInputValue(initial.publicUpdatedAt);
   const [publicUpdateEnabled, setPublicUpdateEnabled] = useState(
@@ -645,13 +669,14 @@ export function RecipeEditor({
         seasonal: initial.seasonal,
         categoryIds: initial.categoryIds,
         relatedRecipeIds: parseRelatedRecipeIds(initial.relatedRecipeIds),
+        contextualInternalLinkIds: getContextualInternalLinkIds(initial.values, recipeId),
         values: hydrateEditorValues(fields, initial.values),
         aiMeta: initial.aiMeta ?? null,
         publicUpdateEnabled: Boolean(initialPublicNote && initialPublicDate),
         publicUpdateNote: initialPublicNote,
         publicUpdatedAt: initialPublicDate,
       }),
-    [fields, initial, initialPublicDate, initialPublicNote, initialTypeId],
+    [fields, initial, initialPublicDate, initialPublicNote, initialTypeId, recipeId],
   );
 
   const detailFields = pickFieldsOrdered(fields, DETAILS_KEYS);
@@ -897,6 +922,7 @@ export function RecipeEditor({
         seasonal,
         categoryIds,
         relatedRecipeIds,
+        contextualInternalLinkIds,
         values,
         aiMeta,
         publicUpdateEnabled,
@@ -908,6 +934,7 @@ export function RecipeEditor({
       baselineSnapshot,
       categoryIds,
       relatedRecipeIds,
+      contextualInternalLinkIds,
       excerpt,
       featured,
       publicUpdateEnabled,
@@ -2801,6 +2828,15 @@ export function RecipeEditor({
         {categoryIds.map((id) => (
           <input key={id} type="hidden" name="categoryIds" value={id} />
         ))}
+        {internalLinkRecommendationsEnabled ? (
+          <input
+            type="hidden"
+            name="contextualInternalLinks"
+            value={JSON.stringify(
+              contextualInternalLinkIds.map((recipeId) => ({ recipeId })),
+            )}
+          />
+        ) : null}
 
         {aiNotice ? (
           <p
@@ -3281,6 +3317,29 @@ export function RecipeEditor({
                 onChange={setRelatedRecipeIds}
                 candidates={relatedCandidates}
               />
+              {internalLinkRecommendationsEnabled ? (
+                <ContextualInternalLinksEditor
+                  sourceRecipeId={recipeId || ""}
+                  value={contextualInternalLinkIds}
+                  onChange={setContextualInternalLinkIds}
+                  suggestions={internalLinkSuggestions}
+                  suggestionsError={internalLinkSuggestionsError}
+                  acceptedTargets={internalLinkAcceptedTargets}
+                  acceptedTargetsError={internalLinkAcceptedTargetsError}
+                  pickerCandidates={
+                    internalLinkPickerCandidates.length > 0
+                      ? internalLinkPickerCandidates
+                      : relatedCandidates
+                          .filter((row) => row.status === "published")
+                          .map((row) => ({
+                            id: row.id,
+                            title: row.title,
+                            slug: row.slug,
+                            status: row.status,
+                          }))
+                  }
+                />
+              ) : null}
               <div className="mt-5 min-w-0 max-w-full">
                 <div className="mb-2 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <p className="min-w-0 text-sm font-semibold text-ink">Categories</p>

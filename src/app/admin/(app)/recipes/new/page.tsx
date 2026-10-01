@@ -4,7 +4,10 @@ import { requireAccess } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseValues } from "@/lib/recipe-map";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
-import { isRecipeStepTimestampsEnabled } from "@/lib/flags";
+import {
+  isInternalLinkRecommendationsEnabled,
+  isRecipeStepTimestampsEnabled,
+} from "@/lib/flags";
 
 export default async function NewRecipePage({
   searchParams,
@@ -17,6 +20,7 @@ export default async function NewRecipePage({
   if (!typeId) redirect("/admin");
 
   const db = getDb();
+  const internalLinksEnabled = isInternalLinkRecommendationsEnabled();
   const [recipeType, categories, recipeTypes, relatedCandidates] = await Promise.all([
     db.recipeType.findUnique({
       where: { id: typeId },
@@ -38,6 +42,20 @@ export default async function NewRecipePage({
       recipeTypes={recipeTypes}
       relatedCandidates={relatedCandidates}
       stepTimestampsEnabled={isRecipeStepTimestampsEnabled()}
+      internalLinkRecommendationsEnabled={internalLinksEnabled}
+      internalLinkSuggestions={[]}
+      internalLinkPickerCandidates={
+        internalLinksEnabled
+          ? relatedCandidates
+              .filter((row) => row.status === "published")
+              .map((row) => ({
+                id: row.id,
+                title: row.title,
+                slug: row.slug,
+                status: row.status,
+              }))
+          : []
+      }
       serverError={
         error === "public-update"
           ? detail
@@ -51,7 +69,9 @@ export default async function NewRecipePage({
               ? decodeURIComponent(String(detail))
               : error === "step-timestamps" && detail
                 ? decodeURIComponent(String(detail))
-                : undefined
+                : error === "internal-links" && detail
+                  ? decodeURIComponent(String(detail))
+                  : undefined
       }
       fields={recipeType.fields.map((field) => ({
         ...field,

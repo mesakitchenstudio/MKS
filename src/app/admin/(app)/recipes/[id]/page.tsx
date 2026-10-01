@@ -8,7 +8,11 @@ import { ensureRecipeTypeCorrections } from "@/lib/ensure-recipe-type-correction
 import { parseValues } from "@/lib/recipe-map";
 import { parseRelatedRecipeIds } from "@/lib/recipe-related-overrides";
 import { ensureRecipeOverviewFields } from "@/lib/recipe-overview";
-import { isRecipeStepTimestampsEnabled } from "@/lib/flags";
+import {
+  isInternalLinkRecommendationsEnabled,
+  isRecipeStepTimestampsEnabled,
+} from "@/lib/flags";
+import { loadAdminInternalLinkRecommendations } from "@/lib/internal-link-recommendations-admin";
 
 export async function generateMetadata({
   params,
@@ -47,6 +51,7 @@ export default async function EditRecipePage({
   const { saved, restored, aiNotice, error, detail, scheduled } = query;
   const scheduleCleared = query["schedule-cleared"];
   const db = getDb();
+  const internalLinksEnabled = isInternalLinkRecommendationsEnabled();
   const [recipe, categories, recipeTypes, relatedCandidates] = await Promise.all([
     db.recipe.findUnique({
       where: { id },
@@ -65,6 +70,32 @@ export default async function EditRecipePage({
   ]);
   if (!recipe) notFound();
 
+  let internalLinkSuggestions: Awaited<
+    ReturnType<typeof loadAdminInternalLinkRecommendations>
+  >["suggestions"] = [];
+  let internalLinkAcceptedTargets: Awaited<
+    ReturnType<typeof loadAdminInternalLinkRecommendations>
+  >["acceptedTargets"] = [];
+  let internalLinkPickerCandidates: Awaited<
+    ReturnType<typeof loadAdminInternalLinkRecommendations>
+  >["pickerCandidates"] = [];
+  let internalLinkSuggestionsError = false;
+  let internalLinkAcceptedTargetsError = false;
+
+  if (internalLinksEnabled) {
+    try {
+      const payload = await loadAdminInternalLinkRecommendations(id);
+      internalLinkSuggestions = payload.suggestions;
+      internalLinkAcceptedTargets = payload.acceptedTargets;
+      internalLinkPickerCandidates = payload.pickerCandidates;
+      internalLinkSuggestionsError = payload.suggestionsError;
+      internalLinkAcceptedTargetsError = payload.acceptedTargetsError;
+    } catch {
+      internalLinkSuggestionsError = true;
+      internalLinkAcceptedTargetsError = true;
+    }
+  }
+
   return (
     <RecipeEditor
       recipeId={recipe.id}
@@ -73,6 +104,12 @@ export default async function EditRecipePage({
       recipeTypes={recipeTypes}
       relatedCandidates={relatedCandidates}
       stepTimestampsEnabled={isRecipeStepTimestampsEnabled()}
+      internalLinkRecommendationsEnabled={internalLinksEnabled}
+      internalLinkSuggestions={internalLinkSuggestions}
+      internalLinkSuggestionsError={internalLinkSuggestionsError}
+      internalLinkAcceptedTargets={internalLinkAcceptedTargets}
+      internalLinkAcceptedTargetsError={internalLinkAcceptedTargetsError}
+      internalLinkPickerCandidates={internalLinkPickerCandidates}
       saved={Boolean(saved)}
       restored={Boolean(restored)}
       scheduledNotice={
@@ -89,6 +126,8 @@ export default async function EditRecipePage({
             : error === "chapters" && detail
             ? decodeURIComponent(String(detail))
             : error === "step-timestamps" && detail
+              ? decodeURIComponent(String(detail))
+            : error === "internal-links" && detail
               ? decodeURIComponent(String(detail))
             : error === "public-update"
               ? detail
