@@ -48,3 +48,14 @@ export function isRecipeStepTimestampsEnabled(): boolean {
 export function isInternalLinkRecommendationsEnabled(): boolean {
   return process.env.INTERNAL_LINK_RECOMMENDATIONS_ENABLED === "true";
 }
+
+/**
+ * Roadmap #12 — Newsletter personalization (Recipe block for consented subscribers).
+ * Server-only — default OFF unless exactly `"true"`.
+ * Do not mirror with NEXT_PUBLIC_* .
+ * Pure eligibility/scoring helpers stay ungated; future campaign orchestration enforces this gate.
+ * OFF means editorial/general campaign content — not newsletter disabled. Never alters consent.
+ */
+export function isNewsletterPersonalizationEnabled(): boolean {
+  return process.env.NEWSLETTER_PERSONALIZATION_ENABLED === "true";
+}

@@ -233,5 +233,7 @@
   "src/lib/contextual-internal-links-save.test.ts",
   "src/lib/internal-link-recommendations-admin.test.ts",
   "src/lib/contextual-internal-links-public.test.ts",
-  "src/lib/internal-link-recommendations-hardening.test.ts"
+  "src/lib/internal-link-recommendations-hardening.test.ts",
+  "src/lib/newsletter-personalization.test.ts",
+  "src/lib/newsletter-interest-profile.test.ts"
 ]
