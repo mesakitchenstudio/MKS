@@ -18,6 +18,11 @@ import { getRelatedLessonsForRecipeSlug } from "@/lib/studio-recipe-links";
 import type { PublicRecipe } from "@/lib/recipes";
 import type { RecipeDetailViewProps } from "@/components/recipe/RecipeDetailView";
 import { loadRecipeIngredientSeoLinks } from "@/lib/ingredient-seo";
+import { isInternalLinkRecommendationsEnabled } from "@/lib/flags";
+import {
+  loadContextualInternalLinkTargetsForRecipe,
+  type ContextualInternalLinkTarget,
+} from "@/lib/contextual-internal-links-public";
 
 function parseDurationSecondsFromDisplay(duration?: string) {
   if (!duration?.trim()) return undefined;
@@ -71,13 +76,20 @@ export async function loadRecipeDetailPresentation(
 
   const continuedSlug = getContinuedViewingRecipeSlug(watchNext, seriesLinks);
   let manualRelatedIds: string[] = [];
+  let sourceValuesRaw: string | null = null;
   const recipeDbId = recipe.id?.trim();
+  const internalLinksEnabled = isInternalLinkRecommendationsEnabled();
   if (recipeDbId && (await dbAvailable())) {
     const relatedRow = await getDb().recipe.findUnique({
       where: { id: recipeDbId },
-      select: { relatedRecipeIds: true },
+      select: internalLinksEnabled
+        ? { relatedRecipeIds: true, values: true }
+        : { relatedRecipeIds: true },
     });
     manualRelatedIds = parseRelatedRecipeIds(relatedRow?.relatedRecipeIds);
+    if (internalLinksEnabled && relatedRow && "values" in relatedRow) {
+      sourceValuesRaw = String((relatedRow as { values?: string }).values ?? "") || null;
+    }
   }
   const related = await getRankedRelatedRecipes(recipe, {
     seriesPeerSlugs,
@@ -100,6 +112,18 @@ export async function loadRecipeDetailPresentation(
     ingredientSeoLinks = await loadRecipeIngredientSeoLinks(getDb(), recipeDbId);
   }
 
+  let contextualInternalLinks: ContextualInternalLinkTarget[] = [];
+  if (internalLinksEnabled && recipeDbId && sourceValuesRaw != null) {
+    try {
+      contextualInternalLinks = await loadContextualInternalLinkTargetsForRecipe({
+        sourceRecipeId: recipeDbId,
+        values: sourceValuesRaw,
+      });
+    } catch {
+      contextualInternalLinks = [];
+    }
+  }
+
   return {
     recipe,
     seriesLinks,
@@ -113,5 +137,6 @@ export async function loadRecipeDetailPresentation(
     defaultEmail: session?.user?.email ?? admin?.email ?? "",
     verifiedTargetReviewId,
     ingredientSeoLinks,
+    contextualInternalLinks,
   };
 }

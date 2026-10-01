@@ -231,5 +231,6 @@
   "src/lib/contextual-internal-links.test.ts",
   "src/lib/internal-link-recommendations.test.ts",
   "src/lib/contextual-internal-links-save.test.ts",
-  "src/lib/internal-link-recommendations-admin.test.ts"
+  "src/lib/internal-link-recommendations-admin.test.ts",
+  "src/lib/contextual-internal-links-public.test.ts"
 ]

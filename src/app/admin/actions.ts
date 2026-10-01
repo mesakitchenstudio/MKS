@@ -91,6 +91,7 @@ import {
   parseSubmittedContextualInternalLinks,
   resolveContextualInternalLinkTargetsForSave,
 } from "@/lib/internal-link-recommendations-admin";
+import { revalidateRecipesLinkingToContextualTarget } from "@/lib/contextual-internal-links-public";
 import { deleteGuestVisitorsForAdmin } from "@/lib/guest-analytics";
 import { normalizeGuestVisitorIds } from "@/lib/guest-tracking";
 import { connectionMeta } from "@/lib/request-meta";
@@ -1186,6 +1187,12 @@ export async function saveRecipeAction(formData: FormData) {
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${slug}`);
   revalidatePath(`/recipes/${slug}/cook`);
+  // Sources that list this Recipe as a Try-next target need fresh Published/slug state.
+  try {
+    await revalidateRecipesLinkingToContextualTarget(recipe.id);
+  } catch {
+    // Non-fatal: own route already revalidated; reverse scan is best-effort.
+  }
   if (scheduleIntent === "set") {
     redirect(`/admin/recipes/${recipe.id}?scheduled=1`);
   }
@@ -1237,6 +1244,14 @@ export async function deleteRecipeAction(formData: FormData) {
     where: { id },
     select: { id: true, title: true, slug: true, status: true },
   });
+  // Invalidate sources that referenced this Recipe before the row disappears.
+  if (existing) {
+    try {
+      await revalidateRecipesLinkingToContextualTarget(existing.id);
+    } catch {
+      // Non-fatal
+    }
+  }
   await getDb().recipe.delete({ where: { id } });
   if (existing) {
     await recordAdminAuditEvent({
@@ -1252,6 +1267,11 @@ export async function deleteRecipeAction(formData: FormData) {
   }
   revalidatePath("/admin");
   revalidatePath("/");
+  if (existing?.slug) {
+    revalidatePath(`/recipes/${existing.slug}`);
+    revalidatePath(`/recipes/${existing.slug}/cook`);
+  }
+  revalidatePath("/recipes");
   redirect("/admin");
 }
 

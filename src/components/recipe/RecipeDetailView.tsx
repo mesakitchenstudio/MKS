@@ -9,6 +9,7 @@ import { RecipeLearnSection } from "@/components/RecipeLearnSection";
 import { RecipePageHero } from "@/components/RecipePageHero";
 import { RecipeReviews } from "@/components/RecipeReviews";
 import { RecipeQuestionsSection } from "@/components/recipe/RecipeQuestionsSection";
+import { RecipeTryNext } from "@/components/recipe/RecipeTryNext";
 import { RecipeSectionNav } from "@/components/RecipeSectionNav";
 import { SetCurrentRecipe } from "@/components/RecipeFloatTools";
 import { RecipeContinuedViewing } from "@/components/youtube/RecipeContinuedViewing";
@@ -28,6 +29,7 @@ import type { StudioLessonSummary } from "@/lib/studio-types";
 import type { WatchNextRecommendation } from "@/lib/youtube-data/watch-next";
 import type { ResolvedRecipeYoutube } from "@/data/youtube-types";
 import type { StageVideoHelp } from "@/lib/recipe-stage-video-help";
+import type { ContextualInternalLinkTarget } from "@/lib/contextual-internal-links-public";
 
 export type RecipeDetailMode = "public" | "preview";
 
@@ -52,6 +54,8 @@ export type RecipeDetailViewProps = {
   stepTimestampsEnabled?: boolean;
   /** groupIndex:itemIndex → Ingredient slug for indexable SEO links (public only). */
   ingredientSeoLinks?: Record<string, string>;
+  /** Roadmap #11 — resolved Published Try-next targets (server-derived). */
+  contextualInternalLinks?: ContextualInternalLinkTarget[];
 };
 
 export function RecipeDetailView({
@@ -72,6 +76,7 @@ export function RecipeDetailView({
   recipeQaEnabled = false,
   stepTimestampsEnabled = false,
   ingredientSeoLinks = {},
+  contextualInternalLinks = [],
 }: RecipeDetailViewProps) {
   const preview = mode === "preview";
   const visibleExtrasList = publicExtrasForPage(recipe).filter((field) =>
@@ -207,6 +212,8 @@ export function RecipeDetailView({
           sitePrivate={isSitePrivate()}
         />
       )}
+
+      <RecipeTryNext targets={contextualInternalLinks} />
 
       <div className="no-print">
         <CollectionRow title="More from the studio" recipes={related} compactDiscovery />

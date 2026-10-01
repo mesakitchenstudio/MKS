@@ -193,9 +193,9 @@ describe("Phase 11C — Admin wiring contracts", () => {
     assert.match(actions, /isInternalLinkRecommendationsEnabled/);
   });
 
-  it("does not add public Try next / Cooking / Preview / Prisma for 11C", () => {
-    const detail = read("lib/recipe-detail-presentation.ts");
-    assert.doesNotMatch(detail, /Try next|contextualInternalLinks/);
+  it("Admin 11C remains separate from public Try next component and Prisma", () => {
+    const editor = read("components/admin/ContextualInternalLinksEditor.tsx");
+    assert.doesNotMatch(editor, /Try next|RecipeTryNext/);
     const schema = readFileSync(path.join(root, "..", "prisma", "schema.prisma"), "utf8");
     assert.doesNotMatch(schema, /ContextualInternalLink|internalLinkRecommendation/i);
     assert.doesNotMatch(read("lib/flags.ts"), /NEXT_PUBLIC_INTERNAL_LINK_RECOMMENDATIONS/);
