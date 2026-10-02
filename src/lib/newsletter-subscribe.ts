@@ -10,6 +10,7 @@ import {
   createNewsletterUnsubscribeToken,
   hashNewsletterUnsubscribeToken,
   isActiveNewsletterStatus,
+  resolveNewsletterUnsubscribeToken,
 } from "@/lib/newsletter-unsubscribe";
 import { buildNewsletterWelcomeEmail } from "@/lib/newsletter-welcome-email";
 
@@ -203,24 +204,39 @@ export async function unsubscribeNewsletterByEmail(
 
 /**
  * Idempotent unsubscribe by raw token (never store the raw token).
+ * Supports legacy welcome hash tokens and signed v1 campaign tokens.
  * Does not delete the subscriber row.
  */
 export async function unsubscribeNewsletterByToken(
   rawToken: string,
 ): Promise<UnsubscribeNewsletterResult> {
-  const token = rawToken.trim();
-  if (!token || token.length < 32 || token.length > 128) {
-    return { ok: false, reason: "invalid" };
-  }
-  if (!/^[a-fA-F0-9]+$/.test(token)) {
+  const resolved = resolveNewsletterUnsubscribeToken(rawToken);
+  if (resolved.kind === "invalid") {
     return { ok: false, reason: "invalid" };
   }
 
   try {
     const db = getDb();
-    const tokenHash = hashNewsletterUnsubscribeToken(token);
+
+    if (resolved.kind === "signed") {
+      const row = await db.newsletterSubscriber.findUnique({
+        where: { id: resolved.subscriberId },
+        select: { id: true, status: true },
+      });
+      if (!row) {
+        return { ok: false, reason: "invalid" };
+      }
+      if (row.status === "unsubscribed") {
+        return { ok: true, alreadyUnsubscribed: true };
+      }
+      await markNewsletterUnsubscribed(row.id);
+      return { ok: true, alreadyUnsubscribed: false };
+    }
+
+    const tokenHash = hashNewsletterUnsubscribeToken(resolved.token);
     const row = await db.newsletterSubscriber.findUnique({
       where: { unsubscribeTokenHash: tokenHash },
+      select: { id: true, status: true },
     });
     if (!row) {
       return { ok: false, reason: "invalid" };
@@ -232,8 +248,8 @@ export async function unsubscribeNewsletterByToken(
 
     await markNewsletterUnsubscribed(row.id);
     return { ok: true, alreadyUnsubscribed: false };
-  } catch (error) {
-    console.error("Newsletter unsubscribe failed", error);
+  } catch {
+    console.error("Newsletter unsubscribe failed");
     return { ok: false, reason: "invalid" };
   }
 }

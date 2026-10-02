@@ -59,6 +59,7 @@ Admin and member password-reset emails, contact-form delivery, and newsletter we
 | `RESEND_API_KEY` | Yes | Resend API key (`re_…`) |
 | `EMAIL_FROM` | Recommended | Verified sender on your domain, e.g. `Mesa Kitchen Studio <hello@mesakitchenstudio.com>` |
 | `CONTACT_TO_EMAIL` | Optional | Studio inbox for contact + newsletter signup notices (falls back to `ADMIN_EMAIL`) |
+| `NEWSLETTER_UNSUBSCRIBE_SIGNING_SECRET` | Required before campaign sends | Long-lived HMAC secret (≥32 chars) for recurring signed unsubscribe links. Server only. Never `NEXT_PUBLIC_*`. Changing it invalidates signed campaign unsubscribe URLs. Legacy welcome hash tokens do not use this secret. |
 
 `EMAIL_FROM` must use a domain verified in Resend. Without `RESEND_API_KEY`, forgot-password still shows the same generic success message (no account enumeration), newsletter signup still persists subscribers, and welcome mail is skipped with a server log that mail is not configured.
 

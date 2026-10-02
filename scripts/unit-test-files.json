@@ -32,6 +32,7 @@
   "src/lib/recipe-related-overrides.test.ts",
   "src/lib/newsletter.test.ts",
   "src/lib/newsletter-flow.test.ts",
+  "src/lib/newsletter-unsubscribe-signed.test.ts",
   "src/lib/member-newsletter.test.ts",
   "src/lib/phase4a-saved-collections.test.ts",
   "src/lib/phase4b-save-collections.test.ts",
