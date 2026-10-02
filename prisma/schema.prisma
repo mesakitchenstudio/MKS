@@ -619,6 +619,30 @@ model NewsletterSubscriber {
   @@index([status])
 }
 
+/**
+ * Roadmap #12 — Editorial newsletter campaign (additive).
+ * Consent remains NewsletterSubscriber. Content JSON stores Recipe IDs only;
+ * titles/slugs/images resolve at preview/send. No per-recipient rows.
+ */
+model NewsletterCampaign {
+  id            String    @id @default(cuid())
+  /// Admin/internal label — not the email subject.
+  name          String
+  /** draft | sending | sent */
+  status        String    @default("draft")
+  /// JSON: subject, preheader, intro, featuredRecipeId, defaultRecipeIds, candidateRecipeIds.
+  content       String    @default("{}")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  /// Set when audience send completes (12E).
+  sentAt        DateTime?
+  /// Set when send begins — supports 12E double-send protection.
+  sendStartedAt DateTime?
+
+  @@index([status, updatedAt])
+  @@index([createdAt])
+}
+
 model ContactMessage {
   id        String   @id @default(cuid())
   name      String
