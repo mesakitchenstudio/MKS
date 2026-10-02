@@ -9,7 +9,6 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  NEWSLETTER_CAMPAIGN_DIRTY_SAVE_HINT,
   NEWSLETTER_CAMPAIGN_IMMEDIATE_FAILURE_LABEL,
   NEWSLETTER_CAMPAIGN_PROVIDER_ACCEPTED_LABEL,
   NEWSLETTER_CAMPAIGN_STUCK_SENDING_GUIDANCE,
