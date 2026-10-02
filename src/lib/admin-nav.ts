@@ -55,6 +55,12 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
       { href: "/admin/site-health", label: "Site Health", match: "prefix", area: "content" },
       { href: "/admin/notifications", label: "Notifications", match: "prefix", area: "content" },
       { href: "/admin/studio", label: "Studio", match: "prefix", area: "content" },
+      {
+        href: "/admin/newsletter/campaigns",
+        label: "Newsletter campaigns",
+        match: "prefix",
+        area: "content",
+      },
     ],
   },
   {
@@ -76,7 +82,7 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
       { href: "/admin/reviews", label: "Reviews", area: "content" },
       { href: "/admin/questions", label: "Questions", area: "content", feature: "recipeQa" },
       { href: "/admin/members", label: "Members", area: "members" },
-      { href: "/admin/newsletter", label: "Newsletter", area: "members" },
+      { href: "/admin/newsletter", label: "Newsletter", match: "exact", area: "members" },
     ],
   },
   {

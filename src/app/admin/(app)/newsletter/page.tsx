@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { NewsletterAdminSubnav } from "@/components/admin/NewsletterAdminSubnav";
 import { NewsletterSubscribersIndex } from "@/components/admin/NewsletterSubscribersIndex";
+import { canViewNewsletterCampaigns } from "@/lib/admin-access";
 import { requireAccess } from "@/lib/auth";
 import {
   getNewsletterSubscriberCounts,
@@ -23,7 +25,7 @@ export default async function AdminNewsletterPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireAccess("members");
+  const admin = await requireAccess("members");
   const raw = await searchParams;
   const status = parseNewsletterStatusFilter(firstParam(raw.status));
   const q = String(firstParam(raw.q) ?? "").trim();
@@ -40,6 +42,12 @@ export default async function AdminNewsletterPage({
         title="Newsletter"
         description="Subscribers collected from Mesa newsletter signup forms."
         documentationTopicId="newsletter"
+      />
+
+      <NewsletterAdminSubnav
+        active="subscribers"
+        showSubscribers
+        showCampaigns={canViewNewsletterCampaigns(admin.role)}
       />
 
       <NewsletterSubscribersIndex list={list} counts={counts} />

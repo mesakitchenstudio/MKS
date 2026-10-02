@@ -421,6 +421,9 @@ export function humanizeAdminAuditAction(action: string): string {
     "recipe_question.published": "Published recipe question",
     "recipe_question.hidden": "Hid recipe question",
     "recipe_question.rejected": "Rejected recipe question",
+    "newsletter_campaign.created": "Created newsletter campaign",
+    "newsletter_campaign.updated": "Updated newsletter campaign",
+    "newsletter_campaign.deleted": "Deleted newsletter campaign",
   };
   return map[action] || action.replace(/\./g, " ");
 }

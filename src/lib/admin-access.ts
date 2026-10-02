@@ -88,6 +88,27 @@ export function canDeleteMembers(role: string) {
 }
 
 /**
+ * Roadmap #12 — Newsletter campaign editorial compose (Owner + Editor).
+ * Audience staff manage subscribers, not campaign content.
+ */
+export function canComposeNewsletterCampaigns(role: string) {
+  return role === "owner" || role === "editor";
+}
+
+/**
+ * Roadmap #12 — Dry-run audience aggregates (Owner + Audience).
+ * Editors may compose/preview without recipient analytics.
+ */
+export function canDryRunNewsletterCampaigns(role: string) {
+  return role === "owner" || role === "members";
+}
+
+/** View campaign Admin pages (compose and/or dry-run capability). */
+export function canViewNewsletterCampaigns(role: string) {
+  return canComposeNewsletterCampaigns(role) || canDryRunNewsletterCampaigns(role);
+}
+
+/**
  * Global Admin Activity log — Owner only (full cross-area operational history).
  * Editors and Audience do not get global activity access in this phase.
  */

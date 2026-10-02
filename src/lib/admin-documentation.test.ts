@@ -37,6 +37,7 @@ const MAIN_NAV_EXPECTATIONS: Array<{ path: string; topicId: string }> = [
   { path: "/admin/reviews", topicId: "reviews" },
   { path: "/admin/members", topicId: "members" },
   { path: "/admin/newsletter", topicId: "newsletter" },
+  { path: "/admin/newsletter/campaigns", topicId: "newsletter" },
   { path: "/admin/content-performance", topicId: "content-performance" },
   { path: "/admin/visitors", topicId: "visitors" },
   { path: "/admin/search", topicId: "search-analytics" },

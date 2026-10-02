@@ -237,5 +237,8 @@
   "src/lib/newsletter-personalization.test.ts",
   "src/lib/newsletter-interest-profile.test.ts",
   "src/lib/newsletter-campaign.test.ts",
-  "src/lib/newsletter-campaign-server.test.ts"
+  "src/lib/newsletter-campaign-server.test.ts",
+  "src/lib/newsletter-campaign-admin.test.ts",
+  "src/lib/newsletter-campaign-admin-server.test.ts",
+  "src/lib/newsletter-campaign-admin-ui.test.ts"
 ]

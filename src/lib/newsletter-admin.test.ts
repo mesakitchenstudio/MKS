@@ -58,6 +58,7 @@ describe("newsletter admin permissions and nav", () => {
 
     const editor = flattenAdminNavItemLabels(buildAdminNavSections("editor"));
     assert.equal(editor.includes("Newsletter"), false);
+    assert.equal(editor.includes("Newsletter campaigns"), true);
     assert.equal(editor.includes("Members"), false);
     assert.equal(editor.includes("Search"), true);
   });

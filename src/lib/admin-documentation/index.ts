@@ -120,6 +120,8 @@ const EXACT_PATH_TOPIC_IDS: Record<string, string> = {
   "/admin/reviews": "reviews",
   "/admin/members": "members",
   "/admin/newsletter": "newsletter",
+  "/admin/newsletter/campaigns": "newsletter",
+  "/admin/newsletter/campaigns/new": "newsletter",
   "/admin/content-performance": "content-performance",
   "/admin/visitors": "visitors",
   "/admin/search": "search-analytics",
@@ -221,5 +223,6 @@ export function toggleDocumentationOverlayWithoutTouchingForm<T extends object>(
 export const ADMIN_DOC_MAIN_NAV_PATHS = Object.keys(EXACT_PATH_TOPIC_IDS).filter(
   (path) =>
     path !== "/admin/series/new" &&
-    path !== "/admin/series/import",
+    path !== "/admin/series/import" &&
+    path !== "/admin/newsletter/campaigns/new",
 );

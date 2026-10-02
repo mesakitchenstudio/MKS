@@ -5,14 +5,14 @@ export const newsletterDocTopic: AdminDocTopic = {
   title: "Newsletter",
   summary: "Review newsletter subscribers and subscription activity.",
   category: "community",
-  routes: ["/admin/newsletter"],
+  routes: ["/admin/newsletter", "/admin/newsletter/campaigns"],
   relatedTopicIds: ["members", "visitors"],
   sections: [
     {
       id: "about",
       title: "About this page",
       paragraphs: [
-        "Newsletter lists subscribers collected from Mesa newsletter signup forms. It is a subscriber ledger — not a full email campaign studio.",
+        "Newsletter includes a subscriber ledger and a separate campaign composer. The ledger lists signup-form subscribers. Campaigns are draft editorial workflows with preview and dry-run — sending is not available from this surface yet.",
       ],
     },
     {
@@ -22,7 +22,9 @@ export const newsletterDocTopic: AdminDocTopic = {
       bullets: [
         "Search subscribers",
         "Review active versus other subscription states",
-        "Inspect signup context when it is shown",
+        "Create and edit draft campaigns",
+        "Preview general and synthetic personalized emails",
+        "Run aggregate dry-run audience analysis (Owner / Audience)",
       ],
     },
     {
@@ -30,7 +32,8 @@ export const newsletterDocTopic: AdminDocTopic = {
       title: "Important rules",
       paragraphs: [],
       bullets: [
-        "This page does not send marketing campaigns by itself",
+        "This Admin surface does not send marketing campaigns yet",
+        "Preview and dry run never call the email provider",
         "Unsubscribe and status fields reflect signup-form state where implemented",
         "Welcome email behavior, if configured, is separate from this ledger",
       ],
@@ -38,7 +41,9 @@ export const newsletterDocTopic: AdminDocTopic = {
     {
       id: "permissions",
       title: "Permissions",
-      paragraphs: ["Owners and Audience Admin roles with members access can view Newsletter."],
+      paragraphs: [
+        "Owners and Audience can view the subscriber ledger. Campaign compose is Owner + Editor. Dry-run audience aggregates are Owner + Audience. Editors may compose and preview without recipient analytics.",
+      ],
     },
     {
       id: "related",

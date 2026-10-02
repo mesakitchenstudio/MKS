@@ -24,6 +24,7 @@ describe("admin mobile drawer navigation", () => {
       "Site Health",
       "Notifications",
       "Studio",
+      "Newsletter campaigns",
       "Media",
       "Categories",
       "Ingredients",
@@ -61,6 +62,7 @@ describe("admin mobile drawer navigation", () => {
       "Site Health",
       "Notifications",
       "Studio",
+      "Newsletter campaigns",
       "Media",
       "Categories",
       "Ingredients",
@@ -77,6 +79,7 @@ describe("admin mobile drawer navigation", () => {
     assert.equal(labels.includes("Visitors"), false);
     assert.equal(labels.includes("Team access"), false);
     assert.equal(labels.includes("Newsletter"), false);
+    assert.equal(labels.includes("Newsletter campaigns"), true);
   });
 
   it("hides publishing/library/team from audience-only members role", () => {
