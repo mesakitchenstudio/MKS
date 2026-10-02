@@ -1,8 +1,8 @@
 "use server";
 
 /**
- * Phase 12D — Newsletter campaign Admin server actions.
- * No Resend. No audience send. No status→sending/sent. No sentAt/sendStartedAt.
+ * Phase 12D/12E — Newsletter campaign Admin server actions.
+ * Audience send + Owner test send are Owner-only. Provider injectable via libs.
  */
 
 import { revalidatePath } from "next/cache";
@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import {
   canComposeNewsletterCampaigns,
   canDryRunNewsletterCampaigns,
+  canSendNewsletterCampaigns,
   canViewNewsletterCampaigns,
   homeForRole,
 } from "@/lib/admin-access";
@@ -28,6 +29,14 @@ import {
   updateNewsletterCampaignForAdmin,
 } from "@/lib/newsletter-campaign-admin-server";
 import { runNewsletterCampaignDryRun } from "@/lib/newsletter-campaign-dry-run";
+import {
+  getNewsletterCampaignSendConfirmInfo,
+  sendNewsletterCampaignTestEmail,
+  sendNewsletterCampaignToAudience,
+  type NewsletterCampaignAudienceSendResult,
+  type NewsletterCampaignSendConfirmInfo,
+  type NewsletterCampaignTestSendResult,
+} from "@/lib/newsletter-campaign-send";
 
 async function requireComposeActor() {
   const admin = await getAdminSession();
@@ -56,6 +65,15 @@ async function requireDryRunActor() {
   const admin = await getAdminSession();
   if (!admin) redirect("/admin/login");
   if (!canDryRunNewsletterCampaigns(admin.role)) {
+    return null;
+  }
+  return admin;
+}
+
+async function requireSendActor() {
+  const admin = await getAdminSession();
+  if (!admin) redirect("/admin/login");
+  if (!canSendNewsletterCampaigns(admin.role)) {
     return null;
   }
   return admin;
@@ -172,4 +190,77 @@ export async function dryRunNewsletterCampaignAction(input: {
     campaignId: input.campaignId,
     personalizationEnabled: input.personalizationEnabled,
   });
+}
+
+export async function getNewsletterCampaignSendConfirmInfoAction(input: {
+  campaignId: string;
+}): Promise<NewsletterCampaignMutationResult<NewsletterCampaignSendConfirmInfo>> {
+  const admin = await requireSendActor();
+  if (!admin) {
+    return {
+      ok: false,
+      code: "unauthorized",
+      message: "Send confirmation requires Owner access.",
+    };
+  }
+  return getNewsletterCampaignSendConfirmInfo(input.campaignId);
+}
+
+export async function testSendNewsletterCampaignAction(input: {
+  campaignId: string;
+  mode: NewsletterCampaignPreviewMode;
+  seriesId?: string | null;
+  categoryId?: string | null;
+  personalizationSimulation: boolean;
+}): Promise<NewsletterCampaignMutationResult<NewsletterCampaignTestSendResult>> {
+  const admin = await requireSendActor();
+  if (!admin) {
+    return {
+      ok: false,
+      code: "unauthorized",
+      message: "Test send requires Owner access.",
+    };
+  }
+  const result = await sendNewsletterCampaignTestEmail({
+    campaignId: input.campaignId,
+    ownerEmail: admin.email,
+    actor: auditActorFromSession(admin),
+    mode: input.mode,
+    seriesId: input.seriesId,
+    categoryId: input.categoryId,
+    personalizationSimulation: input.personalizationSimulation,
+  });
+  if (result.ok) {
+    revalidatePath(`/admin/newsletter/campaigns/${input.campaignId}`);
+  }
+  return result;
+}
+
+export async function sendNewsletterCampaignAction(input: {
+  campaignId: string;
+  /** Must be true from explicit confirmation dialog. */
+  confirmed: boolean;
+}): Promise<NewsletterCampaignMutationResult<NewsletterCampaignAudienceSendResult>> {
+  const admin = await requireSendActor();
+  if (!admin) {
+    return {
+      ok: false,
+      code: "unauthorized",
+      message: "Audience send requires Owner access.",
+    };
+  }
+  if (!input.confirmed) {
+    return {
+      ok: false,
+      code: "invalid_content",
+      message: "Confirm send before delivering to subscribers.",
+    };
+  }
+  const result = await sendNewsletterCampaignToAudience({
+    campaignId: input.campaignId,
+    actor: auditActorFromSession(admin),
+  });
+  revalidatePath("/admin/newsletter/campaigns");
+  revalidatePath(`/admin/newsletter/campaigns/${input.campaignId}`);
+  return result;
 }

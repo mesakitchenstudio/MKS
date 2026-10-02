@@ -46,7 +46,7 @@ describe("newsletter campaign admin — UI contracts", () => {
     assert.ok(!audienceLabels.includes("Newsletter campaigns"));
   });
 
-  it("editor exposes a11y labels and no send controls", () => {
+  it("editor exposes a11y labels and Owner send controls", () => {
     const editor = read("components/admin/NewsletterCampaignEditor.tsx");
     assert.match(editor, /Internal name/);
     assert.match(editor, /aria-label=\{`Move \$\{info\.title\} up`\}/);
@@ -54,9 +54,31 @@ describe("newsletter campaign admin — UI contracts", () => {
     assert.match(editor, /newsletterCampaignReadinessLabel/);
     assert.match(editor, /Ready/);
     assert.match(editor, /Not ready/);
+    assert.match(editor, /Send test email/);
+    assert.match(editor, /Send campaign/);
+    assert.match(editor, /Confirm send/);
+    assert.match(editor, /role="dialog"/);
+    assert.match(editor, /Subscribers are not contacted/);
+    assert.match(editor, /whole-campaign retry/);
     assert.doesNotMatch(editor, /Broadcast/i);
     assert.doesNotMatch(editor, /Schedule/);
+    assert.doesNotMatch(editor, /Retry failed/i);
+    assert.doesNotMatch(editor, /Send again/i);
     assert.match(editor, /Specific-member|synthetic|Series follower/i);
+  });
+
+  it("actions keep audience send Owner-only and ignore client audience fields", () => {
+    const actions = read("app/admin/newsletter-campaign-actions.ts");
+    assert.match(actions, /canSendNewsletterCampaigns/);
+    assert.match(actions, /testSendNewsletterCampaignAction/);
+    assert.match(actions, /sendNewsletterCampaignAction/);
+    assert.match(actions, /ownerEmail: admin\.email/);
+    assert.doesNotMatch(actions, /subscriberIds/);
+    assert.doesNotMatch(actions, /recipientEmails/);
+    assert.match(
+      actions,
+      /sendNewsletterCampaignToAudience\(\{\s*campaignId: input\.campaignId,\s*actor: auditActorFromSession\(admin\),\s*\}\)/,
+    );
   });
 
   it("defers specific-member preview", () => {

@@ -109,6 +109,14 @@ export function canViewNewsletterCampaigns(role: string) {
 }
 
 /**
+ * Roadmap #12 — Real audience send + Owner test send.
+ * Owner only — Editors compose; Audience dry-runs; neither may deliver.
+ */
+export function canSendNewsletterCampaigns(role: string) {
+  return role === "owner";
+}
+
+/**
  * Global Admin Activity log — Owner only (full cross-area operational history).
  * Editors and Audience do not get global activity access in this phase.
  */

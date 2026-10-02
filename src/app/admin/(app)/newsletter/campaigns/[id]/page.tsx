@@ -8,10 +8,12 @@ import {
   canAccess,
   canComposeNewsletterCampaigns,
   canDryRunNewsletterCampaigns,
+  canSendNewsletterCampaigns,
   canViewNewsletterCampaigns,
   homeForRole,
 } from "@/lib/admin-access";
 import { getAdminSession } from "@/lib/auth";
+import { isNewsletterPersonalizationEnabled } from "@/lib/flags";
 import { collectNewsletterCampaignRecipeIds } from "@/lib/newsletter-campaign-admin";
 import {
   getNewsletterCampaignById,
@@ -22,6 +24,7 @@ import {
   listPublishedRecipesForCampaignPicker,
   listSeriesForCampaignPreview,
 } from "@/lib/newsletter-campaign-admin-server";
+import { getLatestNewsletterCampaignSendSummary } from "@/lib/newsletter-campaign-send";
 import { siteUrl } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
@@ -53,17 +56,22 @@ export default async function AdminNewsletterCampaignEditorPage({
   if (!campaign) notFound();
 
   const recipeIds = collectNewsletterCampaignRecipeIds(campaign.content);
-  const [resolvedMap, publishedRecipes, seriesOptions, categoryOptions] =
+  const [resolvedMap, publishedRecipes, seriesOptions, categoryOptions, sendSummary] =
     await Promise.all([
       resolveNewsletterCampaignRecipes(recipeIds, { baseUrl: siteUrl() }),
       listPublishedRecipesForCampaignPicker(),
       listSeriesForCampaignPreview(),
       listCategoriesForCampaignPreview(),
+      campaign.status === "sent" || campaign.status === "sending"
+        ? getLatestNewsletterCampaignSendSummary(campaign.id)
+        : Promise.resolve(null),
     ]);
 
   const canCompose = canComposeNewsletterCampaigns(admin.role);
   const canDryRun = canDryRunNewsletterCampaigns(admin.role);
+  const canSend = canSendNewsletterCampaigns(admin.role);
   const showSubscribers = canAccess(admin.role, "members");
+  const personalizationLiveEnabled = isNewsletterPersonalizationEnabled();
 
   return (
     <div>
@@ -91,6 +99,8 @@ export default async function AdminNewsletterCampaignEditorPage({
         campaignId={campaign.id}
         initialName={campaign.name}
         initialStatus={campaign.status}
+        initialSendStartedAt={campaign.sendStartedAt?.toISOString() ?? null}
+        initialSentAt={campaign.sentAt?.toISOString() ?? null}
         initialContent={campaign.content}
         resolvedRecipes={[...resolvedMap.values()]}
         publishedRecipes={publishedRecipes}
@@ -98,7 +108,25 @@ export default async function AdminNewsletterCampaignEditorPage({
         categoryOptions={categoryOptions}
         canCompose={canCompose}
         canDryRun={canDryRun}
+        canSend={canSend}
         canDelete={canCompose}
+        personalizationLiveEnabled={personalizationLiveEnabled}
+        sendSummary={
+          sendSummary
+            ? {
+                action: sendSummary.action,
+                createdAt: sendSummary.createdAt.toISOString(),
+                eligible: sendSummary.eligible,
+                attempted: sendSummary.attempted,
+                succeeded: sendSummary.succeeded,
+                failed: sendSummary.failed,
+                personalized: sendSummary.personalized,
+                fallback: sendSummary.fallback,
+                skippedInvalid: sendSummary.skippedInvalid,
+                personalizationEnabled: sendSummary.personalizationEnabled,
+              }
+            : null
+        }
         errorMessage={query.error}
       />
     </div>

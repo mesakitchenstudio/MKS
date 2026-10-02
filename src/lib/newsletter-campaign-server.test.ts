@@ -262,10 +262,22 @@ describe("newsletter campaign — persistence foundation", () => {
 
   it("subscribe does not create NewsletterCampaign rows", async () => {
     const email = `nl-camp-sub-${suffix}@example.com`;
-    const before = await db.newsletterCampaign.count();
+    const subscribeSrc = readFileSync(
+      path.join(root, "newsletter-subscribe.ts"),
+      "utf8",
+    );
+    assert.doesNotMatch(subscribeSrc, /newsletterCampaign|NewsletterCampaign/);
     await subscribeNewsletterServer(email, "site", { sendEmail: silentMailer });
-    const after = await db.newsletterCampaign.count();
-    assert.equal(after, before);
+    // Attribute by subscribe fixture marker — avoid global count races with parallel suites.
+    const campaigns = await db.newsletterCampaign.findMany({
+      where: {
+        OR: [
+          { name: { contains: email } },
+          { name: { contains: `nl-camp-sub-${suffix}` } },
+        ],
+      },
+    });
+    assert.equal(campaigns.length, 0);
     await db.newsletterSubscriber.deleteMany({ where: { email } });
   });
 

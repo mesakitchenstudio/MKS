@@ -456,12 +456,9 @@ describe("newsletter signed unsubscribe — lifecycle", () => {
     assert.doesNotMatch(subscribe, /buildSignedNewsletterUnsubscribeToken/);
   });
 
-  it("no schema / migration / send UI in 12E-PRE", () => {
+  it("no schema / migration change in 12E-PRE foundation", () => {
     const schema = readRepo("../prisma/schema.prisma");
     assert.match(schema, /unsubscribeTokenHash/);
     assert.doesNotMatch(schema, /signedUnsubscribe|unsubscribePlaintext|unsubscribeSecret/i);
-    const editor = readRepo("components/admin/NewsletterCampaignEditor.tsx");
-    assert.doesNotMatch(editor, /Send campaign/i);
-    assert.doesNotMatch(editor, /Send test email/i);
   });
 });

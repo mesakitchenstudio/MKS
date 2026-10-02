@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import {
   NEWSLETTER_CAMPAIGN_CANDIDATE_RECIPE_MAX,
   NEWSLETTER_CAMPAIGN_DEFAULT_RECIPE_MAX,
@@ -22,7 +22,10 @@ import { normalizeRecipePublicationStatus } from "@/lib/recipe-schedule";
 import {
   deleteNewsletterCampaignAction,
   dryRunNewsletterCampaignAction,
+  getNewsletterCampaignSendConfirmInfoAction,
   previewNewsletterCampaignAction,
+  sendNewsletterCampaignAction,
+  testSendNewsletterCampaignAction,
   updateNewsletterCampaignAction,
 } from "@/app/admin/newsletter-campaign-actions";
 
@@ -34,8 +37,30 @@ const btnPrimary =
   "rounded-sm bg-ink px-3 py-2 text-sm font-semibold text-paper hover:bg-ink/90 disabled:opacity-50";
 const btnDanger =
   "rounded-sm border border-terracotta/40 bg-terracotta/5 px-3 py-2 text-sm font-semibold text-terracotta hover:bg-terracotta/10 disabled:opacity-50";
+const btnSend =
+  "rounded-sm border border-terracotta/50 bg-terracotta px-3 py-2 text-sm font-semibold text-paper hover:bg-terracotta/90 disabled:opacity-50";
 
 type PreviewTaxonomyItem = { id: string; title?: string; name?: string };
+
+type SendSummaryView = {
+  action: string;
+  createdAt: string;
+  eligible?: number;
+  attempted?: number;
+  succeeded?: number;
+  failed?: number;
+  personalized?: number;
+  fallback?: number;
+  skippedInvalid?: number;
+  personalizationEnabled?: boolean;
+};
+
+function formatWhen(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+}
 
 function recipeLabel(
   id: string,
@@ -73,6 +98,8 @@ export function NewsletterCampaignEditor({
   campaignId,
   initialName,
   initialStatus,
+  initialSendStartedAt,
+  initialSentAt,
   initialContent,
   resolvedRecipes,
   publishedRecipes,
@@ -80,12 +107,17 @@ export function NewsletterCampaignEditor({
   categoryOptions,
   canCompose,
   canDryRun,
+  canSend,
   canDelete,
+  personalizationLiveEnabled,
+  sendSummary,
   errorMessage,
 }: {
   campaignId: string;
   initialName: string;
   initialStatus: string;
+  initialSendStartedAt?: string | null;
+  initialSentAt?: string | null;
   initialContent: NewsletterCampaignContent;
   resolvedRecipes: ResolvedNewsletterCampaignRecipe[];
   publishedRecipes: NewsletterCampaignPickerRecipe[];
@@ -93,11 +125,16 @@ export function NewsletterCampaignEditor({
   categoryOptions: PreviewTaxonomyItem[];
   canCompose: boolean;
   canDryRun: boolean;
+  canSend: boolean;
   canDelete: boolean;
+  personalizationLiveEnabled: boolean;
+  sendSummary?: SendSummaryView | null;
   errorMessage?: string;
 }) {
   const locked = initialStatus !== "draft";
   const editable = canCompose && !locked;
+  const confirmTitleId = useId();
+  const confirmCancelRef = useRef<HTMLButtonElement>(null);
 
   const resolvedMap = useMemo(
     () => new Map(resolvedRecipes.map((row) => [row.id, row])),
@@ -142,6 +179,29 @@ export function NewsletterCampaignEditor({
   const [dryRunPersonalization, setDryRunPersonalization] = useState(true);
   const [dryRun, setDryRun] = useState<NewsletterCampaignDryRunResult | null>(null);
   const [dryRunError, setDryRunError] = useState<string | null>(null);
+
+  const [testSendMessage, setTestSendMessage] = useState<string | null>(null);
+  const [testSendError, setTestSendError] = useState<string | null>(null);
+
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [sendConfirmLoading, setSendConfirmLoading] = useState(false);
+  const [sendConfirmError, setSendConfirmError] = useState<string | null>(null);
+  const [sendConfirmEligible, setSendConfirmEligible] = useState<number | null>(null);
+  const [sendConfirmPersonalization, setSendConfirmPersonalization] = useState(
+    personalizationLiveEnabled,
+  );
+  const [sendResultMessage, setSendResultMessage] = useState<string | null>(null);
+  const [sendResultError, setSendResultError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sendConfirmOpen) return;
+    confirmCancelRef.current?.focus();
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setSendConfirmOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sendConfirmOpen]);
 
   const draftContent: NewsletterCampaignContent = {
     subject,
@@ -254,6 +314,76 @@ export function NewsletterCampaignEditor({
     });
   }
 
+  function onTestSend() {
+    if (!canSend || locked) return;
+    setTestSendError(null);
+    setTestSendMessage(null);
+    startTransition(async () => {
+      const result = await testSendNewsletterCampaignAction({
+        campaignId,
+        mode: previewMode,
+        seriesId: previewMode === "series" ? previewSeriesId : null,
+        categoryId: previewMode === "category" ? previewCategoryId : null,
+        personalizationSimulation: previewPersonalization,
+      });
+      if (!result.ok) {
+        setTestSendError(result.message);
+        return;
+      }
+      setTestSendMessage(
+        `Test email sent to your account (${result.data.toDomain}). Subject: ${result.data.subject}. Campaign status unchanged.`,
+      );
+    });
+  }
+
+  function openSendConfirm() {
+    if (!canSend || locked || dirty) return;
+    setSendConfirmError(null);
+    setSendResultError(null);
+    setSendResultMessage(null);
+    setSendConfirmOpen(true);
+    setSendConfirmLoading(true);
+    startTransition(async () => {
+      const result = await getNewsletterCampaignSendConfirmInfoAction({ campaignId });
+      setSendConfirmLoading(false);
+      if (!result.ok) {
+        setSendConfirmError(result.message);
+        return;
+      }
+      setSendConfirmEligible(result.data.eligibleCount);
+      setSendConfirmPersonalization(result.data.personalizationEnabled);
+      if (!result.data.readinessReady) {
+        setSendConfirmError(
+          result.data.readinessIssues.join(" ") || "Campaign is not ready to send.",
+        );
+      } else if (!result.data.providerConfigured) {
+        setSendConfirmError("Email provider is not configured.");
+      } else if (!result.data.signingSecretConfigured) {
+        setSendConfirmError("Newsletter unsubscribe signing secret is not configured.");
+      } else if (result.data.eligibleCount <= 0) {
+        setSendConfirmError("No eligible newsletter recipients.");
+      }
+    });
+  }
+
+  function onConfirmSend() {
+    if (!canSend || locked) return;
+    setSendConfirmError(null);
+    startTransition(async () => {
+      const result = await sendNewsletterCampaignAction({
+        campaignId,
+        confirmed: true,
+      });
+      setSendConfirmOpen(false);
+      if (!result.ok) {
+        setSendResultError(result.message);
+        return;
+      }
+      setSendResultMessage(result.data.message);
+      window.location.reload();
+    });
+  }
+
   const availableDefaults = publishedRecipes.filter(
     (row) => !defaultRecipeIds.includes(row.id),
   );
@@ -261,16 +391,65 @@ export function NewsletterCampaignEditor({
     (row) => !candidateRecipeIds.includes(row.id),
   );
 
+  const personalizationLabel = personalizationLiveEnabled
+    ? "Personalized Recipe blocks enabled"
+    : "Editorial fallback for all recipients";
+
   return (
     <div className="space-y-8">
       {locked ? (
-        <p
-          className="rounded-sm border border-line bg-cream/30 px-3 py-2 text-sm text-muted"
+        <div
+          className="space-y-2 rounded-sm border border-line bg-cream/30 px-3 py-3 text-sm text-muted"
           role="status"
         >
-          This campaign is <span className="font-semibold capitalize text-ink">{initialStatus}</span>{" "}
-          and is read-only. Preview remains available.
-        </p>
+          <p>
+            This campaign is{" "}
+            <span className="font-semibold capitalize text-ink">{initialStatus}</span> and is
+            read-only. Preview remains available.
+          </p>
+          {initialStatus === "sending" ? (
+            <p className="text-ink">
+              Sending started at {formatWhen(initialSendStartedAt)}. If this remains Sending, it
+              requires review — there is no automatic retry in this phase.
+            </p>
+          ) : null}
+          {initialStatus === "sent" ? (
+            <p className="text-ink">
+              Sent at {formatWhen(initialSentAt)}
+              {initialSendStartedAt ? ` (started ${formatWhen(initialSendStartedAt)})` : ""}.
+            </p>
+          ) : null}
+          {sendSummary &&
+          (typeof sendSummary.succeeded === "number" ||
+            typeof sendSummary.failed === "number") ? (
+            <dl className="grid max-w-xl grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
+              {typeof sendSummary.succeeded === "number" ? (
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Succeeded</dt>
+                  <dd className="tabular-nums text-ink">{sendSummary.succeeded}</dd>
+                </div>
+              ) : null}
+              {typeof sendSummary.failed === "number" ? (
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Failed</dt>
+                  <dd className="tabular-nums text-ink">{sendSummary.failed}</dd>
+                </div>
+              ) : null}
+              {typeof sendSummary.personalized === "number" ? (
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Personalized</dt>
+                  <dd className="tabular-nums text-ink">{sendSummary.personalized}</dd>
+                </div>
+              ) : null}
+              {typeof sendSummary.fallback === "number" ? (
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Fallback</dt>
+                  <dd className="tabular-nums text-ink">{sendSummary.fallback}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+        </div>
       ) : null}
 
       {saveError ? (
@@ -281,6 +460,16 @@ export function NewsletterCampaignEditor({
       {saveMessage ? (
         <p className="rounded-sm border border-line bg-cream/20 px-3 py-2 text-sm text-ink" role="status">
           {saveMessage}
+        </p>
+      ) : null}
+      {sendResultError ? (
+        <p className="rounded-sm border border-terracotta/25 bg-terracotta/5 px-3 py-2 text-sm text-terracotta" role="alert">
+          {sendResultError}
+        </p>
+      ) : null}
+      {sendResultMessage ? (
+        <p className="rounded-sm border border-line bg-cream/20 px-3 py-2 text-sm text-ink" role="status">
+          {sendResultMessage}
         </p>
       ) : null}
 
@@ -580,9 +769,14 @@ export function NewsletterCampaignEditor({
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-sm text-muted">All send checks pass (send is not available in this phase).</p>
+          <p className="mt-2 text-sm text-muted">
+            All send checks pass for this draft. Owner can send a test or deliver to subscribers
+            below.
+          </p>
         )}
-        <p className="mt-2 text-xs text-muted">Draft Save is allowed even when not ready.</p>
+        <p className="mt-2 text-xs text-muted">
+          Live personalization: {personalizationLabel}. Draft Save is allowed even when not ready.
+        </p>
       </section>
 
       {editable ? (
@@ -810,6 +1004,71 @@ export function NewsletterCampaignEditor({
         </section>
       ) : null}
 
+      {canSend && !locked ? (
+        <section aria-labelledby="testsend-heading" className="space-y-3 border-t border-line pt-6">
+          <h2 id="testsend-heading" className="font-serif text-xl text-ink">
+            Send test email
+          </h2>
+          <p className="text-sm text-muted">
+            Sends one test email to your account only. Subscribers are not contacted. Campaign
+            status and timestamps are not changed. Uses the same Preview mode settings above
+            (General / Synthetic Series / Synthetic Category).
+          </p>
+          <button
+            type="button"
+            className={btnSecondary}
+            disabled={pending}
+            aria-label="Send test email to your account only"
+            onClick={onTestSend}
+          >
+            Send test email
+          </button>
+          {testSendError ? (
+            <p className="text-sm text-terracotta" role="alert">
+              {testSendError}
+            </p>
+          ) : null}
+          {testSendMessage ? (
+            <p className="text-sm text-ink" role="status">
+              {testSendMessage}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {canSend && !locked ? (
+        <section
+          aria-labelledby="send-heading"
+          className="space-y-3 border-t-2 border-terracotta/40 pt-6"
+        >
+          <h2 id="send-heading" className="font-serif text-xl text-ink">
+            Send campaign
+          </h2>
+          <p className="text-sm text-muted">
+            Delivers to eligible newsletter subscribers. Separated from Save — requires explicit
+            confirmation. After send, the campaign locks permanently for this phase (no automatic
+            whole-campaign retry).
+          </p>
+          <p className="text-sm text-ink" role="status">
+            {personalizationLabel}
+          </p>
+          {dirty ? (
+            <p className="text-sm text-terracotta" role="status">
+              Save unsaved changes before sending.
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className={btnSend}
+            disabled={pending || dirty || !readiness.ready}
+            aria-label="Open send campaign confirmation"
+            onClick={openSendConfirm}
+          >
+            Send campaign
+          </button>
+        </section>
+      ) : null}
+
       {canDelete && !locked ? (
         <section aria-labelledby="delete-heading" className="space-y-3 border-t border-line pt-6">
           <h2 id="delete-heading" className="font-serif text-xl text-ink">
@@ -829,6 +1088,81 @@ export function NewsletterCampaignEditor({
             </button>
           </form>
         </section>
+      ) : null}
+
+      {sendConfirmOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
+          role="presentation"
+          onClick={() => setSendConfirmOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={confirmTitleId}
+            className="w-full max-w-md border border-line bg-paper p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id={confirmTitleId} className="font-serif text-2xl text-ink">
+              Send campaign?
+            </h3>
+            <div className="mt-3 space-y-2 text-sm leading-6 text-muted">
+              <p>
+                Campaign: <span className="font-semibold text-ink">{name}</span>
+              </p>
+              {sendConfirmLoading ? (
+                <p role="status">Checking eligible recipients…</p>
+              ) : (
+                <p role="status">
+                  Eligible recipients:{" "}
+                  <span className="font-semibold tabular-nums text-ink">
+                    {sendConfirmEligible ?? "—"}
+                  </span>
+                </p>
+              )}
+              <p role="status">
+                Personalization:{" "}
+                <span className="font-semibold text-ink">
+                  {sendConfirmPersonalization
+                    ? "Personalized Recipe blocks enabled"
+                    : "Editorial fallback for all recipients"}
+                </span>
+              </p>
+              <p>
+                After you confirm, this campaign becomes locked (Sending → Sent). There is no
+                automatic whole-campaign retry.
+              </p>
+              {sendConfirmError ? (
+                <p className="text-terracotta" role="alert">
+                  {sendConfirmError}
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                ref={confirmCancelRef}
+                type="button"
+                className={btnSecondary}
+                onClick={() => setSendConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={btnSend}
+                disabled={
+                  pending ||
+                  sendConfirmLoading ||
+                  Boolean(sendConfirmError) ||
+                  (sendConfirmEligible ?? 0) <= 0
+                }
+                onClick={onConfirmSend}
+              >
+                Confirm send
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

@@ -241,5 +241,7 @@
   "src/lib/newsletter-campaign-server.test.ts",
   "src/lib/newsletter-campaign-admin.test.ts",
   "src/lib/newsletter-campaign-admin-server.test.ts",
-  "src/lib/newsletter-campaign-admin-ui.test.ts"
+  "src/lib/newsletter-campaign-admin-ui.test.ts",
+  "src/lib/newsletter-campaign-send.test.ts",
+  "src/lib/newsletter-marketing-email.test.ts"
 ]

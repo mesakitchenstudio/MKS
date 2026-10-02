@@ -64,6 +64,8 @@ export type NewsletterCampaignEmailInput = {
   /** personalized | fallback — drives neutral section heading only. */
   blockMode: "personalized" | "fallback";
   unsubscribeUrl: string;
+  /** Optional footer note (e.g. Owner test-send disclaimer). Plain text; escaped. */
+  footerNote?: string | null;
 };
 
 export type NewsletterCampaignEmailRenderResult = {
@@ -113,6 +115,7 @@ export function buildNewsletterCampaignEmail(
   const preheader = String(input.preheader ?? "").trim();
   const intro = String(input.intro ?? "").trim();
   const unsubscribeUrl = String(input.unsubscribeUrl ?? "").trim();
+  const footerNote = String(input.footerNote ?? "").trim();
   const blockHeading =
     input.blockMode === "personalized"
       ? NEWSLETTER_CAMPAIGN_EMAIL_PERSONALIZED_HEADING
@@ -140,6 +143,9 @@ export function buildNewsletterCampaignEmail(
     }
   }
   textLines.push(site.tagline, "");
+  if (footerNote) {
+    textLines.push(footerNote, "");
+  }
   if (unsubscribeUrl) {
     textLines.push("Unsubscribe:", unsubscribeUrl);
   }
@@ -177,8 +183,10 @@ export function buildNewsletterCampaignEmail(
     : "";
 
   const unsubHtml = isSafeNewsletterEmailHref(unsubscribeUrl)
-    ? `<a href="${escapeNewsletterEmailAttribute(unsubscribeUrl)}" style="color:${muted};text-decoration:underline;">Unsubscribe</a>`
-    : "Unsubscribe";
+    ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:${muted};font-family:${sans};">
+                <a href="${escapeNewsletterEmailAttribute(unsubscribeUrl)}" style="color:${muted};text-decoration:underline;">Unsubscribe</a>
+              </p>`
+    : "";
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -221,9 +229,12 @@ export function buildNewsletterCampaignEmail(
               <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:${muted};font-family:${sans};">
                 ${escapeNewsletterEmailText(site.tagline)}
               </p>
-              <p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:${muted};font-family:${sans};">
-                ${unsubHtml}
-              </p>
+              ${
+                footerNote
+                  ? `<p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:${muted};font-family:${sans};">${escapeNewsletterEmailText(footerNote)}</p>`
+                  : ""
+              }
+              ${unsubHtml}
             </td>
           </tr>
         </table>

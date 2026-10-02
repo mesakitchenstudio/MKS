@@ -524,30 +524,27 @@ describe("newsletter campaign admin — server workflow", () => {
     assert.ok(audit);
   });
 
-  it("source contracts: no send paths / no Resend in 12D modules", () => {
+  it("source contracts: 12D compose/dry-run modules stay non-sending", () => {
     const files = [
       "lib/newsletter-campaign-admin.ts",
       "lib/newsletter-campaign-admin-server.ts",
       "lib/newsletter-campaign-dry-run.ts",
-      "app/admin/newsletter-campaign-actions.ts",
-      "components/admin/NewsletterCampaignEditor.tsx",
     ];
     for (const rel of files) {
       const src = readRepo(rel);
       assert.doesNotMatch(src, /sendTransactionalEmailDetailed/);
+      assert.doesNotMatch(src, /sendNewsletterMarketingEmailDetailed/);
       assert.doesNotMatch(src, /api\.resend\.com/i);
       assert.doesNotMatch(src, /status:\s*["']sending["']/);
-      assert.doesNotMatch(src, /status:\s*["']sent["']/);
       assert.doesNotMatch(src, /sentAt:\s*new Date/);
       assert.doesNotMatch(src, /sendStartedAt:\s*new Date/);
     }
     const editor = readRepo("components/admin/NewsletterCampaignEditor.tsx");
-    assert.doesNotMatch(editor, />\s*Send(\s+campaign)?\s*</i);
-    assert.doesNotMatch(editor, /Send to audience/i);
-    assert.doesNotMatch(editor, /Test send/i);
     assert.match(editor, /Run preview/);
     assert.match(editor, /Run dry run/);
     assert.match(editor, /sandbox=""/);
     assert.match(editor, /title="Newsletter email preview"/);
+    assert.match(editor, /Send campaign/);
+    assert.match(editor, /Send test email/);
   });
 });

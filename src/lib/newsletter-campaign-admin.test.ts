@@ -20,6 +20,7 @@ import {
 import {
   canComposeNewsletterCampaigns,
   canDryRunNewsletterCampaigns,
+  canSendNewsletterCampaigns,
   canViewNewsletterCampaigns,
 } from "./admin-access.ts";
 
@@ -40,7 +41,7 @@ function recipe(
 }
 
 describe("newsletter campaign admin — access", () => {
-  it("compose Owner+Editor; dry-run Owner+Audience; view union", () => {
+  it("compose Owner+Editor; dry-run Owner+Audience; send Owner; view union", () => {
     assert.equal(canComposeNewsletterCampaigns("owner"), true);
     assert.equal(canComposeNewsletterCampaigns("editor"), true);
     assert.equal(canComposeNewsletterCampaigns("members"), false);
@@ -48,6 +49,10 @@ describe("newsletter campaign admin — access", () => {
     assert.equal(canDryRunNewsletterCampaigns("owner"), true);
     assert.equal(canDryRunNewsletterCampaigns("members"), true);
     assert.equal(canDryRunNewsletterCampaigns("editor"), false);
+
+    assert.equal(canSendNewsletterCampaigns("owner"), true);
+    assert.equal(canSendNewsletterCampaigns("editor"), false);
+    assert.equal(canSendNewsletterCampaigns("members"), false);
 
     assert.equal(canViewNewsletterCampaigns("owner"), true);
     assert.equal(canViewNewsletterCampaigns("editor"), true);
