@@ -48,6 +48,24 @@ export function newsletterCampaignReadinessLabel(ready: boolean) {
   return ready ? "Ready" : "Not ready";
 }
 
+/** External Admin labels — provider acceptance ≠ inbox delivery. */
+export const NEWSLETTER_CAMPAIGN_PROVIDER_ACCEPTED_LABEL = "Provider accepted";
+export const NEWSLETTER_CAMPAIGN_IMMEDIATE_FAILURE_LABEL = "Immediate provider failures";
+
+export function formatNewsletterCampaignSendResultMessage(input: {
+  succeeded: number;
+  failed: number;
+}) {
+  return `Send processing completed. ${NEWSLETTER_CAMPAIGN_PROVIDER_ACCEPTED_LABEL}: ${input.succeeded}. ${NEWSLETTER_CAMPAIGN_IMMEDIATE_FAILURE_LABEL}: ${input.failed}.`;
+}
+
+export const NEWSLETTER_CAMPAIGN_DIRTY_SAVE_HINT =
+  "Save your changes before testing or sending.";
+
+export const NEWSLETTER_CAMPAIGN_STUCK_SENDING_GUIDANCE =
+  "Sending was interrupted or could not be confirmed. Do not resend this campaign until provider activity has been reviewed. There is no automatic retry or reset in this phase.";
+
+
 /** Collect all Recipe IDs referenced by campaign content. */
 export function collectNewsletterCampaignRecipeIds(
   content: NewsletterCampaignContent,

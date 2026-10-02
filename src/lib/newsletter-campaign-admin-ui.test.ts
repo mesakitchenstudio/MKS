@@ -58,12 +58,17 @@ describe("newsletter campaign admin — UI contracts", () => {
     assert.match(editor, /Send campaign/);
     assert.match(editor, /Confirm send/);
     assert.match(editor, /role="dialog"/);
-    assert.match(editor, /Subscribers are not contacted/);
+    assert.match(editor, /not contacted/);
     assert.match(editor, /whole-campaign retry/);
+    assert.match(editor, /NEWSLETTER_CAMPAIGN_DIRTY_SAVE_HINT/);
+    assert.match(editor, /NEWSLETTER_CAMPAIGN_PROVIDER_ACCEPTED_LABEL/);
+    assert.match(editor, /NEWSLETTER_CAMPAIGN_IMMEDIATE_FAILURE_LABEL/);
+    assert.match(editor, /NEWSLETTER_CAMPAIGN_STUCK_SENDING_GUIDANCE/);
     assert.doesNotMatch(editor, /Broadcast/i);
-    assert.doesNotMatch(editor, /Schedule/);
+    assert.doesNotMatch(editor, /\bSchedule\b/);
     assert.doesNotMatch(editor, /Retry failed/i);
     assert.doesNotMatch(editor, /Send again/i);
+    assert.doesNotMatch(editor, /Successful deliveries/i);
     assert.match(editor, /Specific-member|synthetic|Series follower/i);
   });
 

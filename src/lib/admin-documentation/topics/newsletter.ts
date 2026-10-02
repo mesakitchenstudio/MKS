@@ -12,7 +12,7 @@ export const newsletterDocTopic: AdminDocTopic = {
       id: "about",
       title: "About this page",
       paragraphs: [
-        "Newsletter includes a subscriber ledger and a separate campaign composer. The ledger lists signup-form subscribers. Campaigns support draft editing, preview, dry-run, Owner test send, and Owner audience send.",
+        "Newsletter includes a subscriber ledger and a separate campaign composer. The ledger lists signup-form subscribers. Campaigns support draft editing, preview, dry-run, Owner test send, and Owner audience send. Status Sent means Mesa finished send processing — not confirmed inbox delivery.",
       ],
     },
     {
@@ -35,11 +35,14 @@ export const newsletterDocTopic: AdminDocTopic = {
       paragraphs: [],
       bullets: [
         "Audience consent comes only from NewsletterSubscriber — never User.notify or follows",
+        "Save before Dry Run, Test Send, or Audience Send — unsaved editor changes are blocked",
         "Preview and dry run never call the email provider",
         "Test send goes only to the authenticated Owner email and does not lock the campaign",
         "Audience send is Owner-only, requires confirmation, and locks the campaign (Sending → Sent)",
+        "Provider accepted counts are immediate API acceptance, not inbox delivery",
+        "Deliverability protection for hard bounces/complaints relies on the configured Resend team suppression list in MVP — separate from NewsletterSubscriber consent",
+        "If a campaign remains Sending after interruption, do not resend until provider activity is reviewed",
         "There is no automatic whole-campaign retry or resume in this phase",
-        "Unsubscribe and status fields reflect signup-form state where implemented",
         "Welcome email behavior, if configured, is separate from campaign sending",
       ],
     },

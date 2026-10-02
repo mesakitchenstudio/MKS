@@ -1,6 +1,14 @@
 /**
  * Phase 12E — Newsletter campaign send orchestration.
  *
+ * Campaign status semantics (MVP):
+ * - draft: editable; not claimed for delivery
+ * - sending: atomically claimed / processing / fail-closed after uncertain interruption
+ * - sent: Mesa completed the audience send-processing run (NOT inbox delivery proof)
+ *
+ * Aggregate field `succeeded` means immediate provider acceptance of the send request.
+ * It does not mean the message reached an inbox (bounces/complaints/suppressions are async).
+ *
  * Owner audience send + Owner test send. Atomic Draft→Sending claim.
  * No per-recipient delivery table. No automatic retry/resume.
  * Provider calls are injectable for tests (never hit Resend in unit tests).
@@ -12,6 +20,7 @@ import { siteUrl } from "@/lib/email";
 import { isNewsletterPersonalizationEnabled } from "@/lib/flags";
 import {
   collectNewsletterCampaignRecipeIds,
+  formatNewsletterCampaignSendResultMessage,
   type NewsletterCampaignMutationResult,
   type NewsletterCampaignPreviewMode,
 } from "@/lib/newsletter-campaign-admin";
@@ -111,7 +120,9 @@ async function countEligibleNewsletterRecipients(): Promise<number> {
   let cursor: string | undefined;
   for (let page = 0; page < 40; page += 1) {
     const rows = await getDb().newsletterSubscriber.findMany({
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      // Stable unique cursor: id ASC only (matches dry-run). Avoid createdAt+id
+      // with id-only cursor, which can skip/duplicate under Prisma cursor rules.
+      orderBy: [{ id: "asc" }],
       take: pageSize,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       select: { id: true, email: true, status: true },
@@ -701,7 +712,7 @@ export async function sendNewsletterCampaignToAudience(input: {
       const rows = input.loadRecipientPage
         ? await input.loadRecipientPage(cursor, pageSize)
         : await getDb().newsletterSubscriber.findMany({
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            orderBy: [{ id: "asc" }],
             take: pageSize,
             ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
             select: { id: true, email: true, status: true },
@@ -930,10 +941,10 @@ export async function sendNewsletterCampaignToAudience(input: {
     metadata: { ...aggregates },
   });
 
-  const message =
-    aggregates.failed > 0
-      ? `Sent with delivery failures (${aggregates.succeeded} succeeded, ${aggregates.failed} failed).`
-      : `Sent successfully (${aggregates.succeeded} deliveries).`;
+  const message = formatNewsletterCampaignSendResultMessage({
+    succeeded: aggregates.succeeded,
+    failed: aggregates.failed,
+  });
 
   return {
     ok: true,

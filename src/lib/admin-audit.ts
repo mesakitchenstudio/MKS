@@ -424,10 +424,10 @@ export function humanizeAdminAuditAction(action: string): string {
     "newsletter_campaign.created": "Created newsletter campaign",
     "newsletter_campaign.updated": "Updated newsletter campaign",
     "newsletter_campaign.deleted": "Deleted newsletter campaign",
-    "newsletter_campaign.test_sent": "Sent newsletter campaign test",
-    "newsletter_campaign.send_started": "Started newsletter campaign send",
-    "newsletter_campaign.sent": "Sent newsletter campaign",
-    "newsletter_campaign.send_failed": "Newsletter campaign send failed",
+    "newsletter_campaign.test_sent": "Sent newsletter campaign test email",
+    "newsletter_campaign.send_started": "Started newsletter campaign send processing",
+    "newsletter_campaign.sent": "Completed newsletter campaign send processing",
+    "newsletter_campaign.send_failed": "Newsletter campaign send processing failed",
   };
   return map[action] || action.replace(/\./g, " ");
 }

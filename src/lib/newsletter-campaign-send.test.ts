@@ -861,7 +861,9 @@ describe("newsletter campaign send — orchestration", () => {
     assert.equal(partial.data.succeeded, 2);
     assert.equal(partial.data.failed, 1);
     assert.equal(calls.length, 3);
-    assert.match(partial.data.message, /delivery failures/i);
+    assert.match(partial.data.message, /Provider accepted/i);
+    assert.match(partial.data.message, /Immediate provider failures/i);
+    assert.doesNotMatch(partial.data.message, /Sent successfully|Successful deliver|Delivered/i);
 
     const allFailEmails = [`${prefix}a1@example.com`, `${prefix}a2@example.com`];
     for (const email of allFailEmails) {

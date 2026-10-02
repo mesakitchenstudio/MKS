@@ -68,7 +68,23 @@ export function NewsletterCampaignList({
                   {row.name}
                 </Link>
               </td>
-              <td className="py-3 pr-3 capitalize text-muted">{row.status}</td>
+              <td className="py-3 pr-3">
+                <span
+                  className={
+                    row.status === "sending"
+                      ? "font-semibold text-terracotta"
+                      : row.status === "sent"
+                        ? "font-semibold text-ink"
+                        : "capitalize text-muted"
+                  }
+                >
+                  {row.status === "sending"
+                    ? "Sending"
+                    : row.status === "sent"
+                      ? "Sent"
+                      : row.status}
+                </span>
+              </td>
               <td className="break-words py-3 pr-3 text-muted">
                 {row.subject.trim() || "—"}
               </td>

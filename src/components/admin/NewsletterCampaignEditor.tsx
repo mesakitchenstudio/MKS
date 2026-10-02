@@ -13,6 +13,10 @@ import {
   type ResolvedNewsletterCampaignRecipe,
 } from "@/lib/newsletter-campaign";
 import {
+  NEWSLETTER_CAMPAIGN_DIRTY_SAVE_HINT,
+  NEWSLETTER_CAMPAIGN_IMMEDIATE_FAILURE_LABEL,
+  NEWSLETTER_CAMPAIGN_PROVIDER_ACCEPTED_LABEL,
+  NEWSLETTER_CAMPAIGN_STUCK_SENDING_GUIDANCE,
   newsletterCampaignReadinessLabel,
   type NewsletterCampaignDryRunResult,
   type NewsletterCampaignPickerRecipe,
@@ -298,7 +302,7 @@ export function NewsletterCampaignEditor({
   }
 
   function onDryRun() {
-    if (!canDryRun) return;
+    if (!canDryRun || dirty) return;
     setDryRunError(null);
     startTransition(async () => {
       const result = await dryRunNewsletterCampaignAction({
@@ -315,7 +319,7 @@ export function NewsletterCampaignEditor({
   }
 
   function onTestSend() {
-    if (!canSend || locked) return;
+    if (!canSend || locked || dirty) return;
     setTestSendError(null);
     setTestSendMessage(null);
     startTransition(async () => {
@@ -409,14 +413,16 @@ export function NewsletterCampaignEditor({
           </p>
           {initialStatus === "sending" ? (
             <p className="text-ink">
-              Sending started at {formatWhen(initialSendStartedAt)}. If this remains Sending, it
-              requires review — there is no automatic retry in this phase.
+              Sending started at {formatWhen(initialSendStartedAt)}.{" "}
+              {NEWSLETTER_CAMPAIGN_STUCK_SENDING_GUIDANCE}
             </p>
           ) : null}
           {initialStatus === "sent" ? (
             <p className="text-ink">
-              Sent at {formatWhen(initialSentAt)}
+              Send processing completed at {formatWhen(initialSentAt)}
               {initialSendStartedAt ? ` (started ${formatWhen(initialSendStartedAt)})` : ""}.
+              Status Sent means Mesa finished the audience loop — it does not prove inbox
+              delivery.
             </p>
           ) : null}
           {sendSummary &&
@@ -425,13 +431,17 @@ export function NewsletterCampaignEditor({
             <dl className="grid max-w-xl grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
               {typeof sendSummary.succeeded === "number" ? (
                 <div>
-                  <dt className="text-xs font-semibold text-muted">Succeeded</dt>
+                  <dt className="text-xs font-semibold text-muted">
+                    {NEWSLETTER_CAMPAIGN_PROVIDER_ACCEPTED_LABEL}
+                  </dt>
                   <dd className="tabular-nums text-ink">{sendSummary.succeeded}</dd>
                 </div>
               ) : null}
               {typeof sendSummary.failed === "number" ? (
                 <div>
-                  <dt className="text-xs font-semibold text-muted">Failed</dt>
+                  <dt className="text-xs font-semibold text-muted">
+                    {NEWSLETTER_CAMPAIGN_IMMEDIATE_FAILURE_LABEL}
+                  </dt>
                   <dd className="tabular-nums text-ink">{sendSummary.failed}</dd>
                 </div>
               ) : null}
@@ -955,21 +965,33 @@ export function NewsletterCampaignEditor({
             Dry run
           </h2>
           <p className="text-sm text-muted">
-            Aggregate audience analysis only. Does not send email, write subscribers, or change
-            campaign status.
+            Aggregate audience analysis of the saved campaign only. Does not send email, write
+            subscribers, or change campaign status.
           </p>
+          {dirty ? (
+            <p className="text-sm text-terracotta" role="status">
+              {NEWSLETTER_CAMPAIGN_DIRTY_SAVE_HINT}
+            </p>
+          ) : null}
           <label className="grid max-w-xs gap-1.5">
             <span className="text-xs font-semibold text-ink">Personalization simulation</span>
             <select
               className={fieldClass}
               value={dryRunPersonalization ? "on" : "off"}
               onChange={(e) => setDryRunPersonalization(e.target.value === "on")}
+              disabled={dirty}
             >
               <option value="on">ON</option>
               <option value="off">OFF</option>
             </select>
           </label>
-          <button type="button" className={btnPrimary} disabled={pending} onClick={onDryRun}>
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={pending || dirty}
+            aria-label="Run dry run on saved campaign"
+            onClick={onDryRun}
+          >
             Run dry run
           </button>
           {dryRunError ? (
@@ -1010,14 +1032,19 @@ export function NewsletterCampaignEditor({
             Send test email
           </h2>
           <p className="text-sm text-muted">
-            Sends one test email to your account only. Subscribers are not contacted. Campaign
-            status and timestamps are not changed. Uses the same Preview mode settings above
-            (General / Synthetic Series / Synthetic Category).
+            Sends one test email to your account only based on the saved campaign. Subscribers are
+            not contacted. Campaign status and timestamps are not changed. Uses the same Preview
+            mode settings above (General / Synthetic Series / Synthetic Category).
           </p>
+          {dirty ? (
+            <p className="text-sm text-terracotta" role="status">
+              {NEWSLETTER_CAMPAIGN_DIRTY_SAVE_HINT}
+            </p>
+          ) : null}
           <button
             type="button"
             className={btnSecondary}
-            disabled={pending}
+            disabled={pending || dirty}
             aria-label="Send test email to your account only"
             onClick={onTestSend}
           >
@@ -1045,16 +1072,17 @@ export function NewsletterCampaignEditor({
             Send campaign
           </h2>
           <p className="text-sm text-muted">
-            Delivers to eligible newsletter subscribers. Separated from Save — requires explicit
-            confirmation. After send, the campaign locks permanently for this phase (no automatic
-            whole-campaign retry).
+            Completes a send-processing run for eligible newsletter subscribers using the saved
+            campaign. Separated from Save — requires explicit confirmation. After send, the
+            campaign locks permanently for this phase (no automatic whole-campaign retry). Provider
+            acceptance is not inbox delivery proof.
           </p>
           <p className="text-sm text-ink" role="status">
             {personalizationLabel}
           </p>
           {dirty ? (
             <p className="text-sm text-terracotta" role="status">
-              Save unsaved changes before sending.
+              {NEWSLETTER_CAMPAIGN_DIRTY_SAVE_HINT}
             </p>
           ) : null}
           <button
