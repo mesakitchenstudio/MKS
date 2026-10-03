@@ -55,9 +55,15 @@ export function growthOpportunityPriorityLabel(
 
 /** Defensive: Growth action links must stay on Admin relative paths. */
 export function isSafeAdminGrowthHref(href: string): boolean {
-  const value = String(href || "").trim();
+  const raw = String(href || "");
+  // Reject control characters before trim so trailing newlines cannot sanitize away.
+  if (raw.includes("\0") || raw.includes("\n") || raw.includes("\r")) return false;
+  const value = raw.trim();
   if (!value.startsWith("/admin/")) return false;
   if (value.startsWith("//")) return false;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return false;
+  if (value.toLowerCase().includes("javascript:")) return false;
+  if (value.toLowerCase().includes("data:")) return false;
   if (value.includes("://")) return false;
   if (value.includes("\\")) return false;
   return true;

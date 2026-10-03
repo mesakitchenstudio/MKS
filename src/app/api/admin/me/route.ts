@@ -7,7 +7,7 @@ import {
   rewriteAdminSessionCookie,
   verifySessionToken,
 } from "@/lib/auth";
-import { isRecipeQaEnabled } from "@/lib/flags";
+import { isAdminGrowthOpportunitiesEnabled, isRecipeQaEnabled } from "@/lib/flags";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +50,7 @@ export async function GET() {
     homeHref: homeForRole(live.role),
     sections: buildAdminNavSections(live.role, {
       recipeQaEnabled: isRecipeQaEnabled(),
+      growthOpportunitiesEnabled: isAdminGrowthOpportunitiesEnabled(),
     }),
   });
 }

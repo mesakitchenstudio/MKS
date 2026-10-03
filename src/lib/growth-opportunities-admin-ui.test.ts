@@ -164,6 +164,15 @@ describe("growth opportunities admin — nav / route contracts", () => {
     const layout = readRepo("app/admin/(app)/layout.tsx");
     assert.match(layout, /isAdminGrowthOpportunitiesEnabled\(\)/);
     assert.match(layout, /growthOpportunitiesEnabled:\s*isAdminGrowthOpportunitiesEnabled\(\)/);
+
+    // Soft-nav identity sync must pass the same gate — otherwise AdminShell
+    // replaces SSR sections and Growth disappears from Analytics.
+    const meRoute = readRepo("app/api/admin/me/route.ts");
+    assert.match(meRoute, /isAdminGrowthOpportunitiesEnabled\(\)/);
+    assert.match(
+      meRoute,
+      /growthOpportunitiesEnabled:\s*isAdminGrowthOpportunitiesEnabled\(\)/,
+    );
   });
 
   it("route gates before loader and stays server-only", () => {
@@ -222,6 +231,9 @@ describe("growth opportunities admin — nav / route contracts", () => {
     assert.equal(isSafeAdminGrowthHref("//evil.example"), false);
     assert.equal(isSafeAdminGrowthHref("/public"), false);
     assert.equal(isSafeAdminGrowthHref("/admin"), false);
+    assert.equal(isSafeAdminGrowthHref("javascript:alert(1)"), false);
+    assert.equal(isSafeAdminGrowthHref("data:text/html,hi"), false);
+    assert.equal(isSafeAdminGrowthHref("/admin/recipes/x\n"), false);
   });
 });
 

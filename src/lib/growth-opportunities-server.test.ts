@@ -73,9 +73,9 @@ function createEmptyDb() {
       },
     },
     searchEvent: {
-      findMany: async (args: { select?: Record<string, boolean> }) => {
-        labels.push("searchEvent.findMany");
-        assert.equal(args.select?.visitorId, undefined);
+      groupBy: async (args: { by?: string[] }) => {
+        labels.push("searchEvent.groupBy");
+        assert.deepEqual(args.by, ["queryNorm"]);
         return [];
       },
     },
@@ -92,7 +92,7 @@ function createEmptyDb() {
 function createQueryProbe(db: PrismaClient) {
   const modelCalls: string[] = [];
   const writeCalls: string[] = [];
-  const searchSelects: Array<Record<string, unknown> | undefined> = [];
+  const searchGroupArgs: Array<Record<string, unknown> | undefined> = [];
 
   const handler: ProxyHandler<object> = {
     get(target, prop, receiver) {
@@ -113,9 +113,16 @@ function createQueryProbe(db: PrismaClient) {
                 throw new Error(`Forbidden Growth model access: ${prop}.${action}`);
               }
               if (prop === "searchEvent" && action === "findMany") {
-                const arg = args[0] as { select?: Record<string, unknown> } | undefined;
-                searchSelects.push(arg?.select);
-                assert.equal(arg?.select?.visitorId, undefined);
+                throw new Error("Growth must not use unbounded searchEvent.findMany");
+              }
+              if (prop === "searchEvent" && action === "groupBy") {
+                const arg = args[0] as Record<string, unknown> | undefined;
+                searchGroupArgs.push(arg);
+                assert.deepEqual(arg?.by, ["queryNorm"]);
+                assert.equal(
+                  JSON.stringify(arg).toLowerCase().includes("visitorid"),
+                  false,
+                );
               }
               return (fn as (...a: unknown[]) => unknown).apply(model, args);
             };
@@ -130,7 +137,7 @@ function createQueryProbe(db: PrismaClient) {
     db: new Proxy(db, handler) as PrismaClient,
     modelCalls,
     writeCalls,
-    searchSelects,
+    searchGroupArgs,
   };
 }
 
@@ -188,7 +195,7 @@ describe("growth opportunities server — empty / privacy / bounds", () => {
     assert.deepEqual(labels.sort(), [
       "category.findMany",
       "recipe.findMany",
-      "searchEvent.findMany",
+      "searchEvent.groupBy",
       "series.findMany",
     ]);
   });
@@ -235,8 +242,8 @@ describe("growth opportunities server — empty / privacy / bounds", () => {
             },
           },
           searchEvent: {
-            findMany: async () => {
-              labels.push("searchEvent.findMany");
+            groupBy: async () => {
+              labels.push("searchEvent.groupBy");
               return [];
             },
           },
@@ -259,68 +266,95 @@ describe("growth opportunities server — empty / privacy / bounds", () => {
     assert.equal(large.labels.length, small.labels.length);
   });
 
-  it("search aggregation thresholds, window, display, and candidate cap", async () => {
+  it("search aggregation uses DB groupBy with having/take bounds", async () => {
     const now = new Date("2026-06-15T12:00:00.000Z");
-    const rows: Array<{ queryNorm: string; queryRaw: string }> = [];
-    for (let i = 0; i < GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT; i += 1) {
-      rows.push({ queryNorm: "air fryer chicken", queryRaw: "Air Fryer Chicken" });
-    }
-    for (let i = 0; i < GROWTH_ZERO_RESULT_SEARCH_HIGH_COUNT; i += 1) {
-      rows.push({ queryNorm: "sourdough discard", queryRaw: "sourdough discard" });
-    }
-    // Below threshold
-    rows.push({ queryNorm: "once", queryRaw: "once" });
-    rows.push({ queryNorm: "twice", queryRaw: "twice" });
-
-    // Cap pressure: many distinct norms at threshold
+    const groups: Array<{ queryNorm: string; _count: { _all: number } }> = [
+      { queryNorm: "air fryer chicken", _count: { _all: GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT } },
+      { queryNorm: "sourdough discard", _count: { _all: GROWTH_ZERO_RESULT_SEARCH_HIGH_COUNT } },
+    ];
     for (let i = 0; i < GROWTH_SEARCH_AGGREGATE_CANDIDATE_CAP + 20; i += 1) {
-      const norm = `cap-query-${String(i).padStart(3, "0")}`;
-      for (let j = 0; j < GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT; j += 1) {
-        rows.push({ queryNorm: norm, queryRaw: norm });
-      }
+      groups.push({
+        queryNorm: `cap-query-${String(i).padStart(3, "0")}`,
+        _count: { _all: GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT },
+      });
     }
 
+    let groupByArgs: Record<string, unknown> | undefined;
     const db = {
       recipe: { findMany: async () => [] },
       category: { findMany: async () => [] },
       series: { findMany: async () => [] },
       searchEvent: {
-        findMany: async (args: {
-          where?: { createdAt?: { gte?: Date; lt?: Date }; zeroResult?: boolean };
-          select?: Record<string, boolean>;
-        }) => {
-          assert.equal(args.where?.zeroResult, true);
-          assert.ok(args.where?.createdAt?.gte instanceof Date);
-          assert.ok(args.where?.createdAt?.lt instanceof Date);
-          assert.equal(args.select?.visitorId, undefined);
-          assert.equal(args.select?.queryNorm, true);
-          assert.equal(args.select?.queryRaw, true);
-          return rows;
+        findMany: async () => {
+          throw new Error("unbounded findMany must not run");
+        },
+        groupBy: async (args: Record<string, unknown>) => {
+          groupByArgs = args;
+          assert.deepEqual(args.by, ["queryNorm"]);
+          assert.equal((args.where as { zeroResult?: boolean }).zeroResult, true);
+          const createdAt = (args.where as { createdAt?: { gte?: Date; lt?: Date } }).createdAt;
+          assert.ok(createdAt?.gte instanceof Date);
+          assert.ok(createdAt?.lt instanceof Date);
+          assert.equal(args.take, GROWTH_SEARCH_AGGREGATE_CANDIDATE_CAP);
+          const having = args.having as {
+            queryNorm?: { _count?: { gte?: number } };
+          };
+          assert.equal(
+            having.queryNorm?._count?.gte,
+            GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT,
+          );
+          assert.equal(JSON.stringify(args).toLowerCase().includes("visitorid"), false);
+          // Simulate DB already applying take.
+          return groups.slice(0, GROWTH_SEARCH_AGGREGATE_CANDIDATE_CAP);
         },
       },
       recipeTypeField: { findMany: async () => [] },
     } as unknown as ReturnType<typeof import("@/lib/db").getDb>;
 
     const inputs = await loadGrowthOpportunityInputs({ db, now });
+    assert.ok(groupByArgs);
     assert.ok(inputs.searches);
     assert.ok(inputs.searches!.length <= GROWTH_SEARCH_AGGREGATE_CANDIDATE_CAP);
     const chicken = inputs.searches!.find((s) => s.queryNorm === "air fryer chicken");
     assert.ok(chicken);
     assert.equal(chicken!.zeroResultCount, GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT);
-    assert.equal(chicken!.displayQuery, "Air Fryer Chicken");
+    assert.equal(chicken!.displayQuery, "air fryer chicken");
     const discard = inputs.searches!.find((s) => s.queryNorm === "sourdough discard");
     assert.ok(discard);
     assert.equal(discard!.zeroResultCount, GROWTH_ZERO_RESULT_SEARCH_HIGH_COUNT);
-    assert.equal(
-      inputs.searches!.some((s) => s.queryNorm === "once" || s.queryNorm === "twice"),
-      false,
-    );
 
     const result = await loadAdminGrowthOpportunitiesPayload({ db, now });
     const r1 = result.opportunities.filter((o) => o.ruleId === "search_zero_repeat");
     assert.ok(r1.some((o) => o.entityId === "air fryer chicken" && o.priority === "medium"));
     assert.ok(r1.some((o) => o.entityId === "sourdough discard" && o.priority === "high"));
     assertNoPii(JSON.stringify(result));
+  });
+
+  it("search groupBy volume does not force raw-row loading (10k logical events)", async () => {
+    const now = new Date("2026-06-15T12:00:00.000Z");
+    // 10k logical events collapse to ~200 aggregate groups at the DB layer.
+    const groups = Array.from({ length: GROWTH_SEARCH_AGGREGATE_CANDIDATE_CAP }, (_, i) => ({
+      queryNorm: `volume-${String(i).padStart(4, "0")}`,
+      _count: { _all: 50 + (i % 7) },
+    }));
+    let calls = 0;
+    const db = {
+      recipe: { findMany: async () => [] },
+      category: { findMany: async () => [] },
+      series: { findMany: async () => [] },
+      searchEvent: {
+        groupBy: async () => {
+          calls += 1;
+          return groups;
+        },
+      },
+      recipeTypeField: { findMany: async () => [] },
+    } as unknown as ReturnType<typeof import("@/lib/db").getDb>;
+
+    const inputs = await loadGrowthOpportunityInputs({ db, now });
+    assert.equal(calls, 1);
+    assert.equal(inputs.searches?.length, GROWTH_SEARCH_AGGREGATE_CANDIDATE_CAP);
+    assert.equal(inputs.searches?.[0]?.zeroResultCount, 50);
   });
 });
 
@@ -948,7 +982,7 @@ describe("growth opportunities server — local DB fixtures", { concurrency: fal
     assert.equal(row!.stepTimestampCount, 0);
   });
 
-  it("no-write + forbidden model + search select privacy on full load", async () => {
+  it("no-write + forbidden model + search groupBy privacy on full load", async () => {
     const probe = createQueryProbe(db);
     await loadAdminGrowthOpportunitiesPayload({
       db: probe.db as unknown as ReturnType<typeof import("@/lib/db").getDb>,
@@ -959,18 +993,19 @@ describe("growth opportunities server — local DB fixtures", { concurrency: fal
     assert.ok(probe.modelCalls.includes("recipe.findMany"));
     assert.ok(probe.modelCalls.includes("category.findMany"));
     assert.ok(probe.modelCalls.includes("series.findMany"));
-    assert.ok(probe.modelCalls.includes("searchEvent.findMany"));
+    assert.ok(probe.modelCalls.includes("searchEvent.groupBy"));
+    assert.equal(probe.modelCalls.includes("searchEvent.findMany"), false);
     assert.equal(probe.modelCalls.some((c) => c.startsWith("user.")), false);
     assert.equal(probe.modelCalls.some((c) => c.startsWith("recipeSave.")), false);
     assert.equal(probe.modelCalls.some((c) => c.startsWith("mealPlan.")), false);
     assert.equal(probe.modelCalls.some((c) => c.startsWith("newsletterSubscriber.")), false);
-    assert.equal(probe.searchSelects.length >= 1, true);
-    for (const select of probe.searchSelects) {
-      assert.ok(select);
-      assert.equal("visitorId" in (select ?? {}), false);
-      assert.equal("filters" in (select ?? {}), false);
+    assert.equal(probe.searchGroupArgs.length >= 1, true);
+    for (const args of probe.searchGroupArgs) {
+      assert.ok(args);
+      assert.deepEqual(args.by, ["queryNorm"]);
+      assert.equal(JSON.stringify(args).toLowerCase().includes("visitorid"), false);
+      assert.equal(JSON.stringify(args).toLowerCase().includes("filters"), false);
     }
-    // Bounded: findMany counts do not scale with fixture recipe count beyond fixed labels
     const recipeFinds = probe.modelCalls.filter((c) => c === "recipe.findMany").length;
     assert.equal(recipeFinds, 1);
   });

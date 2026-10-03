@@ -247,5 +247,6 @@
   "src/lib/newsletter-campaign-hardening.test.ts",
   "src/lib/growth-opportunities.test.ts",
   "src/lib/growth-opportunities-server.test.ts",
-  "src/lib/growth-opportunities-admin-ui.test.ts"
+  "src/lib/growth-opportunities-admin-ui.test.ts",
+  "src/lib/growth-opportunities-hardening.test.ts"
 ]

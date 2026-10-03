@@ -326,36 +326,62 @@ function buildSeriesAggregates(
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
-function buildSearchAggregates(
-  rows: Array<{ queryNorm: string; queryRaw: string }>,
-): GrowthSearchAggregate[] {
-  const map = new Map<string, { queryNorm: string; displayQuery: string; zeroResultCount: number }>();
-  for (const row of rows) {
-    const queryNorm = String(row.queryNorm || "").trim();
-    if (!queryNorm) continue;
-    const display = String(row.queryRaw || "").trim() || queryNorm;
-    const existing = map.get(queryNorm);
-    if (!existing) {
-      map.set(queryNorm, { queryNorm, displayQuery: display, zeroResultCount: 1 });
-      continue;
-    }
-    existing.zeroResultCount += 1;
-    if (display.length < existing.displayQuery.length) existing.displayQuery = display;
-  }
+type SearchGroupRow = {
+  queryNorm: string;
+  _count: { _all: number };
+};
 
-  return [...map.values()]
-    .filter((entry) => entry.zeroResultCount >= GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT)
-    .sort(
-      (a, b) =>
-        b.zeroResultCount - a.zeroResultCount || a.queryNorm.localeCompare(b.queryNorm),
-    )
-    .slice(0, GROWTH_SEARCH_AGGREGATE_CANDIDATE_CAP)
-    .map((entry) => ({
-      queryNorm: entry.queryNorm,
-      displayQuery: entry.displayQuery,
-      zeroResultCount: entry.zeroResultCount,
-      windowDays: GROWTH_SEARCH_WINDOW_DAYS,
-    }));
+/**
+ * Map DB-side SearchEvent groupBy rows → Growth search aggregates.
+ * Counts are exact for the 28-day window (aggregation happens in the DB).
+ * Display uses queryNorm (deterministic; accuracy over queryRaw typography).
+ */
+function mapSearchGroupRows(groups: SearchGroupRow[]): GrowthSearchAggregate[] {
+  return groups
+    .map((group) => {
+      const queryNorm = String(group.queryNorm || "").trim();
+      const zeroResultCount = Number(group._count?._all ?? 0);
+      return {
+        queryNorm,
+        displayQuery: queryNorm,
+        zeroResultCount,
+        windowDays: GROWTH_SEARCH_WINDOW_DAYS as typeof GROWTH_SEARCH_WINDOW_DAYS,
+      };
+    })
+    .filter(
+      (entry) =>
+        entry.queryNorm.length > 0 &&
+        Number.isFinite(entry.zeroResultCount) &&
+        entry.zeroResultCount >= GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT,
+    );
+}
+
+async function loadSearchAggregatesFromDb(
+  db: ReturnType<typeof getDb>,
+  window: { start: Date; endExclusive: Date },
+  onQuery: GrowthLoadOptions["onQuery"],
+): Promise<GrowthSearchAggregate[]> {
+  track(onQuery, "searchEvent.groupBy");
+  const groups = await db.searchEvent.groupBy({
+    by: ["queryNorm"],
+    where: {
+      zeroResult: true,
+      createdAt: { gte: window.start, lt: window.endExclusive },
+      queryNorm: { not: "" },
+    },
+    _count: { _all: true },
+    having: {
+      queryNorm: {
+        _count: {
+          gte: GROWTH_ZERO_RESULT_SEARCH_MIN_COUNT,
+        },
+      },
+    },
+    orderBy: [{ _count: { queryNorm: "desc" } }, { queryNorm: "asc" }],
+    take: GROWTH_SEARCH_AGGREGATE_CANDIDATE_CAP,
+  });
+
+  return mapSearchGroupRows(groups as SearchGroupRow[]);
 }
 
 function summarizeOpportunities(opportunities: GrowthOpportunity[]) {
@@ -381,9 +407,8 @@ export async function loadGrowthOpportunityInputs(
   track(onQuery, "recipe.findMany");
   track(onQuery, "category.findMany");
   track(onQuery, "series.findMany");
-  track(onQuery, "searchEvent.findMany");
 
-  const [publishedRecipes, categories, seriesRows, searchRows] = await Promise.all([
+  const [publishedRecipes, categories, seriesRows, searches] = await Promise.all([
     db.recipe.findMany({
       where: { status: "published" },
       select: publishedRecipeSelect,
@@ -414,18 +439,7 @@ export async function loadGrowthOpportunityInputs(
       },
       orderBy: [{ title: "asc" }, { id: "asc" }],
     }),
-    db.searchEvent.findMany({
-      where: {
-        zeroResult: true,
-        createdAt: { gte: window.start, lt: window.endExclusive },
-        queryNorm: { not: "" },
-      },
-      select: {
-        queryNorm: true,
-        queryRaw: true,
-        // Intentionally omit visitorId and all identity/network fields.
-      },
-    }),
+    loadSearchAggregatesFromDb(db, window, onQuery),
   ]);
 
   const typeIds = [...new Set(publishedRecipes.map((row) => row.typeId))];
@@ -455,7 +469,7 @@ export async function loadGrowthOpportunityInputs(
   }
 
   return {
-    searches: buildSearchAggregates(searchRows),
+    searches,
     categories: buildCategoryAggregates(categories, publishedRecipes),
     ingredients: buildIngredientAggregates(publishedRecipes),
     recipes: buildRecipeAggregates(publishedRecipes, fieldsByType),
