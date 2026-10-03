@@ -245,5 +245,6 @@
   "src/lib/newsletter-campaign-send.test.ts",
   "src/lib/newsletter-marketing-email.test.ts",
   "src/lib/newsletter-campaign-hardening.test.ts",
-  "src/lib/growth-opportunities.test.ts"
+  "src/lib/growth-opportunities.test.ts",
+  "src/lib/growth-opportunities-server.test.ts"
 ]
