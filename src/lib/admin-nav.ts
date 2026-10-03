@@ -23,7 +23,7 @@ export type AdminNavItem = {
   /** Existing permission area — unchanged from prior IA. */
   area: AdminArea;
   /** Optional product feature gate (server-derived; never NEXT_PUBLIC). */
-  feature?: "recipeQa";
+  feature?: "recipeQa" | "growthOpportunities";
 };
 
 export type AdminNavSection = {
@@ -90,6 +90,13 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
     label: "Analytics",
     items: [
       { href: "/admin/content-performance", label: "Content Performance", match: "prefix", area: "content" },
+      {
+        href: "/admin/growth",
+        label: "Growth Opportunities",
+        match: "prefix",
+        area: "content",
+        feature: "growthOpportunities",
+      },
       { href: "/admin/visitors", label: "Visitors", area: "members" },
       { href: "/admin/search", label: "Search", match: "exact", area: "content" },
       { href: "/admin/search-console", label: "Search Console", match: "prefix", area: "content" },
@@ -109,14 +116,16 @@ const ADMIN_NAV_IA: AdminNavSection[] = [
 /** Role-aware navigation sections — same global IA; filters via existing `canAccess` rules. */
 export function buildAdminNavSections(
   role: AccessLevel,
-  options?: { recipeQaEnabled?: boolean },
+  options?: { recipeQaEnabled?: boolean; growthOpportunitiesEnabled?: boolean },
 ): AdminNavSection[] {
   const recipeQaEnabled = options?.recipeQaEnabled === true;
+  const growthOpportunitiesEnabled = options?.growthOpportunitiesEnabled === true;
   return ADMIN_NAV_IA.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
       if (!canAccess(role, item.area)) return false;
       if (item.feature === "recipeQa" && !recipeQaEnabled) return false;
+      if (item.feature === "growthOpportunities" && !growthOpportunitiesEnabled) return false;
       return true;
     }),
   })).filter((section) => section.items.length > 0);
@@ -152,6 +161,7 @@ export function adminWorkspaceWidthForPath(pathname: string) {
     pathname.startsWith("/admin/notifications") ||
     pathname.startsWith("/admin/visitors") ||
     pathname.startsWith("/admin/content-performance") ||
+    pathname.startsWith("/admin/growth") ||
     pathname.startsWith("/admin/search") ||
     pathname.startsWith("/admin/search-console") ||
     pathname.startsWith("/admin/youtube")

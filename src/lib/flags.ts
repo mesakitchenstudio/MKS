@@ -59,3 +59,13 @@ export function isInternalLinkRecommendationsEnabled(): boolean {
 export function isNewsletterPersonalizationEnabled(): boolean {
   return process.env.NEWSLETTER_PERSONALIZATION_ENABLED === "true";
 }
+
+/**
+ * Roadmap #13 — Admin Growth Opportunities dashboard.
+ * Server-only — default OFF unless exactly `"true"`.
+ * Do not mirror with NEXT_PUBLIC_* .
+ * Pure engine + server loaders stay ungated; Admin route/nav enforce this gate.
+ */
+export function isAdminGrowthOpportunitiesEnabled(): boolean {
+  return process.env.ADMIN_GROWTH_OPPORTUNITIES_ENABLED === "true";
+}

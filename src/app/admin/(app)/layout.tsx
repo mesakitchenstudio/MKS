@@ -5,7 +5,7 @@ import { getAdminDeployInfo } from "@/lib/admin-deploy";
 import { buildAdminNavSections } from "@/lib/admin-nav";
 import { countUnreadAdminNotificationsForAdmin } from "@/lib/admin-notifications-server";
 import { getAdminSession } from "@/lib/auth";
-import { isRecipeQaEnabled } from "@/lib/flags";
+import { isAdminGrowthOpportunitiesEnabled, isRecipeQaEnabled } from "@/lib/flags";
 
 /** Presentation-only label for the signed-in admin in the shell. */
 function adminNavDisplayName(admin: { id: string; name: string }) {
@@ -23,6 +23,7 @@ export default async function AdminAppLayout({ children }: { children: React.Rea
 
   const sections = buildAdminNavSections(admin.role, {
     recipeQaEnabled: isRecipeQaEnabled(),
+    growthOpportunitiesEnabled: isAdminGrowthOpportunitiesEnabled(),
   });
   const deployInfo = getAdminDeployInfo();
   const notificationUnreadCount = canAccess(admin.role, "content")
